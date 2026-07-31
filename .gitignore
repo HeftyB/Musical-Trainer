@@ -3,3 +3,6 @@
 .DS_Store
 *.xcodeproj
 *.xcworkspace
+
+# Built app bundle
+Musical Trainer.app/

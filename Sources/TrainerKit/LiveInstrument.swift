@@ -19,6 +19,11 @@ final class LiveInstrument {
         var relInc: Float = 0        // release slope, fixed at note-off for a steady tail
         var velGain: Float = 0
         var age: UInt64 = 0          // for voice stealing
+        /// 0 = pitched tone, 1 = percussive click. A click is a one-shot: it ignores
+        /// note-off and decays on its own.
+        var kind: Int32 = 0
+        var noise: UInt64 = 0x9E3779B97F4A7C15
+        var noisePrev: Float = 0
     }
 
     private let fs: Double
@@ -44,12 +49,15 @@ final class LiveInstrument {
     private let gain: Float
 
     private let toneNorm = Float(1.0 / 1.45)      // keeps a single voice's peak near 1
+    /// Per-sample decay for the click voice — ~25 ms to inaudible.
+    private let clickDecay: Float
 
     init(sampleRate: Double, gain: Float = 0.5) {
         fs = sampleRate
         self.gain = gain
         attackInc = Float(1.0 / (0.006 * sampleRate))
         decayInc = (1 - sustain) / Float(0.10 * sampleRate)
+        clickDecay = Float(exp(-1.0 / (0.008 * sampleRate)))
 
         voices = .allocate(capacity: maxVoices)
         voices.initialize(repeating: Voice(), count: maxVoices)
@@ -70,13 +78,13 @@ final class LiveInstrument {
 
     /// Enqueue a note event. Lock-free; drops the event if the ring is momentarily full
     /// (would take hundreds of keypresses between two render calls — it won't happen).
-    func enqueue(note: UInt8, velocity: UInt8, on: Bool) {
+    func enqueue(note: UInt8, velocity: UInt8, on: Bool, click: Bool = false) {
         let t = tail.pointee
         let next = (t + 1) % evCapacity
         if next == head.pointee { return }
         // Pack into one word so a single index publish makes it visible. On x86_64's strong
         // memory model the prior data store is not reordered past the tail update below.
-        evCodes[t] = (on ? 1 << 16 : 0) | (Int32(note) << 8) | Int32(velocity)
+        evCodes[t] = (click ? 1 << 17 : 0) | (on ? 1 << 16 : 0) | (Int32(note) << 8) | Int32(velocity)
         tail.pointee = next
     }
 
@@ -89,10 +97,17 @@ final class LiveInstrument {
 
         while head.pointee != tail.pointee {
             let code = evCodes[head.pointee]
+            let click = (code & (1 << 17)) != 0
             let on = (code & (1 << 16)) != 0
             let note = (code >> 8) & 0x7F
             let velocity = code & 0x7F
-            if on { trigger(note: note, velocity: velocity) } else { release(note: note) }
+            if click {
+                if on { triggerClick(velocity: velocity) }   // one-shot; note-off ignored
+            } else if on {
+                trigger(note: note, velocity: velocity)
+            } else {
+                release(note: note)
+            }
             head.pointee = (head.pointee + 1) % evCapacity
         }
 
@@ -102,6 +117,17 @@ final class LiveInstrument {
             var v = voices[vi]
             let inc = v.phaseInc
             for i in 0..<n {
+                if v.kind == 1 {
+                    // Percussive click: high-passed noise under a fixed exponential decay.
+                    v.noise = v.noise &* 6364136223846793005 &+ 1442695040888963407
+                    let white = Float(Int32(truncatingIfNeeded: v.noise >> 32)) / Float(Int32.max)
+                    let hp = white - v.noisePrev
+                    v.noisePrev = white
+                    scratch[i] += hp * v.env * v.velGain * gain
+                    v.env *= clickDecay
+                    if v.env < 0.0005 { v.active = false; break }
+                    continue
+                }
                 switch v.stage {
                 case 0: v.env += attackInc; if v.env >= 1 { v.env = 1; v.stage = 1 }
                 case 1: v.env -= decayInc;  if v.env <= sustain { v.env = sustain; v.stage = 2 }
@@ -130,6 +156,19 @@ final class LiveInstrument {
                              phaseInc: 2 * .pi * freq / fs,
                              env: 0, stage: 0, relInc: 0,
                              velGain: Float(velocity) / 127, age: ageCounter)
+    }
+
+    /// A short percussive tick, used to confirm a phrase mark registered. Deliberately
+    /// unpitched so it reads as "noted" rather than as part of what you're playing.
+    private func triggerClick(velocity: Int32) {
+        let slot = freeVoiceSlot()
+        ageCounter += 1
+        var v = Voice()
+        v.active = true; v.kind = 1; v.env = 1
+        v.velGain = 0.5 + 0.5 * Float(velocity) / 127
+        v.age = ageCounter
+        v.noise = 0x2545F4914F6CDD1D &+ ageCounter
+        voices[slot] = v
     }
 
     private func release(note: Int32) {

@@ -138,11 +138,24 @@ final class GroovePlayer {
         }
     }
 
-    func run(forSeconds duration: Double) throws {
+    /// Play the schedule for `duration`, reporting fractional progress.
+    ///
+    /// The wait is paced by an explicit sleep rather than by `RunLoop.run(until:)`, which
+    /// returns immediately on a thread with no input sources — true of the background queue
+    /// the app runs takes on. The run loop is still serviced so anything that needs it keeps
+    /// working; the sleep is what guarantees the loop actually waits.
+    func run(forSeconds duration: Double, progress: ((Double) -> Void)? = nil) throws {
         engine.prepare()
         try engine.start()
-        RunLoop.current.run(until: Date().addingTimeInterval(duration))
+        let start = Date()
+        let deadline = start.addingTimeInterval(duration)
+        while Date() < deadline {
+            _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+            Thread.sleep(forTimeInterval: 0.01)
+            progress?(min(1, Date().timeIntervalSince(start) / duration))
+        }
         engine.stop()
+        progress?(1)
     }
 
     /// Total duration of the schedule, so callers can play exactly to the end.
@@ -156,8 +169,11 @@ final class GroovePlayer {
 
     /// Forward a MIDI note event to the live instrument. Safe to call from the CoreMIDI
     /// thread — `enqueue` is lock-free.
-    func noteEvent(note: UInt8, velocity: UInt8, on: Bool) {
-        instrument.enqueue(note: note, velocity: velocity, on: on)
+    ///
+    /// Pads (channel 9, the drum channel) become an unpitched click rather than a synth
+    /// note, so a phrase mark sounds like an acknowledgement instead of something you played.
+    func noteEvent(note: UInt8, velocity: UInt8, on: Bool, channel: UInt8 = 0) {
+        instrument.enqueue(note: note, velocity: velocity, on: on, click: channel == 9)
     }
 
     private static func render(state s: UnsafeMutablePointer<RenderState>,

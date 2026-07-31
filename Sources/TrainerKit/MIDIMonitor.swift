@@ -8,11 +8,11 @@ import Foundation
 /// If the modern UMP port stays silent while the legacy port receives, the fault is in
 /// protocol translation and we switch APIs. If both stay silent, nothing is reaching the
 /// process and the problem is the device, its mode, or connection.
-enum MIDIMonitor {
+public enum MIDIMonitor {
     private static var umpCount = 0
     private static var legacyCount = 0
 
-    static func run(seconds: Double = 20) {
+    public static func run(seconds: Double = 20) {
         print("\n\u{001B}[1mMIDI monitor\u{001B}[0m")
         print(String(repeating: "─", count: 60))
 

@@ -6,7 +6,7 @@ import TimingCore
 ///
 /// This is what makes a bad live result interpretable. If the self-test passes and the
 /// live run fails, the fault is in the hardware or the clock bridge — not in the maths.
-enum SelfTest {
+public enum SelfTest {
 
     /// A percussive transient: instantaneous attack, exponential decay, broadband.
     private static func burst(_ signal: inout [Float], at start: Int,
@@ -37,7 +37,7 @@ enum SelfTest {
         return pass
     }
 
-    static func run() -> Bool {
+    public static func run() -> Bool {
         print("\n\u{001B}[1mSelf-test — analysis pipeline against known ground truth\u{001B}[0m")
         print(String(repeating: "─", count: 62))
 

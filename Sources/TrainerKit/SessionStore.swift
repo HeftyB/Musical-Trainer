@@ -46,6 +46,32 @@ struct JamSession: Codable {
     }
 }
 
+/// A recorded form drill. Kept separate from `JamSession` because it measures a different
+/// thing — where you are in the music, not how you place a beat — and pooling the two would
+/// be meaningless.
+struct FormSession: Codable {
+    let date: Date
+    let bpm: Double
+    let bars: Int
+    let phraseBars: Int
+    let level: Int
+    let feelRating: Int?
+
+    let gridStartTime: Double
+    let markTimes: [Double]
+
+    let phrasesAvailable: Int
+    let marksPlaced: Int
+    let onFormCount: Int
+    let tightCount: Int
+    let meanAbsFormErrorBars: Double
+    let phaseErrorMeanMs: Double
+    let phaseErrorSDms: Double
+    let slipBarsPerPhrase: Double?
+    let missedPhrases: [Int]
+    let headline: String
+}
+
 enum SessionStore {
     static var directory: URL {
         let base = FileManager.default
@@ -67,14 +93,34 @@ enum SessionStore {
     }
 
     static func loadAll() -> [JamSession] {
+        load(prefix: "jam-", as: JamSession.self).sorted { $0.date < $1.date }
+    }
+
+    @discardableResult
+    static func save(_ session: FormSession) throws -> URL {
+        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
+        let url = directory.appendingPathComponent("form-\(stamp).json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(session).write(to: url, options: .atomic)
+        return url
+    }
+
+    static func loadAllForm() -> [FormSession] {
+        load(prefix: "form-", as: FormSession.self).sorted { $0.date < $1.date }
+    }
+
+    /// Decode every file with the given name prefix. The prefix keeps jam and form takes
+    /// apart, so neither can be silently decoded as the other.
+    private static func load<T: Decodable>(prefix: String, as type: T.Type) -> [T] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let files = (try? FileManager.default.contentsOfDirectory(at: directory,
                         includingPropertiesForKeys: nil)) ?? []
         return files
-            .filter { $0.pathExtension == "json" }
-            .compactMap { try? decoder.decode(JamSession.self, from: Data(contentsOf: $0)) }
-            .sorted { $0.date < $1.date }
+            .filter { $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix(prefix) }
+            .compactMap { try? decoder.decode(T.self, from: Data(contentsOf: $0)) }
     }
 }
 

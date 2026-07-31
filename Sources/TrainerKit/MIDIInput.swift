@@ -8,6 +8,13 @@ struct MIDINoteOn {
     let hostTime: UInt64
     let note: UInt8
     let velocity: UInt8
+    /// 0-based MIDI channel. The Launchkey puts its keys on channel 0 and its pads on
+    /// channel 9 (channel 10, the drum channel), which is what lets the form drill tell a
+    /// phrase mark apart from ordinary playing with no configuration.
+    let channel: UInt8
+
+    /// True for a pad hit on the drum channel.
+    var isPad: Bool { channel == 9 }
 }
 
 final class MIDIInput {
@@ -19,7 +26,7 @@ final class MIDIInput {
     /// Called on the CoreMIDI delivery thread for every note-on and note-off, for live
     /// monitoring. Keep the handler real-time-safe — it runs on the MIDI thread. `on` is
     /// false for note-offs (and note-ons with velocity 0).
-    var onNoteEvent: ((_ note: UInt8, _ velocity: UInt8, _ on: Bool) -> Void)?
+    var onNoteEvent: ((_ note: UInt8, _ velocity: UInt8, _ on: Bool, _ channel: UInt8) -> Void)?
 
     /// Last note-on time per note number, for duplicate rejection.
     private var lastNoteOn = [UInt64](repeating: 0, count: 128)
@@ -37,6 +44,13 @@ final class MIDIInput {
     }
 
     deinit { storage.deallocate() }
+
+    /// A started input, ready to receive.
+    static func started() throws -> MIDIInput {
+        let midi = MIDIInput()
+        try midi.start()
+        return midi
+    }
 
     func start() throws {
         var status = MIDIClientCreateWithBlock("MusicalTrainer" as CFString, &client, nil)
@@ -107,6 +121,7 @@ final class MIDIInput {
 
             if messageType == 0x2 {                       // MIDI 1.0 Channel Voice
                 let status = (word >> 20) & 0xF
+                let channel = UInt8((word >> 16) & 0xF)
                 let note = UInt8((word >> 8) & 0x7F)
                 let velocity = UInt8(word & 0x7F)
                 // Status 0x9 with velocity 0 is a note-off by convention.
@@ -117,13 +132,14 @@ final class MIDIInput {
                     if previous == 0 || timeStamp &- previous > dedupWindow {
                         lastNoteOn[Int(note)] = timeStamp
                         if storageCount < capacity {
-                            storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note, velocity: velocity)
+                            storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note,
+                                                               velocity: velocity, channel: channel)
                             storageCount += 1
                         }
-                        onNoteEvent?(note, velocity, true)
+                        onNoteEvent?(note, velocity, true, channel)
                     }
                 } else if status == 0x8 || (status == 0x9 && velocity == 0) {
-                    onNoteEvent?(note, 0, false)
+                    onNoteEvent?(note, 0, false, channel)
                 }
             }
             i += Self.wordCount(forMessageType: messageType)
@@ -148,8 +164,8 @@ final class MIDIInput {
     }
 }
 
-struct SpikeError: LocalizedError {
-    let message: String
-    init(_ message: String) { self.message = message }
-    var errorDescription: String? { message }
+public struct SpikeError: LocalizedError {
+    public let message: String
+    public init(_ message: String) { self.message = message }
+    public var errorDescription: String? { message }
 }

@@ -3,14 +3,31 @@
 A macOS app for training an autonomous internal pulse. See [PLAN.md](PLAN.md) for the
 design, the metrics, and the roadmap.
 
+## The app
+
+```sh
+./build-app.sh          # builds Musical Trainer.app
+open "Musical Trainer.app"
+```
+
+Pick a mode (Jam / Form / Play), set tempo and length, hit Start. The take screen is
+deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
+felt *before* any numbers appear, and the results come with charts.
+
+The CLI below does everything the app does, plus calibration and diagnostics. Both drive the
+same engine (`TrainerKit`), so they can never measure differently.
+
 ## Layout
 
 - `Sources/TimingCore` — pure timing analysis (grid, matching, Wing–Kristofferson, drift,
-  autocorrelation). No audio/MIDI dependencies; runs under `swift test`.
-- `Sources/GrooveCore` — pure groove generation (patterns, sequencer, dropout ladder).
-- `Sources/TimingSpike` — the console tool below: capture, calibration, the M0 rig,
-  synthesized drum kit, and groove playback.
-- `Tests/` — 37 cases against synthetic ground truth (25 TimingCore + 12 GrooveCore).
+  autocorrelation, bootstrap CIs, form analysis). No audio/MIDI; runs under `swift test`.
+- `Sources/GrooveCore` — pure groove generation (patterns, sequencer, dropout ladder, form
+  backings).
+- `Sources/TrainerKit` — audio, MIDI, synthesis, calibration, sessions, and the drill
+  runners. Shared by both front ends so the measurement logic has one implementation.
+- `Sources/MusicalTrainerApp` — the SwiftUI app.
+- `Sources/TimingSpike` — the console tool.
+- `Tests/` — 68 cases against synthetic ground truth.
 
 ```sh
 swift test               # TimingCore unit tests
@@ -27,7 +44,8 @@ swift build -c release   # the console tool
 | `calibrate quick` | **M1.** Loopback only (~15 s), derives its constant from the reference. |
 | `calibrate reset` | Deletes all stored calibration. |
 | `groove [bpm]` | **M3.** Plays a synthesized groove: count-in, a two-section arrangement with fills, the dropout ladder, and a slam back. Default 100 BPM. |
-| `jam [bpm] [bars]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. |
+| `jam [bpm] [bars] [tag]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. |
+| `form [bpm] [bars] [phraseBars] [level]` | Phrase-mark drill: hit a pad at each phrase top, no counting. Levels 0–3 progressively remove the landmarks. Default 100, 64, 8, 0. |
 | `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. |
 | `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
 | `review tags` | Pooled summary of every tagged condition. |
@@ -109,6 +127,32 @@ the numbers appear, so the rating stays honest):
 ./.build/release/TimingSpike review conditions relaxed focused
 ./.build/release/TimingSpike review feel                   # is your instinct calibrated?
 ```
+
+## Form drill
+
+Trains knowing *where you are* in the music — a different skill from beat placement.
+
+```sh
+./.build/release/TimingSpike form 100 64 8 0    # 8 phrases of 8 bars, fill at every turn
+```
+
+Hit **any pad** once per phrase, on the **downbeat where the groove settles back in after the
+fill** — not during the fill. The fill is the warning; the downbeat right after it is the
+target. Play whatever you like on the keys in between; no counting.
+
+Each mark is scored on two separate axes: whole bars off the phrase top (**form error** — the
+spatial-awareness number) and placement against the bar line (**phase error**).
+
+Levels remove the landmarks as you improve:
+
+| | |
+|---|---|
+| `0` | fill before the turn + crash **on** the downbeat — the crash confirms the arrival |
+| `1` | fill only; nothing confirms it, so you have to commit |
+| `2` | no fills — your own clock |
+| `3` | silence across the boundary — the turn happens with no band at all |
+
+The report tells you when you've earned the next one. `review form` shows your history.
 
 A 2-bar count-in, then play along to the groove — eyes closed, nothing on screen. When it
 finishes it prints your timing (rush/drag bias, spread, drift, whether you're chasing the

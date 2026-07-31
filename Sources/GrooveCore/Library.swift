@@ -31,19 +31,34 @@ public enum GrooveLibrary {
         .snare: [4, 12],
     ])
 
-    /// A one-bar tom fill to cap a section.
+    // Fills ADD to the groove rather than replacing it, and carry no crash.
+    //
+    // Both details are load-bearing. A fill that replaces the pattern leaves a hole where the
+    // pulse should be, and a player who loses the pulse through the turn has to re-find it
+    // afterwards — the exact opposite of the skill a form drill trains. And a crash inside
+    // the fill bar is a false landmark: it is the loudest event in earshot, one bar before
+    // the downbeat it appears to announce. The crash belongs on the *arrival*, so it is added
+    // to the first bar of the new phrase instead (see `accented`).
+
+    /// A one-bar tom fill: the groove keeps running underneath, toms build over the second half.
     public static let tomFill = Pattern.make([
-        .snare: [0, 1],
-        .tom:   [4, 6, 8, 10],
-        .crash: [12],
-        .kick:  [12],
+        .closedHat: [0, 2, 4, 6],
+        .kick:      [0],
+        .snare:     [4],
+        .tom:       [8, 10, 12, 14],
     ])
 
-    /// A simple snare-roll fill.
+    /// A one-bar snare-roll fill, pulse intact underneath.
     public static let snareFill = Pattern.make([
-        .snare: [8, 10, 12, 13, 14, 15],
-        .crash: [0],
+        .closedHat: [0, 2, 4, 6],
+        .kick:      [0],
+        .snare:     [8, 10, 12, 13, 14, 15],
     ])
+
+    /// A crash on the downbeat — the arrival accent that marks the top of a new phrase.
+    public static func accented(_ pattern: Pattern, velocity: Int = 110) -> Pattern {
+        pattern.adding([Hit(voice: .crash, step: 0, velocity: velocity)])
+    }
 
     /// A demonstration arrangement: two contrasting sections, each capped with a fill.
     public static let demo = Arrangement(sections: [

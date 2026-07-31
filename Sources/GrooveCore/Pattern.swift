@@ -30,6 +30,11 @@ public struct Pattern: Equatable {
         return Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat, hits: hits)
     }
 
+    /// The same pattern with extra hits layered on top.
+    public func adding(_ extra: [Hit]) -> Pattern {
+        Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat, hits: hits + extra)
+    }
+
     public static let silence = Pattern(hits: [])
 }
 

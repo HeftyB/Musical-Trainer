@@ -223,7 +223,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M2** | `TimingCore` + tests | ✅ Done. Pure analysis module, 25 XCTest cases against synthetic ground truth. See §7.3. |
 | **M3** | Groove engine | ✅ Done. `GrooveCore` (patterns, sequencer, dropout ladder) + synthesized kit + `GroovePlayer`. See §7.4. |
 | **M4** | Jam capture loop | ✅ Done (console). `jam` records a take against the groove, applies calibration, runs the report, saves the session. SwiftUI shell deferred — see §7.5. **First version you actually practice with.** |
-| **M5** | Review screen | Swift Charts, the full metric set, plain-English headline. |
+| **M5** | SwiftUI app + review | ✅ Done. Eyes-off take screen, rate-before-results, Swift Charts review, history. See §7.6. |
 | **M6** | Adaptive dropout ladder | The training mechanic, difficulty driven by measured drift. |
 | **M7** | Progress over time | Longitudinal trends. Is SD falling? Is `r₁` moving toward zero? |
 | — | *Later* | Guitar onset detection; TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
@@ -517,12 +517,92 @@ Progression: strong landmarks (fill every 8) → weaker (fill every 16) → none
 under dropout, where the band is absent across the phrase boundary. That last stage is the
 real test and it composes with the §6 dropout ladder.
 
+### Built — `form [bpm] [bars] [phraseBars] [level]`
+
+`FormAnalysis` (TimingCore, 8 tests) decomposes each mark into `formErrorBars` (whole bars
+from the phrase top — the spatial-awareness number) and `phaseErrorMs` (placement against
+the nearest bar line). Keeping them apart is the point: landing crisply on the wrong downbeat
+and landing sloppily on the right one are different failures needing different work.
+
+Four levels strip the landmarks away: fill every phrase → fill every two → no fills →
+**silence across the boundary** (band leaves two bars before the turn and returns two bars
+after, so nothing marks the corner). The report suggests the next level only when the current
+one is ≥90% on-form with no unmarked phrases.
+
+**A design failure worth remembering.** The first build put a crash on the downbeat of the
+*fill* bar and let the fill replace the groove. So the loudest event in the drill landed
+exactly one bar before the downbeat the player was asked to mark, and the pulse vanished for
+half a bar right at the turn. The player marked the crash and scored 45% then 11% on form,
+rating both takes 1/5 — *the app taught them to be wrong*, and the data was meaningless.
+
+Two invariants came out of it, now enforced by tests in `FormBackingTests`:
+
+- **Nothing louder than the groove may land anywhere except the downbeat being marked.** A
+  crash one bar early is not a minor mix issue; it inverts what the drill measures.
+- **The pulse never stops through the turn.** Fills add to the groove rather than replacing
+  it. A player who loses the beat across the boundary has to re-find it afterwards, which is
+  the opposite of the skill being trained.
+
+The level ladder was restructured around the same insight, into react → anticipate → generate:
+`0` fill + crash on the downbeat (the crash *confirms* the arrival), `1` fill only — nothing
+confirms it, so you must commit, `2` no fills, `3` silence across the boundary. At level 0 a
+mark can be a reaction rather than an anticipation, and the phase error says which: a mean
+around +150–250 ms is reaction-time distance, and the report names it.
+
+`FormLevel` and `FormBacking` live in GrooveCore rather than the command, because the layout
+is pure logic and the bug above proves it needs tests.
+
+Also added: a **"nailed it"** count — on the right bar *and* within 25% of a beat of the
+downbeat. "Right bar" alone is a generous ±1.2 s at 100 BPM, generous enough to call a badly
+placed mark a success.
+
+Two further design details:
+
+1. **Pads mark, keys play.** The Launchkey puts pads on MIDI channel 10 and keys on channel 1,
+   so the drill separates "where am I" from "what am I playing" with no configuration. Pads
+   render as an unpitched click through `LiveInstrument` rather than a synth note — an
+   acknowledgement, not something you played.
+2. **Unmarked phrases are reported, and they matter.** Nearest-phrase matching would score a
+   player who is a *whole phrase* behind as flawless, since they still land on phrase tops.
+   The unmarked-phrase list is what exposes that; there is a test for exactly this case.
+
 **Reported failure modes to design against** (the player's own account): losing count or
 over-stressing bar count; overthinking what to play next; attention wandering until "brain
 jumps out of sync with body," then trying to consciously jump back in. All three are
 *conscious-monitoring* failures, and the last one is the most telling — the recovery attempt
 is itself the disruption. Drills should reward re-entry by feel and never require a running
 count.
+
+---
+
+## 7.6 M5 — the app, as built
+
+Sharing an engine between two front ends needs it in a library, so the executable was split:
+`TrainerKit` now holds audio, MIDI, synthesis, calibration, sessions, and the drill runners;
+`TimingSpike` is the console front end and `MusicalTrainerApp` the SwiftUI one. **Neither
+surface contains measurement logic** — `TrainerEngine.runJam` / `runForm` / `playGroove` are
+the only implementations, so the two can never drift apart.
+
+Screens: setup → take → **rating** → results, plus history.
+
+Two decisions worth keeping:
+
+1. **The take screen has nothing to read.** No numbers, no elapsed time, and deliberately no
+   progress bar — a progress indicator during the form drill would replace the felt sense of
+   the phrase with a visual count, which is the exact crutch being trained away. A slow
+   breathing circle is all that's on screen.
+2. **The rating screen sits between the take and the results.** A rating given after the
+   numbers are visible is a rationalisation of them; the whole point of storing it is to test
+   whether the player's own sense of a good take predicts the measurement.
+
+Results use Swift Charts — asynchrony scatter for jams, per-phrase form error for drills —
+and history plots spread (jams) or on-form rate (form) over time.
+
+`build-app.sh` wraps the SPM binary in a minimal `.app`. Without a bundle macOS treats the
+executable as a background process: no dock icon, no menu bar, and no Info.plist, which means
+no way to request microphone access for calibration.
+
+Not yet in the app: calibration and the M0 diagnostics, which remain CLI-only.
 
 ---
 

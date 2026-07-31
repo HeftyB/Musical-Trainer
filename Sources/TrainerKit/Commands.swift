@@ -2,7 +2,7 @@ import Foundation
 import GrooveCore
 import TimingCore
 
-enum Commands {
+public enum Commands {
 
     // MARK: - Shared environment check
 
@@ -59,7 +59,7 @@ enum Commands {
 
     // MARK: - M0 validation rig
 
-    static func runValidation() throws {
+    public static func runValidation() throws {
         Console.heading("Environment")
         let env = try checkEnvironment()
         let midi = try startMIDI()
@@ -198,110 +198,35 @@ enum Commands {
 
     // MARK: - M4 jam
 
-    static func runJam(bpm: Double, bars: Int, tag: String?) throws {
+    public static func runJam(bpm: Double, bars: Int, tag: String?) throws {
         Console.heading("Jam — record a take")
-        guard bpm >= 40 && bpm <= 260 else { throw SpikeError("Tempo \(Int(bpm)) BPM is out of range (40–260).") }
-        guard bars >= 4 && bars <= 512 else { throw SpikeError("Bars \(bars) out of range (4–512).") }
-        let tag = tag?.lowercased()
+        let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased())
+        let env = try TrainerEngine.environment()
 
-        let env = try checkEnvironment()
-
-        // Look up the calibration constant for the active output path. Without it the
-        // *bias* is uncorrected (mean asynchrony is off by the constant), but variance,
-        // drift, and autocorrelation stay meaningful — so we warn and continue rather than
-        // refuse.
-        let store = Calibration.load()
-        let calibration = store.constant(for: env.output.identity)
-        if let c = calibration {
-            let src: String
-            switch c.source {
-            case .measured: src = "measured"
-            case .derived(let from): src = "derived from \(store.devices[from]?.displayName ?? from)"
-            }
-            print("Calibration: \(Console.ms(c.value)) (\(src))")
+        print("Output: \(env.outputName)")
+        if let c = env.calibrationMs, let src = env.calibrationSource {
+            print("Calibration: \(Console.ms(c)) (\(src))")
         } else {
             Console.warn("""
                 no calibration for this output device — timing BIAS will be uncorrected.
                 Spread and drift are still valid. Calibrate with:  TimingSpike calibrate
                 """)
         }
-        let constantMs = calibration?.value ?? 0
 
-        let player = try GroovePlayer()
-        let seq = Sequencer(bpm: bpm, sampleRate: player.outputSampleRate)
-        // Sectional backing: 8-bar sections with fills. Variety so a long take doesn't go
-        // hypnotic, and a landmark every 8 bars to anchor where you are in the form.
-        let backing = GrooveLibrary.jamBacking
-        let subdivisions = backing.stepsPerBeat
-        let countInBars = 2
-
-        var perBar: [Pattern] = []
-        for _ in 0..<countInBars {
-            perBar.append(DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0, groove: GrooveLibrary.basicRock))
-        }
-        for bar in 0..<bars { perBar.append(backing.pattern(atBar: bar)) }
-
-        var hits: [ScheduledHit] = []
-        for (bar, pattern) in perBar.enumerated() { hits += seq.schedule(pattern: pattern, bar: bar) }
-        player.schedule(hits)
-
-        let grooveStartSample = seq.barStartSample(bar: countInBars, pattern: GrooveLibrary.basicRock)
-        let grooveEndSample = seq.barStartSample(bar: countInBars + bars, pattern: GrooveLibrary.basicRock)
-
-        let midi = try startMIDI()
-        defer { midi.stop() }
-        midi.reset()
-        // Sonify the keyboard so the player can hear what they play. Runs on the CoreMIDI
-        // thread; enqueue is lock-free.
-        midi.onNoteEvent = { note, velocity, on in
-            player.noteEvent(note: note, velocity: velocity, on: on)
-        }
-
-        let minutes = Double(bars) * 4 * 60 / bpm / 60
-        print("\n\(countInBars)-bar count-in, then \(bars) bars at \(Int(bpm)) BPM"
-            + String(format: " (~%.1f min)", minutes) + ".")
-        if let tag { print("Condition: \(Console.bold)\(tag)\(Console.reset)") }
+        print("\n2-bar count-in, then \(bars) bars at \(Int(bpm)) BPM"
+            + String(format: " (~%.1f min)", config.durationSeconds / 60) + ".")
+        if let tag = config.tag { print("Condition: \(Console.bold)\(tag)\(Console.reset)") }
         print("Play along — eyes closed. You'll hear your keys over the groove.\n")
 
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5)
+        let outcome = try TrainerEngine.runJam(config)
 
         // Rate the take BEFORE any numbers appear, so the rating is an honest read of the
         // experience rather than a rationalisation of the measurement.
         let feel = Console.readRating("\nHow did that feel?")
-
-        guard let reduced = JamAnalysis.reduce(
-            outputMap: player.outputMapPairs,
-            midi: midi.events.map { ($0.hostTime, Int($0.velocity)) },
-            grooveStartSample: grooveStartSample,
-            grooveEndSample: grooveEndSample,
-            bpm: bpm, subdivisions: subdivisions, calibrationConstantMs: constantMs)
-        else {
-            throw SpikeError("Could not reconstruct the take (no audio timing map captured).")
-        }
-
-        // Collapse chords to single rhythmic events before analysis, so a four-note chord
-        // counts as one beat placement rather than one match and three "off-grid" notes.
-        let events = TapClustering.collapse(reduced.taps, windowSeconds: 0.035)
-        let report = TimingAnalysis.analyze(taps: events, grid: reduced.grid, chordWindowMs: 0)
-        reportTiming(report, notesCaptured: midi.events.count, events: events.count,
-                     uncalibrated: calibration == nil)
-
-        let session = JamSession(
-            date: Date(), bpm: bpm, device: env.output.identity,
-            calibrationConstantMs: calibration?.value,
-            calibrationSource: calibration.map { if case .measured = $0.source { return "measured" } else { return "derived" } },
-            grooveName: "jamBacking", bars: bars, subdivisions: subdivisions,
-            tag: tag, feelRating: feel,
-            gridStartTime: reduced.grid.startTime,
-            tapTimes: reduced.taps.map(\.time),
-            tapVelocities: reduced.taps.map(\.velocity),
-            matchedCount: report.matchedCount, extraCount: report.extraCount,
-            missedCount: report.missedCount,
-            meanAsynchronyMs: report.meanAsynchronyMs, sdAsynchronyMs: report.sdAsynchronyMs,
-            lag1Autocorrelation: report.lag1Autocorrelation, driftMsPerBeat: report.driftMsPerBeat,
-            headline: report.headline)
-        let url = try SessionStore.save(session)
-        print("\n\(Console.dim)Saved \(url.lastPathComponent) — \(SessionStore.loadAll().count) session(s) on file.\(Console.reset)")
+        reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
+                     events: outcome.eventCount, uncalibrated: !env.isCalibrated)
+        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
     }
 
     private static func reportTiming(_ report: TimingReport, notesCaptured: Int, events: Int,
@@ -380,7 +305,10 @@ enum Commands {
     /// Re-analyze saved takes with the current analysis. `list` shows all, `compare [i j]`
     /// puts two takes side by side, no argument reviews the most recent. A console stand-in
     /// for the M5 visual review.
-    static func runReview(_ args: [String]) throws {
+    public static func runReview(_ args: [String]) throws {
+        // Form history lives in its own store, so it must not be gated on jam takes existing.
+        if args.first == "form" { runFormHistory(); return }
+
         let sessions = SessionStore.loadAll()
         guard !sessions.isEmpty else {
             print("No sessions yet. Record one with:  TimingSpike jam")
@@ -498,6 +426,25 @@ enum Commands {
         s.count >= width ? s + " " : s + String(repeating: " ", count: width - s.count)
     }
 
+    /// Form-drill history, so progress up the landmark ladder is visible.
+    private static func runFormHistory() {
+        let sessions = SessionStore.loadAllForm()
+        Console.heading("Form drill history")
+        guard !sessions.isEmpty else {
+            print("No form drills yet. Try:  TimingSpike form 100 64 8 0")
+            return
+        }
+        print("\(pad("When", 22))\(pad("lvl", 5))\(pad("phrase", 8))\(pad("on form", 10))\(pad("nailed", 9))slip")
+        for s in sessions {
+            let onForm = "\(s.onFormCount)/\(s.marksPlaced)"
+            let tight = "\(s.tightCount)/\(s.marksPlaced)"
+            let slip = s.slipBarsPerPhrase.map { String(format: "%+.2f", $0) } ?? "—"
+            print("\(pad(dateLabel(s.date), 22))\(pad("\(s.level)", 5))"
+                + "\(pad("\(s.phraseBars) bars", 8))\(pad(onForm, 10))\(pad(tight, 9))\(slip)")
+        }
+        print("\n\(Console.dim)\"nailed\" = on the right bar AND close to the downbeat.\(Console.reset)")
+    }
+
     /// Summary of every tagged condition, pooled across takes.
     private static func runTags(sessions: [JamSession]) {
         let tagged = sessions.filter { $0.tag != nil }
@@ -592,64 +539,125 @@ enum Commands {
         }
     }
 
+    // MARK: - Form drill
+
+    /// Landmark strength for the form drill — how much the music tells you where you are.
+    public static func runForm(bpm: Double, bars: Int, phraseBars: Int, level rawLevel: Int) throws {
+        Console.heading("Form drill — feel the phrase")
+        guard let level = FormLevel(rawValue: rawLevel) else {
+            throw SpikeError("Level \(rawLevel) out of range (0–3).")
+        }
+        let config = TrainerEngine.FormConfig(bpm: bpm, bars: bars,
+                                              phraseBars: phraseBars, level: level)
+        _ = try TrainerEngine.environment()
+
+        print("""
+
+        \(Console.bold)\(config.phrases) phrases of \(phraseBars) bars\(Console.reset) at \(Int(bpm)) BPM \
+        (~\(String(format: "%.1f", config.durationSeconds / 60)) min)
+        Landmarks: \(level.label)
+
+        \(Console.bold)Where to hit:\(Console.reset) on the DOWNBEAT that starts each new phrase — the "1"
+        where the groove settles back in \(Console.bold)after\(Console.reset) the fill. Not during the fill.
+        The fill is the warning; the downbeat right after it is the target.
+        """)
+        if level.hasArrivalAccent {
+            print("A crash lands exactly on that downbeat, including the very first bar — that\n"
+                + "is the sound you are aiming to land with.")
+        }
+        print("""
+
+          • \(Console.bold)Hit any PAD once\(Console.reset) per phrase, on that downbeat.
+          • Play whatever you like on the keys in between, or nothing at all.
+          • \(Console.bold)Do not count.\(Console.reset) If you lose it, wait until you feel the next one.
+
+        \(Console.dim)\(level.advice)\(Console.reset)
+        """)
+        Console.prompt("Ready?")
+
+        let outcome = try TrainerEngine.runForm(config)
+        let feel = Console.readRating("\nHow did that feel?")
+        reportForm(outcome.report, level: level, keyNotes: outcome.notesPlayed)
+        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
+    }
+
+    private static func reportForm(_ report: FormReport, level: FormLevel, keyNotes: Int) {
+        Console.heading("Your form sense")
+        print("Phrases:  \(report.phrasesAvailable)   Marks placed: \(report.marksPlaced)"
+            + (keyNotes > 0 ? "   (\(keyNotes) notes played)" : ""))
+
+        guard report.marksPlaced >= 3 else {
+            Console.error("\n\(report.headline)")
+            if report.marksPlaced == 0 {
+                print("""
+
+                No pad hits were captured. The drill listens on MIDI channel 10 (the pads).
+                Check the pads register with:  TimingSpike midimon
+                """)
+            }
+            return
+        }
+
+        print("\n\(Console.bold)\(report.headline)\(Console.reset)\n")
+
+        let pct = Int((report.onFormRate * 100).rounded())
+        print("On the right bar: \(report.onFormCount)/\(report.marksPlaced)  (\(pct)%)")
+        print("Nailed it:        \(report.tightCount)/\(report.marksPlaced)"
+            + "  \(Console.dim)(within \(Console.ms(report.tightToleranceMs, 0)) of the downbeat)\(Console.reset)")
+
+        // The histogram is the clearest picture of *how* the form is missed.
+        let keys = report.formErrorHistogram.keys.sorted()
+        if keys.count > 1 || keys.first != 0 {
+            let bars = keys.map { k -> String in
+                let label = k == 0 ? "on" : (k > 0 ? "+\(k)" : "\(k)")
+                return "\(label): \(report.formErrorHistogram[k]!)"
+            }.joined(separator: "   ")
+            print("Bars off:         \(bars)")
+        }
+
+        if !report.phaseErrorSDms.isNaN {
+            print("Placement:        \(Console.ms(report.phaseErrorMeanMs, 0)) mean, "
+                + "\(Console.ms(report.phaseErrorSDms, 0)) SD  \(Console.dim)(on-form marks only)\(Console.reset)")
+        }
+        if let slip = report.slipBarsPerPhrase, abs(slip) > 0.05 {
+            print(String(format: "Slip:             %+.2f bars per phrase", slip))
+        }
+        if !report.missedPhrases.isEmpty {
+            print("Unmarked phrases: \(report.missedPhrases.map(String.init).joined(separator: ", "))"
+                + "  \(Console.dim)(lost the thread, or a whole phrase behind)\(Console.reset)")
+        }
+
+        // With a crash on the downbeat, a consistently late mark means the crash is being
+        // *reacted to* rather than anticipated — human reaction time is ~150-250 ms, so a
+        // mean in that band is the signature. Worth naming, because it feels like success.
+        if level.hasArrivalAccent, !report.phaseErrorMeanMs.isNaN, report.phaseErrorMeanMs > 120 {
+            print("\n\(Console.yellow)You're reacting to the crash, not arriving with it\(Console.reset) — "
+                + "marks land \(Console.ms(report.phaseErrorMeanMs, 0)) after the downbeat, about\n"
+                + "reaction-time distance. Try to commit to the turn before you hear it land.")
+        }
+
+        // Only suggest moving on when the current level is genuinely solid.
+        if report.onFormRate >= 0.9, report.missedPhrases.isEmpty, level.rawValue < 3 {
+            print("\n\(Console.green)Solid at this level.\(Console.reset) Try:  "
+                + "TimingSpike form 100 64 8 \(level.rawValue + 1)")
+        }
+    }
+
     // MARK: - M3 groove
 
-    static func runGroove(bpm: Double) throws {
-        Console.heading("Groove — M3 demo")
-        guard bpm >= 40 && bpm <= 260 else {
-            throw SpikeError("Tempo \(Int(bpm)) BPM is out of range (40–260).")
-        }
-        if let output = AudioDevices.defaultDevice(input: false) {
-            let src = output.dataSource.map { " — \($0)" } ?? ""
-            print("Output: \(output.name)\(src)  @ \(Int(output.sampleRate)) Hz")
-        }
+    public static func runGroove(bpm: Double) throws {
+        Console.heading("Groove")
+        let config = TrainerEngine.GrooveConfig(bpm: bpm, bars: 48)
+        let env = try TrainerEngine.environment()
+        print("Output: \(env.outputName)  @ \(Int(env.sampleRate)) Hz")
         print("Tempo:  \(Int(bpm)) BPM")
-
-        let player = try GroovePlayer()
-        let seq = Sequencer(bpm: bpm, sampleRate: player.outputSampleRate)
-        let groove = GrooveLibrary.basicRock
-
-        // Assemble the whole session as a flat list of per-bar patterns, then flatten to
-        // sample-accurate hits. One continuous schedule means no gaps or clicks between
-        // sections.
-        var perBar: [Pattern] = []
-        perBar.append(DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0, groove: groove)) // count-in
-        for bar in 0..<16 { perBar.append(GrooveLibrary.demo.pattern(atBar: bar)) }         // A/fill/B/fill
-
-        let ladder: [DropoutLevel] = [.fullKit, .hatsEveryBeat, .backbeat,
-                                      .beatFourOnly, .downbeatSparse, .silence]
-        for level in ladder {
-            for b in 0..<4 { perBar.append(DropoutLadder.pattern(level: level, bar: b, groove: groove)) }
-        }
-        for b in 0..<4 { perBar.append(DropoutLadder.pattern(level: .fullKit, bar: b, groove: groove)) } // slam
-
-        var hits: [ScheduledHit] = []
-        for (bar, pattern) in perBar.enumerated() {
-            hits.append(contentsOf: seq.schedule(pattern: pattern, bar: bar))
-        }
-        player.schedule(hits)
-
-        // Optional: if a keyboard is connected, sonify it so you can play along. Not
-        // required — the groove plays regardless.
-        let midi = try? startMIDI()
-        defer { midi?.stop() }
-        midi?.onNoteEvent = { note, velocity, on in
-            player.noteEvent(note: note, velocity: velocity, on: on)
-        }
-
-        print("\nRoadmap (\(perBar.count) bars):")
-        print("  • 1-bar count-in")
-        print("  • 16 bars: \(GrooveLibrary.demo.sections.map(\.name).joined(separator: " → ")) (with fills)")
-        print("  • dropout ladder: \(ladder.map(\.label).joined(separator: " → "))")
-        print("  • 4-bar slam back to full kit")
-        let duration = player.scheduledDurationSeconds()
-        print(String(format: "\nPlaying ~%.0f s — play along, eyes closed.\n", duration))
-
-        try player.run(forSeconds: duration + 0.5)
+        print(String(format: "\nPlaying ~%.0f s — play along, eyes closed.\n", config.durationSeconds))
+        try TrainerEngine.playGroove(config)
         print("Done.")
     }
 
-    static func runReset() throws {
+    public static func runReset() throws {
         let url = Calibration.storeURL
         guard FileManager.default.fileExists(atPath: url.path) else {
             print("No calibration stored — nothing to reset.")
@@ -663,7 +671,7 @@ enum Commands {
         print("Calibration cleared.")
     }
 
-    static func runCalibrate(quick: Bool) throws {
+    public static func runCalibrate(quick: Bool) throws {
         Console.heading(quick ? "Quick calibration (loopback only)" : "Full calibration")
         let env = try checkEnvironment()
         var store = Calibration.load()
@@ -761,7 +769,7 @@ enum Commands {
         print("\n\(Console.dim)\(Calibration.storeURL.path)\(Console.reset)")
     }
 
-    static func runShow() throws {
+    public static func runShow() throws {
         let store = Calibration.load()
         Console.heading("Calibration")
         guard !store.devices.isEmpty else {

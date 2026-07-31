@@ -1,4 +1,5 @@
 import Foundation
+import TrainerKit
 
 // Musical Trainer — timing spike and calibration tool.
 //
@@ -26,6 +27,9 @@ func usage() {
       groove [bpm]      M3: play a synthesized groove + dropout ladder (default 100)
       jam [bpm] [bars] [tag]
                         M4: record a take and analyze it (default 100, 32; tag e.g. relaxed)
+      form [bpm] [bars] [phraseBars] [level]
+                        phrase-mark drill: hit a pad at each phrase top, no counting
+                        (default 100, 64, 8, level 0; levels 0-3 remove the landmarks)
       review [n]        re-analyze the latest saved take, or take n
       review list       list all takes
       review compare [i j]      two takes side by side, with significance
@@ -63,6 +67,13 @@ do {
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
         try Commands.runJam(bpm: bpm, bars: bars, tag: arguments.dropFirst(3).first)
+
+    case "form":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 64
+        let phrase = arguments.dropFirst(3).first.flatMap(Int.init) ?? 8
+        let level = arguments.dropFirst(4).first.flatMap(Int.init) ?? 0
+        try Commands.runForm(bpm: bpm, bars: bars, phraseBars: phrase, level: level)
 
     case "review":
         try Commands.runReview(Array(arguments.dropFirst()))
