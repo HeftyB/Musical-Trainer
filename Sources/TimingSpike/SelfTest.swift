@@ -1,4 +1,5 @@
 import Foundation
+import TimingCore
 
 /// Drives the full analysis pipeline with synthetic audio whose ground truth we control.
 ///

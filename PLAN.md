@@ -220,7 +220,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 |---|---|---|
 | **M0** | **Timing spike + ground-truth rig (console)** | Click, Launchkey capture, host-time ↔ sample-index bridge, and the §4.2 two-path validation with its four automated pass criteria. **The whole project rests on this.** Also yields the Launchkey's key-scan latency as a by-product. |
 | **M1** | Calibration | Chirp loopback cross-correlation via built-in mic; Bluetooth detection + refusal; per-device storage with reference-derived constants for devices that skip the full run. See §7.2. |
-| **M2** | `TimingCore` + tests | Pure analysis module. Unit-tested with synthetic tap data of known bias/SD/drift — assert the math recovers them. |
+| **M2** | `TimingCore` + tests | ✅ Done. Pure analysis module, 25 XCTest cases against synthetic ground truth. See §7.3. |
 | **M3** | Groove engine | Sample-accurate pattern sequencer + drum kit, tempo control, section/fill logic. |
 | **M4** | Jam shell (SwiftUI) | Eyes-off take screen, session capture to disk. **First version you actually practice with.** |
 | **M5** | Review screen | Swift Charts, the full metric set, plain-English headline. |
@@ -322,23 +322,62 @@ Stored at `~/Library/Application Support/MusicalTrainer/calibration.json`.
 
 ---
 
+## 7.3 M2 — TimingCore, as built
+
+`Sources/TimingCore`, a pure Swift library with no AVFoundation, CoreMIDI, or CoreAudio, so
+it runs under `swift test`. The executable now depends on it (shared `Stats`). 25 tests, all
+against synthetic data whose answer is known by construction.
+
+| Type | What it provides |
+|---|---|
+| `Grid` | Index-arithmetic metronomic grid. Extends infinitely, so dropout sections still have a reference. Floored-modulo subdivision phase. |
+| `Tap` / `MatchedTap` / `MatchResult` | The domain model. Sign convention: **− is rushing, + is dragging** — load-bearing. |
+| `Matching` | Aligns taps to the grid with a ±40%-of-subdivision window. Defeats the §5.3 sign-inversion trap; resolves double-triggers; reports extras and misses separately. |
+| `WingKristofferson` | Clock/motor variance split (§5.2). Self-flags when γ₁ > 0 (drift breaks stationarity). Recovers planted variances to within 8% on 20 k samples. |
+| `TimingReport` | Assembles mean/SD/median asynchrony, lag-1 autocorrelation (§5.1), drift → tempo error, per-subdivision spread, velocity/timing coupling, and one plain-English headline. |
+
+Design decisions worth keeping:
+
+1. **TimingCore knows nothing about host time, MIDI, or audio.** It takes `Tap` times on a
+   shared timeline and a `Grid`. That ignorance is what makes it testable, and it is why the
+   diagnostic math could be verified before any capture UI exists.
+2. **Extras and misses never enter the asynchrony statistics.** A note between beats or a
+   dropped beat is counted and set aside, never folded into mean/SD, per §5.3.
+3. **The headline leads with chasing.** When lag-1 autocorrelation is strongly negative the
+   report says so first — that is the finding that matches the original complaint, and the
+   copy informs rather than scolds (negative mean asynchrony is normal).
+4. **Population vs sample moments are deliberate.** Wing–Kristofferson uses population
+   variance/autocovariance (its definition); reported spread uses sample SD.
+
+**Not yet wired:** nothing in the app calls `TimingReport` on real playing yet — that needs
+a captured session, which arrives with M3/M4. M2 is the verified engine those milestones
+will feed.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager modules, consumed by a thin Xcode app target:
 
 ```
+Target layout (SPM library + thin app), grown incrementally rather than up front:
+
+```
 Musical Trainer/
-├── Packages/
-│   ├── TimingCore/      # pure Swift. Grid math, asynchrony analysis,
+├── Sources/
+│   ├── TimingCore/      # ✅ pure Swift. Grid, matching, asynchrony analysis,
 │   │                    # W-K decomposition, autocorrelation. No UI, no AVFoundation.
-│   ├── AudioEngine/     # AVAudioEngine, sample clock authority, click synth,
-│   │                    # pattern sequencer, sample playback
-│   ├── MIDIIO/          # CoreMIDI wrapper, host-time capture, device hotplug
-│   └── Persistence/     # session storage — Codable JSON first, SQLite if it grows
-└── App/                 # SwiftUI. Take view, review view, settings.
+│   ├── TimingSpike/     # ✅ console tool: audio/MIDI capture, calibration, the M0 rig.
+│   │                    # Will split into AudioEngine + MIDIIO as the app grows.
+│   └── (App/)           # SwiftUI take/review/settings — M4+.
+└── Tests/
+    └── TimingCoreTests/ # ✅ 25 cases, synthetic ground truth.
 ```
 
-The `TimingCore` boundary is what makes the numbers trustworthy. Keep it clean.
+The current `TimingSpike` target still holds the audio (`AudioIO`), MIDI (`MIDIInput`),
+calibration, and DSP code together; §8's `AudioEngine` / `MIDIIO` / `Persistence` split
+happens when the SwiftUI app needs them as libraries. `TimingCore` is already carved out,
+because its boundary is what makes the numbers trustworthy. Keep it clean.
 
 ---
 

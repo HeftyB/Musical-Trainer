@@ -3,10 +3,16 @@
 A macOS app for training an autonomous internal pulse. See [PLAN.md](PLAN.md) for the
 design, the metrics, and the roadmap.
 
-## Tool
+## Layout
+
+- `Sources/TimingCore` — pure timing analysis (grid, matching, Wing–Kristofferson, drift,
+  autocorrelation). No audio/MIDI dependencies; runs under `swift test`.
+- `Sources/TimingSpike` — the console tool below: capture, calibration, the M0 rig.
+- `Tests/TimingCoreTests` — 25 cases against synthetic data of known ground truth.
 
 ```sh
-swift build -c release
+swift test               # TimingCore unit tests
+swift build -c release   # the console tool
 ./.build/release/TimingSpike <command>
 ```
 

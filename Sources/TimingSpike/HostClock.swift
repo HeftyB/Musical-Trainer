@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import TimingCore
 
 /// Conversions for `mach_absolute_time` ticks. The ratio is fixed at boot, so it is
 /// resolved once and cached.

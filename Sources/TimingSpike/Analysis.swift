@@ -1,4 +1,5 @@
 import Foundation
+import TimingCore
 
 struct LatencyResult {
     let roundTripMs: [Double]
