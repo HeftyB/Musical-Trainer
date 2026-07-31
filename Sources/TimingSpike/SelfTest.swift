@@ -1,4 +1,5 @@
 import Foundation
+import GrooveCore
 import TimingCore
 
 /// Drives the full analysis pipeline with synthetic audio whose ground truth we control.
@@ -44,6 +45,7 @@ enum SelfTest {
         ok = chirpLocalisation() && ok
         ok = statistics() && ok
         ok = calibrationDerivation() && ok
+        ok = grooveRendering() && ok
         ok = fullPipeline() && ok
 
         print("\n" + (ok
@@ -190,6 +192,62 @@ enum SelfTest {
         } else {
             ok = check("survives encode/decode", false, "round trip failed") && ok
         }
+        return ok
+    }
+
+    // MARK: - Groove rendering
+
+    private static func rms(_ x: [Float], _ lo: Int, _ hi: Int) -> Double {
+        let a = max(0, lo), b = min(x.count, hi)
+        guard b > a else { return 0 }
+        var sum = 0.0
+        for i in a..<b { sum += Double(x[i]) * Double(x[i]) }
+        return (sum / Double(b - a)).squareRoot()
+    }
+
+    /// Exercises the whole groove path — voice synthesis, sequencing, the dropout ladder,
+    /// and mixing — with no audio hardware. Confirms the voices actually make sound, the
+    /// groove has energy, a `silence` ladder level is genuinely silent, and the mix does
+    /// not blow past the rails.
+    private static func grooveRendering() -> Bool {
+        print("\nGroove rendering (synth + sequencer + dropout + mix)")
+        let fs = 44100.0
+        let kit = DrumKit(sampleRate: fs)
+        var ok = true
+
+        for voice in DrumVoice.allCases {
+            let b = kit.buffer(for: voice)
+            let finite = b.allSatisfy { $0.isFinite }
+            let peak = b.map { abs($0) }.max() ?? 0
+            ok = check("voice \(voice.rawValue) renders",
+                       !b.isEmpty && finite && peak > 0.01 && peak <= 1.2,
+                       String(format: "%d samples, peak %.2f", b.count, peak)) && ok
+        }
+
+        // Four bars of full kit, then four bars of ladder-silence.
+        let seq = Sequencer(bpm: 120, sampleRate: fs)
+        let groove = GrooveLibrary.basicRock
+        var hits: [ScheduledHit] = []
+        for bar in 0..<4 { hits += seq.schedule(pattern: groove, bar: bar) }
+        for bar in 4..<8 {
+            hits += seq.schedule(pattern: DropoutLadder.pattern(level: .silence, bar: bar, groove: groove),
+                                 bar: bar)
+        }
+
+        let barSamples = Int(seq.barStartSample(bar: 1, pattern: groove))   // 88200 at 120 BPM
+        let audio = GrooveOfflineRender.mix(hits: hits, kit: kit, frames: barSamples * 8 + Int(fs))
+
+        let grooveRMS = rms(audio, 0, barSamples * 4)
+        // Start after the longest voice tail (kick ~0.32 s) so we measure true silence.
+        let silenceRMS = rms(audio, barSamples * 4 + Int(0.4 * fs), barSamples * 8)
+        let peak = audio.map { abs($0) }.max() ?? 0
+
+        ok = check("groove section has audio", grooveRMS > 0.01,
+                   String(format: "RMS %.4f", grooveRMS)) && ok
+        ok = check("silence section is silent", silenceRMS < grooveRMS * 0.02,
+                   String(format: "RMS %.6f vs %.4f", silenceRMS, grooveRMS)) && ok
+        ok = check("mix does not clip (≤ 0 dBFS)", peak <= 1.0,
+                   String(format: "peak %.2f", peak)) && ok
         return ok
     }
 

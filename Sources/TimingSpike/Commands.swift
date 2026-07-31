@@ -1,4 +1,5 @@
 import Foundation
+import GrooveCore
 
 enum Commands {
 
@@ -193,6 +194,55 @@ enum Commands {
     }
 
     // MARK: - M1 calibration
+
+    // MARK: - M3 groove
+
+    static func runGroove(bpm: Double) throws {
+        Console.heading("Groove — M3 demo")
+        guard bpm >= 40 && bpm <= 260 else {
+            throw SpikeError("Tempo \(Int(bpm)) BPM is out of range (40–260).")
+        }
+        if let output = AudioDevices.defaultDevice(input: false) {
+            let src = output.dataSource.map { " — \($0)" } ?? ""
+            print("Output: \(output.name)\(src)  @ \(Int(output.sampleRate)) Hz")
+        }
+        print("Tempo:  \(Int(bpm)) BPM")
+
+        let player = try GroovePlayer()
+        let seq = Sequencer(bpm: bpm, sampleRate: player.outputSampleRate)
+        let groove = GrooveLibrary.basicRock
+
+        // Assemble the whole session as a flat list of per-bar patterns, then flatten to
+        // sample-accurate hits. One continuous schedule means no gaps or clicks between
+        // sections.
+        var perBar: [Pattern] = []
+        perBar.append(DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0, groove: groove)) // count-in
+        for bar in 0..<16 { perBar.append(GrooveLibrary.demo.pattern(atBar: bar)) }         // A/fill/B/fill
+
+        let ladder: [DropoutLevel] = [.fullKit, .hatsEveryBeat, .backbeat,
+                                      .beatFourOnly, .downbeatSparse, .silence]
+        for level in ladder {
+            for b in 0..<4 { perBar.append(DropoutLadder.pattern(level: level, bar: b, groove: groove)) }
+        }
+        for b in 0..<4 { perBar.append(DropoutLadder.pattern(level: .fullKit, bar: b, groove: groove)) } // slam
+
+        var hits: [ScheduledHit] = []
+        for (bar, pattern) in perBar.enumerated() {
+            hits.append(contentsOf: seq.schedule(pattern: pattern, bar: bar))
+        }
+        player.schedule(hits)
+
+        print("\nRoadmap (\(perBar.count) bars):")
+        print("  • 1-bar count-in")
+        print("  • 16 bars: \(GrooveLibrary.demo.sections.map(\.name).joined(separator: " → ")) (with fills)")
+        print("  • dropout ladder: \(ladder.map(\.label).joined(separator: " → "))")
+        print("  • 4-bar slam back to full kit")
+        let duration = player.scheduledDurationSeconds()
+        print(String(format: "\nPlaying ~%.0f s — play along, eyes closed.\n", duration))
+
+        try player.run(forSeconds: duration + 0.5)
+        print("Done.")
+    }
 
     static func runReset() throws {
         let url = Calibration.storeURL

@@ -7,8 +7,10 @@ design, the metrics, and the roadmap.
 
 - `Sources/TimingCore` — pure timing analysis (grid, matching, Wing–Kristofferson, drift,
   autocorrelation). No audio/MIDI dependencies; runs under `swift test`.
-- `Sources/TimingSpike` — the console tool below: capture, calibration, the M0 rig.
-- `Tests/TimingCoreTests` — 25 cases against synthetic data of known ground truth.
+- `Sources/GrooveCore` — pure groove generation (patterns, sequencer, dropout ladder).
+- `Sources/TimingSpike` — the console tool below: capture, calibration, the M0 rig,
+  synthesized drum kit, and groove playback.
+- `Tests/` — 37 cases against synthetic ground truth (25 TimingCore + 12 GrooveCore).
 
 ```sh
 swift test               # TimingCore unit tests
@@ -24,6 +26,7 @@ swift build -c release   # the console tool
 | `calibrate` | **M1.** Full calibration: loopback + two-path. Becomes the reference device. |
 | `calibrate quick` | **M1.** Loopback only (~15 s), derives its constant from the reference. |
 | `calibrate reset` | Deletes all stored calibration. |
+| `groove [bpm]` | **M3.** Plays a synthesized groove: count-in, a two-section arrangement with fills, the dropout ladder, and a slam back. Default 100 BPM. |
 | `show` | Prints stored calibration and the constant for each device. |
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is

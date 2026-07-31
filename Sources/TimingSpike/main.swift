@@ -23,6 +23,7 @@ func usage() {
       calibrate         full calibration, becomes the reference device
       calibrate quick   loopback-only calibration for another output device
       calibrate reset   delete all stored calibration
+      groove [bpm]      M3: play a synthesized groove + dropout ladder (default 100)
       show              print stored calibration
     """)
 }
@@ -45,6 +46,10 @@ do {
         case nil:     try Commands.runCalibrate(quick: false)
         case let sub?: throw SpikeError("Unknown calibrate mode: \(sub). Use quick or reset.")
         }
+
+    case "groove":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        try Commands.runGroove(bpm: bpm)
 
     case "show":
         try Commands.runShow()

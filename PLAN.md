@@ -221,7 +221,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M0** | **Timing spike + ground-truth rig (console)** | Click, Launchkey capture, host-time ↔ sample-index bridge, and the §4.2 two-path validation with its four automated pass criteria. **The whole project rests on this.** Also yields the Launchkey's key-scan latency as a by-product. |
 | **M1** | Calibration | Chirp loopback cross-correlation via built-in mic; Bluetooth detection + refusal; per-device storage with reference-derived constants for devices that skip the full run. See §7.2. |
 | **M2** | `TimingCore` + tests | ✅ Done. Pure analysis module, 25 XCTest cases against synthetic ground truth. See §7.3. |
-| **M3** | Groove engine | Sample-accurate pattern sequencer + drum kit, tempo control, section/fill logic. |
+| **M3** | Groove engine | ✅ Done. `GrooveCore` (patterns, sequencer, dropout ladder) + synthesized kit + `GroovePlayer`. See §7.4. |
 | **M4** | Jam shell (SwiftUI) | Eyes-off take screen, session capture to disk. **First version you actually practice with.** |
 | **M5** | Review screen | Swift Charts, the full metric set, plain-English headline. |
 | **M6** | Adaptive dropout ladder | The training mechanic, difficulty driven by measured drift. |
@@ -355,6 +355,44 @@ will feed.
 
 ---
 
+## 7.4 M3 — groove engine, as built
+
+**Open question #4 (drum samples) is closed by removal.** The kit is synthesized
+procedurally (808/909-style: pitch-swept sine kick, tonal+noise snare, high-passed noise
+hats, etc.) and rendered to sample buffers once at startup. No downloads, no licensing, no
+provenance questions, sample-accurate, and tempo-agile — the last of which matters because
+the ladder rewrites the groove mid-session, which sampled loops can't do.
+
+Pure logic lives in `GrooveCore` (its own library target, 12 tests):
+
+| Type | Role |
+|---|---|
+| `DrumVoice` / `Hit` / `Pattern` | One grid resolution (16 steps, 4/beat) so every bar is the same number of samples and the sample math stays trivial. |
+| `Section` / `Arrangement` | Sectional contrast with per-section fills; resolves an absolute bar index to the pattern that plays, with looping. |
+| `Sequencer` | Pattern → `ScheduledHit` at absolute samples, by index arithmetic from a global step. **Verified drift-free to < 0.5 sample over 5000 bars at an awkward tempo.** |
+| `DropoutLadder` | The §6 training ladder as pattern transforms: full kit → hats/beat → 2&4 → beat 4 → sparse downbeat → silence. |
+
+Audio side (executable, `selftest`-verified without hardware):
+
+- `DrumSynth` / `DrumKit` — the synthesized voices.
+- `GroovePlayer` — output-only `AVAudioSourceNode`, same real-time discipline as `AudioIO`:
+  state behind one pointer, callback only adds pre-rendered samples, schedule fixed before
+  start. Master gain 0.6 for clipping headroom.
+- `GrooveOfflineRender` — mirrors the mixing to a flat buffer so `selftest` can assert the
+  groove has energy, a silence level is truly silent, and the mix never exceeds 0 dBFS.
+- `groove [bpm]` command — count-in, the two-section demo arrangement with fills, the full
+  dropout ladder, and a slam back to full kit. One continuous schedule (no gaps).
+
+A note preserved for later: index arithmetic caught its own value in testing — computing a
+hit position incrementally (round each step, sum) drifted 2 samples from rounding the global
+step once. That 2-sample gap is exactly the accumulation error the design exists to avoid.
+
+**Not yet wired:** the groove plays, but nothing captures the player's MIDI against it yet.
+Closing that loop — record taps during a groove, apply calibration, run `TimingReport` — is
+M4/M5.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager modules, consumed by a thin Xcode app target:
@@ -391,7 +429,7 @@ because its boundary is what makes the numbers trustworthy. Keep it clean.
 
 **Still open:**
 
-4. **Drum samples.** Need a small free/CC0 kit. Decide before M3.
+4. ~~**Drum samples.**~~ **Resolved** — kit is synthesized in-app; no samples needed. See §7.4.
 5. **TD-6V needs a USB-MIDI interface** (DIN out only). Cheap, but a purchase.
 6. **Guitar needs an audio interface** for anything beyond a noisy built-in-mic experiment.
 7. ~~**Launchkey Mini MK2 key-scan latency is unknown.**~~ **Resolved** — jitter ≤ 0.63 ms, comfortably good enough. See §7.1.
