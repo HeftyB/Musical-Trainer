@@ -5,6 +5,10 @@ enum AudioDevices {
     struct Info {
         let id: AudioDeviceID
         let name: String
+        /// Sub-source within the device, e.g. "Internal Speakers" or "Headphones". On this
+        /// hardware both share the single device name "Built-in Output", so this is the
+        /// only thing that tells them apart — and their latencies differ substantially.
+        let dataSource: String?
         let sampleRate: Double
         let transport: String
         let isBluetooth: Bool
@@ -13,6 +17,13 @@ enum AudioDevices {
         let reportedLatencyFrames: UInt32
         let safetyOffsetFrames: UInt32
         let bufferFrameSize: UInt32
+
+        /// Stable key for calibration storage. Must distinguish physical output paths that
+        /// share a device name, or a quick calibration on one path overwrites another.
+        var identity: String {
+            guard let dataSource, !dataSource.isEmpty else { return name }
+            return "\(name) · \(dataSource)"
+        }
     }
 
     static func defaultDevice(input: Bool) -> Info? {
@@ -37,6 +48,7 @@ enum AudioDevices {
         return Info(
             id: id,
             name: stringProperty(id, kAudioObjectPropertyName) ?? "(unknown)",
+            dataSource: dataSourceName(id, scope: scope),
             sampleRate: property(id, kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, Double.self) ?? 0,
             transport: fourCC(transport),
             isBluetooth: transport == kAudioDeviceTransportTypeBluetooth
@@ -84,6 +96,39 @@ enum AudioDevices {
         }
         guard status == noErr else { return nil }
         return value as String?
+    }
+
+    /// Human-readable name of the device's current data source, if it has one. Devices
+    /// without sub-sources (aggregates, most USB interfaces) return nil, and identity
+    /// falls back to the device name alone.
+    private static func dataSourceName(_ id: AudioDeviceID, scope: AudioObjectPropertyScope) -> String? {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDataSource,
+                                                 mScope: scope,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var sourceID: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &sourceID) == noErr else {
+            return nil
+        }
+
+        var name: Unmanaged<CFString>?
+        // AudioValueTranslation converts the numeric source id to its display string.
+        return withUnsafeMutablePointer(to: &sourceID) { idPtr -> String? in
+            withUnsafeMutablePointer(to: &name) { namePtr -> String? in
+                var translation = AudioValueTranslation(
+                    mInputData: idPtr,
+                    mInputDataSize: UInt32(MemoryLayout<UInt32>.size),
+                    mOutputData: namePtr,
+                    mOutputDataSize: UInt32(MemoryLayout<Unmanaged<CFString>?>.size))
+                var nameAddress = AudioObjectPropertyAddress(
+                    mSelector: kAudioDevicePropertyDataSourceNameForIDCFString,
+                    mScope: scope, mElement: kAudioObjectPropertyElementMain)
+                var tSize = UInt32(MemoryLayout<AudioValueTranslation>.size)
+                guard AudioObjectGetPropertyData(id, &nameAddress, 0, nil, &tSize, &translation) == noErr,
+                      let cf = namePtr.pointee?.takeRetainedValue() else { return nil }
+                return cf as String
+            }
+        }
     }
 
     private static func fourCC(_ value: UInt32) -> String {

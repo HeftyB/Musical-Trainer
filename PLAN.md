@@ -219,7 +219,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | # | Milestone | Proves / delivers |
 |---|---|---|
 | **M0** | **Timing spike + ground-truth rig (console)** | Click, Launchkey capture, host-time ↔ sample-index bridge, and the §4.2 two-path validation with its four automated pass criteria. **The whole project rests on this.** Also yields the Launchkey's key-scan latency as a by-product. |
-| **M1** | Calibration | Chirp loopback cross-correlation via built-in mic; Bluetooth detection + refusal; per-device storage. Mostly falls out of M0. |
+| **M1** | Calibration | Chirp loopback cross-correlation via built-in mic; Bluetooth detection + refusal; per-device storage with reference-derived constants for devices that skip the full run. See §7.2. |
 | **M2** | `TimingCore` + tests | Pure analysis module. Unit-tested with synthetic tap data of known bias/SD/drift — assert the math recovers them. |
 | **M3** | Groove engine | Sample-accurate pattern sequencer + drum kit, tempo control, section/fill logic. |
 | **M4** | Jam shell (SwiftUI) | Eyes-off take screen, session capture to disk. **First version you actually practice with.** |
@@ -279,6 +279,46 @@ air term is the built-in speaker-to-mic distance (~15 cm, ~0.44 ms).
 
 Worth remembering that absolute accuracy matters less than it appears: a constant offset
 shifts measured *bias* but leaves *variance* untouched, and variance is the skill metric.
+
+---
+
+## 7.2 M1 — calibration, as built
+
+The stored quantity is `L_midi + L_out`, because asynchrony reduces to
+`(midiHostTime − clickEmitHostTime) − (L_midi + L_out)` and the two-path residual *is* that
+sum. MIDI transport latency never has to be separated from output latency.
+
+**Reference-and-derive.** A full calibration costs ~2 minutes of playing, too much to repeat
+per pair of headphones. `L_midi` belongs to the keyboard, not the output device, so one full
+run anchors a reference and any other device needs only a 15-second loopback:
+
+```
+C(dev) = C(ref) + (RT(dev) − RT(ref)) + air(ref) − air(dev)
+```
+
+Air path is stored per device rather than assumed, because it does not cancel: internal
+speakers sit ~15 cm from the built-in mic, while a headphone earcup resting against it is
+~1 cm. A directly measured constant always wins over a derived one — it carries no air-path
+assumption at all.
+
+**Device identity must include the data source.** On this MacBook, internal speakers and
+wired headphones are the *same* CoreAudio device — both report the name "Built-in Output" —
+yet their latencies differ by ~7 ms. The distinguishing property is
+`kAudioDevicePropertyDataSource` ("Internal Speakers" vs "Headphones"), so calibration keys
+on `name · dataSource`. Without this, a quick calibration on headphones overwrites the
+speaker reference. The first live M1 run hit exactly that: the quick pass clobbered the
+full pass's residual and left every constant unavailable. Fixed by (a) data-source identity
+and (b) a `record` merge that carries an existing measured residual forward, so a
+loopback-only pass can never destroy one. Both are covered in `selftest`.
+
+**Refusals.** Bluetooth output is rejected outright rather than warned about; its latency
+varies run to run, so no stored constant can ever be right. A full calibration also refuses
+to store a result whose residual SD exceeds 1 ms.
+
+Verified in `selftest` from known latencies — a sign error in the derivation would be
+invisible in normal use and would bias every asynchrony the app ever reports.
+
+Stored at `~/Library/Application Support/MusicalTrainer/calibration.json`.
 
 ---
 

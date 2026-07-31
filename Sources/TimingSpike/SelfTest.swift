@@ -42,6 +42,7 @@ enum SelfTest {
         var ok = true
         ok = chirpLocalisation() && ok
         ok = statistics() && ok
+        ok = calibrationDerivation() && ok
         ok = fullPipeline() && ok
 
         print("\n" + (ok
@@ -97,6 +98,97 @@ enum SelfTest {
         let sample = [1.0, 2.0, 3.0, 4.0, 100.0]
         ok = check("median resists outliers", Stats.median(sample) == 3.0,
                    "\(Stats.median(sample))") && ok
+        return ok
+    }
+
+    // MARK: - Calibration derivation
+
+    /// Checks that a device calibrated by loopback alone recovers the same constant a full
+    /// two-path run would have produced.
+    ///
+    /// Built from known latencies so the expected answer is arithmetic, not opinion. A sign
+    /// error here would be invisible in normal use and would bias every asynchrony the app
+    /// ever reports.
+    private static func calibrationDerivation() -> Bool {
+        print("\nCalibration derivation")
+
+        // Ground truth, all in ms.
+        let midiLatency = 6.0
+        let inputLatency = 11.5          // cancels — same input path for both devices
+        let speakerOut = 4.0,  speakerAir = Calibration.airPathMs(centimetres: 15)
+        let phonesOut  = 1.5,  phonesAir  = Calibration.airPathMs(centimetres: 1)
+
+        var store = Calibration()
+        store.devices["Speakers"] = .init(
+            displayName: "Speakers",
+            roundTripMs: speakerOut + speakerAir + inputLatency,
+            roundTripSD: 0.01, airPathMs: speakerAir, sampleRate: 44100,
+            bufferFrames: 256, measuredAt: Date(),
+            residualMs: midiLatency + speakerOut,     // what the two-path run measures
+            residualSD: 0.6)
+        store.devices["Headphones"] = .init(
+            displayName: "Headphones",
+            roundTripMs: phonesOut + phonesAir + inputLatency,
+            roundTripSD: 0.01, airPathMs: phonesAir, sampleRate: 44100,
+            bufferFrames: 256, measuredAt: Date(),
+            residualMs: nil, residualSD: nil)
+        store.referenceDevice = "Speakers"
+
+        var ok = true
+        if let derived = store.constant(for: "Headphones") {
+            let expected = midiLatency + phonesOut
+            ok = check("derives an uncalibrated device", abs(derived.value - expected) < 1e-9,
+                       String(format: "%.4f ms vs %.4f expected", derived.value, expected)) && ok
+            if case .derived(let from) = derived.source {
+                ok = check("marks it as derived", from == "Speakers", "from \(from)") && ok
+            } else {
+                ok = check("marks it as derived", false, "reported as measured") && ok
+            }
+        } else {
+            ok = check("derives an uncalibrated device", false, "returned nil") && ok
+        }
+
+        if let reference = store.constant(for: "Speakers") {
+            ok = check("reference returns its own measurement",
+                       abs(reference.value - (midiLatency + speakerOut)) < 1e-9,
+                       String(format: "%.4f ms", reference.value)) && ok
+            if case .measured = reference.source {} else {
+                ok = check("reference marked as measured", false, "reported as derived") && ok
+            }
+        }
+
+        var orphan = Calibration()
+        orphan.devices["Headphones"] = store.devices["Headphones"]
+        ok = check("no constant without a reference", orphan.constant(for: "Headphones") == nil,
+                   orphan.constant(for: "Headphones") == nil ? "nil" : "returned a value") && ok
+
+        // Regression: a quick (residual=nil) calibration on the SAME identity as the
+        // reference must not wipe the reference's measured residual. This is the exact
+        // data-loss bug the first live M1 run hit.
+        var clobber = store
+        clobber.record(identity: "Speakers", .init(
+            displayName: "Speakers", roundTripMs: 99, roundTripSD: 0.01,
+            airPathMs: speakerAir, sampleRate: 44100, bufferFrames: 256,
+            measuredAt: Date(), residualMs: nil, residualSD: nil))
+        if let after = clobber.constant(for: "Speakers"), case .measured = after.source {
+            ok = check("quick run preserves reference residual",
+                       abs(after.value - (midiLatency + speakerOut)) < 1e-9,
+                       String(format: "%.4f ms survived", after.value)) && ok
+        } else {
+            ok = check("quick run preserves reference residual", false, "residual was destroyed") && ok
+        }
+
+        // Persistence must survive a round trip or a stored calibration is worthless.
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        if let data = try? encoder.encode(store),
+           let restored = try? decoder.decode(Calibration.self, from: data),
+           let a = restored.constant(for: "Headphones")?.value,
+           let b = store.constant(for: "Headphones")?.value {
+            ok = check("survives encode/decode", abs(a - b) < 1e-9, String(format: "%.4f ms", a)) && ok
+        } else {
+            ok = check("survives encode/decode", false, "round trip failed") && ok
+        }
         return ok
     }
 
