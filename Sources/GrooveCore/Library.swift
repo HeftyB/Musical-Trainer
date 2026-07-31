@@ -50,4 +50,17 @@ public enum GrooveLibrary {
         Section(name: "A — basic rock", pattern: basicRock, bars: 8, fill: snareFill),
         Section(name: "B — driving",    pattern: drivingRide, bars: 8, fill: tomFill),
     ], loop: true)
+
+    /// The backing for recorded takes: 8-bar sections alternating hat and ride, each capped
+    /// with a fill.
+    ///
+    /// Two purposes at once. Sonic variety keeps a long take from going hypnotic, and the
+    /// fills are *landmarks* — a fill every 8 bars is what lets a player feel where they are
+    /// in the form without counting. Both sections keep the same rhythmic skeleton (eighths,
+    /// kick on 1 and 3, backbeat), so the timing demand is constant across the take and only
+    /// the colour changes.
+    public static let jamBacking = Arrangement(sections: [
+        Section(name: "A — hat",  pattern: basicRock,   bars: 8, fill: snareFill),
+        Section(name: "B — ride", pattern: drivingRide, bars: 8, fill: tomFill),
+    ], loop: true)
 }

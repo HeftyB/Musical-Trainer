@@ -18,6 +18,10 @@ final class GroovePlayer {
     private let kit: DrumKit
     let outputSampleRate: Double
 
+    /// Sonifies the player's MIDI so they can hear what they play while jamming. Held
+    /// strongly by the render block (one retain, no per-callback ARC).
+    let instrument: LiveInstrument
+
     private let capacity: Int
 
     private struct RenderState {
@@ -32,6 +36,14 @@ final class GroovePlayer {
         // One entry per drum voice: a stable pointer to its rendered one-shot and its length.
         var voiceData: UnsafeMutablePointer<UnsafeMutablePointer<Float>?>
         var voiceLen: UnsafeMutablePointer<Int>
+
+        // (mHostTime, bufferStartSample) pairs — the bridge that lets captured MIDI, which
+        // arrives in host time, be placed on the groove's output-sample timeline. Same
+        // technique as AudioIO; it is what makes a jam measurable.
+        var outMapHost: UnsafeMutablePointer<UInt64>
+        var outMapSample: UnsafeMutablePointer<Int64>
+        var outMapCount: Int = 0
+        var outMapCapacity: Int
     }
 
     // 0.6 leaves headroom so coincident voices (kick + hat on a downbeat) do not stack past
@@ -42,6 +54,7 @@ final class GroovePlayer {
         guard outputSampleRate > 0 else { throw SpikeError("No usable audio output device.") }
 
         kit = DrumKit(sampleRate: outputSampleRate)
+        instrument = LiveInstrument(sampleRate: outputSampleRate)
         voiceIndexOf = Dictionary(uniqueKeysWithValues:
             DrumVoice.allCases.enumerated().map { ($1, $0) })
 
@@ -57,13 +70,17 @@ final class GroovePlayer {
             voiceLen[index] = samples.count
         }
 
+        let mapCapacity = 600_000   // ~1 hour at 256-frame buffers, 44.1 kHz
         state = .allocate(capacity: 1)
         state.initialize(to: RenderState(
             starts: .allocate(capacity: capacity),
             voiceIndex: .allocate(capacity: capacity),
             gains: .allocate(capacity: capacity),
             voiceData: voiceData,
-            voiceLen: voiceLen))
+            voiceLen: voiceLen,
+            outMapHost: .allocate(capacity: mapCapacity),
+            outMapSample: .allocate(capacity: mapCapacity),
+            outMapCapacity: mapCapacity))
 
         _ = masterGain
         self.masterGain = masterGain
@@ -79,14 +96,18 @@ final class GroovePlayer {
         state.pointee.starts.deallocate()
         state.pointee.voiceIndex.deallocate()
         state.pointee.gains.deallocate()
+        state.pointee.outMapHost.deallocate()
+        state.pointee.outMapSample.deallocate()
         state.deallocate()
     }
 
     private func buildGraph() {
         let format = engine.outputNode.inputFormat(forBus: 0)
         let s = state
-        sourceNode = AVAudioSourceNode(format: format) { _, _, frameCount, ablPtr in
-            GroovePlayer.render(state: s, frameCount: frameCount, ablPtr: ablPtr)
+        let inst = instrument
+        sourceNode = AVAudioSourceNode(format: format) { _, timestamp, frameCount, ablPtr in
+            GroovePlayer.render(state: s, instrument: inst, timestamp: timestamp,
+                                frameCount: frameCount, ablPtr: ablPtr)
         }
         engine.attach(sourceNode)
         engine.connect(sourceNode, to: engine.outputNode, format: format)
@@ -106,6 +127,15 @@ final class GroovePlayer {
         state.pointee.scheduledCount = count
         state.pointee.cursor = 0
         state.pointee.outSampleCounter = 0
+        state.pointee.outMapCount = 0
+    }
+
+    /// (hostTime, sample) pairs captured during playback — feed to a `SampleHostMap` to
+    /// convert MIDI host times into groove-sample positions.
+    var outputMapPairs: [(hostTime: UInt64, sample: Int64)] {
+        (0..<state.pointee.outMapCount).map {
+            (state.pointee.outMapHost[$0], state.pointee.outMapSample[$0])
+        }
     }
 
     func run(forSeconds duration: Double) throws {
@@ -124,12 +154,29 @@ final class GroovePlayer {
         return Double(last + Int64(state.pointee.voiceLen[vi])) / outputSampleRate
     }
 
+    /// Forward a MIDI note event to the live instrument. Safe to call from the CoreMIDI
+    /// thread — `enqueue` is lock-free.
+    func noteEvent(note: UInt8, velocity: UInt8, on: Bool) {
+        instrument.enqueue(note: note, velocity: velocity, on: on)
+    }
+
     private static func render(state s: UnsafeMutablePointer<RenderState>,
+                               instrument: LiveInstrument,
+                               timestamp: UnsafePointer<AudioTimeStamp>,
                                frameCount: AVAudioFrameCount,
                                ablPtr: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
         let n = Int(frameCount)
         let bufferStart = s.pointee.outSampleCounter
         let bufferEnd = bufferStart + Int64(n)
+
+        let ts = timestamp.pointee
+        if (ts.mFlags.rawValue & AudioTimeStampFlags.hostTimeValid.rawValue) != 0,
+           s.pointee.outMapCount < s.pointee.outMapCapacity {
+            let i = s.pointee.outMapCount
+            s.pointee.outMapHost[i] = ts.mHostTime
+            s.pointee.outMapSample[i] = bufferStart
+            s.pointee.outMapCount = i + 1
+        }
 
         let abl = UnsafeMutableAudioBufferListPointer(ablPtr)
         for buffer in abl { memset(buffer.mData, 0, Int(buffer.mDataByteSize)) }
@@ -163,6 +210,22 @@ final class GroovePlayer {
                 }
             }
             i += 1
+        }
+
+        // Mix the live instrument (mono) into every channel, then soft-clip the master so
+        // stacked drum hits and held chords cannot exceed 0 dBFS. tanh is ~linear at low
+        // level, so it barely touches the drums and only tames the peaks.
+        let scratch = instrument.render(frames: n)
+        for buffer in abl {
+            let channels = Int(buffer.mNumberChannels)
+            let data = buffer.mData!.assumingMemoryBound(to: Float.self)
+            for f in 0..<n {
+                let voice = scratch[f]
+                for c in 0..<channels {
+                    let idx = f * channels + c
+                    data[idx] = tanhf(data[idx] + voice)
+                }
+            }
         }
 
         s.pointee.outSampleCounter = bufferEnd

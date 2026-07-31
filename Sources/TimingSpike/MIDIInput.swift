@@ -16,6 +16,11 @@ final class MIDIInput {
     private(set) var sourceNames: [String] = []
     private(set) var skippedSources: [String] = []
 
+    /// Called on the CoreMIDI delivery thread for every note-on and note-off, for live
+    /// monitoring. Keep the handler real-time-safe — it runs on the MIDI thread. `on` is
+    /// false for note-offs (and note-ons with velocity 0).
+    var onNoteEvent: ((_ note: UInt8, _ velocity: UInt8, _ on: Bool) -> Void)?
+
     /// Last note-on time per note number, for duplicate rejection.
     private var lastNoteOn = [UInt64](repeating: 0, count: 128)
     private let dedupWindow = HostClock.ticks(seconds: 0.003)
@@ -105,15 +110,20 @@ final class MIDIInput {
                 let note = UInt8((word >> 8) & 0x7F)
                 let velocity = UInt8(word & 0x7F)
                 // Status 0x9 with velocity 0 is a note-off by convention.
-                if status == 0x9, velocity > 0, storageCount < capacity {
+                if status == 0x9, velocity > 0 {
                     // Reject a repeat of the same note within the dedup window. No player
                     // retriggers one note in 3 ms, so this can only be double delivery.
                     let previous = lastNoteOn[Int(note)]
                     if previous == 0 || timeStamp &- previous > dedupWindow {
                         lastNoteOn[Int(note)] = timeStamp
-                        storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note, velocity: velocity)
-                        storageCount += 1
+                        if storageCount < capacity {
+                            storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note, velocity: velocity)
+                            storageCount += 1
+                        }
+                        onNoteEvent?(note, velocity, true)
                     }
+                } else if status == 0x8 || (status == 0x9 && velocity == 0) {
+                    onNoteEvent?(note, 0, false)
                 }
             }
             i += Self.wordCount(forMessageType: messageType)

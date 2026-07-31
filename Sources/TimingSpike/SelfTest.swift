@@ -46,6 +46,8 @@ enum SelfTest {
         ok = statistics() && ok
         ok = calibrationDerivation() && ok
         ok = grooveRendering() && ok
+        ok = liveInstrument() && ok
+        ok = jamReduction() && ok
         ok = fullPipeline() && ok
 
         print("\n" + (ok
@@ -248,6 +250,130 @@ enum SelfTest {
                    String(format: "RMS %.6f vs %.4f", silenceRMS, grooveRMS)) && ok
         ok = check("mix does not clip (≤ 0 dBFS)", peak <= 1.0,
                    String(format: "peak %.2f", peak)) && ok
+        return ok
+    }
+
+    // MARK: - Live instrument
+
+    /// Drives the synth the way the audio thread would — enqueue events, render blocks —
+    /// and checks it makes sound on note-on, holds while sustained, and returns to silence
+    /// after note-off. No hardware, no audio device.
+    private static func liveInstrument() -> Bool {
+        print("\nLive instrument (MIDI → synth)")
+        let fs = 44100.0
+        let inst = LiveInstrument(sampleRate: fs)
+        let block = 256
+        var ok = true
+
+        func renderRMS(blocks: Int) -> Double {
+            var sum = 0.0, count = 0
+            for _ in 0..<blocks {
+                let p = inst.render(frames: block)
+                for i in 0..<block { sum += Double(p[i]) * Double(p[i]); count += 1 }
+            }
+            return (sum / Double(count)).squareRoot()
+        }
+
+        let beforeNote = renderRMS(blocks: 4)
+        ok = check("silent before any note", beforeNote < 1e-6,
+                   String(format: "RMS %.2e", beforeNote)) && ok
+
+        inst.enqueue(note: 69, velocity: 100, on: true)     // A4
+        let sustained = renderRMS(blocks: 40)               // ~0.23 s of held tone
+        ok = check("makes sound while held", sustained > 0.02,
+                   String(format: "RMS %.3f", sustained)) && ok
+
+        inst.enqueue(note: 69, velocity: 100, on: false)
+        _ = renderRMS(blocks: 60)                            // let the release finish
+        let afterRelease = renderRMS(blocks: 8)
+        ok = check("returns to silence after note-off", afterRelease < 1e-4,
+                   String(format: "RMS %.2e", afterRelease)) && ok
+
+        // A chord is louder than a single note but the mix stays bounded (voices sum but
+        // the master soft-clip lives in GroovePlayer; here we just confirm no runaway).
+        for n: UInt8 in [60, 64, 67, 71] { inst.enqueue(note: n, velocity: 100, on: true) }
+        var peak = 0.0
+        for _ in 0..<20 {
+            let p = inst.render(frames: block)
+            for i in 0..<block { peak = max(peak, abs(Double(p[i]))) }
+        }
+        ok = check("chord renders and stays finite", peak > 0.05 && peak.isFinite,
+                   String(format: "peak %.2f", peak)) && ok
+        return ok
+    }
+
+    // MARK: - Jam reduction
+
+    /// Verifies the jam reduction end to end on synthetic data: an output-sample↔host-time
+    /// map plus MIDI note-ons carrying a known true asynchrony and a known calibration
+    /// constant. The reduction must strip the constant with the correct sign and recover the
+    /// true asynchrony — a sign slip here would bias every "am I rushing?" answer the app gives.
+    private static func jamReduction() -> Bool {
+        print("\nJam reduction (two clocks → calibrated asynchrony)")
+        let fs = 44100.0
+        let bpm = 120.0
+        let beatSamples = Int64(fs * 60 / bpm)          // 22050
+        let grooveStart = Int64(fs)                     // 1 s in
+        let beats = 40
+        let trueAsyncMs = -9.0                          // the player rushes 9 ms
+        let constantMs = 11.0                           // L_midi + L_out to strip
+
+        // Output map with an exact sample = fs·seconds relationship (intercept 0).
+        let epoch = HostClock.now()
+        var outputMap: [(hostTime: UInt64, sample: Int64)] = []
+        for i in 0..<400 {
+            let sample = Int64(Double(i) * 0.01 * fs)
+            outputMap.append((epoch &+ HostClock.ticks(seconds: Double(sample) / fs), sample))
+        }
+
+        // A note near each beat: emit time + constant + true asynchrony (+ light jitter).
+        var rng = RNG()
+        var midi: [(hostTime: UInt64, velocity: Int)] = []
+        for k in 0..<beats {
+            let beatSample = grooveStart + Int64(k) * beatSamples
+            let emitSec = Double(beatSample) / fs
+            let jitter = rng.gaussian(sd: 0.003)
+            let noteSec = emitSec + constantMs / 1000 + trueAsyncMs / 1000 + jitter
+            midi.append((epoch &+ HostClock.ticks(seconds: noteSec), 90))
+        }
+
+        let grooveEnd = grooveStart + Int64(beats) * beatSamples
+
+        guard let corrected = JamAnalysis.reduce(
+            outputMap: outputMap, midi: midi,
+            grooveStartSample: grooveStart, grooveEndSample: grooveEnd,
+            bpm: bpm, subdivisions: 1, calibrationConstantMs: constantMs) else {
+            return check("reduction produced a result", false, "nil")
+        }
+        let report = TimingAnalysis.analyze(taps: corrected.taps, grid: corrected.grid)
+
+        var ok = check("all beats captured", report.matchedCount == beats,
+                       "\(report.matchedCount) of \(beats)")
+        ok = check("recovers true asynchrony (constant stripped)",
+                   abs(report.meanAsynchronyMs - trueAsyncMs) < 1.0,
+                   String(format: "%.2f ms vs %.1f expected", report.meanAsynchronyMs, trueAsyncMs)) && ok
+
+        // With the constant NOT removed, the mean must shift by exactly the constant —
+        // proving the correction is real and correctly signed, not incidental.
+        if let raw = JamAnalysis.reduce(
+            outputMap: outputMap, midi: midi,
+            grooveStartSample: grooveStart, grooveEndSample: grooveEnd,
+            bpm: bpm, subdivisions: 1, calibrationConstantMs: 0) {
+            let rawMean = TimingAnalysis.analyze(taps: raw.taps, grid: raw.grid).meanAsynchronyMs
+            ok = check("constant shifts bias by exactly its value",
+                       abs((rawMean - report.meanAsynchronyMs) - constantMs) < 0.01,
+                       String(format: "%.2f ms shift vs %.1f", rawMean - report.meanAsynchronyMs, constantMs)) && ok
+        }
+
+        // Count-in / stray notes outside the window must be dropped.
+        var withStray = midi
+        withStray.insert((epoch &+ HostClock.ticks(seconds: 0.1), 90), at: 0)   // during count-in
+        if let r = JamAnalysis.reduce(outputMap: outputMap, midi: withStray,
+                                      grooveStartSample: grooveStart, grooveEndSample: grooveEnd,
+                                      bpm: bpm, subdivisions: 1, calibrationConstantMs: constantMs) {
+            ok = check("out-of-window notes are excluded", r.tapsInWindow == beats,
+                       "\(r.tapsInWindow) in window") && ok
+        }
         return ok
     }
 

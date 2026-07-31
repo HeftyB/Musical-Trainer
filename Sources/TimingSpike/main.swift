@@ -24,6 +24,14 @@ func usage() {
       calibrate quick   loopback-only calibration for another output device
       calibrate reset   delete all stored calibration
       groove [bpm]      M3: play a synthesized groove + dropout ladder (default 100)
+      jam [bpm] [bars] [tag]
+                        M4: record a take and analyze it (default 100, 32; tag e.g. relaxed)
+      review [n]        re-analyze the latest saved take, or take n
+      review list       list all takes
+      review compare [i j]      two takes side by side, with significance
+      review tags               pooled summary of every tagged condition
+      review conditions <a> <b> pooled comparison of two conditions
+      review feel               does your sense of a good take match the measurement?
       show              print stored calibration
     """)
 }
@@ -50,6 +58,14 @@ do {
     case "groove":
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
         try Commands.runGroove(bpm: bpm)
+
+    case "jam":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
+        try Commands.runJam(bpm: bpm, bars: bars, tag: arguments.dropFirst(3).first)
+
+    case "review":
+        try Commands.runReview(Array(arguments.dropFirst()))
 
     case "show":
         try Commands.runShow()

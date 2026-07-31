@@ -37,6 +37,14 @@ enum Console {
         return value
     }
 
+    /// A 1–5 rating, or nil if skipped.
+    static func readRating(_ question: String) -> Int? {
+        print("\(question) [1-5, enter to skip]: ", terminator: "")
+        guard let line = readLine()?.trimmingCharacters(in: .whitespaces), !line.isEmpty,
+              let value = Int(line), (1...5).contains(value) else { return nil }
+        return value
+    }
+
     static func confirm(_ question: String) -> Bool {
         print("\(question) [y/N]: ", terminator: "")
         let line = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""

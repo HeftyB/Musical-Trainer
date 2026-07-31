@@ -27,6 +27,12 @@ swift build -c release   # the console tool
 | `calibrate quick` | **M1.** Loopback only (~15 s), derives its constant from the reference. |
 | `calibrate reset` | Deletes all stored calibration. |
 | `groove [bpm]` | **M3.** Plays a synthesized groove: count-in, a two-section arrangement with fills, the dropout ladder, and a slam back. Default 100 BPM. |
+| `jam [bpm] [bars]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. |
+| `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. |
+| `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
+| `review tags` | Pooled summary of every tagged condition. |
+| `review conditions <a> <b>` | Pooled comparison of two conditions — the experiment readout. |
+| `review feel` | Does your sense of a good take match the measurement? |
 | `show` | Prints stored calibration and the constant for each device. |
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is
@@ -86,3 +92,29 @@ selects the right constant.
 
 Absolute accuracy matters less than it looks. A constant offset shifts measured *bias* but
 leaves *variance* untouched, and variance is the skill metric this project is built around.
+
+## Recording a take
+
+```sh
+# Calibrate once (see above), then:
+./.build/release/TimingSpike jam 100 32            # 100 BPM, 32 bars (~77 s)
+./.build/release/TimingSpike jam 100 64 relaxed    # tagged with the state you played in
+```
+
+Tag takes to compare conditions, and rate each one 1–5 when prompted (you're asked *before*
+the numbers appear, so the rating stays honest):
+
+```sh
+./.build/release/TimingSpike review tags                   # pooled per condition
+./.build/release/TimingSpike review conditions relaxed focused
+./.build/release/TimingSpike review feel                   # is your instinct calibrated?
+```
+
+A 2-bar count-in, then play along to the groove — eyes closed, nothing on screen. When it
+finishes it prints your timing (rush/drag bias, spread, drift, whether you're chasing the
+click) and saves the session to
+`~/Library/Application Support/MusicalTrainer/sessions/`. Run it again for another take;
+the M5 review will chart them over time.
+
+Calibrate first for a trustworthy bias number — uncalibrated takes still measure spread and
+drift correctly but flag the bias as unreliable.

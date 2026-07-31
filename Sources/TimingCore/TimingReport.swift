@@ -19,6 +19,10 @@ public struct TimingReport: Equatable {
     public let extraCount: Int
     public let missedCount: Int
 
+    /// The matched signed asynchronies in ms, in time order. Kept so callers can bootstrap
+    /// confidence intervals and so the M5 review can plot the series.
+    public let asynchroniesMs: [Double]
+
     public let meanAsynchronyMs: Double     // + drag, − rush
     public let sdAsynchronyMs: Double
     public let medianAsynchronyMs: Double
@@ -46,8 +50,16 @@ public struct TimingReport: Equatable {
 }
 
 public enum TimingAnalysis {
-    public static func analyze(taps: [Tap], grid: Grid, windowFraction: Double = 0.4) -> TimingReport {
-        make(match: Matching.match(taps: taps, to: grid, windowFraction: windowFraction), grid: grid)
+    /// - Parameter chordWindowMs: near-simultaneous taps within this window are collapsed to
+    ///   one rhythmic event before matching, so chords count once. 0 disables clustering
+    ///   (e.g. when the caller has already clustered).
+    public static func analyze(taps: [Tap], grid: Grid,
+                               windowFraction: Double = 0.4,
+                               chordWindowMs: Double = 35) -> TimingReport {
+        let events = chordWindowMs > 0
+            ? TapClustering.collapse(taps, windowSeconds: chordWindowMs / 1000)
+            : taps
+        return make(match: Matching.match(taps: events, to: grid, windowFraction: windowFraction), grid: grid)
     }
 
     public static func make(match: MatchResult, grid: Grid) -> TimingReport {
@@ -83,6 +95,7 @@ public enum TimingAnalysis {
             matchedCount: match.matchedCount,
             extraCount: match.extraTaps.count,
             missedCount: match.missedIndices.count,
+            asynchroniesMs: asynchronies,
             meanAsynchronyMs: mean,
             sdAsynchronyMs: sd,
             medianAsynchronyMs: median,

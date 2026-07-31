@@ -222,7 +222,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M1** | Calibration | Chirp loopback cross-correlation via built-in mic; Bluetooth detection + refusal; per-device storage with reference-derived constants for devices that skip the full run. See §7.2. |
 | **M2** | `TimingCore` + tests | ✅ Done. Pure analysis module, 25 XCTest cases against synthetic ground truth. See §7.3. |
 | **M3** | Groove engine | ✅ Done. `GrooveCore` (patterns, sequencer, dropout ladder) + synthesized kit + `GroovePlayer`. See §7.4. |
-| **M4** | Jam shell (SwiftUI) | Eyes-off take screen, session capture to disk. **First version you actually practice with.** |
+| **M4** | Jam capture loop | ✅ Done (console). `jam` records a take against the groove, applies calibration, runs the report, saves the session. SwiftUI shell deferred — see §7.5. **First version you actually practice with.** |
 | **M5** | Review screen | Swift Charts, the full metric set, plain-English headline. |
 | **M6** | Adaptive dropout ladder | The training mechanic, difficulty driven by measured drift. |
 | **M7** | Progress over time | Longitudinal trends. Is SD falling? Is `r₁` moving toward zero? |
@@ -390,6 +390,139 @@ step once. That 2-sample gap is exactly the accumulation error the design exists
 **Not yet wired:** the groove plays, but nothing captures the player's MIDI against it yet.
 Closing that loop — record taps during a groove, apply calibration, run `TimingReport` — is
 M4/M5.
+
+---
+
+## 7.5 M4 — jam capture loop, as built
+
+The loop finally closes: play → capture → measure. Chosen console-first (with the user)
+because the take screen is near-blank by design, so the console is a legitimate take
+surface; SwiftUI's real payoff is the visual review (M5). Fixed-length takes for
+repeatable baselines.
+
+`jam [bpm] [bars]` — a 2-bar count-in, then N bars of a steady groove (`basicRock`) with
+the Launchkey captured throughout. On stop it applies calibration, aligns to the groove
+grid, runs the M2 `TimingReport`, prints it, and saves the session.
+
+The technical heart is **reconciling two clocks**, the same problem M0 solved for the rig:
+
+- `GroovePlayer` now publishes `(mHostTime, sample)` pairs from its render callback.
+- `JamAnalysis.reduce` builds a `SampleHostMap` from them and lifts both the groove grid
+  and the MIDI note-ons onto one seconds-since-epoch timeline.
+- Calibration is applied by shifting every tap earlier by the stored constant, giving
+  `asynchrony = (midiHostSec − clickEmitSec) − (L_midi + L_out)` — identical to the M0
+  definition. `selftest` proves the constant is stripped with the correct sign (recovers a
+  planted −9 ms async; a zero-constant run differs by exactly the 11 ms constant).
+
+Sessions persist to `~/Library/Application Support/MusicalTrainer/sessions/` with the raw
+taps and grid parameters, so M5 can re-analyze and plot without re-recording.
+
+Decisions:
+
+1. **Uncalibrated is allowed, with a warning.** No constant means the *bias* (mean
+   asynchrony) is off, but spread, drift, and autocorrelation are untouched — so the take
+   is still worth analyzing. The report flags the bias as unreliable rather than refusing.
+2. **A one-beat guard band** drops count-in notes and the final ring-out so they can't pose
+   as timing data.
+3. **`basicRock`, steady eighths, for the baseline take.** Wing–Kristofferson is *not* run
+   here — it needs an unpaced continuation, which only the dropout drills (M6) provide.
+   M4 reports bias, spread, drift, lag-1 (chasing), subdivision spread, velocity coupling.
+
+**Live monitoring.** A silent controller has no sound of its own, so you can't jam to it —
+you have to *hear* what you play. `LiveInstrument` is a 16-voice polyphonic synth (normalized
+sine-plus-harmonics through an ADSR, deliberately filter-free so it can't go harsh) that
+sonifies the Launchkey in real time and mixes into the groove. Note events cross from the
+CoreMIDI thread to the audio thread through a single-producer/single-consumer lock-free ring;
+the render thread never allocates or locks. The master bus is soft-clipped (`tanh`) so held
+chords over the drums can't exceed 0 dBFS. Wired into both `jam` and `groove`. Monitoring
+latency is ~15 ms (buffer + output + MIDI), independent of the *measurement*, which uses the
+MIDI host timestamp and is unaffected.
+
+**Chord handling (found in the first real take).** A keyboardist plays chords, and the first
+jam reported 256 of 393 notes as "between beats" — they were chord tones, not timing errors,
+because matching keeps one note per grid point. `TapClustering` (in TimingCore) now collapses
+note-ons within ~35 ms into one rhythmic event before matching; the first take re-analyzed
+went from 256 off-grid to 2. The window is well under any single-note run, so genuine notes
+are never merged. "Missed grid points" is no longer surfaced in the jam report — in free
+playing you simply aren't playing every subdivision.
+
+**`review [list]`** re-analyzes saved takes with the current analysis (the raw taps are
+stored, so improvements like chord clustering apply retroactively). A console stand-in until
+the M5 visual review.
+
+**Uncertainty, because the first experiment needed it.** Comparing a relaxed take to a
+"counting" take, the differences were small — but point numbers can't say whether small is
+real. `Bootstrap` (in TimingCore) adds 95% confidence intervals by a **moving-block**
+bootstrap: asynchronies are serially correlated (that correlation is the r₁ we report), so
+resampling single points would understate the uncertainty; resampling contiguous blocks
+preserves it. Every take now prints CIs, and `review compare [i j]` bootstraps each
+*difference* and labels it "real change" or "within noise" (does the interval for the change
+exclude zero). The first relaxed-vs-counting comparison came back "within noise" on all three
+metrics — while the single-take r₁ interval `[+0.22, +0.49]` excludes zero, confirming the
+drift/under-correction signature is real, not sample noise. Lesson recorded: the "counting
+makes it worse" effect, if real, needs a more demanding task than slow block chords on the
+beat, plus more events for power.
+
+**Conditions and self-rating.** `jam [bpm] [bars] [tag]` labels a take with the state it was
+played in, and after every take — *before* any numbers appear — the player rates how it felt
+1–5. Rating first matters: a rating shown after the measurement would just echo it.
+
+Three readouts: `review tags` (pooled summary per condition), `review conditions <a> <b>`
+(pooled bootstrap comparison, the experiment readout), `review feel` (does the player's sense
+of a good take track the measured spread?). Pooling resamples blocks *within* each take and
+concatenates, so a block never spans a session boundary. With fewer than 3 takes per
+condition the comparison says so explicitly — the intervals cover within-take variation but
+cannot see session-to-session variation, so a null result is not yet trustworthy.
+
+The self-rating is not decoration. If feel correlates with spread, the player's instinct is a
+calibrated instrument they can trust mid-practice; if it doesn't, that gap is the finding and
+it explains a lot about "everything makes sense by feel."
+
+**Backing is now sectional** (`GrooveLibrary.jamBacking`): 8-bar sections alternating hat and
+ride, each capped with a fill. Variety keeps a long take from going hypnotic, and the fills
+are landmarks — see §6.1. Both sections share a rhythmic skeleton so the timing demand stays
+constant and only the colour changes.
+
+**Deferred:** the SwiftUI eyes-off take screen and the Swift Charts review (M5) wrap this
+verified engine next.
+
+---
+
+## 6.1 Form awareness — a second axis
+
+Stated goal, in the player's words: *"I want to instinctively feel when I am 16 or 32 bars in
+and have full confidence."* Plus: *"everything makes more sense by feel, flow, and sound vs
+bar, beat, and measure count."*
+
+This is a **different measurement from everything above.** §5 measures beat-level placement
+in milliseconds. Form awareness is phrase-level — tens of seconds — and it is a distinct
+skill: knowing *where you are* rather than *whether this note is early*. A player can have
+tight beat placement and no form sense, or vice versa.
+
+**Why it is trainable without counting.** Form sense is built from *sonic landmarks*, not
+arithmetic. You feel "16 bars" because the music told you — a fill landed, the section
+turned, the pattern resolved. The internal clock entrains to the period. Counting is the
+crutch that prevents the entrainment, which is why §7.5's sectional backing (fill every 8
+bars) is a training feature and not just anti-boredom.
+
+**How to measure it — the phrase-mark drill.** During a jam, the player hits one designated
+key at what they feel is the downbeat of each phrase (say every 8 bars), without counting.
+Two errors fall out, and they are qualitatively different:
+
+- **Phase error** (ms/beats from the true downbeat) — fine-grained placement, the §5 metrics.
+- **Form error** (whole bars off) — did they lose the count entirely? This is the spatial
+  awareness number, and it is the one that matters here.
+
+Progression: strong landmarks (fill every 8) → weaker (fill every 16) → none → landmarks
+under dropout, where the band is absent across the phrase boundary. That last stage is the
+real test and it composes with the §6 dropout ladder.
+
+**Reported failure modes to design against** (the player's own account): losing count or
+over-stressing bar count; overthinking what to play next; attention wandering until "brain
+jumps out of sync with body," then trying to consciously jump back in. All three are
+*conscious-monitoring* failures, and the last one is the most telling — the recovery attempt
+is itself the disruption. Drills should reward re-entry by feel and never require a running
+count.
 
 ---
 
