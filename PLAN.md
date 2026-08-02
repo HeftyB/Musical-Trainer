@@ -226,7 +226,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M5** | SwiftUI app + review | ✅ Done. Eyes-off take screen, rate-before-results, Swift Charts review, history. See §7.6. |
 | **M6** | Dropout / continuation drill | ✅ Done. The only drill that yields a clock/motor split. See §7.7. |
 | **M7** | Progress over time | ✅ Done. `review trend` fits each metric with a bootstrap interval and splits confounded groups. See §7.8. |
-| **M8** | Tempo calibration drill | Proposed. Directly trains the systematic tempo bias §7.8 found. |
+| **M8** | Tempo calibration drill | ✅ Done. Closed feedback loop on the tempo bias §7.8 found. See §7.10. |
 | — | *Later* | Guitar onset detection; TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
 
 ---
@@ -803,6 +803,44 @@ mismatch rather than a skill deficit.
 **What not to do.** Nothing here says practice harder or count more carefully. The r₁ evidence
 is consistent across all nine jams: this is under-correction, not chasing, and adding conscious
 control is the documented way to make that worse.
+
+---
+
+## 7.10 M8 — tempo calibration, as built
+
+`tempo [bpm ...]`, and **Tempo** in the app. The click establishes a target, falls silent, the
+player holds the tempo alone, and the app reports the tempo actually produced — then the click
+returns so the correction can be made immediately and tried again.
+
+This targets the one finding §7.8 established solidly: unaccompanied, the produced period runs
+~5% slow. That is a **calibration** error rather than an instability, and calibration errors
+respond to feedback in a way that variance does not.
+
+Design decisions:
+
+1. **Feedback per round, not per session.** The learning is in the loop — produce, be told,
+   correct, produce again. One long take would give a better variance estimate and no training.
+2. **Rotating targets.** `tempo 76 100 132` cycles the target between rounds. A clock
+   calibrated at one tempo is a lookup table; rotating trains the mapping from a named tempo to
+   a period. The scheduler advances its sample cursor round by round so each round can run at
+   its own tempo.
+3. **Accuracy, not bias, is the number to drive down.** Bias is signed and tells you which way
+   you err; mean absolute error is what improves. Both are reported, and the within-session
+   slope says whether the loop is actually working today.
+4. **Unscorable rounds say why.** Fewer than five notes, or a mix of note values, and the round
+   reports "not one note per beat" instead of a confident wrong number — the lesson of §7.8.
+   Consistent subdividing is accepted and normalised.
+
+## 7.11 Instructions
+
+Every drill's instructions now live in one place (`DrillInstructions`) and are rendered by both
+the console and the app: goal, numbered steps, the mistakes that *invalidate* the measurement
+rather than merely lower the score, and what the drill reports back.
+
+This is a correctness concern, not a presentation one. The form drill already lost two takes to
+an instruction ambiguity (§6.1), and instructions duplicated across two surfaces drift — at
+which point the same drill silently means two different things depending on where it was
+started.
 
 ---
 

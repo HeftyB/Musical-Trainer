@@ -212,10 +212,11 @@ public enum Commands {
                 """)
         }
 
-        print("\n2-bar count-in, then \(bars) bars at \(Int(bpm)) BPM"
-            + String(format: " (~%.1f min)", config.durationSeconds / 60) + ".")
+        print("\n\(bars) bars at \(Int(bpm)) BPM"
+            + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
         if let tag = config.tag { print("Condition: \(Console.bold)\(tag)\(Console.reset)") }
-        print("Play along — eyes closed. You'll hear your keys over the groove.\n")
+        printInstructions(DrillInstructions.jam)
+        Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runJam(config)
 
@@ -309,6 +310,7 @@ public enum Commands {
         if args.first == "form" { runFormHistory(); return }
         if args.first == "dropout" { runDropoutHistory(); return }
         if args.first == "trend" { runTrend(); return }
+        if args.first == "tempo" { runTempoHistory(); return }
 
         let sessions = SessionStore.loadAll()
         guard !sessions.isEmpty else {
@@ -613,6 +615,91 @@ public enum Commands {
         }
     }
 
+    /// Print a drill's instructions. Shared text so the console and the app can never
+    /// describe the same drill differently.
+    private static func printInstructions(_ instructions: DrillInstructions) {
+        print("")
+        print(instructions.consoleText(bold: Console.bold, reset: Console.reset, dim: Console.dim))
+    }
+
+    // MARK: - Tempo calibration
+
+    public static func runTempo(targets: [Double], leadBars: Int, holdBars: Int, rounds: Int) throws {
+        Console.heading("Tempo calibration — produce the tempo yourself")
+        let config = TrainerEngine.TempoConfig(targets: targets, leadBars: leadBars,
+                                               holdBars: holdBars, rounds: rounds)
+        let env = try TrainerEngine.environment()
+        print("Output: \(env.outputName)")
+        let targetText = targets.map { String(Int($0)) }.joined(separator: " / ")
+        print("Targets: \(targetText) BPM   ·   \(rounds) rounds   ·   "
+            + String(format: "~%.1f min", config.durationSeconds / 60))
+        printInstructions(DrillInstructions.tempo)
+        Console.prompt("Ready?")
+
+        let outcome = try TrainerEngine.runTempo(config)
+        let feel = Console.readRating("\nHow did that feel?")
+        reportTempo(outcome)
+        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
+    }
+
+    private static func reportTempo(_ outcome: TrainerEngine.TempoOutcome) {
+        let r = outcome.report
+        Console.heading("Round by round")
+        print("\(pad("Round", 8))\(pad("target", 9))\(pad("you played", 12))\(pad("error", 16))")
+        for round in r.rounds {
+            guard round.isUsable, let produced = round.producedBpm,
+                  let err = round.errorBpm, let pct = round.errorPercent else {
+                print("\(pad("\(round.index + 1)", 8))\(pad(String(format: "%.0f", round.targetBpm), 9))"
+                    + "\(pad("—", 12))\(Console.dim)\(round.unusableReason ?? "not scored")\(Console.reset)")
+                continue
+            }
+            let colour = abs(pct) < 2 ? Console.green : (abs(pct) < 5 ? "" : Console.yellow)
+            print("\(pad("\(round.index + 1)", 8))\(pad(String(format: "%.0f", round.targetBpm), 9))"
+                + "\(pad(String(format: "%.1f", produced), 12))"
+                + "\(colour)\(pad(String(format: "%+.1f BPM (%+.1f%%)", err, pct), 16))\(Console.reset)")
+        }
+
+        Console.heading("Summary")
+        guard r.usableCount > 0 else {
+            Console.error(r.headline)
+            return
+        }
+        print("\(Console.bold)\(r.headline)\(Console.reset)\n")
+        if let bias = r.meanErrorPercent {
+            print(String(format: "Bias:      %+.1f%%  (%@)", bias, bias < 0 ? "you run slow" : "you run fast"))
+        }
+        if let absErr = r.meanAbsErrorPercent {
+            print(String(format: "Accuracy:  %.1f%% average error", absErr))
+        }
+        if let slope = r.improvementPerRound {
+            print(String(format: "Trend:     %+.2f%% per round  (%@)", slope,
+                         slope < -0.3 ? "tightening" : slope > 0.3 ? "loosening" : "steady"))
+        }
+        print("Scored:    \(r.usableCount)/\(r.rounds.count) rounds")
+    }
+
+    /// Tempo-calibration history.
+    private static func runTempoHistory() {
+        let sessions = SessionStore.loadAllTempo()
+        Console.heading("Tempo calibration history")
+        guard !sessions.isEmpty else {
+            print("No tempo sessions yet. Try:  TimingSpike tempo 100")
+            return
+        }
+        print("\(pad("When", 22))\(pad("targets", 14))\(pad("bias", 10))\(pad("accuracy", 11))feel")
+        for s in sessions {
+            let r = TempoCalibrationAnalysis.analyze(taps: s.taps, rounds: s.roundWindows)
+            let targets = s.targets.map { String(Int($0)) }.joined(separator: "/")
+            print("\(pad(dateLabel(s.date), 22))\(pad(targets, 14))"
+                + "\(pad(r.meanErrorPercent.map { String(format: "%+.1f%%", $0) } ?? "—", 10))"
+                + "\(pad(r.meanAbsErrorPercent.map { String(format: "%.1f%%", $0) } ?? "—", 11))"
+                + (s.feelRating.map { String(repeating: "★", count: $0) } ?? "—"))
+        }
+        print("\n\(Console.dim)Bias is signed (negative = slow). Accuracy is average error "
+            + "regardless of direction — that is the number to drive down.\(Console.reset)")
+    }
+
     // MARK: - Dropout drill
 
     public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int) throws {
@@ -622,19 +709,10 @@ public enum Commands {
         let env = try TrainerEngine.environment()
         print("Output: \(env.outputName)")
 
-        print("""
-
-        \(Console.bold)\(cycles) cycles\(Console.reset): \(pacedBars) bars with the band, \
-        \(silentBars) bars alone \
-        (~\(String(format: "%.1f", config.durationSeconds / 60)) min)
-
-        \(Console.bold)Play ONE NOTE PER BEAT, steadily, the whole way through.\(Console.reset)
-        Any note you like — but keep it to quarter notes and never stop, especially
-        when the band drops out. The silences are the measurement.
-
-          • \(Console.bold)Do not count.\(Console.reset) Let the pulse carry itself.
-          • The band slams back in with a crash. You'll hear whether you're still with it.
-        """)
+        print("\n\(Console.bold)\(cycles) cycles\(Console.reset): \(pacedBars) bars with the band, "
+            + "\(silentBars) bars alone  ·  "
+            + String(format: "~%.1f min", config.durationSeconds / 60))
+        printInstructions(DrillInstructions.dropout)
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runDropout(config)
@@ -845,28 +923,17 @@ public enum Commands {
                                               phraseBars: phraseBars, level: level)
         _ = try TrainerEngine.environment()
 
-        print("""
-
-        \(Console.bold)\(config.phrases) phrases of \(phraseBars) bars\(Console.reset) at \(Int(bpm)) BPM \
-        (~\(String(format: "%.1f", config.durationSeconds / 60)) min)
-        Landmarks: \(level.label)
-
-        \(Console.bold)Where to hit:\(Console.reset) on the DOWNBEAT that starts each new phrase — the "1"
-        where the groove settles back in \(Console.bold)after\(Console.reset) the fill. Not during the fill.
-        The fill is the warning; the downbeat right after it is the target.
-        """)
+        print("\n\(Console.bold)\(config.phrases) phrases of \(phraseBars) bars\(Console.reset) "
+            + "at \(Int(bpm)) BPM  ·  "
+            + String(format: "~%.1f min", config.durationSeconds / 60))
+        print("Landmarks: \(level.label)")
+        printInstructions(DrillInstructions.form)
         if level.hasArrivalAccent {
-            print("A crash lands exactly on that downbeat, including the very first bar — that\n"
-                + "is the sound you are aiming to land with.")
+            print("\n  \(Console.dim)At this level a crash cymbal lands exactly on the beat you are\n"
+                + "  aiming for — including the very first bar. Land with it, not after it.\(Console.reset)")
+        } else {
+            print("\n  \(Console.dim)\(level.advice)\(Console.reset)")
         }
-        print("""
-
-          • \(Console.bold)Hit any PAD once\(Console.reset) per phrase, on that downbeat.
-          • Play whatever you like on the keys in between, or nothing at all.
-          • \(Console.bold)Do not count.\(Console.reset) If you lose it, wait until you feel the next one.
-
-        \(Console.dim)\(level.advice)\(Console.reset)
-        """)
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runForm(config)
@@ -946,7 +1013,8 @@ public enum Commands {
         let env = try TrainerEngine.environment()
         print("Output: \(env.outputName)  @ \(Int(env.sampleRate)) Hz")
         print("Tempo:  \(Int(bpm)) BPM")
-        print(String(format: "\nPlaying ~%.0f s — play along, eyes closed.\n", config.durationSeconds))
+        printInstructions(DrillInstructions.groove)
+        print(String(format: "\nPlaying ~%.0f s.\n", config.durationSeconds))
         try TrainerEngine.playGroove(config)
         print("Done.")
     }

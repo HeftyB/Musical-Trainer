@@ -129,6 +129,38 @@ struct DropoutSession: Codable {
     }
 }
 
+/// A recorded tempo-calibration session.
+struct TempoSession: Codable {
+    let date: Date
+    let targets: [Double]
+    let leadBars: Int
+    let holdBars: Int
+    let rounds: Int
+    let feelRating: Int?
+
+    let tapTimes: [Double]
+    // The hold windows are stored rather than recomputed: with rotating targets each round
+    // has its own tempo, so the timeline can't be rebuilt from a single BPM.
+    let roundTargets: [Double]
+    let roundHoldStarts: [Double]
+    let roundHoldEnds: [Double]
+
+    let usableCount: Int
+    let meanErrorPercent: Double?
+    let meanAbsErrorPercent: Double?
+    let improvementPerRound: Double?
+    let headline: String
+
+    var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
+
+    var roundWindows: [TempoRound] {
+        zip(roundTargets.indices, zip(roundTargets, zip(roundHoldStarts, roundHoldEnds))).map {
+            TempoRound(index: $0.0, targetBpm: $0.1.0,
+                       holdStart: $0.1.1.0, holdEnd: $0.1.1.1)
+        }
+    }
+}
+
 enum SessionStore {
     static var directory: URL {
         let base = FileManager.default
@@ -181,6 +213,21 @@ enum SessionStore {
 
     static func loadAllDropout() -> [DropoutSession] {
         load(prefix: "dropout-", as: DropoutSession.self).sorted { $0.date < $1.date }
+    }
+
+    @discardableResult
+    static func save(_ session: TempoSession) throws -> URL {
+        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
+        let url = directory.appendingPathComponent("tempo-\(stamp).json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(session).write(to: url, options: .atomic)
+        return url
+    }
+
+    static func loadAllTempo() -> [TempoSession] {
+        load(prefix: "tempo-", as: TempoSession.self).sorted { $0.date < $1.date }
     }
 
     /// Decode every file with the given name prefix. The prefix keeps jam and form takes

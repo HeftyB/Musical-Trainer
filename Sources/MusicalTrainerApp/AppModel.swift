@@ -7,13 +7,14 @@ import TrainerKit
 final class AppModel: ObservableObject {
 
     enum Mode: String, CaseIterable, Identifiable {
-        case jam, form, dropout, groove
+        case jam, form, dropout, tempo, groove
         var id: String { rawValue }
         var title: String {
             switch self {
             case .jam: return "Jam"
             case .form: return "Form"
             case .dropout: return "Alone"
+            case .tempo: return "Tempo"
             case .groove: return "Play"
             }
         }
@@ -22,14 +23,28 @@ final class AppModel: ObservableObject {
             case .jam: return "waveform"
             case .form: return "square.grid.3x3"
             case .dropout: return "speaker.slash"
+            case .tempo: return "metronome"
             case .groove: return "play.circle"
             }
         }
+        /// Full instructions, shared with the console so the two can't describe a drill
+        /// differently.
+        var instructions: DrillInstructions {
+            switch self {
+            case .jam: return .jam
+            case .form: return .form
+            case .dropout: return .dropout
+            case .tempo: return .tempo
+            case .groove: return .groove
+            }
+        }
+
         var blurb: String {
             switch self {
             case .jam: return "Play along and measure how you place the beat."
             case .form: return "Mark the top of each phrase without counting."
             case .dropout: return "Hold quarter notes through the silences — is it your clock or your hands?"
+            case .tempo: return "Produce a tempo unaccompanied and find out what you actually played."
             case .groove: return "Just the backing. Nothing measured."
             }
         }
@@ -52,6 +67,11 @@ final class AppModel: ObservableObject {
     @Published var pacedBars: Int = 4
     @Published var silentBars: Int = 4
     @Published var cycles: Int = 6
+
+    // Tempo calibration.
+    @Published var tempoTargets: [Double] = [100]
+    @Published var tempoRounds: Int = 8
+    @Published var holdBars: Int = 4
 
     /// Form takes default longer than jams: at 8-bar phrases, 32 bars yields only four
     /// phrases and five marks, which is too few to tell a real slip from noise.
@@ -78,6 +98,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var jamOutcome: TrainerEngine.JamOutcome?
     @Published private(set) var formOutcome: TrainerEngine.FormOutcome?
     @Published private(set) var dropoutOutcome: TrainerEngine.DropoutOutcome?
+    @Published private(set) var tempoOutcome: TrainerEngine.TempoOutcome?
     @Published var feelRating: Int?
 
     /// Set while a take is being torn down, so the button can acknowledge the press
@@ -114,11 +135,17 @@ final class AppModel: ObservableObject {
         case .form:   return TrainerEngine.FormConfig(bpm: bpm, bars: bars, phraseBars: phraseBars,
                                                       level: formLevel).durationSeconds
         case .dropout: return dropoutConfig.durationSeconds
+        case .tempo: return tempoConfig.durationSeconds
         case .groove: return TrainerEngine.GrooveConfig(bpm: bpm, bars: bars).durationSeconds
         }
     }
 
     var phraseCount: Int { max(1, bars / max(1, phraseBars)) }
+
+    var tempoConfig: TrainerEngine.TempoConfig {
+        TrainerEngine.TempoConfig(targets: tempoTargets, leadBars: 4,
+                                  holdBars: holdBars, rounds: tempoRounds)
+    }
 
     var dropoutConfig: TrainerEngine.DropoutConfig {
         TrainerEngine.DropoutConfig(bpm: bpm, pacedBars: pacedBars,
@@ -130,6 +157,7 @@ final class AppModel: ObservableObject {
         jamOutcome = nil
         formOutcome = nil
         dropoutOutcome = nil
+        tempoOutcome = nil
         feelRating = nil
         isStopping = false
         let flag = CancellationFlag()
@@ -144,6 +172,7 @@ final class AppModel: ObservableObject {
                                                   phraseBars: phraseBars, level: formLevel)
         let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars)
         let dropConfig = dropoutConfig
+        let tempConfig = tempoConfig
 
         // The engine blocks for the length of the take, so it runs off the main thread and
         // the UI stays responsive. `self` is captured strongly: the closure runs once and
@@ -161,6 +190,9 @@ final class AppModel: ObservableObject {
                 case .dropout:
                     let outcome = try TrainerEngine.runDropout(dropConfig, cancellation: flag)
                     Task { @MainActor in self.finish(dropout: outcome) }
+                case .tempo:
+                    let outcome = try TrainerEngine.runTempo(tempConfig, cancellation: flag)
+                    Task { @MainActor in self.finish(tempo: outcome) }
                 case .groove:
                     try TrainerEngine.playGroove(grooveConfig, cancellation: flag)
                     Task { @MainActor in self.backToSetup() }
@@ -193,6 +225,11 @@ final class AppModel: ObservableObject {
         screen = .rating
     }
 
+    private func finish(tempo outcome: TrainerEngine.TempoOutcome) {
+        tempoOutcome = outcome
+        screen = .rating
+    }
+
     /// Store the rating and reveal the numbers.
     func submitRating(_ rating: Int?) {
         feelRating = rating
@@ -200,6 +237,7 @@ final class AppModel: ObservableObject {
             if let outcome = jamOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
             if let outcome = formOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
             if let outcome = dropoutOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
+            if let outcome = tempoOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
         } catch {
             errorMessage = "Could not save the take: \(error.localizedDescription)"
         }

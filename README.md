@@ -10,7 +10,8 @@ design, the metrics, and the roadmap.
 open "Musical Trainer.app"
 ```
 
-Pick a mode (Jam / Form / Play), set tempo and length, hit Start. The take screen is
+Pick a mode (Jam / Form / Alone / Tempo / Play), set the options, hit Start. Each mode
+shows exactly what it expects of you before you begin. The take screen is
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
 
@@ -51,12 +52,14 @@ swift build -c release   # the console tool
 | `groove [bpm]` | **M3.** Plays a synthesized groove: count-in, a two-section arrangement with fills, the dropout ladder, and a slam back. Default 100 BPM. |
 | `jam [bpm] [bars] [tag]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. |
 | `form [bpm] [bars] [phraseBars] [level]` | Phrase-mark drill: hit a pad at each phrase top, no counting. Levels 0–3 progressively remove the landmarks. Default 100, 64, 8, 0. |
+| `tempo [bpm ...]` | **M8.** Produce a tempo unaccompanied and be told what you actually played, round after round. Pass several tempos to rotate the target. |
 | `dropout [bpm] [pacedBars] [silentBars] [cycles]` | Continuation drill: quarter notes straight through the silences. The only drill that separates clock from motor noise. Default 100, 4, 4, 6. |
 | `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. |
 | `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
 | `review tags` | Pooled summary of every tagged condition. |
 | `review conditions <a> <b>` | Pooled comparison of two conditions — the experiment readout. |
 | `review feel` | Does your sense of a good take match the measurement? |
+| `review tempo` | Tempo-calibration history. |
 | `review trend` | Is anything actually improving? Fits each metric with a confidence interval, splitting confounded groups. |
 | `show` | Prints stored calibration and the constant for each device. |
 

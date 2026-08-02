@@ -7,13 +7,14 @@ struct HistoryView: View {
     @State private var kind: Kind = .jam
 
     enum Kind: String, CaseIterable, Identifiable {
-        case jam, form, dropout
+        case jam, form, dropout, tempo
         var id: String { rawValue }
         var title: String {
             switch self {
             case .jam: return "Jams"
             case .form: return "Form"
             case .dropout: return "Alone"
+            case .tempo: return "Tempo"
             }
         }
         /// What the trend line means, so a rising line is never read the wrong way.
@@ -21,14 +22,16 @@ struct HistoryView: View {
             switch self {
             case .jam: return "Spread over time"
             case .form: return "On-form rate over time"
-            case .dropout: return "Clock stability over time"
+            case .dropout: return "Tempo bias over time"
+            case .tempo: return "Tempo accuracy over time"
             }
         }
         var trendNote: String {
             switch self {
             case .jam: return "Lower is tighter."
             case .form: return "Higher is better."
-            case .dropout: return "Lower is a steadier internal pulse."
+            case .dropout: return "Closer to zero is a truer internal tempo."
+            case .tempo: return "Lower is more accurate."
             }
         }
     }
@@ -39,6 +42,7 @@ struct HistoryView: View {
         case .form: return TrainerEngine.formHistory()
         // A drill whose split came out unreliable has no clock number to plot.
         case .dropout: return TrainerEngine.dropoutHistory().filter { $0.metric.isFinite }
+        case .tempo: return TrainerEngine.tempoHistory().filter { $0.metric.isFinite }
         }
     }
 

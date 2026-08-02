@@ -368,6 +368,148 @@ public enum TrainerEngine {
         return try SessionStore.save(session)
     }
 
+    // MARK: - Tempo calibration
+
+    public struct TempoConfig {
+        /// One entry per round, cycled. More than one rotates the target, which trains the
+        /// mapping from "this tempo" to a period rather than memorising a single number.
+        public var targets: [Double]
+        public var leadBars: Int
+        public var holdBars: Int
+        public var rounds: Int
+
+        public init(targets: [Double] = [100], leadBars: Int = 4, holdBars: Int = 4, rounds: Int = 8) {
+            self.targets = targets.isEmpty ? [100] : targets
+            self.leadBars = leadBars; self.holdBars = holdBars; self.rounds = rounds
+        }
+
+        public func target(forRound index: Int) -> Double { targets[index % targets.count] }
+        public var durationSeconds: Double {
+            (0..<rounds).reduce(0) { total, i in
+                total + Double(leadBars + holdBars) * 4 * 60 / target(forRound: i)
+            } + 2
+        }
+    }
+
+    public struct TempoOutcome {
+        public let report: TempoCalibrationReport
+        public let environment: Environment
+        public let config: TempoConfig
+        fileprivate let tapTimes: [Double]
+        fileprivate let rounds: [TempoRound]
+    }
+
+    public static func runTempo(_ config: TempoConfig,
+                                progress: ((Double) -> Void)? = nil,
+                                cancellation: CancellationFlag? = nil,
+                                roundFinished: ((TempoRoundResult) -> Void)? = nil) throws -> TempoOutcome {
+        guard config.targets.allSatisfy({ (40...260).contains($0) }) else {
+            throw SpikeError("Every target tempo must be 40–260 BPM.")
+        }
+        guard (1...16).contains(config.leadBars), (1...16).contains(config.holdBars) else {
+            throw SpikeError("Lead and hold must each be 1–16 bars.")
+        }
+        guard (1...32).contains(config.rounds) else { throw SpikeError("Rounds must be 1–32.") }
+        let env = try environment()
+
+        let player = try GroovePlayer()
+        let fs = player.outputSampleRate
+        let groove = GrooveLibrary.basicRock
+
+        // Each round is scheduled at its own tempo, so the sample cursor is advanced round by
+        // round rather than derived from one global sequencer.
+        var hits: [ScheduledHit] = []
+        var cursorSamples: Int64 = Int64(0.5 * fs)
+        var roundWindows: [(target: Double, holdStartSample: Int64, holdEndSample: Int64)] = []
+
+        for index in 0..<config.rounds {
+            let bpm = config.target(forRound: index)
+            let seq = Sequencer(bpm: bpm, sampleRate: fs)
+            let barSamples = seq.barStartSample(bar: 1, pattern: groove)
+
+            for bar in 0..<config.leadBars {
+                for hit in seq.schedule(pattern: groove, bar: bar) {
+                    hits.append(ScheduledHit(voice: hit.voice,
+                                             sample: cursorSamples + hit.sample,
+                                             velocity: hit.velocity))
+                }
+            }
+            let holdStart = cursorSamples + Int64(config.leadBars) * barSamples
+            let holdEnd = holdStart + Int64(config.holdBars) * barSamples
+            roundWindows.append((bpm, holdStart, holdEnd))
+            cursorSamples = holdEnd
+        }
+
+        player.schedule(hits)
+
+        let midi = try MIDIInput.started()
+        defer { midi.end() }
+        midi.onNoteEvent = { note, velocity, on, channel in
+            player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
+        }
+
+        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+                       progress: progress, cancellation: cancellation)
+
+        guard let epoch = player.outputMapPairs.first?.hostTime else {
+            throw SpikeError("Could not reconstruct the take — no audio timing map captured.")
+        }
+        var map = SampleHostMap()
+        map.build(pairs: player.outputMapPairs, epoch: epoch)
+
+        let constantSec = (env.calibrationMs ?? 0) / 1000
+        let taps = midi.events.filter { !$0.isPad }.map {
+            Tap(time: HostClock.interval(from: epoch, to: $0.hostTime) - constantSec)
+        }
+
+        var rounds: [TempoRound] = []
+        for (index, window) in roundWindows.enumerated() {
+            guard let start = map.hostSeconds(atSample: Double(window.holdStartSample)),
+                  let end = map.hostSeconds(atSample: Double(window.holdEndSample)) else { continue }
+            rounds.append(TempoRound(index: index, targetBpm: window.target,
+                                     holdStart: start, holdEnd: end))
+        }
+
+        let report = TempoCalibrationAnalysis.analyze(taps: taps, rounds: rounds)
+        report.rounds.forEach { roundFinished?($0) }
+
+        return TempoOutcome(report: report, environment: env, config: config,
+                            tapTimes: taps.map(\.time), rounds: rounds)
+    }
+
+    @discardableResult
+    public static func save(_ outcome: TempoOutcome, feelRating: Int?) throws -> URL {
+        let r = outcome.report
+        let session = TempoSession(
+            date: Date(), targets: outcome.config.targets,
+            leadBars: outcome.config.leadBars, holdBars: outcome.config.holdBars,
+            rounds: outcome.config.rounds, feelRating: feelRating,
+            tapTimes: outcome.tapTimes,
+            roundTargets: outcome.rounds.map(\.targetBpm),
+            roundHoldStarts: outcome.rounds.map(\.holdStart),
+            roundHoldEnds: outcome.rounds.map(\.holdEnd),
+            usableCount: r.usableCount, meanErrorPercent: r.meanErrorPercent,
+            meanAbsErrorPercent: r.meanAbsErrorPercent,
+            improvementPerRound: r.improvementPerRound, headline: r.headline)
+        return try SessionStore.save(session)
+    }
+
+    public static func tempoHistory() -> [HistoryEntry] {
+        SessionStore.loadAllTempo().map { session in
+            // Recomputed from raw taps, like the other drills, so analysis fixes apply back.
+            let r = TempoCalibrationAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            let targets = session.targets.map { String(Int($0)) }.joined(separator: "/")
+            return HistoryEntry(
+                date: session.date,
+                title: "\(targets) BPM · \(session.rounds)× \(session.holdBars)-bar holds",
+                detail: r.meanErrorPercent.map { String(format: "%+.1f%% bias · %d/%d rounds scored",
+                                                        $0, r.usableCount, r.rounds.count) }
+                        ?? "no rounds scored",
+                feelRating: session.feelRating, headline: r.headline,
+                metric: r.meanAbsErrorPercent ?? .nan, metricLabel: "tempo error (%)")
+        }
+    }
+
     // MARK: - History
 
     /// A saved take, flattened for display. Keeps the storage types internal.

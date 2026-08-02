@@ -9,8 +9,14 @@ struct SetupView: View {
         VStack(alignment: .leading, spacing: 18) {
             header
             modePicker
-            settings
-            Spacer(minLength: 0)
+            // Settings plus instructions can exceed a short window, so they scroll while the
+            // footer — device status and the Start button — stays put.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    settings
+                    instructions
+                }
+            }
             footer
         }
         .padding(24)
@@ -44,7 +50,8 @@ struct SetupView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Sliders snap through their bindings rather than via `step:`, which draws a
                 // tick for every increment — dozens of them across these ranges.
-                LabeledContent("Tempo") {
+                if model.mode != .tempo {
+                    LabeledContent("Tempo") {
                     HStack(spacing: 12) {
                         Slider(value: Binding(get: { model.bpm },
                                               set: { model.bpm = $0.rounded() }),
@@ -52,10 +59,11 @@ struct SetupView: View {
                         Text("\(Int(model.bpm)) BPM")
                             .monospacedDigit().frame(width: 74, alignment: .trailing)
                     }
+                    }
                 }
 
                 // The dropout drill's length comes from its own cycle controls below.
-                if model.mode != .dropout {
+                if model.mode != .dropout && model.mode != .tempo {
                     LabeledContent("Length") {
                         HStack(spacing: 12) {
                             Slider(value: Binding(get: { Double(model.bars) },
@@ -84,6 +92,36 @@ struct SetupView: View {
                         .labelsHidden()
                     }
                     Text(model.formLevel.advice)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if model.mode == .tempo {
+                    Divider()
+                    LabeledContent("Targets") {
+                        Picker("", selection: Binding(
+                            get: { model.tempoTargets },
+                            set: { model.tempoTargets = $0 })) {
+                            Text("100 only").tag([100.0])
+                            Text("76 / 100 / 132").tag([76.0, 100.0, 132.0])
+                            Text("60 / 90 / 120 / 150").tag([60.0, 90.0, 120.0, 150.0])
+                        }
+                        .labelsHidden().frame(width: 200)
+                    }
+                    LabeledContent("Hold") {
+                        Picker("", selection: $model.holdBars) {
+                            ForEach([2, 4, 8], id: \.self) { Text("\($0) bars").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 130)
+                    }
+                    LabeledContent("Rounds") {
+                        Picker("", selection: $model.tempoRounds) {
+                            ForEach([4, 8, 12, 16], id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 130)
+                    }
+                    Text("Rotating the target trains the mapping from a tempo to a period, "
+                       + "rather than memorising one number.")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -124,6 +162,42 @@ struct SetupView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+
+    /// The same text the console prints — so anyone opening the app knows exactly what the
+    /// drill expects without having to be told.
+    private var instructions: some View {
+        let guide = model.mode.instructions
+        return Card {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(guide.goal)
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(Array(guide.steps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("\(index + 1).").font(.callout).monospacedDigit()
+                                .foregroundStyle(.tertiary)
+                            Text(step).font(.callout)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                if !guide.pitfalls.isEmpty {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(guide.pitfalls, id: \.self) { pitfall in
+                            Label(pitfall, systemImage: "xmark.circle")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

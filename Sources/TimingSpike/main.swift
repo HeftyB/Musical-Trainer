@@ -33,6 +33,8 @@ func usage() {
       dropout [bpm] [pacedBars] [silentBars] [cycles]
                         continuation drill: play quarter notes through the silences.
                         The only drill that yields a clock/motor split. (100, 4, 4, 6)
+      tempo [bpm ...]   M8: produce a tempo unaccompanied and be told what you produced.
+                        Pass several to rotate the target (e.g. tempo 76 100 132).
       review [n]        re-analyze the latest saved take, or take n
       review list       list all takes
       review compare [i j]      two takes side by side, with significance
@@ -42,6 +44,7 @@ func usage() {
       review form               form-drill history
       review dropout            clock/motor split over time
       review trend              is anything actually improving?
+      review tempo              tempo-calibration history
       show              print stored calibration
     """)
 }
@@ -87,6 +90,12 @@ do {
         let silent = arguments.dropFirst(3).first.flatMap(Int.init) ?? 4
         let cycles = arguments.dropFirst(4).first.flatMap(Int.init) ?? 6
         try Commands.runDropout(bpm: bpm, pacedBars: paced, silentBars: silent, cycles: cycles)
+
+    case "tempo":
+        // Several tempos rotate the target: "tempo 76 100 132".
+        let targets = arguments.dropFirst().compactMap(Double.init)
+        try Commands.runTempo(targets: targets.isEmpty ? [100] : targets,
+                              leadBars: 4, holdBars: 4, rounds: 8)
 
     case "review":
         try Commands.runReview(Array(arguments.dropFirst()))

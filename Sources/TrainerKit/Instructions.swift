@@ -1,0 +1,103 @@
+import Foundation
+
+/// What each drill asks of the player, written so someone who has never seen the app knows
+/// exactly what to do.
+///
+/// Both front ends read from here. Instructions that live in two places drift, and a drill
+/// whose printed instructions disagree with its on-screen ones will quietly produce data that
+/// means two different things — the form drill already lost two takes to an instruction
+/// ambiguity (PLAN.md §6.1).
+public struct DrillInstructions {
+    /// One line: what this drill is for.
+    public let goal: String
+    /// Exactly what to do, in order.
+    public let steps: [String]
+    /// The mistakes that invalidate the measurement, not just make the score worse.
+    public let pitfalls: [String]
+    /// What the drill reports back.
+    public let measures: String
+
+    public static let jam = DrillInstructions(
+        goal: "Measures how accurately you place notes against a beat you can hear.",
+        steps: [
+            "A two-bar count-in plays, then a drum groove starts.",
+            "Play along for the whole take — chords, single notes, a riff, whatever you like.",
+            "Aim every note at a beat or an off-beat, not somewhere between them.",
+            "Keep playing to the end. There is nothing to read on screen while you play.",
+        ],
+        pitfalls: [
+            "Don't play free or rubato — notes that don't aim at the grid are counted as off-grid and discarded.",
+            "Don't stop and start. Steady, continuous playing gives the most usable notes.",
+        ],
+        measures: "Whether you sit ahead of or behind the beat, how much you scatter around it, "
+                + "and whether you correct each error or let it drift.")
+
+    public static let form = DrillInstructions(
+        goal: "Measures whether you know where you are in the music without counting.",
+        steps: [
+            "A drum groove plays in phrases — 8 bars each by default.",
+            "A drum fill warns you that a phrase is about to end.",
+            "Hit ANY PAD once on the downbeat where the groove restarts AFTER the fill.",
+            "Play whatever you like on the keys between marks, or nothing at all.",
+        ],
+        pitfalls: [
+            "Don't hit the pad during the fill. The fill is the warning; the target is the beat right after it.",
+            "Don't count bars. If you lose your place, wait and catch the next phrase.",
+            "Use a pad, not a key — keys are treated as ordinary playing.",
+        ],
+        measures: "How many phrase tops you found on the correct bar, and how close to the "
+                + "downbeat you landed.")
+
+    public static let dropout = DrillInstructions(
+        goal: "Measures whether your unsteadiness comes from your sense of time or from your hands.",
+        steps: [
+            "The drums play for a few bars, then stop completely, then come back with a crash.",
+            "Play exactly ONE NOTE PER BEAT — steady quarter notes — from start to finish.",
+            "Keep going through the silence at the same speed. The silence is the measurement.",
+            "Any note works. Pitch is irrelevant; only when you play matters.",
+        ],
+        pitfalls: [
+            "Don't subdivide. Adding eighth notes makes a silence unusable and it gets discarded.",
+            "Don't stop or pause during the silence — that is the only part being measured.",
+            "Don't speed up to 'catch' the band when it returns. Hold your pulse and let it land where it lands.",
+        ],
+        measures: "The tempo you hold unaccompanied, and — when the playing is steady enough — "
+                + "whether the wobble comes from your internal pulse or your hands.")
+
+    public static let tempo = DrillInstructions(
+        goal: "Trains your sense of a specific tempo by telling you what you actually produced.",
+        steps: [
+            "The click counts a few bars at the target tempo.",
+            "When it stops, keep playing ONE NOTE PER BEAT at that same tempo.",
+            "After each round you are told the tempo you produced and how far off it was.",
+            "The click returns at the correct tempo — use it to correct, then go again.",
+        ],
+        pitfalls: [
+            "Don't subdivide or double up — one note per beat, or the round can't be scored.",
+            "Don't try to count seconds. Feel the tempo and let your hands keep it.",
+            "Don't stop early in the silence; the round needs several beats to measure.",
+        ],
+        measures: "The tempo you produce unaccompanied each round, and whether your accuracy "
+                + "improves across the session.")
+
+    public static let groove = DrillInstructions(
+        goal: "Just the backing track. Nothing is recorded or measured.",
+        steps: [
+            "A drum groove plays for the length you chose.",
+            "Play whatever you want over it.",
+        ],
+        pitfalls: [],
+        measures: "Nothing — this is for warming up or playing for its own sake.")
+
+    /// Plain-text rendering for the console.
+    public func consoleText(bold: String = "", reset: String = "", dim: String = "") -> String {
+        var lines = ["\(dim)\(goal)\(reset)", ""]
+        lines += steps.enumerated().map { "  \($0.offset + 1). \($0.element)" }
+        if !pitfalls.isEmpty {
+            lines += ["", "  \(bold)Avoid:\(reset)"]
+            lines += pitfalls.map { "    • \($0)" }
+        }
+        lines += ["", "  \(dim)Reports: \(measures)\(reset)"]
+        return lines.joined(separator: "\n")
+    }
+}

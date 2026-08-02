@@ -15,6 +15,8 @@ struct ResultsView: View {
                     FormResults(outcome: outcome)
                 } else if let outcome = model.dropoutOutcome {
                     DropoutResults(outcome: outcome)
+                } else if let outcome = model.tempoOutcome {
+                    TempoResults(outcome: outcome)
                 }
 
                 HStack {
@@ -110,6 +112,101 @@ private struct JamResults: View {
         if r < -0.3 { return "chasing the click" }
         if r > 0.3 { return "drifting, uncorrected" }
         return "autonomous pulse"
+    }
+}
+
+// MARK: - Tempo calibration
+
+private struct TempoResults: View {
+    let outcome: TrainerEngine.TempoOutcome
+    private var report: TempoCalibrationReport { outcome.report }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(report.headline)
+                .font(.title2).fontWeight(.semibold)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("\(report.usableCount)/\(report.rounds.count) rounds scored")
+                .font(.callout).foregroundStyle(.secondary)
+
+            summary
+            roundChart
+            roundList
+        }
+    }
+
+    private var summary: some View {
+        Card {
+            HStack(alignment: .top, spacing: 24) {
+                if let bias = report.meanErrorPercent {
+                    Metric(label: "Bias", value: String(format: "%+.1f%%", bias),
+                           note: bias < 0 ? "you run slow" : "you run fast", emphasis: true)
+                }
+                if let accuracy = report.meanAbsErrorPercent {
+                    Metric(label: "Accuracy", value: String(format: "%.1f%%", accuracy),
+                           note: "average error", emphasis: true)
+                }
+                if let slope = report.improvementPerRound {
+                    Metric(label: "Trend", value: String(format: "%+.2f%%", slope),
+                           note: slope < -0.3 ? "tightening" : slope > 0.3 ? "loosening" : "steady",
+                           emphasis: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var roundChart: some View {
+        let scored = report.rounds.filter { $0.isUsable }
+        if scored.count > 1 {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Round by round").font(.headline)
+                    Text("How far off you were each time. The line is dead on.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Chart {
+                        RuleMark(y: .value("On target", 0))
+                            .foregroundStyle(.secondary.opacity(0.6))
+                        ForEach(scored, id: \.index) { round in
+                            BarMark(x: .value("Round", round.index + 1),
+                                    y: .value("Error %", round.errorPercent ?? 0))
+                                .foregroundStyle(abs(round.errorPercent ?? 0) < 2
+                                                 ? Color.accentColor : Color.orange)
+                        }
+                    }
+                    .chartYAxisLabel("error (%)")
+                    .chartXAxisLabel("round")
+                    .frame(height: 160)
+                }
+            }
+        }
+    }
+
+    private var roundList: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(report.rounds, id: \.index) { round in
+                    HStack {
+                        Text("Round \(round.index + 1)").frame(width: 90, alignment: .leading)
+                        Text("\(Int(round.targetBpm)) BPM").foregroundStyle(.secondary)
+                            .frame(width: 90, alignment: .leading)
+                        if round.isUsable, let produced = round.producedBpm, let pct = round.errorPercent {
+                            Text(String(format: "%.1f", produced)).monospacedDigit()
+                                .frame(width: 70, alignment: .trailing)
+                            Text(String(format: "%+.1f%%", pct)).monospacedDigit()
+                                .foregroundStyle(abs(pct) < 2 ? Color.green : Color.orange)
+                                .frame(width: 70, alignment: .trailing)
+                        } else {
+                            Text(round.unusableReason ?? "not scored")
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                    }
+                    .font(.callout)
+                }
+            }
+        }
     }
 }
 
