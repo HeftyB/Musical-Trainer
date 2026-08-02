@@ -144,17 +144,24 @@ final class GroovePlayer {
     /// returns immediately on a thread with no input sources — true of the background queue
     /// the app runs takes on. The run loop is still serviced so anything that needs it keeps
     /// working; the sleep is what guarantees the loop actually waits.
-    func run(forSeconds duration: Double, progress: ((Double) -> Void)? = nil) throws {
+    /// - Throws: `TakeCancelled` if `cancellation` is raised before the schedule finishes.
+    ///   The engine is always torn down first, so audio stops either way.
+    func run(forSeconds duration: Double,
+             progress: ((Double) -> Void)? = nil,
+             cancellation: CancellationFlag? = nil) throws {
         engine.prepare()
         try engine.start()
         let start = Date()
         let deadline = start.addingTimeInterval(duration)
+        var stopped = false
         while Date() < deadline {
+            if cancellation?.isCancelled == true { stopped = true; break }
             _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
             Thread.sleep(forTimeInterval: 0.01)
             progress?(min(1, Date().timeIntervalSince(start) / duration))
         }
         engine.stop()
+        if stopped { throw TakeCancelled() }
         progress?(1)
     }
 

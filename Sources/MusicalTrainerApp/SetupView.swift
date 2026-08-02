@@ -54,13 +54,16 @@ struct SetupView: View {
                     }
                 }
 
-                LabeledContent("Length") {
-                    HStack(spacing: 12) {
-                        Slider(value: Binding(get: { Double(model.bars) },
-                                              set: { model.setBars(Int($0)) }),
-                               in: 8...192)
-                        Text("\(model.bars) bars")
-                            .monospacedDigit().frame(width: 74, alignment: .trailing)
+                // The dropout drill's length comes from its own cycle controls below.
+                if model.mode != .dropout {
+                    LabeledContent("Length") {
+                        HStack(spacing: 12) {
+                            Slider(value: Binding(get: { Double(model.bars) },
+                                                  set: { model.setBars(Int($0)) }),
+                                   in: 8...192)
+                            Text("\(model.bars) bars")
+                                .monospacedDigit().frame(width: 74, alignment: .trailing)
+                        }
                     }
                 }
 
@@ -81,6 +84,32 @@ struct SetupView: View {
                         .labelsHidden()
                     }
                     Text(model.formLevel.advice)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if model.mode == .dropout {
+                    Divider()
+                    LabeledContent("With the band") {
+                        Picker("", selection: $model.pacedBars) {
+                            ForEach([2, 4, 8], id: \.self) { Text("\($0) bars").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 130)
+                    }
+                    LabeledContent("Alone") {
+                        Picker("", selection: $model.silentBars) {
+                            ForEach([2, 4, 8, 16], id: \.self) { Text("\($0) bars").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 130)
+                    }
+                    LabeledContent("Repeats") {
+                        Picker("", selection: $model.cycles) {
+                            ForEach([4, 6, 8, 12], id: \.self) { Text("\($0)×").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 130)
+                    }
+                    Text("Play one note per beat the whole way through, especially when the band "
+                       + "drops out — the silences are the measurement.")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

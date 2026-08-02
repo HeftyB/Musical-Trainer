@@ -7,12 +7,13 @@ import TrainerKit
 final class AppModel: ObservableObject {
 
     enum Mode: String, CaseIterable, Identifiable {
-        case jam, form, groove
+        case jam, form, dropout, groove
         var id: String { rawValue }
         var title: String {
             switch self {
             case .jam: return "Jam"
             case .form: return "Form"
+            case .dropout: return "Alone"
             case .groove: return "Play"
             }
         }
@@ -20,6 +21,7 @@ final class AppModel: ObservableObject {
             switch self {
             case .jam: return "waveform"
             case .form: return "square.grid.3x3"
+            case .dropout: return "speaker.slash"
             case .groove: return "play.circle"
             }
         }
@@ -27,6 +29,7 @@ final class AppModel: ObservableObject {
             switch self {
             case .jam: return "Play along and measure how you place the beat."
             case .form: return "Mark the top of each phrase without counting."
+            case .dropout: return "Hold quarter notes through the silences — is it your clock or your hands?"
             case .groove: return "Just the backing. Nothing measured."
             }
         }
@@ -37,13 +40,22 @@ final class AppModel: ObservableObject {
     enum Screen { case setup, running, rating, results, history }
 
     @Published var screen: Screen = .setup
-    @Published var mode: Mode = .jam { didSet { setBars(bars) } }
+    @Published var mode: Mode = .jam { didSet { adoptDefaultLength(for: mode) } }
 
     @Published var bpm: Double = 100
     @Published private(set) var bars: Int = 32
     @Published var tag: String = ""
     @Published var phraseBars: Int = 8 { didSet { setBars(bars) } }
     @Published var formLevel: FormLevel = .fillAndAccent
+
+    // Dropout drill.
+    @Published var pacedBars: Int = 4
+    @Published var silentBars: Int = 4
+    @Published var cycles: Int = 6
+
+    /// Form takes default longer than jams: at 8-bar phrases, 32 bars yields only four
+    /// phrases and five marks, which is too few to tell a real slip from noise.
+    private let defaultFormBars = 64
 
     /// Snap the take length to a sensible granularity — and in the form drill to a whole
     /// number of phrases, so the last phrase is never cut off mid-way.
@@ -53,13 +65,36 @@ final class AppModel: ObservableObject {
         bars = min(192, snapped)
     }
 
+    /// Entering the form drill from a short jam length would silently give an
+    /// underpowered take, so bump to the form default the first time.
+    private func adoptDefaultLength(for mode: Mode) {
+        if mode == .form, bars < defaultFormBars { setBars(defaultFormBars) } else { setBars(bars) }
+    }
+
     @Published private(set) var environment: TrainerEngine.Environment?
     @Published private(set) var environmentError: String?
     @Published var errorMessage: String?
 
     @Published private(set) var jamOutcome: TrainerEngine.JamOutcome?
     @Published private(set) var formOutcome: TrainerEngine.FormOutcome?
+    @Published private(set) var dropoutOutcome: TrainerEngine.DropoutOutcome?
     @Published var feelRating: Int?
+
+    /// Set while a take is being torn down, so the button can acknowledge the press
+    /// immediately rather than appearing to do nothing for a few milliseconds.
+    @Published private(set) var isStopping = false
+    private var cancellation: CancellationFlag?
+
+    var canStop: Bool { screen == .running }
+
+    /// Abandon the running take. The recording is discarded, not analysed: a take stopped
+    /// because something was wrong is not worth measuring, and saving a fragment would
+    /// quietly pollute the history and the pooled condition stats.
+    func stopTake() {
+        guard screen == .running else { return }
+        isStopping = true
+        cancellation?.cancel()
+    }
 
     init() { refreshEnvironment() }
 
@@ -78,17 +113,27 @@ final class AppModel: ObservableObject {
         case .jam:    return TrainerEngine.JamConfig(bpm: bpm, bars: bars).durationSeconds
         case .form:   return TrainerEngine.FormConfig(bpm: bpm, bars: bars, phraseBars: phraseBars,
                                                       level: formLevel).durationSeconds
+        case .dropout: return dropoutConfig.durationSeconds
         case .groove: return TrainerEngine.GrooveConfig(bpm: bpm, bars: bars).durationSeconds
         }
     }
 
     var phraseCount: Int { max(1, bars / max(1, phraseBars)) }
 
+    var dropoutConfig: TrainerEngine.DropoutConfig {
+        TrainerEngine.DropoutConfig(bpm: bpm, pacedBars: pacedBars,
+                                    silentBars: silentBars, cycles: cycles)
+    }
+
     func start() {
         errorMessage = nil
         jamOutcome = nil
         formOutcome = nil
+        dropoutOutcome = nil
         feelRating = nil
+        isStopping = false
+        let flag = CancellationFlag()
+        cancellation = flag
         screen = .running
 
         let mode = self.mode
@@ -98,6 +143,7 @@ final class AppModel: ObservableObject {
         let formConfig = TrainerEngine.FormConfig(bpm: bpm, bars: bars,
                                                   phraseBars: phraseBars, level: formLevel)
         let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars)
+        let dropConfig = dropoutConfig
 
         // The engine blocks for the length of the take, so it runs off the main thread and
         // the UI stays responsive. `self` is captured strongly: the closure runs once and
@@ -107,15 +153,21 @@ final class AppModel: ObservableObject {
             do {
                 switch mode {
                 case .jam:
-                    let outcome = try TrainerEngine.runJam(jamConfig)
+                    let outcome = try TrainerEngine.runJam(jamConfig, cancellation: flag)
                     Task { @MainActor in self.finish(jam: outcome) }
                 case .form:
-                    let outcome = try TrainerEngine.runForm(formConfig)
+                    let outcome = try TrainerEngine.runForm(formConfig, cancellation: flag)
                     Task { @MainActor in self.finish(form: outcome) }
+                case .dropout:
+                    let outcome = try TrainerEngine.runDropout(dropConfig, cancellation: flag)
+                    Task { @MainActor in self.finish(dropout: outcome) }
                 case .groove:
-                    try TrainerEngine.playGroove(grooveConfig)
-                    Task { @MainActor in self.screen = .setup }
+                    try TrainerEngine.playGroove(grooveConfig, cancellation: flag)
+                    Task { @MainActor in self.backToSetup() }
                 }
+            } catch is TakeCancelled {
+                // Stopping on purpose is a normal outcome, not a failure to report.
+                Task { @MainActor in self.backToSetup() }
             } catch {
                 let message = error.localizedDescription
                 Task { @MainActor in
@@ -136,12 +188,18 @@ final class AppModel: ObservableObject {
         screen = .rating
     }
 
+    private func finish(dropout outcome: TrainerEngine.DropoutOutcome) {
+        dropoutOutcome = outcome
+        screen = .rating
+    }
+
     /// Store the rating and reveal the numbers.
     func submitRating(_ rating: Int?) {
         feelRating = rating
         do {
             if let outcome = jamOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
             if let outcome = formOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
+            if let outcome = dropoutOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
         } catch {
             errorMessage = "Could not save the take: \(error.localizedDescription)"
         }
@@ -149,6 +207,8 @@ final class AppModel: ObservableObject {
     }
 
     func backToSetup() {
+        isStopping = false
+        cancellation = nil
         screen = .setup
         refreshEnvironment()
     }

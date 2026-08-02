@@ -37,8 +37,35 @@ struct TakeView: View {
                 .foregroundStyle(.tertiary)
 
             Spacer()
+
+            // A control, not a readout — it shows nothing about how the take is going, so
+            // the screen stays eyes-off. Escape and ⌘. are the standard macOS cancels, and
+            // both work here so you never have to find the button by sight.
+            VStack(spacing: 6) {
+                Button(role: .destructive) {
+                    model.stopTake()
+                } label: {
+                    Label(model.isStopping ? "Stopping…" : "Stop and discard",
+                          systemImage: "stop.fill")
+                        .frame(minWidth: 190)
+                }
+                .controlSize(.large)
+                .disabled(model.isStopping)
+                .keyboardShortcut(.escape, modifiers: [])
+
+                Text("esc")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.bottom, 28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // ⌘. as well, the other conventional cancel. Hidden so it doesn't draw a second button.
+        .background {
+            Button("") { model.stopTake() }
+                .keyboardShortcut(".", modifiers: .command)
+                .hidden()
+        }
     }
 }
 

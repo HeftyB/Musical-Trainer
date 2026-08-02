@@ -4,10 +4,42 @@ import TrainerKit
 
 struct HistoryView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var showingForm = false
+    @State private var kind: Kind = .jam
+
+    enum Kind: String, CaseIterable, Identifiable {
+        case jam, form, dropout
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .jam: return "Jams"
+            case .form: return "Form"
+            case .dropout: return "Alone"
+            }
+        }
+        /// What the trend line means, so a rising line is never read the wrong way.
+        var trendTitle: String {
+            switch self {
+            case .jam: return "Spread over time"
+            case .form: return "On-form rate over time"
+            case .dropout: return "Clock stability over time"
+            }
+        }
+        var trendNote: String {
+            switch self {
+            case .jam: return "Lower is tighter."
+            case .form: return "Higher is better."
+            case .dropout: return "Lower is a steadier internal pulse."
+            }
+        }
+    }
 
     private var entries: [TrainerEngine.HistoryEntry] {
-        showingForm ? TrainerEngine.formHistory() : TrainerEngine.jamHistory()
+        switch kind {
+        case .jam: return TrainerEngine.jamHistory()
+        case .form: return TrainerEngine.formHistory()
+        // A drill whose split came out unreliable has no clock number to plot.
+        case .dropout: return TrainerEngine.dropoutHistory().filter { $0.metric.isFinite }
+        }
     }
 
     var body: some View {
@@ -19,9 +51,8 @@ struct HistoryView: View {
                     .keyboardShortcut(.escape, modifiers: [])
             }
 
-            Picker("", selection: $showingForm) {
-                Text("Jams").tag(false)
-                Text("Form drills").tag(true)
+            Picker("", selection: $kind) {
+                ForEach(Kind.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -36,9 +67,8 @@ struct HistoryView: View {
                 if entries.count > 2 {
                     Card {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(showingForm ? "On-form rate over time" : "Spread over time")
-                                .font(.headline)
-                            Text(showingForm ? "Higher is better." : "Lower is tighter.")
+                            Text(kind.trendTitle).font(.headline)
+                            Text(kind.trendNote)
                                 .font(.caption).foregroundStyle(.secondary)
                             Chart(entries) { entry in
                                 LineMark(x: .value("Take", entry.date),

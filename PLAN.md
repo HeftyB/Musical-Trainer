@@ -224,8 +224,9 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M3** | Groove engine | ✅ Done. `GrooveCore` (patterns, sequencer, dropout ladder) + synthesized kit + `GroovePlayer`. See §7.4. |
 | **M4** | Jam capture loop | ✅ Done (console). `jam` records a take against the groove, applies calibration, runs the report, saves the session. SwiftUI shell deferred — see §7.5. **First version you actually practice with.** |
 | **M5** | SwiftUI app + review | ✅ Done. Eyes-off take screen, rate-before-results, Swift Charts review, history. See §7.6. |
-| **M6** | Adaptive dropout ladder | The training mechanic, difficulty driven by measured drift. |
-| **M7** | Progress over time | Longitudinal trends. Is SD falling? Is `r₁` moving toward zero? |
+| **M6** | Dropout / continuation drill | ✅ Done. The only drill that yields a clock/motor split. See §7.7. |
+| **M7** | Progress over time | ✅ Done. `review trend` fits each metric with a bootstrap interval and splits confounded groups. See §7.8. |
+| **M8** | Tempo calibration drill | Proposed. Directly trains the systematic tempo bias §7.8 found. |
 | — | *Later* | Guitar onset detection; TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
 
 ---
@@ -474,6 +475,15 @@ concatenates, so a block never spans a session boundary. With fewer than 3 takes
 condition the comparison says so explicitly — the intervals cover within-take variation but
 cannot see session-to-session variation, so a null result is not yet trustworthy.
 
+**Confound flagging, added after one bit the analysis.** The jam backing was changed
+mid-project (plain groove → sectional with fills). The July and August takes then differed in
+spread by a statistically real 8 ms, which read as "your timing got worse" when part of it was
+simply different music. `review compare` and `review conditions` now name any difference that
+makes a comparison unsafe — backing, tempo, output device, calibration presence — and
+`review tags` warns when a single pooled condition mixes them, where no comparison step would
+ever surface it. Each note says *which* metrics are affected: a device or calibration change
+moves bias only, while backing and tempo move spread and drift too.
+
 The self-rating is not decoration. If feel correlates with spread, the player's instinct is a
 calibrated instrument they can trust mid-practice; if it doesn't, that gap is the finding and
 it explains a lot about "everything makes sense by feel."
@@ -602,7 +612,197 @@ and history plots spread (jams) or on-form rate (form) over time.
 executable as a background process: no dock icon, no menu bar, and no Info.plist, which means
 no way to request microphone access for calibration.
 
+**Stopping a take.** The take screen has a *Stop and discard* button, plus `esc` and `⌘.`, so
+a take started with the wrong device, tempo, or a dead keyboard can be abandoned instead of
+sat through. A `CancellationFlag` is polled by the player's wait loop — never by the audio
+render callback, where taking a lock could glitch — and the runner throws `TakeCancelled`,
+which the app treats as a normal outcome rather than an error. Measured: a 156-second take
+stops 1.2 s after the request.
+
+The recording is **discarded, not analysed**. A take abandoned because something was wrong is
+not worth measuring, and saving a fragment would quietly pollute both the history and the
+pooled per-condition statistics.
+
 Not yet in the app: calibration and the M0 diagnostics, which remain CLI-only.
+
+### A bug only the app could have
+
+The first take in the app worked; the next one failed with
+`MIDIClientCreateWithBlock failed: -50` (paramErr). The CLI never showed it.
+
+`MIDIServer` is an on-demand daemon: when the last client **in the system** goes away, it
+exits. `MIDIInput` was creating a client per take and disposing it at the end, so after a
+take the daemon shut down, and the next `MIDIClientCreateWithBlock` in the *same* process
+failed. The CLI was immune because every invocation is a fresh process. Rapid create/dispose
+loops were also immune — the daemon never got the chance to exit, which is why the first two
+probes came back clean and only a probe with a real idle gap reproduced it:
+
+```
+first create: status 0
+disposed; idling 75s so the on-demand server can exit…
+create after idle: status -50  <-- FAILURE
+```
+
+The fix is the pattern CoreMIDI expects anyway: **one client per process, created once and
+never disposed** (`MIDIInput.shared`). Ports and source connections are refreshed per take —
+which also means a keyboard plugged in after launch is now picked up without a restart, and
+sources are tracked by unique ID so nothing is connected twice and delivers doubled events.
+
+---
+
+## 7.7 M6 — the continuation drill, as built
+
+`dropout [bpm] [pacedBars] [silentBars] [cycles]`, and **Alone** in the app. The band plays,
+falls completely silent, and slams back in with a crash. You play **one note per beat the
+whole way through**.
+
+This is the only drill that can produce the §5.2 clock/motor split, because that decomposition
+requires an *unpaced* sequence — the player generating the pulse with no reference. Everything
+else in the app measures synchronisation *to* something. Here the silences are the measurement.
+
+Why it matters for this player specifically: every jam take shows r₁ solidly positive
+(+0.23 … +0.47), i.e. under-correction — the placement floats and wanders. But r₁ cannot say
+*why*. An unstable internal clock and noisy motor execution produce identical wander and feel
+identical from the inside, while needing completely different training. This drill separates
+them.
+
+Three measurement decisions worth keeping:
+
+1. **Drift is measured by fitting the player's own period, not by matching notes to the grid.**
+   Drift is cumulative, so a player who has slid past half a beat starts matching to the
+   *wrong* beat and the estimate silently collapses toward zero — at exactly the moment it
+   matters most. Fitting the period has no such ceiling. It also normalises for subdivision,
+   so doubling up doesn't read as playing twice as fast.
+2. **Re-entry is measured against the known return downbeat**, not the nearest beat. We know
+   exactly when the band came back, and a drifted player can be most of a beat away — where
+   nearest-beat matching would flip the sign and report a small error instead of a large one
+   (the §5.3 trap again). A test caught this.
+3. **Wing–Kristofferson pools trials with each centred on its own mean.** A tempo that differs
+   from one silence to the next would otherwise be counted as clock variance, inflating the
+   very number the drill exists to produce. Products are never taken across a boundary where
+   the band was playing.
+
+**Adaptation is between sessions, not within one.** Changing the silence length mid-take would
+give trials of different lengths, and pooling those weakens the variance estimate. Instead the
+report suggests the next difficulty from measured drift: under ~1.5 ms/beat doubles the
+silence, over ~5 ms/beat halves it.
+
+Verified against synthetic continuation processes of known clock and motor variance, including
+one where trial tempos deliberately differ, and one where naive concatenation would invent a
+lag-1 term at a trial boundary.
+
+### Also in this pass
+
+- **Form takes default to 64 bars** in the app (8 phrases, ~10 marks). At 32 bars an 8-bar
+  phrase gives only 4 phrases and 5 marks — too few to tell a real slip from noise, which is
+  exactly the limitation the first level-2 results ran into.
+- **History covers all three drills** with per-drill trend lines, each labelled with which
+  direction is improvement (spread down, on-form up, clock SD down). That is the M7
+  groundwork: the storage and the uniform `HistoryEntry` shape are in place, so deepening the
+  longitudinal view later needs no migration.
+
+---
+
+## 7.8 M7 — trends, and what the first continuation data actually showed
+
+### The drill reported a conclusion it hadn't earned
+
+The first three continuation takes returned clock SD = 143 ms, 23.8 ms, 13.8 ms with motor
+SD = 0.0, 0.5, 8.0 — and a "drift" of +22 to +39 ms/beat. **A motor SD of zero is not a
+measurement of a human**; Wing–Kristofferson puts motor variance at −γ₁, so a sequence with no
+negative lag-1 pins it at the model's floor. Two of the three takes were reporting the floor,
+not the player. Inspecting the raw taps showed why:
+
+- **Take 1 had eighth notes mixed into the quarters in half its silences.** W-K assumes an
+  isochronous sequence; that take violated the assumption outright, and the 143 ms was noise
+  dressed as a result.
+- **"Drift" was a misleading label.** It measured the *difference between the player's period
+  and the grid's* — a steady tempo offset, not acceleration. Reporting "+34 ms/beat" made a
+  consistent 5% tempo bias look like the pulse falling apart.
+
+Fixes, all tested:
+
+1. **Isochrony validation.** A silence whose intervals stray outside 0.6–1.6× its own median
+   (in more than a quarter of cases) is discarded, and the count is reported. Consistent
+   subdividing is *accepted* — eighths all the way through is still a valid continuation —
+   but the period is normalised so steady eighths don't read as double tempo.
+2. **`splitIsReliable`.** The clock/motor split is only shown when at least two usable trials
+   survive and the motor estimate is clear of the model's floor. Otherwise the report says so.
+3. **Tempo bias replaces "drift" as the headline**, in BPM and percent, with within-silence
+   acceleration reported separately as the different quantity it is.
+4. **Stored drills recompute from raw taps** (`DropoutSession.reconstruct()`), so an analysis
+   fix reaches takes recorded before it — this one did. `SessionStore` also now warns when
+   sessions fail to decode rather than dropping them silently.
+
+### What the corrected analysis says
+
+| take | usable silences | clock / motor | tempo alone |
+|---|---|---|---|
+| 1 | 3 / 6 | unreliable | 98 BPM (−2) |
+| 2 | 6 / 6 | unreliable (motor at floor) | 94 BPM (−6) |
+| 3 | 6 / 6 | 13.8 / 8.0 ms | 95 BPM (−5) |
+
+**Solid: an unaccompanied tempo bias of −5% or so, in every take and every clean silence.**
+Left alone the player settles around 94–95 BPM against a 100 BPM click.
+
+**Not established: that the clock is the problem.** Exactly one take yields a trustworthy
+split, and it puts clock at ~1.7× motor. Suggestive, n=1.
+
+The striking part is the dissociation with the jam data: **with** the band the player is
+consistently *ahead* (mean asynchrony −3 to −15 ms, i.e. rushing), yet **without** it the
+self-generated period is ~5% *slower* than the reference. Those are not contradictory — one
+is placement against a beat that is given, the other is the period produced from nothing — but
+together they describe someone whose natural period sits below the click while being pulled
+forward by it. That is a plausible mechanism for "everything feels forced," and it is
+testable: the prediction is that the bias shrinks at a target tempo nearer the natural one.
+
+### `review trend`
+
+Fits each metric against take number with a bootstrap interval on the slope, and **splits
+confounded groups rather than blending them** — jams are grouped by tempo, because a tempo
+change moves timing spread on its own; mixed backings and mixed form levels are flagged. With
+9 jams, 3 continuation takes and 5 form takes, everything currently reads "flat", which is the
+correct answer at this sample size rather than a disappointing one.
+
+---
+
+## 7.9 Training the internal clock — the plan
+
+Aimed at what the data actually supports, in order of confidence.
+
+**Target 1 — the tempo bias (solid).** Unaccompanied, the produced period is ~5% slow. This is
+a *calibration* error, not an instability, and calibration errors respond to feedback.
+
+The drill (M8): the click gives four bars, falls silent, the player produces sixteen beats
+alone, and the app reports the tempo produced — "you played 95, target was 100." Repeat
+immediately. This is a closed feedback loop on exactly the quantity that is off, and it is
+mostly assembled from existing parts (`DropoutDrill` plus the tempo estimator built above).
+
+Two refinements worth having:
+
+- **Bracketing.** Ask for deliberately fast, then deliberately slow, then target. Producing a
+  range on purpose loosens a stuck internal period faster than aiming at one number.
+- **Vary the target.** Rotate 76 / 100 / 132 rather than always 100. A clock calibrated at one
+  tempo is a lookup table; the goal is the mapping.
+
+**Target 2 — the clock/motor split (unestablished; needs data).** Three or four clean
+continuation takes — steady quarters, no subdividing — would settle whether the clock really
+is the looser half. That determines what comes after M8:
+
+- *Clock-dominant* → keep training period production: longer silences, tempo memory (hear a
+  tempo, wait, reproduce it).
+- *Motor-dominant* → different work entirely: evenness at speed, dynamics, and the
+  velocity/timing coupling the jam report already measures.
+
+**Target 3 — the rush/slow dissociation (a hypothesis worth testing).** If the natural period
+really sits near 95, jamming at 95 should shrink the −5 to −15 ms rush. That is a two-session
+experiment with the tools that already exist: three tagged takes at 100, three at 95, then
+`review conditions`. A confirmed result would mean some of the "forced" feeling is a tempo
+mismatch rather than a skill deficit.
+
+**What not to do.** Nothing here says practice harder or count more carefully. The r₁ evidence
+is consistent across all nine jams: this is under-correction, not chasing, and adding conscious
+control is the documented way to make that worse.
 
 ---
 

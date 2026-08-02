@@ -14,8 +14,13 @@ Pick a mode (Jam / Form / Play), set tempo and length, hit Start. The take scree
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
 
+To abandon a take mid-way (wrong tempo, keyboard not responding), press **esc** or **⌘.**, or
+click *Stop and discard*. The recording is thrown away rather than analysed.
+
 The CLI below does everything the app does, plus calibration and diagnostics. Both drive the
 same engine (`TrainerKit`), so they can never measure differently.
+
+Plug the keyboard in before or after launch — sources are re-scanned before every take.
 
 ## Layout
 
@@ -46,11 +51,13 @@ swift build -c release   # the console tool
 | `groove [bpm]` | **M3.** Plays a synthesized groove: count-in, a two-section arrangement with fills, the dropout ladder, and a slam back. Default 100 BPM. |
 | `jam [bpm] [bars] [tag]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. |
 | `form [bpm] [bars] [phraseBars] [level]` | Phrase-mark drill: hit a pad at each phrase top, no counting. Levels 0–3 progressively remove the landmarks. Default 100, 64, 8, 0. |
+| `dropout [bpm] [pacedBars] [silentBars] [cycles]` | Continuation drill: quarter notes straight through the silences. The only drill that separates clock from motor noise. Default 100, 4, 4, 6. |
 | `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. |
 | `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
 | `review tags` | Pooled summary of every tagged condition. |
 | `review conditions <a> <b>` | Pooled comparison of two conditions — the experiment readout. |
 | `review feel` | Does your sense of a good take match the measurement? |
+| `review trend` | Is anything actually improving? Fits each metric with a confidence interval, splitting confounded groups. |
 | `show` | Prints stored calibration and the constant for each device. |
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is
@@ -153,6 +160,24 @@ Levels remove the landmarks as you improve:
 | `3` | silence across the boundary — the turn happens with no band at all |
 
 The report tells you when you've earned the next one. `review form` shows your history.
+
+## Continuation drill — clock or hands?
+
+```sh
+./.build/release/TimingSpike dropout 100 4 4 6    # 4 bars with the band, 4 alone, ×6
+```
+
+Play **one note per beat, steadily, the whole way through** — especially when the band drops
+out. The silences are the measurement, and they're the only thing in the app that can separate
+two faults which feel identical from the inside:
+
+- **Clock** — the pulse in your head is unstable
+- **Motor** — the pulse is fine, your hands scatter around it
+
+They need completely different training, and no amount of playing by feel can tell them apart.
+The report also gives drift while unaccompanied and how far off you were when the band came
+back, and suggests a longer or shorter silence for next time. `review dropout` shows the split
+over time.
 
 A 2-bar count-in, then play along to the groove — eyes closed, nothing on screen. When it
 finishes it prints your timing (rush/drag bias, spread, drift, whether you're chasing the

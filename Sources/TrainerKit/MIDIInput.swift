@@ -18,8 +18,24 @@ struct MIDINoteOn {
 }
 
 final class MIDIInput {
+    /// One CoreMIDI client for the whole process, created on first use and never disposed.
+    ///
+    /// `MIDIServer` is an on-demand daemon: when the last client in the *system* goes away it
+    /// exits. A long-lived process that disposes its client and later creates another can be
+    /// left holding a connection to a server that has since exited, and the next
+    /// `MIDIClientCreateWithBlock` fails with paramErr (−50). That is exactly what the app
+    /// hit — the first take worked, the user spent a minute on the rating and results
+    /// screens while the server exited, and the second take could not open MIDI at all. The
+    /// CLI never saw it because each invocation is a fresh process.
+    ///
+    /// Holding one client for the process lifetime avoids the reconnect path entirely, and
+    /// is how CoreMIDI is meant to be used: one client per app, ports as needed.
+    static let shared = MIDIInput()
+
     private var client = MIDIClientRef()
     private var port = MIDIPortRef()
+    private var isConfigured = false
+    private var connectedSources = Set<MIDIUniqueID>()
     private(set) var sourceNames: [String] = []
     private(set) var skippedSources: [String] = []
 
@@ -45,27 +61,62 @@ final class MIDIInput {
 
     deinit { storage.deallocate() }
 
-    /// A started input, ready to receive.
+    /// The shared input, ready to receive. Safe to call before every take.
     static func started() throws -> MIDIInput {
-        let midi = MIDIInput()
-        try midi.start()
-        return midi
+        try shared.begin()
+        return shared
     }
 
-    func start() throws {
+    /// Prepare for a take: open the client and port if needed, pick up any newly attached
+    /// devices, and clear anything captured previously.
+    func begin() throws {
+        try configureIfNeeded()
+        connectSources()
+        reset()
+        guard !sourceNames.isEmpty else {
+            if skippedSources.isEmpty {
+                throw SpikeError("No MIDI sources found. Is the Launchkey plugged in?")
+            }
+            throw SpikeError("Only control-surface MIDI ports found: \(skippedSources.joined(separator: ", "))")
+        }
+    }
+
+    /// Finish a take. The client and port stay open on purpose — see `shared`.
+    func end() {
+        onNoteEvent = nil
+    }
+
+    private func configureIfNeeded() throws {
+        guard !isConfigured else { return }
+
         var status = MIDIClientCreateWithBlock("MusicalTrainer" as CFString, &client, nil)
-        guard status == noErr else { throw SpikeError("MIDIClientCreateWithBlock failed: \(status)") }
+        guard status == noErr else {
+            throw SpikeError("""
+                Could not open CoreMIDI (error \(status)). Unplug and replug the keyboard, or \
+                restart the app.
+                """)
+        }
 
         status = MIDIInputPortCreateWithProtocol(
-            client, "TimingSpike In" as CFString, ._1_0, &port
+            client, "MusicalTrainer In" as CFString, ._1_0, &port
         ) { [weak self] eventList, _ in
             self?.receive(eventList)
         }
-        guard status == noErr else { throw SpikeError("MIDIInputPortCreateWithProtocol failed: \(status)") }
+        guard status == noErr else {
+            MIDIClientDispose(client)
+            client = MIDIClientRef()
+            throw SpikeError("MIDIInputPortCreateWithProtocol failed: \(status)")
+        }
+        isConfigured = true
+    }
 
-        let count = MIDIGetNumberOfSources()
-        guard count > 0 else { throw SpikeError("No MIDI sources found. Is the Launchkey plugged in?") }
-        for i in 0..<count {
+    /// Connect any source we are not already listening to. Re-run before each take so a
+    /// keyboard plugged in after launch is picked up without restarting.
+    private func connectSources() {
+        sourceNames.removeAll()
+        skippedSources.removeAll()
+
+        for i in 0..<MIDIGetNumberOfSources() {
             let source = MIDIGetSource(i)
             let name = Self.name(of: source)
             // Skip control-surface ports. The Launchkey exposes both "LK Mini MIDI" and
@@ -76,17 +127,16 @@ final class MIDIInput {
                 skippedSources.append(name)
                 continue
             }
-            MIDIPortConnectSource(port, source, nil)
             sourceNames.append(name)
-        }
-        guard !sourceNames.isEmpty else {
-            throw SpikeError("Only control-surface MIDI ports found: \(skippedSources.joined(separator: ", "))")
-        }
-    }
 
-    func stop() {
-        MIDIPortDispose(port)
-        MIDIClientDispose(client)
+            var uniqueID: MIDIUniqueID = 0
+            MIDIObjectGetIntegerProperty(source, kMIDIPropertyUniqueID, &uniqueID)
+            // Connecting the same source twice would deliver every event twice.
+            if uniqueID != 0, connectedSources.contains(uniqueID) { continue }
+            if MIDIPortConnectSource(port, source, nil) == noErr, uniqueID != 0 {
+                connectedSources.insert(uniqueID)
+            }
+        }
     }
 
     func reset() {

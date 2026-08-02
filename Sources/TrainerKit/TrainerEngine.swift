@@ -73,7 +73,8 @@ public enum TrainerEngine {
     }
 
     public static func runJam(_ config: JamConfig,
-                              progress: ((Double) -> Void)? = nil) throws -> JamOutcome {
+                              progress: ((Double) -> Void)? = nil,
+                              cancellation: CancellationFlag? = nil) throws -> JamOutcome {
         guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
         guard (4...512).contains(config.bars) else { throw SpikeError("Bars must be 4–512.") }
         let env = try environment()
@@ -98,12 +99,13 @@ public enum TrainerEngine {
         let endSample = seq.barStartSample(bar: countInBars + config.bars, pattern: GrooveLibrary.basicRock)
 
         let midi = try MIDIInput.started()
-        defer { midi.stop() }
+        defer { midi.end() }
         midi.onNoteEvent = { note, velocity, on, channel in
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
 
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5, progress: progress)
+        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+                       progress: progress, cancellation: cancellation)
 
         guard let reduced = JamAnalysis.reduce(
             outputMap: player.outputMapPairs,
@@ -164,7 +166,8 @@ public enum TrainerEngine {
     }
 
     public static func runForm(_ config: FormConfig,
-                               progress: ((Double) -> Void)? = nil) throws -> FormOutcome {
+                               progress: ((Double) -> Void)? = nil,
+                               cancellation: CancellationFlag? = nil) throws -> FormOutcome {
         guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
         guard (2...32).contains(config.phraseBars) else { throw SpikeError("Phrase length must be 2–32 bars.") }
         guard config.bars >= config.phraseBars, config.bars <= 512 else {
@@ -192,12 +195,13 @@ public enum TrainerEngine {
         let startSample = seq.barStartSample(bar: countInBars, pattern: groove)
 
         let midi = try MIDIInput.started()
-        defer { midi.stop() }
+        defer { midi.end() }
         midi.onNoteEvent = { note, velocity, on, channel in
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
 
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5, progress: progress)
+        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+                       progress: progress, cancellation: cancellation)
 
         guard let epoch = player.outputMapPairs.first?.hostTime else {
             throw SpikeError("Could not reconstruct the take — no audio timing map captured.")
@@ -238,6 +242,132 @@ public enum TrainerEngine {
         return try SessionStore.save(session)
     }
 
+    // MARK: - Dropout (continuation) drill
+
+    public struct DropoutConfig {
+        public var bpm: Double
+        public var pacedBars: Int
+        public var silentBars: Int
+        public var cycles: Int
+        public init(bpm: Double = 100, pacedBars: Int = 4, silentBars: Int = 4, cycles: Int = 6) {
+            self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars; self.cycles = cycles
+        }
+        public var cycle: DropoutDrill.Cycle {
+            DropoutDrill.Cycle(pacedBars: pacedBars, silentBars: silentBars)
+        }
+        /// One extra paced stretch on the end so the final silence has a re-entry to measure.
+        public var totalBars: Int { cycles * cycle.totalBars + pacedBars }
+        public var durationSeconds: Double { Double(totalBars + 2) * 4 * 60 / bpm }
+    }
+
+    public struct DropoutOutcome {
+        public let report: DropoutReport
+        public let notesPlayed: Int
+        public let environment: Environment
+        public let config: DropoutConfig
+        /// What to try next, from the measured drift.
+        public let suggestedSilentBars: Int
+        fileprivate let gridStartTime: Double
+        fileprivate let tapTimes: [Double]
+    }
+
+    public static func runDropout(_ config: DropoutConfig,
+                                  progress: ((Double) -> Void)? = nil,
+                                  cancellation: CancellationFlag? = nil) throws -> DropoutOutcome {
+        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+        guard (1...16).contains(config.pacedBars), (1...32).contains(config.silentBars) else {
+            throw SpikeError("Paced bars must be 1–16 and silent bars 1–32.")
+        }
+        guard (1...32).contains(config.cycles) else { throw SpikeError("Cycles must be 1–32.") }
+        let env = try environment()
+
+        let player = try GroovePlayer()
+        let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate)
+        let groove = GrooveLibrary.basicRock
+        let countInBars = 2
+        let cycle = config.cycle
+
+        var perBar: [Pattern] = []
+        for _ in 0..<countInBars {
+            perBar.append(DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0, groove: groove))
+        }
+        for bar in 0..<config.totalBars {
+            perBar.append(DropoutDrill.pattern(bar: bar, cycle: cycle, groove: groove))
+        }
+
+        var hits: [ScheduledHit] = []
+        for (bar, pattern) in perBar.enumerated() { hits += seq.schedule(pattern: pattern, bar: bar) }
+        player.schedule(hits)
+        let startSample = seq.barStartSample(bar: countInBars, pattern: groove)
+
+        let midi = try MIDIInput.started()
+        defer { midi.end() }
+        midi.onNoteEvent = { note, velocity, on, channel in
+            player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
+        }
+
+        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+                       progress: progress, cancellation: cancellation)
+
+        guard let epoch = player.outputMapPairs.first?.hostTime else {
+            throw SpikeError("Could not reconstruct the take — no audio timing map captured.")
+        }
+        var map = SampleHostMap()
+        map.build(pairs: player.outputMapPairs, epoch: epoch)
+        guard let startSec = map.hostSeconds(atSample: Double(startSample)) else {
+            throw SpikeError("Could not locate the start of the drill on the timeline.")
+        }
+
+        let constantSec = (env.calibrationMs ?? 0) / 1000
+        // Keys only: pads are not part of this drill.
+        let taps = midi.events.filter { !$0.isPad }.map {
+            Tap(time: HostClock.interval(from: epoch, to: $0.hostTime) - constantSec,
+                velocity: Int($0.velocity))
+        }
+        let grid = Grid(startTime: startSec, bpm: config.bpm, subdivisions: 1)
+
+        // Build the section timeline from the same cycle the audio used, so analysis and
+        // playback can never disagree about when the band was absent.
+        let barSeconds = grid.beatInterval * 4
+        var sections: [DropoutSection] = []
+        var bar = 0
+        while bar < config.totalBars {
+            let paced = DropoutDrill.isPaced(bar: bar, cycle: cycle)
+            var end = bar
+            while end < config.totalBars, DropoutDrill.isPaced(bar: end, cycle: cycle) == paced { end += 1 }
+            sections.append(DropoutSection(startTime: startSec + Double(bar) * barSeconds,
+                                           endTime: startSec + Double(end) * barSeconds,
+                                           isPaced: paced))
+            bar = end
+        }
+
+        let report = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+        return DropoutOutcome(
+            report: report, notesPlayed: taps.count, environment: env, config: config,
+            suggestedSilentBars: DropoutDrill.suggestedSilentBars(
+                current: config.silentBars, driftMsPerBeat: report.tempoBiasMsPerBeat),
+            gridStartTime: startSec, tapTimes: taps.map(\.time))
+    }
+
+    @discardableResult
+    public static func save(_ outcome: DropoutOutcome, feelRating: Int?) throws -> URL {
+        let r = outcome.report
+        let session = DropoutSession(
+            date: Date(), bpm: outcome.config.bpm,
+            pacedBars: outcome.config.pacedBars, silentBars: outcome.config.silentBars,
+            cycles: outcome.config.cycles, feelRating: feelRating,
+            gridStartTime: outcome.gridStartTime, tapTimes: outcome.tapTimes,
+            pacedSDms: r.pacedSDms, unpacedIntervalSDms: r.unpacedIntervalSDms,
+            clockSDms: r.wingKristofferson?.clockSDms,
+            motorSDms: r.wingKristofferson?.motorSDms,
+            modelHolds: r.wingKristofferson?.modelHolds ?? false,
+            reentryErrorMeanMs: r.reentryErrorMeanMs, reentryErrorSDms: r.reentryErrorSDms,
+            headline: r.headline,
+            tempoBiasBpm: r.tempoBiasBpm, playedBpm: r.playedBpm,
+            splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials)
+        return try SessionStore.save(session)
+    }
+
     // MARK: - History
 
     /// A saved take, flattened for display. Keeps the storage types internal.
@@ -265,6 +395,29 @@ public enum TrainerEngine {
         }
     }
 
+    public static func dropoutHistory() -> [HistoryEntry] {
+        SessionStore.loadAllDropout().map { session in
+            // Re-analysed from the raw taps rather than read from the cached summary, so
+            // improvements to the analysis reach takes recorded before them.
+            let (taps, grid, sections) = session.reconstruct()
+            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+
+            let split = r.splitIsReliable && r.wingKristofferson != nil
+                ? String(format: "clock %.1f / motor %.1f ms",
+                         r.wingKristofferson!.clockSDms, r.wingKristofferson!.motorSDms)
+                : "split unreliable"
+            let tempo = r.playedBpm.map { String(format: " · %.0f BPM alone", $0) } ?? ""
+            return HistoryEntry(
+                date: session.date,
+                title: "\(session.pacedBars)+\(session.silentBars) bars × \(session.cycles) · \(Int(session.bpm)) BPM",
+                detail: split + tempo,
+                feelRating: session.feelRating, headline: r.headline,
+                // Tempo bias is the metric worth trending: it is measured reliably every
+                // time, whereas the clock/motor split often is not.
+                metric: r.tempoBiasBpm ?? .nan, metricLabel: "tempo bias (BPM)")
+        }
+    }
+
     public static func formHistory() -> [HistoryEntry] {
         SessionStore.loadAllForm().map { s in
             let pct = s.marksPlaced > 0 ? Double(s.onFormCount) / Double(s.marksPlaced) * 100 : 0
@@ -288,7 +441,8 @@ public enum TrainerEngine {
 
     /// Play the backing with live monitoring and no measurement — just somewhere to noodle.
     public static func playGroove(_ config: GrooveConfig,
-                                  progress: ((Double) -> Void)? = nil) throws {
+                                  progress: ((Double) -> Void)? = nil,
+                                  cancellation: CancellationFlag? = nil) throws {
         guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
         let player = try GroovePlayer()
         let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate)
@@ -302,10 +456,11 @@ public enum TrainerEngine {
         player.schedule(hits)
 
         let midi = try? MIDIInput.started()
-        defer { midi?.stop() }
+        defer { midi?.end() }
         midi?.onNoteEvent = { note, velocity, on, channel in
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5, progress: progress)
+        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+                       progress: progress, cancellation: cancellation)
     }
 }

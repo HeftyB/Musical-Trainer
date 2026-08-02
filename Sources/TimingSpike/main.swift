@@ -30,12 +30,18 @@ func usage() {
       form [bpm] [bars] [phraseBars] [level]
                         phrase-mark drill: hit a pad at each phrase top, no counting
                         (default 100, 64, 8, level 0; levels 0-3 remove the landmarks)
+      dropout [bpm] [pacedBars] [silentBars] [cycles]
+                        continuation drill: play quarter notes through the silences.
+                        The only drill that yields a clock/motor split. (100, 4, 4, 6)
       review [n]        re-analyze the latest saved take, or take n
       review list       list all takes
       review compare [i j]      two takes side by side, with significance
       review tags               pooled summary of every tagged condition
       review conditions <a> <b> pooled comparison of two conditions
       review feel               does your sense of a good take match the measurement?
+      review form               form-drill history
+      review dropout            clock/motor split over time
+      review trend              is anything actually improving?
       show              print stored calibration
     """)
 }
@@ -74,6 +80,13 @@ do {
         let phrase = arguments.dropFirst(3).first.flatMap(Int.init) ?? 8
         let level = arguments.dropFirst(4).first.flatMap(Int.init) ?? 0
         try Commands.runForm(bpm: bpm, bars: bars, phraseBars: phrase, level: level)
+
+    case "dropout":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        let paced = arguments.dropFirst(2).first.flatMap(Int.init) ?? 4
+        let silent = arguments.dropFirst(3).first.flatMap(Int.init) ?? 4
+        let cycles = arguments.dropFirst(4).first.flatMap(Int.init) ?? 6
+        try Commands.runDropout(bpm: bpm, pacedBars: paced, silentBars: silent, cycles: cycles)
 
     case "review":
         try Commands.runReview(Array(arguments.dropFirst()))

@@ -62,6 +62,45 @@ public enum WingKristofferson {
             modelHolds: holds)
     }
 
+    /// Pooled decomposition across several continuation trials.
+    ///
+    /// Each trial is centred on **its own** mean before pooling. A player whose tempo differs
+    /// slightly from one silence to the next would otherwise have that between-trial spread
+    /// counted as clock variance, inflating exactly the number we care about. Products are
+    /// only taken within a trial, so no interval pair ever straddles a boundary where the
+    /// band was playing.
+    public static func decompose(trials: [[Double]], tolerance: Double = 1e-9) -> WingKristoffersonResult? {
+        let usable = trials.filter { $0.count >= 3 }
+        guard !usable.isEmpty else { return nil }
+
+        var total = 0
+        var sumSquares = 0.0
+        var sumLag1 = 0.0
+        for trial in usable {
+            let mean = Stats.mean(trial)
+            let deviations = trial.map { $0 - mean }
+            for d in deviations { sumSquares += d * d }
+            for i in 0..<(deviations.count - 1) { sumLag1 += deviations[i] * deviations[i + 1] }
+            total += trial.count
+        }
+        guard total >= 3 else { return nil }
+
+        let g0 = sumSquares / Double(total)
+        let g1 = sumLag1 / Double(total)
+        let motorVar = -g1
+        let clockVar = g0 + 2 * g1
+
+        return WingKristoffersonResult(
+            clockVarianceMs2: clockVar,
+            motorVarianceMs2: motorVar,
+            clockSDms: max(0, clockVar).squareRoot(),
+            motorSDms: max(0, motorVar).squareRoot(),
+            intervalVarianceMs2: g0,
+            lag1AutocovarianceMs2: g1,
+            intervalCount: total,
+            modelHolds: motorVar >= -tolerance && clockVar >= -tolerance)
+    }
+
     /// Convenience: decompose directly from tap times in seconds.
     public static func decompose(tapTimes: [Double]) -> WingKristoffersonResult? {
         guard tapTimes.count >= 4 else { return nil }

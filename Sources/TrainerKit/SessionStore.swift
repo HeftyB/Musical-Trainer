@@ -72,6 +72,63 @@ struct FormSession: Codable {
     let headline: String
 }
 
+/// A recorded continuation drill. Separate again: it is the only session type that yields a
+/// clock/motor split, because it is the only one with unpaced playing in it.
+struct DropoutSession: Codable {
+    let date: Date
+    let bpm: Double
+    let pacedBars: Int
+    let silentBars: Int
+    let cycles: Int
+    let feelRating: Int?
+
+    let gridStartTime: Double
+    let tapTimes: [Double]
+
+    let pacedSDms: Double
+    let unpacedIntervalSDms: Double
+    let clockSDms: Double?
+    let motorSDms: Double?
+    let modelHolds: Bool
+    let reentryErrorMeanMs: Double
+    let reentryErrorSDms: Double
+    let headline: String
+
+    // Cached summaries. Optional so sessions written before these existed still decode —
+    // and unnecessary anyway, because `reconstruct()` can recompute everything from the
+    // raw taps below.
+    let tempoBiasBpm: Double?
+    let playedBpm: Double?
+    let splitIsReliable: Bool?
+    let discardedTrials: Int?
+
+    /// Rebuild the inputs to the analysis, so a stored drill can be re-analysed with the
+    /// current logic. The stored summary is only a cache; this is the source of truth.
+    ///
+    /// Everything needed is here — tempo, cycle shape, grid origin, and every tap — which is
+    /// what lets an analysis fix (say, discarding silences that weren't one note per beat)
+    /// apply retroactively to takes recorded before the fix existed.
+    func reconstruct() -> (taps: [Tap], grid: Grid, sections: [DropoutSection]) {
+        let grid = Grid(startTime: gridStartTime, bpm: bpm, subdivisions: 1)
+        let barSeconds = grid.beatInterval * 4
+        let cycleBars = pacedBars + silentBars
+        let totalBars = cycles * cycleBars + pacedBars
+
+        var sections: [DropoutSection] = []
+        var bar = 0
+        while bar < totalBars {
+            let paced = (bar % cycleBars) < pacedBars
+            var end = bar
+            while end < totalBars, ((end % cycleBars) < pacedBars) == paced { end += 1 }
+            sections.append(DropoutSection(startTime: gridStartTime + Double(bar) * barSeconds,
+                                           endTime: gridStartTime + Double(end) * barSeconds,
+                                           isPaced: paced))
+            bar = end
+        }
+        return (tapTimes.map { Tap(time: $0) }, grid, sections)
+    }
+}
+
 enum SessionStore {
     static var directory: URL {
         let base = FileManager.default
@@ -111,6 +168,21 @@ enum SessionStore {
         load(prefix: "form-", as: FormSession.self).sorted { $0.date < $1.date }
     }
 
+    @discardableResult
+    static func save(_ session: DropoutSession) throws -> URL {
+        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
+        let url = directory.appendingPathComponent("dropout-\(stamp).json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(session).write(to: url, options: .atomic)
+        return url
+    }
+
+    static func loadAllDropout() -> [DropoutSession] {
+        load(prefix: "dropout-", as: DropoutSession.self).sorted { $0.date < $1.date }
+    }
+
     /// Decode every file with the given name prefix. The prefix keeps jam and form takes
     /// apart, so neither can be silently decoded as the other.
     private static func load<T: Decodable>(prefix: String, as type: T.Type) -> [T] {
@@ -118,9 +190,17 @@ enum SessionStore {
         decoder.dateDecodingStrategy = .iso8601
         let files = (try? FileManager.default.contentsOfDirectory(at: directory,
                         includingPropertiesForKeys: nil)) ?? []
-        return files
-            .filter { $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix(prefix) }
-            .compactMap { try? decoder.decode(T.self, from: Data(contentsOf: $0)) }
+        let candidates = files.filter {
+            $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix(prefix)
+        }
+        let decoded = candidates.compactMap { try? decoder.decode(T.self, from: Data(contentsOf: $0)) }
+        // Silently dropping unreadable sessions is how a schema change quietly erases
+        // history. Say so instead.
+        if decoded.count < candidates.count {
+            FileHandle.standardError.write(Data(
+                "Note: \(candidates.count - decoded.count) '\(prefix)' session(s) could not be read (older format).\n".utf8))
+        }
+        return decoded
     }
 }
 

@@ -48,8 +48,7 @@ public enum Commands {
     }
 
     static func startMIDI() throws -> MIDIInput {
-        let midi = MIDIInput()
-        try midi.start()
+        let midi = try MIDIInput.started()
         print("\nMIDI listening on: \(midi.sourceNames.joined(separator: ", "))")
         if !midi.skippedSources.isEmpty {
             print("Ignoring control-surface ports: \(midi.skippedSources.joined(separator: ", "))")
@@ -63,7 +62,7 @@ public enum Commands {
         Console.heading("Environment")
         let env = try checkEnvironment()
         let midi = try startMIDI()
-        defer { midi.stop() }
+        defer { midi.end() }
 
         Console.heading("Phase 1 — Round-trip latency")
         Console.prompt("""
@@ -306,8 +305,10 @@ public enum Commands {
     /// puts two takes side by side, no argument reviews the most recent. A console stand-in
     /// for the M5 visual review.
     public static func runReview(_ args: [String]) throws {
-        // Form history lives in its own store, so it must not be gated on jam takes existing.
+        // These histories live in their own stores, so they must not be gated on jam takes.
         if args.first == "form" { runFormHistory(); return }
+        if args.first == "dropout" { runDropoutHistory(); return }
+        if args.first == "trend" { runTrend(); return }
 
         let sessions = SessionStore.loadAll()
         guard !sessions.isEmpty else {
@@ -369,6 +370,63 @@ public enum Commands {
         date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    /// Differences between takes that make a comparison unsafe.
+    ///
+    /// This exists because the confound actually happened: the jam backing was changed
+    /// mid-project, and the resulting spread difference read as "your timing got worse" when
+    /// part of it was simply different music. Anything that alters the task or the
+    /// measurement is named here, so a confound announces itself instead of quietly becoming
+    /// a conclusion.
+    private static func comparabilityNotes(_ groups: [(label: String, sessions: [JamSession])]) -> [String] {
+        guard groups.count >= 2 else { return [] }
+        var notes: [String] = []
+
+        /// Describe a per-group set of values, e.g. "relaxed: jamBacking, focused: basicRock".
+        func describe<T: Hashable & Comparable>(_ key: (JamSession) -> T,
+                                                _ format: (T) -> String) -> (differs: Bool, text: String) {
+            let perGroup = groups.map { ($0.label, Set($0.sessions.map(key))) }
+            let all = perGroup.reduce(into: Set<T>()) { $0.formUnion($1.1) }
+            let text = perGroup
+                .map { "\($0.0): \($0.1.sorted().map(format).joined(separator: "/"))" }
+                .joined(separator: ", ")
+            return (all.count > 1, text)
+        }
+
+        let backing = describe({ $0.grooveName }, { $0 })
+        if backing.differs {
+            notes.append("Backing differs (\(backing.text)). Spread and drift are not "
+                       + "comparable across different music.")
+        }
+
+        let tempo = describe({ $0.bpm }, { "\(Int($0)) BPM" })
+        if tempo.differs {
+            // Asynchrony spread scales with the beat interval, so a tempo change moves the
+            // numbers on its own.
+            notes.append("Tempo differs (\(tempo.text)). Timing spread scales with tempo.")
+        }
+
+        let device = describe({ $0.device }, { $0 })
+        if device.differs {
+            notes.append("Output device differs (\(device.text)). Bias is not comparable; "
+                       + "spread and r₁ are unaffected.")
+        } else {
+            let calibrated = describe({ $0.calibrationConstantMs != nil ? "yes" : "no" }, { $0 })
+            if calibrated.differs {
+                notes.append("Calibration differs (\(calibrated.text)). Bias is not comparable; "
+                           + "spread and r₁ are unaffected.")
+            }
+        }
+        return notes
+    }
+
+    private static func printComparabilityNotes(_ notes: [String]) {
+        guard !notes.isEmpty else { return }
+        print("")
+        for note in notes {
+            print("\(Console.yellow)Not comparable:\(Console.reset) \(note)")
+        }
+    }
+
     /// The matched asynchrony series for a stored take, re-analyzed with the current logic.
     private static func asynchronies(of session: JamSession) -> [Double] {
         let (taps, grid) = session.reconstruct()
@@ -400,6 +458,7 @@ public enum Commands {
         Console.heading("Compare")
         print("A (#\(ai + 1)): \(dateLabel(a.date))   \(Int(a.bpm)) BPM, \(a.bars) bars, \(asyncA.count) events")
         print("B (#\(bi + 1)): \(dateLabel(b.date))   \(Int(b.bpm)) BPM, \(b.bars) bars, \(asyncB.count) events")
+        printComparabilityNotes(comparabilityNotes([("A", [a]), ("B", [b])]))
         print("\n\(pad("Metric", 16))\(pad("A", 10))\(pad("B", 10))\(pad("change (B−A)", 22))verdict")
 
         func row(_ name: String, _ stat: @escaping ([Double]) -> Double, unit: String) {
@@ -469,6 +528,20 @@ public enum Commands {
             print("\(pad(tag, 14))\(pad("\(groups[tag]!.count)", 7))\(pad("\(events)", 8))"
                 + "\(pad(fmt(mean), 20))\(pad(fmt(sd), 20))\(fmt(r1, 2))")
         }
+
+        // Pooling takes recorded under different conditions hides the confound inside a
+        // single row, where no comparison step would ever surface it.
+        for tag in groups.keys.sorted() {
+            let takes = groups[tag]!
+            var mixed: [String] = []
+            if Set(takes.map(\.grooveName)).count > 1 { mixed.append("backings") }
+            if Set(takes.map(\.bpm)).count > 1 { mixed.append("tempos") }
+            if Set(takes.map(\.device)).count > 1 { mixed.append("output devices") }
+            if !mixed.isEmpty {
+                print("\n\(Console.yellow)Mixed pool:\(Console.reset) '\(tag)' pools takes across "
+                    + "different \(mixed.joined(separator: " and ")) — the pooled figures blend them.")
+            }
+        }
         print("\n\(Console.dim)Pooled across takes, 95% intervals. Compare two with:  review conditions <a> <b>\(Console.reset)")
     }
 
@@ -484,6 +557,7 @@ public enum Commands {
         Console.heading("\(tagA) vs \(tagB)")
         print("\(tagA): \(a.count) take(s), \(sa.reduce(0) { $0 + $1.count }) events")
         print("\(tagB): \(b.count) take(s), \(sb.reduce(0) { $0 + $1.count }) events")
+        printComparabilityNotes(comparabilityNotes([(tagA, a), (tagB, b)]))
         print("\n\(pad("Metric", 16))\(pad(tagA, 10))\(pad(tagB, 10))\(pad("change (B−A)", 22))verdict")
 
         func row(_ name: String, _ stat: @escaping ([Double]) -> Double) {
@@ -537,6 +611,226 @@ public enum Commands {
                 print("Your sense of a good take doesn't track your actual precision — worth knowing.")
             }
         }
+    }
+
+    // MARK: - Dropout drill
+
+    public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int) throws {
+        Console.heading("Dropout drill — hold the pulse alone")
+        let config = TrainerEngine.DropoutConfig(bpm: bpm, pacedBars: pacedBars,
+                                                 silentBars: silentBars, cycles: cycles)
+        let env = try TrainerEngine.environment()
+        print("Output: \(env.outputName)")
+
+        print("""
+
+        \(Console.bold)\(cycles) cycles\(Console.reset): \(pacedBars) bars with the band, \
+        \(silentBars) bars alone \
+        (~\(String(format: "%.1f", config.durationSeconds / 60)) min)
+
+        \(Console.bold)Play ONE NOTE PER BEAT, steadily, the whole way through.\(Console.reset)
+        Any note you like — but keep it to quarter notes and never stop, especially
+        when the band drops out. The silences are the measurement.
+
+          • \(Console.bold)Do not count.\(Console.reset) Let the pulse carry itself.
+          • The band slams back in with a crash. You'll hear whether you're still with it.
+        """)
+        Console.prompt("Ready?")
+
+        let outcome = try TrainerEngine.runDropout(config)
+        let feel = Console.readRating("\nHow did that feel?")
+        reportDropout(outcome)
+        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
+    }
+
+    private static func reportDropout(_ outcome: TrainerEngine.DropoutOutcome) {
+        let r = outcome.report
+        Console.heading("Your pulse, unaccompanied")
+        print("Notes played: \(outcome.notesPlayed)   "
+            + "(\(r.pacedNoteCount) with the band, \(r.unpacedNoteCount) alone)")
+        print("Silences:     \(r.trials.count)")
+
+        guard r.unpacedNoteCount >= 12 else {
+            Console.error("\n\(r.headline)")
+            return
+        }
+
+        print("\n\(Console.bold)\(r.headline)\(Console.reset)\n")
+
+        if r.discardedTrials > 0 {
+            Console.warn("\(r.discardedTrials) of \(r.trials.count) silences were discarded — "
+                + "they weren't one note per beat. Keep to steady quarters, no subdividing.")
+            print("")
+        }
+
+        if let wk = r.wingKristofferson, r.splitIsReliable {
+            // The whole reason this drill exists — two numbers no amount of playing by feel
+            // can separate.
+            print("\(Console.bold)Clock\(Console.reset) (the pulse in your head):  \(Console.ms(wk.clockSDms))")
+            print("\(Console.bold)Motor\(Console.reset) (your hands executing it): \(Console.ms(wk.motorSDms))")
+            print("\(Console.dim)from \(wk.intervalCount) intervals across \(r.trials.count) silences\(Console.reset)")
+        } else {
+            Console.warn("""
+                the clock/motor split isn't trustworthy from this take. It needs several
+                silences of steady quarter notes with no systematic speed change; a motor
+                estimate near zero means the model hit its floor rather than measuring you.
+                The tempo figures below still stand.
+                """)
+        }
+
+        print("")
+        if let played = r.playedBpm, let bias = r.tempoBiasBpm {
+            // The most robust number this drill produces, and the most actionable.
+            print(String(format: "Tempo alone:           %.1f BPM  (%+.1f vs the click, %+.1f%%)",
+                         played, bias, bias / outcome.config.bpm * 100))
+        }
+        if !r.pacedSDms.isNaN {
+            print("Spread with the band:  \(Console.ms(r.pacedSDms))")
+        }
+        if !r.unpacedIntervalSDms.isNaN {
+            print("Beat-to-beat spread:   \(Console.ms(r.unpacedIntervalSDms))  "
+                + "\(Console.dim)(while alone)\(Console.reset)")
+        }
+        if let within = r.meanWithinTrialDriftMsPerBeat, abs(within) > 0.5 {
+            // Distinct from sitting at a steady wrong tempo: this is the period changing
+            // *during* a silence.
+            print(String(format: "Speeding/slowing:      %+.2f ms per beat within each silence", within))
+        }
+        if !r.reentryErrorMeanMs.isNaN {
+            let sd = r.reentryErrorSDms.isNaN ? "" : "  ± \(Console.ms(r.reentryErrorSDms, 0))"
+            print("Re-entry error:        \(Console.ms(r.reentryErrorMeanMs, 0))\(sd)"
+                + "  \(Console.dim)(where you were when the band came back)\(Console.reset)")
+        }
+
+        if outcome.suggestedSilentBars != outcome.config.silentBars {
+            let longer = outcome.suggestedSilentBars > outcome.config.silentBars
+            print("\n\(longer ? Console.green : Console.yellow)"
+                + "Try \(outcome.suggestedSilentBars) silent bars next\(Console.reset)"
+                + (longer ? " — you held that comfortably." : " — that was slipping away."))
+            print("\(Console.dim)TimingSpike dropout \(Int(outcome.config.bpm)) "
+                + "\(outcome.config.pacedBars) \(outcome.suggestedSilentBars) "
+                + "\(outcome.config.cycles)\(Console.reset)")
+        }
+    }
+
+    /// M7: is anything actually improving?
+    ///
+    /// Fits each metric against take number and reports the slope with a bootstrap interval,
+    /// so "my spread is coming down" is either supported or isn't. Confounded groups are
+    /// split rather than blended — a tempo change moves timing spread on its own, and a trend
+    /// computed across the change would be measuring the tempo, not the player.
+    private static func runTrend() {
+        Console.heading("Trends")
+
+        let jams = SessionStore.loadAll()
+        if jams.count >= 3 {
+            let byTempo = Dictionary(grouping: jams, by: { Int($0.bpm) })
+            for tempo in byTempo.keys.sorted() {
+                let takes = byTempo[tempo]!
+                let backings = Set(takes.map(\.grooveName))
+                print("\n\(Console.bold)Jams at \(tempo) BPM\(Console.reset)  (\(takes.count) takes)")
+                if backings.count > 1 {
+                    Console.warn("mixed backings (\(backings.sorted().joined(separator: ", "))) — "
+                        + "spread is not comparable across them.")
+                }
+                guard takes.count >= 3 else {
+                    print("  \(Console.dim)need 3+ takes at one tempo to fit a trend\(Console.reset)")
+                    continue
+                }
+                trendRow("spread (SD)", takes.map(\.sdAsynchronyMs), lowerIsBetter: true)
+                trendRow("|bias|", takes.map { abs($0.meanAsynchronyMs) }, lowerIsBetter: true)
+                trendRow("r₁ toward 0", takes.compactMap { $0.lag1Autocorrelation.map(abs) },
+                         lowerIsBetter: true)
+            }
+        } else {
+            print("\nJams: \(jams.count) take(s) — need 3+ at one tempo.")
+        }
+
+        let drops = SessionStore.loadAllDropout()
+        if drops.count >= 3 {
+            print("\n\(Console.bold)Continuation drill\(Console.reset)  (\(drops.count) takes)")
+            let biases = drops.compactMap { session -> Double? in
+                let (taps, grid, sections) = session.reconstruct()
+                return DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections).tempoBiasBpm
+            }
+            trendRow("|tempo bias|", biases.map(abs), lowerIsBetter: true)
+        } else {
+            print("\n\(Console.bold)Continuation drill\(Console.reset): \(drops.count) take(s) — need 3+.")
+        }
+
+        let forms = SessionStore.loadAllForm()
+        if forms.count >= 3 {
+            print("\n\(Console.bold)Form drill\(Console.reset)  (\(forms.count) takes)")
+            if Set(forms.map(\.level)).count > 1 {
+                Console.warn("mixed levels — difficulty changed between takes, so a trend "
+                    + "here reflects the ladder as much as you.")
+            }
+            trendRow("on-form rate", forms.map {
+                $0.marksPlaced > 0 ? Double($0.onFormCount) / Double($0.marksPlaced) : 0
+            }, lowerIsBetter: false)
+        } else {
+            print("\n\(Console.bold)Form drill\(Console.reset): \(forms.count) take(s) — need 3+.")
+        }
+
+        print("\n\(Console.dim)Slope is change per take, with a 95% interval. "
+            + "\"flat\" means the interval includes zero.\(Console.reset)")
+    }
+
+    private static func trendRow(_ label: String, _ values: [Double], lowerIsBetter: Bool) {
+        let clean = values.filter { $0.isFinite }
+        guard clean.count >= 3 else {
+            print("  \(pad(label, 16))\(Console.dim)too few points\(Console.reset)")
+            return
+        }
+        let x = (0..<clean.count).map(Double.init)
+        guard let fit = Stats.linearFit(x: x, y: clean) else { return }
+
+        // Resample take-index pairs to get an interval on the slope. With a handful of takes
+        // this is wide on purpose — that width is the honest answer.
+        var rng = SplitMix64(seed: 0xA11CE)
+        var slopes: [Double] = []
+        for _ in 0..<2000 {
+            var rx: [Double] = [], ry: [Double] = []
+            for _ in 0..<clean.count {
+                let i = Int(rng.next() % UInt64(clean.count))
+                rx.append(x[i]); ry.append(clean[i])
+            }
+            if let f = Stats.linearFit(x: rx, y: ry) { slopes.append(f.slope) }
+        }
+        let lo = Stats.percentile(slopes, 0.025), hi = Stats.percentile(slopes, 0.975)
+        let real = (lo > 0 && hi > 0) || (lo < 0 && hi < 0)
+        let improving = lowerIsBetter ? fit.slope < 0 : fit.slope > 0
+        let verdict = !real ? "\(Console.dim)flat\(Console.reset)"
+            : improving ? "\(Console.green)improving\(Console.reset)"
+                        : "\(Console.yellow)worsening\(Console.reset)"
+        print("  \(pad(label, 16))"
+            + pad(String(format: "%+.2f/take [%+.2f, %+.2f]", fit.slope, lo, hi), 30)
+            + verdict)
+    }
+
+    /// Continuation-drill history — the clock/motor split over time.
+    private static func runDropoutHistory() {
+        let sessions = SessionStore.loadAllDropout()
+        Console.heading("Dropout drill history")
+        guard !sessions.isEmpty else {
+            print("No dropout drills yet. Try:  TimingSpike dropout 100 4 4 6")
+            return
+        }
+        print("\(pad("When", 22))\(pad("cycle", 10))\(pad("clock", 10))\(pad("motor", 10))\(pad("tempo alone", 14))feel")
+        for s in sessions {
+            // Recomputed from the raw taps so older takes get the current analysis.
+            let (taps, grid, sections) = s.reconstruct()
+            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            let clock = r.splitIsReliable ? Console.ms(r.wingKristofferson?.clockSDms ?? .nan, 1) : "—"
+            let motor = r.splitIsReliable ? Console.ms(r.wingKristofferson?.motorSDms ?? .nan, 1) : "—"
+            let tempo = r.playedBpm.map { String(format: "%.0f (%+.0f)", $0, r.tempoBiasBpm ?? 0) } ?? "—"
+            print("\(pad(dateLabel(s.date), 22))\(pad("\(s.pacedBars)+\(s.silentBars)×\(s.cycles)", 10))"
+                + "\(pad(clock, 10))\(pad(motor, 10))\(pad(tempo, 14))"
+                + (s.feelRating.map { String(repeating: "★", count: $0) } ?? "—"))
+        }
+        print("\n\(Console.dim)Clock = stability of the pulse itself. Motor = execution noise. "
+            + "Lower is better for both.\(Console.reset)")
     }
 
     // MARK: - Form drill
@@ -728,7 +1022,7 @@ public enum Commands {
 
         if !quick {
             let midi = try startMIDI()
-            defer { midi.stop() }
+            defer { midi.end() }
             store.midiSource = midi.sourceNames.first
 
             Console.prompt("""
