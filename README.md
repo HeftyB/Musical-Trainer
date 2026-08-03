@@ -10,7 +10,11 @@ design, the metrics, and the roadmap.
 open "Musical Trainer.app"
 ```
 
-Pick a mode (Jam / Form / Alone / Tempo / Play), set the options, hit Start. Each mode
+Hit **Session** for a whole planned evening — pick 20, 30 or 45 minutes and the app chooses
+the drills from what your last takes measured, tells you why it picked each one, and runs them
+in order. Nothing measured appears on screen until the debrief at the end.
+
+Or pick a mode (Jam / Form / Alone / Tempo / Play), set the options, hit Start. Each mode
 shows exactly what it expects of you before you begin. The take screen is
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
@@ -33,7 +37,7 @@ Plug the keyboard in before or after launch — sources are re-scanned before ev
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 68 cases against synthetic ground truth.
+- `Tests/` — 135 cases against synthetic ground truth.
 
 ```sh
 swift test               # TimingCore unit tests
@@ -53,6 +57,8 @@ swift build -c release   # the console tool
 | `jam [bpm] [bars] [tag]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. |
 | `form [bpm] [bars] [phraseBars] [level]` | Phrase-mark drill: hit a pad at each phrase top, no counting. Levels 0–3 progressively remove the landmarks. Default 100, 64, 8, 0. |
 | `tempo [bpm ...]` | **M8.** Produce a tempo unaccompanied and be told what you actually played, round after round. Pass several tempos to rotate the target. |
+| `session [minutes]` | **M9.** Run a whole planned session end to end — cold probe, warm-up, benchmark jam, drills chosen from your recent data, then playing. Default 30. |
+| `session plan [minutes]` | **M9.** Print what it would do, and why, without running it. |
 | `dropout [bpm] [pacedBars] [silentBars] [cycles]` | Continuation drill: quarter notes straight through the silences. The only drill that separates clock from motor noise. Default 100, 4, 4, 6. |
 | `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. |
 | `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
@@ -61,6 +67,7 @@ swift build -c release   # the console tool
 | `review feel` | Does your sense of a good take match the measurement? |
 | `review tempo` | Tempo-calibration history. |
 | `review trend` | Is anything actually improving? Fits each metric with a confidence interval, splitting confounded groups. |
+| `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
 | `show` | Prints stored calibration and the constant for each device. |
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is

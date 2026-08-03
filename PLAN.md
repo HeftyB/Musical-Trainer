@@ -227,8 +227,8 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M6** | Dropout / continuation drill | ✅ Done. The only drill that yields a clock/motor split. See §7.7. |
 | **M7** | Progress over time | ✅ Done. `review trend` fits each metric with a bootstrap interval and splits confounded groups. See §7.8. |
 | **M8** | Tempo calibration drill | ✅ Done. Closed feedback loop on the tempo bias §7.8 found. See §7.10. |
-| **M9** | Session builder | A 20–30 min session the app proposes and runs end to end. |
-| **M10** | Cold vs warm | Separate warm-up from learning — the open question from the first tempo data. |
+| **M9** | Session builder | ✅ Done. The app proposes a 20/30/45 min session from recent data and runs it end to end. See §7.14. |
+| **M10** | Cold vs warm | ✅ Done. Within-sitting warm-up separated from between-sitting learning. See §7.15. |
 | **M11** | Clock stability drills | Aimed at the axis actually measured weak (clock 14.9 ms vs motor 9.3 ms). |
 | **M12** | Experiment runner | The app schedules its own A/B comparisons and says when they have power. |
 | **M13** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
@@ -951,6 +951,134 @@ into results.
 Audio onset detection through an interface, reusing the calibration and analysis already
 built. Deliberately last of the ten: a new input is additive once the drills and measurement
 are mature, and it is the only item requiring hardware the player does not own.
+
+---
+
+## 7.14 M9 — the session builder, as built
+
+`session [minutes]`, and **Session** in the app. One choice — 20, 30 or 45 minutes — and the
+app proposes a whole evening, says why it picked each drill, and runs it end to end. Until now
+everything has been a menu of drills; this is the first thing that decides *what to practise
+today*.
+
+### Storage went first
+
+Before any planning code, every take type gained an optional `SessionPlacement`: session id,
+block index, role, and **seconds elapsed from the start of the sitting**. Optional throughout,
+so every take recorded before M9 still decodes.
+
+This ordering was deliberate. "Was this the cold take or the fifth one of the evening?" cannot
+be reconstructed from a bare timestamp, and it is exactly what M10 and M16 ask. A take recorded
+without it is a take those milestones can never use — so the field had to exist before another
+take was recorded, not after.
+
+### Fixed slots, and why they are fixed
+
+| # | Block | Parameters | Why this slot |
+|---|---|---|---|
+| 1 | Cold probe (tempo, 3 rounds) | **Locked** | Before any warm-up. Comparable across days only if nothing about it moves. |
+| 2 | Warm-up groove | Unmeasured | Hands moving, nothing recorded. |
+| 3 | Benchmark jam | **Locked** 100 BPM, 64 bars | The take the trend is fitted to. Same slot every session — warm, not yet tired. |
+| 4–6 | Training | Adaptive | The only blocks the planner may vary. |
+| last | Closing jam(s) | Length varies | The musical payoff. Tagged `closing`, apart from the benchmark. |
+
+Every confound already in this dataset arrived by a parameter changing between takes — a
+changed backing, a changed tempo. The cold probe and the benchmark are the two takes that must
+never do that, so they are constants in the planner rather than settings. A test asserts they
+are byte-identical across six combinations of history and session length.
+
+### The planner (`TimingCore/SessionPlan.swift`, 16 tests)
+
+Takes a `PlannerInput` of plain summaries rather than the stored session types, which is what
+makes "given three unreliable splits, does it schedule the continuation drill?" a test instead
+of a fixture directory. Every block carries a one-sentence **reason**, shown before the session
+starts: a session the app chose but cannot justify is one the player has no way to disagree with.
+
+Rules, in priority order:
+
+1. **Continuation drill** while the clock/motor split is unsettled — fewer than three reliable
+   splits in the last six takes. That split is the question the whole training plan branches on
+   (§7.9), and collecting the data that answers it beats training either half on a guess. Once
+   settled, a looser clock doubles the silences; a motor-dominant result schedules *nothing* and
+   says so, because that needs work no drill here does yet (M11).
+2. **Tempo calibration** while the produced period is off by ≥2% at a single target. Accurate at
+   one target promotes to rotating targets — a clock calibrated at one tempo is a lookup table.
+3. **Form**, always available, at the level earned. If the last take marked a consistent
+   sub-multiple, the drill *follows the felt phrase* rather than scoring it down, and changes
+   only the phrase length, never the phrase and the level at once.
+
+Longer sessions buy **longer takes, not more of them**. There are three training drills, so
+repeats would be filler, whereas ten silences instead of six is a materially better variance
+estimate. A single closing jam is capped at ~10 minutes and the remainder split evenly across
+more of them: `jamBacking` is two sections with a fill every eight bars, which sustains ten
+minutes and is hypnotic well before twenty (§6 — real depth is M17). A 9-minute jam followed by
+a 1-minute one is not two takes, it is one take and an apology.
+
+### Running it
+
+`SessionRunner` is a state machine, not a loop, because a rating needs the UI between every
+block. Two decisions:
+
+1. **No numbers until the debrief.** Rating after each block and holding every result to the end
+   makes §2's blank screen stronger than it is for a single take — for the whole session there
+   is nothing measured to see. The tempo drill's round feedback stays; that drill *is* a feedback
+   loop and removing it removes the mechanism.
+2. **Stopping a block asks what you meant.** Skip this drill, or end the session — "wrong tempo,
+   move on" and "I'm done" are different intentions and the runner refuses to guess. Finished
+   blocks stay saved; the abandoned one is discarded, as a stopped single take always was.
+
+`session plan [minutes]` prints the choices without committing the evening to them.
+
+---
+
+## 7.15 M10 — cold vs warm, as built
+
+The first tempo data fell −4.7% → −0.3% inside one sitting, and nothing in the app could say
+whether that was learning or dust shaking off. Those need opposite responses — one means
+practice is working, the other means the first ten minutes of every session are the cost of
+entry — and **one slope across all takes cannot tell them apart**, because it confounds *when in
+the evening* a take was played with *which evening* it was.
+
+`WarmUpAnalysis` (TimingCore, 13 tests) fits the two separately.
+
+**Within a sitting**, each evening is centred on its own means before pooling, so a sitting that
+was simply a good day contributes nothing to the warm-up slope. This is the same move
+`DropoutAnalysis` makes for Wing–Kristofferson trials, for the same reason. A test plants six
+internally-flat evenings that improve across weeks and asserts the warm-up slope comes out
+exactly zero — a naive fit of value against elapsed minutes finds a slope there, which is the
+specific error the whole analysis exists to remove.
+
+The interval resamples **whole sittings**, not takes. Takes inside one evening are correlated;
+resampling them individually would treat six takes from one night as six independent
+observations and report a confident wrong interval.
+
+**Across sittings**, the cold value of each. A controlled cold probe when the session builder
+ran; otherwise whatever was played first — a proxy that is flagged, never quietly equated, since
+a first take differs in drill and settings as well as in temperature.
+
+**Sittings are recovered from timestamps** for everything recorded before M9: an evening is a run
+of takes minutes apart, and the next is hours later. That makes the whole existing history usable
+for the within-sitting question instead of starting from nothing.
+
+The verdict refuses to conclude below three sittings, and distinguishes warm-up only / learning /
+both / neither. Declining across an evening is named as fatigue rather than folded into "no
+warm-up effect".
+
+### What it says today
+
+`review cold`, on the current history:
+
+| drill | within a sitting | cold, per sitting | verdict |
+|---|---|---|---|
+| Jams — spread | −0.050/min, flat | +2.20/sitting, flat | neither |
+| Form — on-form rate | −0.008/min, flat | −0.091/sitting, flat | neither |
+| Continuation — \|tempo bias\| | −0.101/min, flat | 2 sittings — too few | not enough data |
+| Tempo drill — error | 1 sitting — too few | 1 sitting — too few | not enough data |
+
+**The drill that motivated the milestone has exactly one sitting**, so the −4.7% → −0.3% run
+remains uninterpretable — which is the correct answer and the reason the question was worth
+building for rather than arguing about. It becomes answerable after three sessions from the
+builder, where the cold probe is controlled rather than inferred.
 
 ---
 

@@ -674,6 +674,92 @@ public enum TrainerEngine {
         SessionPlanner.plan(targetMinutes: targetMinutes, from: plannerInput())
     }
 
+    // MARK: - M10 cold vs warm
+
+    /// One stored take on the way to `SessionedTake`.
+    private struct DatedTake {
+        let date: Date
+        let placement: SessionPlacement?
+        let value: Double
+    }
+
+    /// Assign every take to a sitting, and work out how warm the player was when they played it.
+    ///
+    /// Takes recorded through the session builder carry the answer. Everything recorded before
+    /// M9 does not — but the timestamps still hold it, because an evening's practice is a run
+    /// of takes minutes apart and the next sitting is hours later. Recovering that makes the
+    /// whole existing history usable for the within-sitting question instead of starting from
+    /// nothing, at the cost of a proxy that the report flags rather than hides.
+    private static func sessioned(_ takes: [DatedTake]) -> [SessionedTake] {
+        let sorted = takes.filter { $0.value.isFinite }.sorted { $0.date < $1.date }
+        guard !sorted.isEmpty else { return [] }
+
+        var result: [SessionedTake] = []
+        var sittingIndex = 0
+        var sittingStart = sorted[0].date
+
+        for (i, take) in sorted.enumerated() {
+            if i > 0 {
+                let previous = sorted[i - 1]
+                let isNewSitting: Bool
+                if let a = previous.placement?.sessionId, let b = take.placement?.sessionId {
+                    isNewSitting = a != b
+                } else {
+                    // Either side is a loose take: fall back to the gap rule.
+                    isNewSitting = take.date.timeIntervalSince(previous.date) > 45 * 60
+                }
+                if isNewSitting { sittingIndex += 1; sittingStart = take.date }
+            }
+
+            // A session take knows how long into the evening it started, which counts the
+            // blocks of *other* drills too — that is exactly the warmth we want. A loose take
+            // can only be measured from the first take of its sitting.
+            let elapsed = take.placement?.elapsedSeconds
+                ?? take.date.timeIntervalSince(sittingStart)
+            result.append(SessionedTake(sessionIndex: sittingIndex,
+                                        elapsedMinutes: elapsed / 60,
+                                        isColdProbe: take.placement?.role == BlockRole.cold.rawValue,
+                                        value: take.value))
+        }
+        return result
+    }
+
+    /// Is the improvement in this drill warm-up or learning?
+    public static func warmUpReport(for kind: DrillKind) -> WarmUpReport {
+        switch kind {
+        case .jam:
+            // Spread, the same metric the jam trend follows.
+            let takes = SessionStore.loadAll().map {
+                DatedTake(date: $0.date, placement: $0.placement, value: $0.report().sdAsynchronyMs)
+            }
+            return WarmUpAnalysis.analyze(sessioned(takes), lowerIsBetter: true)
+
+        case .form:
+            let takes = SessionStore.loadAllForm().map {
+                DatedTake(date: $0.date, placement: $0.placement, value: $0.report().onFormRate)
+            }
+            return WarmUpAnalysis.analyze(sessioned(takes), lowerIsBetter: false)
+
+        case .dropout:
+            let takes = SessionStore.loadAllDropout().map { session -> DatedTake in
+                let (taps, grid, sections) = session.reconstruct()
+                let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+                return DatedTake(date: session.date, placement: session.placement,
+                                 value: r.tempoBiasBpm.map(abs) ?? .nan)
+            }
+            return WarmUpAnalysis.analyze(sessioned(takes), lowerIsBetter: true)
+
+        case .tempo:
+            let takes = SessionStore.loadAllTempo().map { session -> DatedTake in
+                let r = TempoCalibrationAnalysis.analyze(taps: session.taps,
+                                                         rounds: session.roundWindows)
+                return DatedTake(date: session.date, placement: session.placement,
+                                 value: r.meanAbsErrorPercent ?? .nan)
+            }
+            return WarmUpAnalysis.analyze(sessioned(takes), lowerIsBetter: true)
+        }
+    }
+
     // MARK: - Trends
 
     public enum DrillKind: String, CaseIterable {

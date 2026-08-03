@@ -422,6 +422,7 @@ public enum Commands {
         if args.first == "form" { runFormHistory(); return }
         if args.first == "dropout" { runDropoutHistory(); return }
         if args.first == "trend" { runTrend(); return }
+        if args.first == "cold" { runCold(); return }
         if args.first == "tempo" { runTempoHistory(); return }
 
         let sessions = SessionStore.loadAll()
@@ -918,6 +919,51 @@ public enum Commands {
     /// so "my spread is coming down" is either supported or isn't. Confounded groups are
     /// split rather than blended — a tempo change moves timing spread on its own, and a trend
     /// computed across the change would be measuring the tempo, not the player.
+    /// M10: is the improvement warming up, or getting better?
+    private static func runCold() {
+        Console.heading("Cold vs warm")
+        print("\(Console.dim)Improvement inside a sitting is warming up. Improvement in the "
+            + "*cold* take across sittings is learning.\nOnly the second survives a night's "
+            + "sleep, and one slope across all takes cannot tell them apart.\(Console.reset)")
+
+        for kind in TrainerEngine.DrillKind.allCases {
+            let report = TrainerEngine.warmUpReport(for: kind)
+            print("\n\(Console.bold)\(label(for: kind))\(Console.reset)"
+                + "  (\(report.takeCount) takes across \(report.sessionCount) sitting(s))")
+
+            row("within a sitting", report.withinSession, unit: "/min")
+            row("cold, per sitting", report.betweenSessions, unit: "/sitting")
+
+            print("  \(report.headline)")
+            for note in report.notes { Console.warn(note) }
+        }
+    }
+
+    private static func row(_ label: String, _ fit: TrendFit?, unit: String) {
+        guard let fit else {
+            print("  \(pad(label, 20))\(Console.dim)not enough data\(Console.reset)")
+            return
+        }
+        let verdict: String
+        switch fit.verdict {
+        case .flat:      verdict = "\(Console.dim)flat\(Console.reset)"
+        case .improving: verdict = "\(Console.green)improving\(Console.reset)"
+        case .worsening: verdict = "\(Console.yellow)worsening\(Console.reset)"
+        }
+        print("  \(pad(label, 20))"
+            + pad(String(format: "%+.3f%@ [%+.3f, %+.3f]", fit.slope, unit, fit.low, fit.high), 34)
+            + verdict)
+    }
+
+    private static func label(for kind: TrainerEngine.DrillKind) -> String {
+        switch kind {
+        case .jam:     return "Jams — spread"
+        case .form:    return "Form — on-form rate"
+        case .dropout: return "Continuation — |tempo bias|"
+        case .tempo:   return "Tempo drill — error"
+        }
+    }
+
     private static func runTrend() {
         Console.heading("Trends")
 

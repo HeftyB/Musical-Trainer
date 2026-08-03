@@ -105,6 +105,8 @@ struct HistoryView: View {
                         ForEach(Array(TrainerEngine.trends(for: kind.drill).enumerated()),
                                 id: \.offset) { _, series in TrendCard(series: series) }
 
+                        WarmUpCard(report: TrainerEngine.warmUpReport(for: kind.drill))
+
                         ForEach(entries.reversed()) { entry in
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack {
@@ -179,6 +181,74 @@ private struct TrendCard: View {
                     .font(.caption).foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    private func word(_ verdict: TrendVerdict) -> String {
+        switch verdict {
+        case .improving: return "improving"
+        case .worsening: return "worsening"
+        case .flat:      return "flat"
+        }
+    }
+
+    private func colour(_ verdict: TrendVerdict) -> Color {
+        switch verdict {
+        case .improving: return .green
+        case .worsening: return .orange
+        case .flat:      return .secondary
+        }
+    }
+}
+
+/// M10. Improvement inside one evening is warming up; improvement in the *cold* take across
+/// evenings is learning. Only the second survives a night's sleep, and the single slope in the
+/// card above cannot tell them apart because it confounds when in the evening a take was
+/// played with which evening it was.
+private struct WarmUpCard: View {
+    let report: WarmUpReport
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Warming up, or getting better?").font(.headline)
+                    Text("\(report.takeCount) takes · \(report.sessionCount) sitting(s)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                row("within a sitting", report.withinSession, unit: "/min")
+                row("cold, per sitting", report.betweenSessions, unit: "/sitting")
+
+                Text(report.headline)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(report.notes, id: \.self) { note in
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ label: String, _ fit: TrendFit?, unit: String) -> some View {
+        HStack(spacing: 12) {
+            Text(label).font(.callout).frame(width: 140, alignment: .leading)
+            if let fit {
+                Text(String(format: "%+.3f%@", fit.slope, unit))
+                    .font(.callout).monospacedDigit()
+                    .frame(width: 110, alignment: .trailing)
+                Text(String(format: "[%+.3f, %+.3f]", fit.low, fit.high))
+                    .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                    .frame(width: 130, alignment: .trailing)
+                Text(word(fit.verdict)).font(.callout).foregroundStyle(colour(fit.verdict))
+            } else {
+                Text("not enough data").font(.caption).foregroundStyle(.tertiary)
+            }
+            Spacer()
         }
     }
 
