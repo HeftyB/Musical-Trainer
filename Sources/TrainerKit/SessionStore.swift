@@ -1,6 +1,34 @@
 import Foundation
 import TimingCore
 
+/// Where a take sat inside a planned practice session.
+///
+/// Optional on every take type: a take started from the drill menu belongs to no session, and
+/// every take recorded before M9 decodes with this absent.
+///
+/// Recording it is the whole reason M9 touches storage before it touches anything else.
+/// "Was this the cold take or the fifth one of the evening?" cannot be answered after the
+/// fact from a bare timestamp, and it is exactly the question M10 (cold vs warm) and M16
+/// (within-session vs between-session) are built to ask. A take recorded without this is a
+/// take those milestones can never use.
+public struct SessionPlacement: Codable, Equatable {
+    public let sessionId: UUID
+    /// 0-based position in the plan as it actually ran.
+    public let blockIndex: Int
+    /// What the block was for — see `BlockRole`. Stored as its raw string so a future role
+    /// never makes an old take undecodable.
+    public let role: String
+    /// Seconds from the start of the session to the start of this take. The warm-up axis:
+    /// a cold measurement and one taken 25 minutes in are not the same measurement, and
+    /// differencing timestamps would fold in however long was spent on the rating screen.
+    public let elapsedSeconds: Double
+
+    public init(sessionId: UUID, blockIndex: Int, role: String, elapsedSeconds: Double) {
+        self.sessionId = sessionId; self.blockIndex = blockIndex
+        self.role = role; self.elapsedSeconds = elapsedSeconds
+    }
+}
+
 /// A recorded jam, persisted to disk.
 ///
 /// Stores the raw taps and grid parameters, not just the summary, so the M5 review can
@@ -38,6 +66,8 @@ struct JamSession: Codable {
     let lag1Autocorrelation: Double?
     let driftMsPerBeat: Double?
     let headline: String
+
+    let placement: SessionPlacement?
 
     /// Rebuild the taps and grid for re-analysis in the review.
     func reconstruct() -> (taps: [Tap], grid: Grid) {
@@ -85,6 +115,8 @@ struct FormSession: Codable {
     let missedPhrases: [Int]
     let headline: String
 
+    let placement: SessionPlacement?
+
     /// Re-analyse from the stored marks, like the other drills, so an analysis fix reaches
     /// takes recorded before it. Everything the analysis needs is stored: tempo, grid origin,
     /// phrase length and take length. The summary above is a cache — this is the answer.
@@ -125,6 +157,8 @@ struct DropoutSession: Codable {
     let playedBpm: Double?
     let splitIsReliable: Bool?
     let discardedTrials: Int?
+
+    let placement: SessionPlacement?
 
     /// Rebuild the inputs to the analysis, so a stored drill can be re-analysed with the
     /// current logic. The stored summary is only a cache; this is the source of truth.
@@ -177,6 +211,8 @@ struct TempoSession: Codable {
     let meanAbsErrorPercent: Double?
     let improvementPerRound: Double?
     let headline: String
+
+    let placement: SessionPlacement?
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
 
@@ -255,6 +291,21 @@ enum SessionStore {
 
     static func loadAllTempo() -> [TempoSession] {
         load(prefix: "tempo-", as: TempoSession.self).sorted { $0.date < $1.date }
+    }
+
+    @discardableResult
+    static func save(_ record: TrainingSessionRecord) throws -> URL {
+        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: record.date)
+        let url = directory.appendingPathComponent("session-\(stamp).json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(record).write(to: url, options: .atomic)
+        return url
+    }
+
+    static func loadAllSessions() -> [TrainingSessionRecord] {
+        load(prefix: "session-", as: TrainingSessionRecord.self).sorted { $0.date < $1.date }
     }
 
     /// Decode every file with the given name prefix. The prefix keeps jam and form takes

@@ -35,6 +35,9 @@ func usage() {
                         The only drill that yields a clock/motor split. (100, 4, 4, 6)
       tempo [bpm ...]   M8: produce a tempo unaccompanied and be told what you produced.
                         Pass several to rotate the target (e.g. tempo 76 100 132).
+      session [minutes] M9: run a whole planned session end to end (default 30).
+      session plan [minutes]
+                        print what it would do, and why, without running it
       review [n]        re-analyze the latest saved take, or take n
       review list       list all takes
       review compare [i j]      two takes side by side, with significance
@@ -96,6 +99,15 @@ do {
         let targets = arguments.dropFirst().compactMap(Double.init)
         try Commands.runTempo(targets: targets.isEmpty ? [100] : targets,
                               leadBars: 4, holdBars: 4, rounds: 8)
+
+    case "session":
+        // `session plan [minutes]` prints the choices without committing the evening to them.
+        let rest = Array(arguments.dropFirst())
+        if rest.first == "plan" {
+            Commands.runSessionPlan(targetMinutes: rest.dropFirst().first.flatMap(Int.init) ?? 30)
+        } else {
+            try Commands.runSession(targetMinutes: rest.first.flatMap(Int.init) ?? 30)
+        }
 
     case "review":
         try Commands.runReview(Array(arguments.dropFirst()))

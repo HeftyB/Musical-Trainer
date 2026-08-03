@@ -195,6 +195,118 @@ public enum Commands {
 
     // MARK: - M1 calibration
 
+    // MARK: - M9 session
+
+    /// Print the plan without running it, so the choices can be argued with before you commit
+    /// twenty minutes to them.
+    public static func runSessionPlan(targetMinutes: Int) {
+        let plan = TrainerEngine.planSession(targetMinutes: targetMinutes)
+        Console.heading("Tonight's session")
+        print(String(format: "%d blocks  ·  ~%.0f min planned against a %d min target",
+                     plan.blocks.count, plan.estimatedSeconds / 60, plan.targetMinutes))
+
+        for (index, block) in plan.blocks.enumerated() {
+            print("\n\(Console.bold)\(index + 1). \(block.plan.drillName)\(Console.reset)"
+                + "  \(Console.dim)\(block.role.rawValue) · \(block.plan.settingsLabel)"
+                + String(format: " · %.0f min\(Console.reset)", block.estimatedSeconds / 60))
+            print("   \(block.reason)")
+        }
+
+        if !plan.notes.isEmpty {
+            print("")
+            for note in plan.notes { Console.warn(note) }
+        }
+    }
+
+    public static func runSession(targetMinutes: Int) throws {
+        let plan = TrainerEngine.planSession(targetMinutes: targetMinutes)
+        runSessionPlan(targetMinutes: targetMinutes)
+
+        let env = try TrainerEngine.environment()
+        print("\nOutput: \(env.outputName)")
+        if let c = env.calibrationMs, let src = env.calibrationSource {
+            print("Calibration: \(Console.ms(c)) (\(src))")
+        } else {
+            Console.warn("no calibration for this output device — bias will be uncorrected. "
+                       + "Spread and drift are still valid.")
+        }
+        guard Console.confirm("\nStart the session?") else { return }
+
+        let runner = SessionRunner(plan: plan)
+        var endedEarly = false
+
+        while let block = runner.currentBlock {
+            Console.heading("\(runner.index + 1)/\(plan.blocks.count) — \(block.plan.drillName)")
+            print("\(Console.dim)\(block.plan.settingsLabel)"
+                + String(format: " · %.0f min\(Console.reset)", block.estimatedSeconds / 60))
+            print("\n\(block.reason)")
+            printInstructions(instructions(for: block.plan))
+            Console.prompt("Ready?")
+
+            let outcome: SessionRunner.BlockOutcome
+            do {
+                outcome = try runner.runCurrent(roundFinished: { result in
+                    // The tempo drill is the one deliberate exception to the silence rule —
+                    // it *is* a feedback loop, and the feedback lands during click bars.
+                    guard let produced = result.producedBpm, let pct = result.errorPercent else {
+                        print("  round \(result.index + 1): \(result.unusableReason ?? "not scored")")
+                        return
+                    }
+                    print(String(format: "  round %d: %.0f BPM  (%+.1f%%)",
+                                 result.index + 1, produced, pct))
+                })
+            } catch is TakeCancelled {
+                // Stopping a block is not stopping the session — "wrong tempo, move on" and
+                // "I'm done" are different intentions and the runner refuses to guess.
+                if Console.confirm("\nStopped. End the whole session?") {
+                    runner.skip(); endedEarly = true; break
+                }
+                runner.skip()
+                continue
+            }
+
+            // Rate now; the numbers wait for the debrief. For the whole session there is
+            // nothing measured to see, which is the blank-screen rule applied end to end.
+            let feel = outcome.isMeasured ? Console.readRating("\nHow did that feel?") : nil
+            try runner.complete(outcome, feelRating: feel)
+        }
+
+        reportSession(try runner.finish(endedEarly: endedEarly))
+    }
+
+    private static func reportSession(_ summary: SessionSummary) {
+        Console.heading("Session debrief")
+        print(String(format: "%d of %d blocks completed  ·  %.0f min",
+                     summary.completedCount, summary.plan.blocks.count,
+                     summary.durationSeconds / 60))
+        if summary.endedEarly { Console.warn("ended early — the remaining blocks were not run.") }
+
+        for result in summary.results {
+            let label = "\(result.index + 1). \(result.block.plan.drillName)"
+            guard let outcome = result.outcome else {
+                print("\n\(pad(label, 18))\(Console.dim)skipped\(Console.reset)")
+                continue
+            }
+            let stars = result.feelRating.map { String(repeating: "★", count: $0) } ?? ""
+            print("\n\(Console.bold)\(label)\(Console.reset)  \(Console.dim)"
+                + "\(result.block.role.rawValue)\(Console.reset)  \(stars)")
+            print("   \(outcome.headline ?? "not measured")")
+        }
+
+        print("\n\(Console.dim)Every take is saved with its place in the session, so a cold "
+            + "measurement and one taken twenty minutes in can be told apart.\(Console.reset)")
+    }
+
+    private static func instructions(for plan: BlockPlan) -> DrillInstructions {
+        switch plan {
+        case .groove:  return .groove
+        case .jam:     return .jam
+        case .form:    return .form
+        case .dropout: return .dropout
+        case .tempo:   return .tempo
+        }
+    }
+
     // MARK: - M4 jam
 
     public static func runJam(bpm: Double, bars: Int, tag: String?) throws {

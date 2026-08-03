@@ -53,11 +53,14 @@ struct RootView: View {
     var body: some View {
         ZStack {
             switch model.screen {
-            case .setup:   SetupView()
-            case .running: TakeView()
-            case .rating:  RatingView()
-            case .results: ResultsView()
-            case .history: HistoryView()
+            case .setup:          SetupView()
+            case .running:        TakeView()
+            case .rating:         RatingView()
+            case .results:        ResultsView()
+            case .history:        HistoryView()
+            case .sessionPlan:    SessionPlanView()
+            case .sessionBrief:   SessionBriefView()
+            case .sessionDebrief: SessionDebriefView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

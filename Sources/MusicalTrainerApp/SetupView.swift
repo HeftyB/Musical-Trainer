@@ -29,6 +29,12 @@ struct SetupView: View {
                 Text(model.mode.blurb).font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
+            // The session builder is the answer to "what should I practise today", which the
+            // drill menu below has never been able to answer.
+            Button { model.openSessionPlanner() } label: {
+                Label("Session", systemImage: "list.bullet.rectangle")
+            }
+            .buttonStyle(.borderedProminent)
             Button { model.screen = .history } label: {
                 Label("History", systemImage: "clock.arrow.circlepath")
             }
@@ -165,40 +171,10 @@ struct SetupView: View {
         }
     }
 
-    /// The same text the console prints — so anyone opening the app knows exactly what the
-    /// drill expects without having to be told.
+    /// The same text the console prints, rendered by the same view the session brief uses —
+    /// so a drill cannot come to mean two different things depending on where you started it.
     private var instructions: some View {
-        let guide = model.mode.instructions
-        return Card {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(guide.goal)
-                    .font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    ForEach(Array(guide.steps.enumerated()), id: \.offset) { index, step in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text("\(index + 1).").font(.callout).monospacedDigit()
-                                .foregroundStyle(.tertiary)
-                            Text(step).font(.callout)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-
-                if !guide.pitfalls.isEmpty {
-                    Divider()
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(guide.pitfalls, id: \.self) { pitfall in
-                            Label(pitfall, systemImage: "xmark.circle")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        InstructionsCard(guide: model.mode.instructions)
     }
 
     private var footer: some View {

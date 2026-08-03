@@ -134,7 +134,8 @@ public enum TrainerEngine {
     }
 
     @discardableResult
-    public static func save(_ outcome: JamOutcome, feelRating: Int?) throws -> URL {
+    public static func save(_ outcome: JamOutcome, feelRating: Int?,
+                            placement: SessionPlacement? = nil) throws -> URL {
         let r = outcome.report
         let session = JamSession(
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
@@ -147,7 +148,7 @@ public enum TrainerEngine {
             matchedCount: r.matchedCount, extraCount: r.extraCount, missedCount: r.missedCount,
             meanAsynchronyMs: r.meanAsynchronyMs, sdAsynchronyMs: r.sdAsynchronyMs,
             lag1Autocorrelation: r.lag1Autocorrelation, driftMsPerBeat: r.driftMsPerBeat,
-            headline: r.headline)
+            headline: r.headline, placement: placement)
         return try SessionStore.save(session)
     }
 
@@ -236,7 +237,8 @@ public enum TrainerEngine {
     }
 
     @discardableResult
-    public static func save(_ outcome: FormOutcome, feelRating: Int?) throws -> URL {
+    public static func save(_ outcome: FormOutcome, feelRating: Int?,
+                            placement: SessionPlacement? = nil) throws -> URL {
         let r = outcome.report
         let session = FormSession(
             date: Date(), bpm: outcome.config.bpm, bars: outcome.config.bars,
@@ -248,7 +250,7 @@ public enum TrainerEngine {
             meanAbsFormErrorBars: r.meanAbsFormErrorBars,
             phaseErrorMeanMs: r.phaseErrorMeanMs, phaseErrorSDms: r.phaseErrorSDms,
             slipBarsPerPhrase: r.slipBarsPerPhrase, missedPhrases: r.missedPhrases,
-            headline: r.headline)
+            headline: r.headline, placement: placement)
         return try SessionStore.save(session)
     }
 
@@ -360,7 +362,8 @@ public enum TrainerEngine {
     }
 
     @discardableResult
-    public static func save(_ outcome: DropoutOutcome, feelRating: Int?) throws -> URL {
+    public static func save(_ outcome: DropoutOutcome, feelRating: Int?,
+                            placement: SessionPlacement? = nil) throws -> URL {
         let r = outcome.report
         let session = DropoutSession(
             date: Date(), bpm: outcome.config.bpm,
@@ -374,7 +377,8 @@ public enum TrainerEngine {
             reentryErrorMeanMs: r.reentryErrorMeanMs, reentryErrorSDms: r.reentryErrorSDms,
             headline: r.headline,
             tempoBiasBpm: r.tempoBiasBpm, playedBpm: r.playedBpm,
-            splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials)
+            splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
+            placement: placement)
         return try SessionStore.save(session)
     }
 
@@ -524,7 +528,8 @@ public enum TrainerEngine {
     }
 
     @discardableResult
-    public static func save(_ outcome: TempoOutcome, feelRating: Int?) throws -> URL {
+    public static func save(_ outcome: TempoOutcome, feelRating: Int?,
+                            placement: SessionPlacement? = nil) throws -> URL {
         let r = outcome.report
         let session = TempoSession(
             date: Date(), targets: outcome.config.targets,
@@ -536,7 +541,8 @@ public enum TrainerEngine {
             roundHoldEnds: outcome.rounds.map(\.holdEnd),
             usableCount: r.usableCount, meanErrorPercent: r.meanErrorPercent,
             meanAbsErrorPercent: r.meanAbsErrorPercent,
-            improvementPerRound: r.improvementPerRound, headline: r.headline)
+            improvementPerRound: r.improvementPerRound, headline: r.headline,
+            placement: placement)
         return try SessionStore.save(session)
     }
 
@@ -620,6 +626,52 @@ public enum TrainerEngine {
                 feelRating: s.feelRating, headline: r.headline,
                 metric: r.onFormRate * 100, metricLabel: "on form (%)")
         }
+    }
+
+    // MARK: - Session planning
+
+    /// Reduce the stored history to the handful of numbers the planner consults.
+    ///
+    /// Everything is recomputed from raw taps here too — a planner choosing tonight's drills
+    /// from a stale cached summary would be picking work for a player who no longer exists.
+    public static func plannerInput() -> PlannerInput {
+        let jams = SessionStore.loadAll().map { session -> PlannerInput.Jam in
+            let r = session.report()
+            return PlannerInput.Jam(bpm: session.bpm, sdMs: r.sdAsynchronyMs,
+                                    absBiasMs: abs(r.meanAsynchronyMs),
+                                    lag1: r.lag1Autocorrelation)
+        }
+
+        let continuations = SessionStore.loadAllDropout().map { session -> PlannerInput.Continuation in
+            let (taps, grid, sections) = session.reconstruct()
+            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            return PlannerInput.Continuation(
+                silentBars: session.silentBars,
+                absTempoBiasPercent: r.tempoBiasBpm.map { abs($0) / session.bpm * 100 },
+                splitIsReliable: r.splitIsReliable,
+                clockSDms: r.splitIsReliable ? r.wingKristofferson?.clockSDms : nil,
+                motorSDms: r.splitIsReliable ? r.wingKristofferson?.motorSDms : nil)
+        }
+
+        let forms = SessionStore.loadAllForm().map { session -> PlannerInput.Form in
+            let r = session.report()
+            return PlannerInput.Form(level: session.level, phraseBars: session.phraseBars,
+                                     onFormRate: r.onFormRate,
+                                     hasUnmarkedPhrases: !r.missedPhrases.isEmpty,
+                                     markedEveryBars: r.markedEveryBars)
+        }
+
+        let tempos = SessionStore.loadAllTempo().map { session -> PlannerInput.Tempo in
+            let r = TempoCalibrationAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            return PlannerInput.Tempo(targetCount: Set(session.targets).count,
+                                      meanAbsErrorPercent: r.meanAbsErrorPercent)
+        }
+
+        return PlannerInput(jams: jams, continuations: continuations, forms: forms, tempos: tempos)
+    }
+
+    public static func planSession(targetMinutes: Int) -> SessionPlan {
+        SessionPlanner.plan(targetMinutes: targetMinutes, from: plannerInput())
     }
 
     // MARK: - Trends

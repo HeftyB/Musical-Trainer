@@ -56,11 +56,11 @@ struct TakeView: View {
                            value: breathing)
                 .onAppear { breathing = true }
 
-            Text(model.mode == .form ? "Mark each phrase top." : "Play.")
+            Text(model.takePrompt)
                 .font(.title3)
                 .foregroundStyle(.secondary)
 
-            if model.mode == .tempo {
+            if model.takeShowsTempoFeedback {
                 liveFeedback
             } else {
                 Text("Eyes closed is fine — nothing here to read.")
