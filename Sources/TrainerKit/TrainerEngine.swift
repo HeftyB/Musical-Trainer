@@ -574,12 +574,16 @@ public enum TrainerEngine {
 
     public static func jamHistory() -> [HistoryEntry] {
         SessionStore.loadAll().map { s in
-            HistoryEntry(
+            // Recomputed from the raw taps, like the other drills. The cached summary
+            // predates chord clustering on the earliest takes, so plotting it would put a
+            // point on the chart that no current analysis produces.
+            let r = s.report()
+            return HistoryEntry(
                 date: s.date,
                 title: "\(Int(s.bpm)) BPM · \(s.bars) bars" + (s.tag.map { " · \($0)" } ?? ""),
-                detail: String(format: "mean %+.1f ms · SD %.1f ms", s.meanAsynchronyMs, s.sdAsynchronyMs),
-                feelRating: s.feelRating, headline: s.headline,
-                metric: s.sdAsynchronyMs, metricLabel: "spread (ms)")
+                detail: String(format: "mean %+.1f ms · SD %.1f ms", r.meanAsynchronyMs, r.sdAsynchronyMs),
+                feelRating: s.feelRating, headline: r.headline,
+                metric: r.sdAsynchronyMs, metricLabel: "spread (ms)")
         }
     }
 
@@ -608,14 +612,144 @@ public enum TrainerEngine {
 
     public static func formHistory() -> [HistoryEntry] {
         SessionStore.loadAllForm().map { s in
-            let pct = s.marksPlaced > 0 ? Double(s.onFormCount) / Double(s.marksPlaced) * 100 : 0
+            let r = s.report()      // re-analysed from the stored marks, not the cache
             return HistoryEntry(
                 date: s.date,
                 title: "level \(s.level) · \(s.phraseBars)-bar phrases · \(Int(s.bpm)) BPM",
-                detail: "\(s.onFormCount)/\(s.marksPlaced) on form · \(s.tightCount) nailed",
-                feelRating: s.feelRating, headline: s.headline,
-                metric: pct, metricLabel: "on form (%)")
+                detail: "\(r.onFormCount)/\(r.marksPlaced) on form · \(r.tightCount) nailed",
+                feelRating: s.feelRating, headline: r.headline,
+                metric: r.onFormRate * 100, metricLabel: "on form (%)")
         }
+    }
+
+    // MARK: - Trends
+
+    public enum DrillKind: String, CaseIterable {
+        case jam, form, dropout, tempo
+    }
+
+    /// Every trend the stored takes can support, with the confounds that make one unsafe.
+    ///
+    /// Built here rather than in either front end so the console and the app cannot report a
+    /// different answer — and so the app stops plotting one unbroken line through a group the
+    /// console warns about.
+    public static func trends() -> [TrendSeries] {
+        // Ordered as the console has always printed them.
+        [DrillKind.jam, .dropout, .form, .tempo].flatMap { trends(for: $0) }
+    }
+
+    public static func trends(for kind: DrillKind) -> [TrendSeries] {
+        switch kind {
+        case .jam:     return jamTrends()
+        case .dropout: return dropoutTrends()
+        case .form:    return formTrends()
+        case .tempo:   return tempoTrends()
+        }
+    }
+
+    private static func jamTrends() -> [TrendSeries] {
+        var series: [TrendSeries] = []
+
+        // Jams are grouped by tempo: asynchrony spread scales with the beat interval, so a
+        // trend across a tempo change would be measuring the tempo.
+        let jams = SessionStore.loadAll()
+        for tempo in Set(jams.map { Int($0.bpm) }).sorted() {
+            let takes = jams.filter { Int($0.bpm) == tempo }
+            let reports = takes.map { $0.report() }
+            var warnings: [String] = []
+            let backings = TrendAnalysis.distinct(takes.map(\.grooveName))
+            if backings.count > 1 {
+                warnings.append("mixed backings (\(backings.joined(separator: ", "))) — "
+                              + "spread is not comparable across different music.")
+            }
+            let devices = TrendAnalysis.distinct(takes.map(\.device))
+            if devices.count > 1 {
+                warnings.append("mixed output devices — bias is not comparable; spread and r₁ are.")
+            }
+            series.append(TrendSeries(
+                title: "Jams at \(tempo) BPM", takeCount: takes.count, warnings: warnings,
+                rows: [
+                    TrendAnalysis.row("spread (SD)", reports.map(\.sdAsynchronyMs), lowerIsBetter: true),
+                    TrendAnalysis.row("|bias|", reports.map { abs($0.meanAsynchronyMs) }, lowerIsBetter: true),
+                    TrendAnalysis.row("r₁ toward 0", reports.map { $0.lag1Autocorrelation.map(abs) ?? .nan },
+                                      lowerIsBetter: true),
+                ]))
+        }
+        return series
+    }
+
+    private static func dropoutTrends() -> [TrendSeries] {
+        var series: [TrendSeries] = []
+        let drops = SessionStore.loadAllDropout()
+        if !drops.isEmpty {
+            let reports = drops.map { session -> DropoutReport in
+                let (taps, grid, sections) = session.reconstruct()
+                return DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            }
+            var warnings: [String] = []
+            let silences = TrendAnalysis.distinct(drops.map(\.silentBars))
+            if silences.count > 1 {
+                warnings.append("mixed silence lengths (\(silences.map(String.init).joined(separator: ", ")) bars) — "
+                              + "a longer silence is a harder task.")
+            }
+            series.append(TrendSeries(
+                title: "Continuation drill", takeCount: drops.count, warnings: warnings,
+                rows: [
+                    TrendAnalysis.row("|tempo bias|", reports.map { $0.tempoBiasBpm.map(abs) ?? .nan },
+                                      lowerIsBetter: true),
+                    TrendAnalysis.row("clock SD",
+                                      reports.map { $0.splitIsReliable ? ($0.wingKristofferson?.clockSDms ?? .nan) : .nan },
+                                      lowerIsBetter: true),
+                ]))
+        }
+        return series
+    }
+
+    private static func formTrends() -> [TrendSeries] {
+        var series: [TrendSeries] = []
+        let forms = SessionStore.loadAllForm()
+        if !forms.isEmpty {
+            let reports = forms.map { $0.report() }
+            var warnings: [String] = []
+            let levels = TrendAnalysis.distinct(forms.map(\.level))
+            if levels.count > 1 {
+                warnings.append("mixed levels — difficulty changed between takes, so a trend here "
+                              + "reflects the ladder as much as you.")
+            }
+            let phrases = TrendAnalysis.distinct(forms.map(\.phraseBars))
+            if phrases.count > 1 {
+                warnings.append("mixed phrase lengths (\(phrases.map(String.init).joined(separator: ", ")) bars).")
+            }
+            series.append(TrendSeries(
+                title: "Form drill", takeCount: forms.count, warnings: warnings,
+                rows: [TrendAnalysis.row("on-form rate", reports.map(\.onFormRate), lowerIsBetter: false)]))
+        }
+        return series
+    }
+
+    private static func tempoTrends() -> [TrendSeries] {
+        var series: [TrendSeries] = []
+        let tempos = SessionStore.loadAllTempo()
+        if !tempos.isEmpty {
+            let reports = tempos.map {
+                TempoCalibrationAnalysis.analyze(taps: $0.taps, rounds: $0.roundWindows)
+            }
+            var warnings: [String] = []
+            let targetSets = TrendAnalysis.distinct(tempos.map {
+                $0.targets.map { String(Int($0)) }.joined(separator: "/")
+            })
+            if targetSets.count > 1 {
+                warnings.append("mixed target sets (\(targetSets.joined(separator: "; "))) — "
+                              + "rotating targets is a harder task than holding one.")
+            }
+            series.append(TrendSeries(
+                title: "Tempo drill", takeCount: tempos.count, warnings: warnings,
+                rows: [TrendAnalysis.row("tempo error (%)",
+                                         reports.map { $0.meanAbsErrorPercent ?? .nan },
+                                         lowerIsBetter: true)]))
+        }
+
+        return series
     }
 
     // MARK: - Free groove

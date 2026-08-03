@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import TimingCore
 import TrainerKit
 
 struct HistoryView: View {
@@ -15,6 +16,14 @@ struct HistoryView: View {
             case .form: return "Form"
             case .dropout: return "Alone"
             case .tempo: return "Tempo"
+            }
+        }
+        var drill: TrainerEngine.DrillKind {
+            switch self {
+            case .jam: return .jam
+            case .form: return .form
+            case .dropout: return .dropout
+            case .tempo: return .tempo
             }
         }
         /// What the trend line means, so a rising line is never read the wrong way.
@@ -68,44 +77,124 @@ struct HistoryView: View {
                     .frame(maxWidth: .infinity)
                 Spacer()
             } else {
-                if entries.count > 2 {
-                    Card {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(kind.trendTitle).font(.headline)
-                            Text(kind.trendNote)
-                                .font(.caption).foregroundStyle(.secondary)
-                            Chart(entries) { entry in
-                                LineMark(x: .value("Take", entry.date),
-                                         y: .value(entry.metricLabel, entry.metric))
-                                PointMark(x: .value("Take", entry.date),
-                                          y: .value(entry.metricLabel, entry.metric))
+                // Chart, fitted trends and the take list all scroll together — the trend
+                // cards vary in height with how many groups the takes fall into.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if entries.count > 2 {
+                            Card {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(kind.trendTitle).font(.headline)
+                                    Text(kind.trendNote)
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    Chart(entries) { entry in
+                                        LineMark(x: .value("Take", entry.date),
+                                                 y: .value(entry.metricLabel, entry.metric))
+                                        PointMark(x: .value("Take", entry.date),
+                                                  y: .value(entry.metricLabel, entry.metric))
+                                    }
+                                    .frame(height: 150)
+                                }
                             }
-                            .frame(height: 150)
                         }
-                    }
-                }
 
-                List(entries.reversed()) { entry in
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(entry.title).fontWeight(.medium)
-                            Spacer()
-                            if let rating = entry.feelRating {
-                                Text(String(repeating: "★", count: rating))
-                                    .foregroundStyle(.tertiary)
+                        // That chart draws one line through every take, which is only honest
+                        // if the takes are comparable. The fitted trends below are grouped and
+                        // carry the same confound warnings the console prints — without them
+                        // the app would show a slope where the console refuses to.
+                        ForEach(Array(TrainerEngine.trends(for: kind.drill).enumerated()),
+                                id: \.offset) { _, series in TrendCard(series: series) }
+
+                        ForEach(entries.reversed()) { entry in
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack {
+                                    Text(entry.title).fontWeight(.medium)
+                                    Spacer()
+                                    if let rating = entry.feelRating {
+                                        Text(String(repeating: "★", count: rating))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    Text(entry.date, format: .dateTime.month().day().hour().minute())
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Text(entry.detail).font(.callout).foregroundStyle(.secondary)
+                                Text(entry.headline).font(.caption).foregroundStyle(.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            Text(entry.date, format: .dateTime.month().day().hour().minute())
-                                .font(.caption).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 3)
+                            Divider()
                         }
-                        Text(entry.detail).font(.callout).foregroundStyle(.secondary)
-                        Text(entry.headline).font(.caption).foregroundStyle(.tertiary)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.vertical, 3)
                 }
-                .listStyle(.inset)
             }
         }
         .padding(24)
+    }
+}
+
+/// One fitted trend group: the slope per take with its 95% interval, and any reason the
+/// group isn't comparable in the first place.
+private struct TrendCard: View {
+    let series: TrendSeries
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(series.title).font(.headline)
+                    Text("\(series.takeCount) takes")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                ForEach(series.warnings, id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ForEach(Array(series.rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 12) {
+                        Text(row.label)
+                            .font(.callout).frame(width: 120, alignment: .leading)
+                        if let fit = row.fit {
+                            Text(String(format: "%+.2f/take", fit.slope))
+                                .font(.callout).monospacedDigit()
+                                .frame(width: 90, alignment: .trailing)
+                            Text(String(format: "[%+.2f, %+.2f]", fit.low, fit.high))
+                                .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                                .frame(width: 130, alignment: .trailing)
+                            Text(word(fit.verdict))
+                                .font(.callout).foregroundStyle(colour(fit.verdict))
+                        } else {
+                            Text("\(row.values.count) usable point(s) — need \(TrendAnalysis.minimumPoints)")
+                                .font(.caption).foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                    }
+                }
+
+                Text("Slope is change per take with a 95% interval. \"Flat\" means the interval "
+                   + "includes zero — usually the honest answer at this many takes.")
+                    .font(.caption).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func word(_ verdict: TrendVerdict) -> String {
+        switch verdict {
+        case .improving: return "improving"
+        case .worsening: return "worsening"
+        case .flat:      return "flat"
+        }
+    }
+
+    private func colour(_ verdict: TrendVerdict) -> Color {
+        switch verdict {
+        case .improving: return .green
+        case .worsening: return .orange
+        case .flat:      return .secondary
+        }
     }
 }

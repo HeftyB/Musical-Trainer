@@ -44,6 +44,20 @@ struct JamSession: Codable {
         let taps = zip(tapTimes, tapVelocities).map { Tap(time: $0, velocity: $1) }
         return (taps, Grid(startTime: gridStartTime, bpm: bpm, subdivisions: subdivisions))
     }
+
+    /// This take under the *current* analysis.
+    ///
+    /// Every caller must go through here rather than reading the cached summary fields.
+    /// Chord clustering arrived after the first two takes were recorded, and their stored
+    /// numbers are pre-clustering: take 1 has a stored SD of 16.7 ms against 18.3 ms
+    /// recomputed. A history chart or trend line fed from the cache plots a value no current
+    /// analysis produces, and fits a slope through the difference.
+    func report() -> TimingReport {
+        let (taps, grid) = reconstruct()
+        return TimingAnalysis.analyze(taps: taps, grid: grid)
+    }
+
+    var asynchroniesMs: [Double] { report().asynchroniesMs }
 }
 
 /// A recorded form drill. Kept separate from `JamSession` because it measures a different
@@ -70,6 +84,15 @@ struct FormSession: Codable {
     let slipBarsPerPhrase: Double?
     let missedPhrases: [Int]
     let headline: String
+
+    /// Re-analyse from the stored marks, like the other drills, so an analysis fix reaches
+    /// takes recorded before it. Everything the analysis needs is stored: tempo, grid origin,
+    /// phrase length and take length. The summary above is a cache — this is the answer.
+    func report() -> FormReport {
+        FormAnalysis.analyze(markTimes: markTimes,
+                             grid: Grid(startTime: gridStartTime, bpm: bpm, subdivisions: 4),
+                             beatsPerBar: 4, barsPerPhrase: phraseBars, totalBars: bars)
+    }
 }
 
 /// A recorded continuation drill. Separate again: it is the only session type that yields a

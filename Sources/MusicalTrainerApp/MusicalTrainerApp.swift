@@ -1,4 +1,29 @@
+import AppKit
 import SwiftUI
+
+/// The window size the app is laid out for: wide enough for the results charts and their
+/// axis labels, tall enough that the setup screen's settings and instructions both fit
+/// without scrolling.
+enum WindowDefaults {
+    static let size = CGSize(width: 900, height: 760)
+    static let minimum = CGSize(width: 720, height: 560)
+
+    /// Put the key window back to `size`.
+    ///
+    /// macOS restores the last frame you left a window at, so `defaultSize` only ever applies
+    /// to a genuinely new window — which is precisely why this exists. The title bar stays
+    /// where it is and the window grows or shrinks downward, the way dragging a corner
+    /// behaves, so the window doesn't jump across the screen.
+    @MainActor
+    static func resetKeyWindow() {
+        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) else { return }
+        let target = window.frameRect(forContentRect: NSRect(origin: .zero, size: size))
+        var frame = window.frame
+        frame.origin.y += frame.height - target.height
+        frame.size = target.size
+        window.setFrame(frame, display: true, animate: true)
+    }
+}
 
 @main
 struct MusicalTrainerApp: App {
@@ -8,9 +33,17 @@ struct MusicalTrainerApp: App {
         WindowGroup("Musical Trainer") {
             RootView()
                 .environmentObject(model)
-                .frame(minWidth: 720, minHeight: 560)
+                .frame(minWidth: WindowDefaults.minimum.width,
+                       minHeight: WindowDefaults.minimum.height)
         }
         .windowResizability(.contentMinSize)
+        .defaultSize(width: WindowDefaults.size.width, height: WindowDefaults.size.height)
+        .commands {
+            CommandGroup(after: .windowSize) {
+                Button("Return to Default Size") { WindowDefaults.resetKeyWindow() }
+                    .keyboardShortcut("0", modifiers: [.command, .control])
+            }
+        }
     }
 }
 

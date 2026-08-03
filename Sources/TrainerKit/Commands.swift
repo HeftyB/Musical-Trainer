@@ -430,11 +430,7 @@ public enum Commands {
     }
 
     /// The matched asynchrony series for a stored take, re-analyzed with the current logic.
-    private static func asynchronies(of session: JamSession) -> [Double] {
-        let (taps, grid) = session.reconstruct()
-        let events = TapClustering.collapse(taps, windowSeconds: 0.035)
-        return TimingAnalysis.analyze(taps: events, grid: grid, chordWindowMs: 0).asynchroniesMs
-    }
+    private static func asynchronies(of session: JamSession) -> [Double] { session.asynchroniesMs }
 
     /// Side-by-side comparison of two takes with a bootstrap on each *difference*, so real
     /// changes are separated from sample noise instead of eyeballed.
@@ -497,9 +493,11 @@ public enum Commands {
         }
         print("\(pad("When", 22))\(pad("lvl", 5))\(pad("phrase", 8))\(pad("on form", 10))\(pad("nailed", 9))slip")
         for s in sessions {
-            let onForm = "\(s.onFormCount)/\(s.marksPlaced)"
-            let tight = "\(s.tightCount)/\(s.marksPlaced)"
-            let slip = s.slipBarsPerPhrase.map { String(format: "%+.2f", $0) } ?? "—"
+            // Re-analysed from the stored marks so an analysis fix reaches older takes.
+            let r = s.report()
+            let onForm = "\(r.onFormCount)/\(r.marksPlaced)"
+            let tight = "\(r.tightCount)/\(r.marksPlaced)"
+            let slip = r.slipBarsPerPhrase.map { String(format: "%+.2f", $0) } ?? "—"
             print("\(pad(dateLabel(s.date), 22))\(pad("\(s.level)", 5))"
                 + "\(pad("\(s.phraseBars) bars", 8))\(pad(onForm, 10))\(pad(tight, 9))\(slip)")
         }
@@ -811,90 +809,37 @@ public enum Commands {
     private static func runTrend() {
         Console.heading("Trends")
 
-        let jams = SessionStore.loadAll()
-        if jams.count >= 3 {
-            let byTempo = Dictionary(grouping: jams, by: { Int($0.bpm) })
-            for tempo in byTempo.keys.sorted() {
-                let takes = byTempo[tempo]!
-                let backings = Set(takes.map(\.grooveName))
-                print("\n\(Console.bold)Jams at \(tempo) BPM\(Console.reset)  (\(takes.count) takes)")
-                if backings.count > 1 {
-                    Console.warn("mixed backings (\(backings.sorted().joined(separator: ", "))) — "
-                        + "spread is not comparable across them.")
-                }
-                guard takes.count >= 3 else {
-                    print("  \(Console.dim)need 3+ takes at one tempo to fit a trend\(Console.reset)")
+        let series = TrainerEngine.trends()
+        guard !series.isEmpty else {
+            print("\nNo takes recorded yet.")
+            return
+        }
+
+        for group in series {
+            print("\n\(Console.bold)\(group.title)\(Console.reset)  (\(group.takeCount) takes)")
+            for warning in group.warnings { Console.warn(warning) }
+            for row in group.rows {
+                guard let fit = row.fit else {
+                    print("  \(pad(row.label, 16))\(Console.dim)"
+                        + "\(row.values.count) usable point(s) — need \(TrendAnalysis.minimumPoints)"
+                        + "\(Console.reset)")
                     continue
                 }
-                trendRow("spread (SD)", takes.map(\.sdAsynchronyMs), lowerIsBetter: true)
-                trendRow("|bias|", takes.map { abs($0.meanAsynchronyMs) }, lowerIsBetter: true)
-                trendRow("r₁ toward 0", takes.compactMap { $0.lag1Autocorrelation.map(abs) },
-                         lowerIsBetter: true)
+                let verdict: String
+                switch fit.verdict {
+                case .flat:      verdict = "\(Console.dim)flat\(Console.reset)"
+                case .improving: verdict = "\(Console.green)improving\(Console.reset)"
+                case .worsening: verdict = "\(Console.yellow)worsening\(Console.reset)"
+                }
+                print("  \(pad(row.label, 16))"
+                    + pad(String(format: "%+.2f/take [%+.2f, %+.2f]", fit.slope, fit.low, fit.high), 30)
+                    + verdict)
             }
-        } else {
-            print("\nJams: \(jams.count) take(s) — need 3+ at one tempo.")
-        }
-
-        let drops = SessionStore.loadAllDropout()
-        if drops.count >= 3 {
-            print("\n\(Console.bold)Continuation drill\(Console.reset)  (\(drops.count) takes)")
-            let biases = drops.compactMap { session -> Double? in
-                let (taps, grid, sections) = session.reconstruct()
-                return DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections).tempoBiasBpm
-            }
-            trendRow("|tempo bias|", biases.map(abs), lowerIsBetter: true)
-        } else {
-            print("\n\(Console.bold)Continuation drill\(Console.reset): \(drops.count) take(s) — need 3+.")
-        }
-
-        let forms = SessionStore.loadAllForm()
-        if forms.count >= 3 {
-            print("\n\(Console.bold)Form drill\(Console.reset)  (\(forms.count) takes)")
-            if Set(forms.map(\.level)).count > 1 {
-                Console.warn("mixed levels — difficulty changed between takes, so a trend "
-                    + "here reflects the ladder as much as you.")
-            }
-            trendRow("on-form rate", forms.map {
-                $0.marksPlaced > 0 ? Double($0.onFormCount) / Double($0.marksPlaced) : 0
-            }, lowerIsBetter: false)
-        } else {
-            print("\n\(Console.bold)Form drill\(Console.reset): \(forms.count) take(s) — need 3+.")
         }
 
         print("\n\(Console.dim)Slope is change per take, with a 95% interval. "
-            + "\"flat\" means the interval includes zero.\(Console.reset)")
-    }
-
-    private static func trendRow(_ label: String, _ values: [Double], lowerIsBetter: Bool) {
-        let clean = values.filter { $0.isFinite }
-        guard clean.count >= 3 else {
-            print("  \(pad(label, 16))\(Console.dim)too few points\(Console.reset)")
-            return
-        }
-        let x = (0..<clean.count).map(Double.init)
-        guard let fit = Stats.linearFit(x: x, y: clean) else { return }
-
-        // Resample take-index pairs to get an interval on the slope. With a handful of takes
-        // this is wide on purpose — that width is the honest answer.
-        var rng = SplitMix64(seed: 0xA11CE)
-        var slopes: [Double] = []
-        for _ in 0..<2000 {
-            var rx: [Double] = [], ry: [Double] = []
-            for _ in 0..<clean.count {
-                let i = Int(rng.next() % UInt64(clean.count))
-                rx.append(x[i]); ry.append(clean[i])
-            }
-            if let f = Stats.linearFit(x: rx, y: ry) { slopes.append(f.slope) }
-        }
-        let lo = Stats.percentile(slopes, 0.025), hi = Stats.percentile(slopes, 0.975)
-        let real = (lo > 0 && hi > 0) || (lo < 0 && hi < 0)
-        let improving = lowerIsBetter ? fit.slope < 0 : fit.slope > 0
-        let verdict = !real ? "\(Console.dim)flat\(Console.reset)"
-            : improving ? "\(Console.green)improving\(Console.reset)"
-                        : "\(Console.yellow)worsening\(Console.reset)"
-        print("  \(pad(label, 16))"
-            + pad(String(format: "%+.2f/take [%+.2f, %+.2f]", fit.slope, lo, hi), 30)
-            + verdict)
+            + "\"flat\" means the interval includes zero. Every figure is recomputed from the "
+            + "raw taps, so an analysis fix reaches older takes.\(Console.reset)")
     }
 
     /// Continuation-drill history — the clock/motor split over time.
