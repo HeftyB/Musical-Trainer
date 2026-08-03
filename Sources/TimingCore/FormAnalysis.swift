@@ -48,6 +48,12 @@ public struct FormReport: Equatable {
     public let missedPhrases: [Int]
     public let duplicatedPhrases: [Int]
 
+    /// When the marks fall on a consistent *sub-multiple* of the phrase — every 4 bars in an
+    /// 8-bar phrase, say — this is that period, in bars. Not a failure: the player is feeling
+    /// a shorter phrase than the one configured, which is a different thing from losing the
+    /// form and deserves to be said rather than scored down.
+    public let markedEveryBars: Double?
+
     public let headline: String
 }
 
@@ -101,6 +107,20 @@ public enum FormAnalysis {
         let slip = Stats.linearFit(x: marks.map { Double($0.phraseIndex) },
                                    y: marks.map { Double($0.formErrorBars) })?.slope
 
+        // What period is the player actually marking? A steady half-phrase rhythm scores
+        // badly against 8-bar phrases while being a perfectly consistent 4-bar feel.
+        var markedEvery: Double?
+        if deduped.count >= 4 {
+            var gaps: [Double] = []
+            for i in 1..<deduped.count { gaps.append((deduped[i] - deduped[i - 1]) / barDuration) }
+            let medianGap = Stats.median(gaps)
+            // Only claim a period when the marks are actually regular.
+            let consistent = gaps.filter { abs($0 - medianGap) <= 0.35 * medianGap }
+            if Double(consistent.count) / Double(gaps.count) >= 0.7, medianGap > 0.5 {
+                markedEvery = medianGap
+            }
+        }
+
         let phaseErrors = onForm.map(\.phaseErrorMs)
         let onFormRate = marks.isEmpty ? 0 : Double(onForm.count) / Double(marks.count)
         let tightToleranceMs = tightToleranceBeats * grid.beatInterval * 1000
@@ -122,15 +142,25 @@ public enum FormAnalysis {
             slipBarsPerPhrase: slip,
             missedPhrases: missed,
             duplicatedPhrases: duplicated,
+            markedEveryBars: markedEvery,
             headline: Self.headline(marks: marks, onFormRate: onFormRate, slip: slip,
                                     missed: missed.count, phrases: phrasesAvailable,
-                                    phaseSD: phaseErrors.count > 1 ? Stats.sd(phaseErrors) : .nan))
+                                    phaseSD: phaseErrors.count > 1 ? Stats.sd(phaseErrors) : .nan,
+                                    markedEvery: markedEvery, phraseBars: barsPerPhrase))
     }
 
     private static func headline(marks: [PhraseMark], onFormRate: Double, slip: Double?,
-                                 missed: Int, phrases: Int, phaseSD: Double) -> String {
+                                 missed: Int, phrases: Int, phaseSD: Double,
+                                 markedEvery: Double?, phraseBars: Int) -> String {
         guard marks.count >= 3 else {
             return "Not enough marks to judge — hit the pad once at the top of each phrase."
+        }
+        // Say this before anything else: a steady shorter period is a consistent feel, not a
+        // lost one, and scoring it as failure would be actively misleading.
+        if let markedEvery, abs(markedEvery - Double(phraseBars)) > 1 {
+            return String(format: "You marked a steady %.0f-bar phrase, not the %d-bar one set here. "
+                        + "That is a consistent feel — either set the phrase to %.0f bars or "
+                        + "listen for the longer arc.", markedEvery, phraseBars, markedEvery)
         }
         // A steady slip is the most useful thing to say: it means the pulse period itself is
         // off, not that attention lapsed.

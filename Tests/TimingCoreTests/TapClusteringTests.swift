@@ -51,3 +51,30 @@ final class TapClusteringTests: XCTestCase {
         XCTAssertEqual(clustered.meanAsynchronyMs, 3.0, accuracy: 1.0)  // mean of 0..6 ms
     }
 }
+
+/// Regression: real continuation takes reported clock SDs of 55 and 92 ms caused by one or
+/// two accidental double-hits (intervals of 1 ms and 17 ms among clean ~600 ms quarters).
+final class IsochronousCollapseTests: XCTestCase {
+    func testDoubleTriggerIsCollapsed() {
+        var taps: [Tap] = []
+        for k in 0..<16 { taps.append(Tap(time: Double(k) * 0.6)) }
+        taps.append(Tap(time: 0.6 * 5 + 0.001))     // brushed second key, 1 ms later
+        taps.append(Tap(time: 0.6 * 9 + 0.017))     // pad bounce, 17 ms later
+
+        let cleaned = TapClustering.collapseIsochronous(taps.sorted { $0.time < $1.time })
+        XCTAssertEqual(cleaned.count, 16, "both double-triggers should merge away")
+
+        var intervals: [Double] = []
+        for i in 1..<cleaned.count { intervals.append((cleaned[i].time - cleaned[i - 1].time) * 1000) }
+        XCTAssertLessThan(Stats.sd(intervals), 5, "spread should be back to the real value")
+    }
+
+    func testGenuineNotesSurvive() {
+        // Steady quarters — nothing to merge.
+        let taps = (0..<20).map { Tap(time: Double($0) * 0.6) }
+        XCTAssertEqual(TapClustering.collapseIsochronous(taps).count, 20)
+        // Steady eighths — also nothing to merge, the window scales with the sequence.
+        let fast = (0..<20).map { Tap(time: Double($0) * 0.3) }
+        XCTAssertEqual(TapClustering.collapseIsochronous(fast).count, 20)
+    }
+}

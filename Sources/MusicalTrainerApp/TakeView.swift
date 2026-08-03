@@ -1,4 +1,5 @@
 import SwiftUI
+import TimingCore
 
 /// The take screen. Deliberately near-blank.
 ///
@@ -10,6 +11,33 @@ import SwiftUI
 struct TakeView: View {
     @EnvironmentObject private var model: AppModel
     @State private var breathing = false
+
+    /// Only the tempo drill shows anything mid-take — see `AppModel.liveRounds`.
+    private var liveFeedback: some View {
+        VStack(spacing: 8) {
+            if model.liveRounds.isEmpty {
+                Text("Hold the tempo when the click stops.")
+                    .font(.caption).foregroundStyle(.tertiary)
+            } else {
+                ForEach(model.liveRounds.suffix(3), id: \.index) { round in
+                    if let produced = round.producedBpm, let pct = round.errorPercent {
+                        HStack(spacing: 10) {
+                            Text("Round \(round.index + 1)")
+                                .foregroundStyle(.secondary)
+                            Text(String(format: "%.0f", produced)).monospacedDigit()
+                            Text(String(format: "%+.1f%%", pct)).monospacedDigit()
+                                .foregroundStyle(abs(pct) < 2 ? Color.green : Color.orange)
+                        }
+                        .font(.title3)
+                    } else {
+                        Text("Round \(round.index + 1): \(round.unusableReason ?? "not scored")")
+                            .font(.callout).foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+        .frame(height: 90, alignment: .top)
+    }
 
     var body: some View {
         VStack(spacing: 28) {
@@ -32,9 +60,13 @@ struct TakeView: View {
                 .font(.title3)
                 .foregroundStyle(.secondary)
 
-            Text("Eyes closed is fine — nothing here to read.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            if model.mode == .tempo {
+                liveFeedback
+            } else {
+                Text("Eyes closed is fine — nothing here to read.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
 
             Spacer()
 

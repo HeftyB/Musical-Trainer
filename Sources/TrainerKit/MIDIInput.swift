@@ -1,6 +1,7 @@
 import CoreMIDI
 import Darwin
 import Foundation
+import os
 
 struct MIDINoteOn {
     /// `mach_absolute_time` captured by CoreMIDI at the driver level — the whole reason
@@ -48,10 +49,17 @@ final class MIDIInput {
     private var lastNoteOn = [UInt64](repeating: 0, count: 128)
     private let dedupWindow = HostClock.ticks(seconds: 0.003)
 
-    /// Written only by CoreMIDI's single delivery thread and read only after `stop()`,
-    /// so no locking is required.
+    /// Written by CoreMIDI's delivery thread and read from the take thread — including
+    /// *during* a take, since the tempo drill scores each round as its silence ends.
+    ///
+    /// Guarded by an unfair lock rather than relying on the write-data-then-publish-count
+    /// pattern. That pattern happens to be safe on x86_64's total store order, but it is a
+    /// data race under the language model and would break on Apple Silicon. This is the MIDI
+    /// delivery thread, not the audio render thread, so a lock held for a handful of
+    /// instructions at a few notes per second is free.
     private var storage: UnsafeMutablePointer<MIDINoteOn>
     private var storageCount = 0
+    private var storageLock = os_unfair_lock_s()
     private let capacity: Int
 
     init(capacity: Int = 8192) {
@@ -140,12 +148,17 @@ final class MIDIInput {
     }
 
     func reset() {
+        os_unfair_lock_lock(&storageLock)
         storageCount = 0
+        os_unfair_lock_unlock(&storageLock)
         for i in 0..<lastNoteOn.count { lastNoteOn[i] = 0 }
     }
 
+    /// A snapshot of everything captured so far. Safe to call mid-take.
     var events: [MIDINoteOn] {
-        (0..<storageCount).map { storage[$0] }
+        os_unfair_lock_lock(&storageLock)
+        defer { os_unfair_lock_unlock(&storageLock) }
+        return (0..<storageCount).map { storage[$0] }
     }
 
     /// Walk the packets in place via CoreMIDI's own sequence helper.
@@ -181,11 +194,14 @@ final class MIDIInput {
                     let previous = lastNoteOn[Int(note)]
                     if previous == 0 || timeStamp &- previous > dedupWindow {
                         lastNoteOn[Int(note)] = timeStamp
+                        os_unfair_lock_lock(&storageLock)
                         if storageCount < capacity {
                             storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note,
                                                                velocity: velocity, channel: channel)
                             storageCount += 1
                         }
+                        os_unfair_lock_unlock(&storageLock)
+                        // Outside the lock: monitoring must never be able to block capture.
                         onNoteEvent?(note, velocity, true, channel)
                     }
                 } else if status == 0x8 || (status == 0x9 && velocity == 0) {

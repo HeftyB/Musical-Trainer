@@ -1,8 +1,25 @@
+# Swift Package Manager
 .build/
 .swiftpm/
-.DS_Store
+Package.resolved
+
+# Xcode (this project builds with SPM; no checked-in project file)
 *.xcodeproj
 *.xcworkspace
+xcuserdata/
+DerivedData/
 
-# Built app bundle
+# Built app bundle — produced by ./build-app.sh, never committed
 Musical Trainer.app/
+
+# Scratch work. Probes and one-off experiments are useful but disposable; keep them out of
+# the repo so the source tree only ever contains code that ships or tests.
+Scratch/
+*.probe.swift
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/

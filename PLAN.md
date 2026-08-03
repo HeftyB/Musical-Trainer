@@ -227,7 +227,17 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M6** | Dropout / continuation drill | ✅ Done. The only drill that yields a clock/motor split. See §7.7. |
 | **M7** | Progress over time | ✅ Done. `review trend` fits each metric with a bootstrap interval and splits confounded groups. See §7.8. |
 | **M8** | Tempo calibration drill | ✅ Done. Closed feedback loop on the tempo bias §7.8 found. See §7.10. |
-| — | *Later* | Guitar onset detection; TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
+| **M9** | Session builder | A 20–30 min session the app proposes and runs end to end. |
+| **M10** | Cold vs warm | Separate warm-up from learning — the open question from the first tempo data. |
+| **M11** | Clock stability drills | Aimed at the axis actually measured weak (clock 14.9 ms vs motor 9.3 ms). |
+| **M12** | Experiment runner | The app schedules its own A/B comparisons and says when they have power. |
+| **M13** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
+| **M14** | Subdivision & feel | Eighths, sixteenths, triplets, swing. Everything so far is quarters. |
+| **M15** | Unified adaptive difficulty | One progression model across all drills, replacing three ad-hoc rules. |
+| **M16** | Longitudinal model | Within-session vs between-session effects, separated properly. |
+| **M17** | Musical depth | Enough variety that a 30-minute session stays worth doing. |
+| **M18** | Guitar input | Audio onset detection. Needs an interface; additive once the rest is mature. |
+| — | *Later* | TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
 
 ---
 
@@ -841,6 +851,106 @@ This is a correctness concern, not a presentation one. The form drill already lo
 an instruction ambiguity (§6.1), and instructions duplicated across two surfaces drift — at
 which point the same drill silently means two different things depending on where it was
 started.
+
+---
+
+## 7.12 Codebase review
+
+A pass over all ~9,100 lines. Build is warning-free; the render callbacks contain no
+allocation, locks, prints or ARC traffic. Four real defects found and fixed:
+
+1. **Takes that end in silence were being truncated.** `run(forSeconds:)` derived its length
+   from `scheduledDurationSeconds()`, which reports the position of the last *sound*. The
+   tempo drill always ends with a silent hold, so **the entire final round was cut off** —
+   9.6 s at default settings — and the form drill at level 3 lost its last two bars. The
+   config already knows the intended length, so it is now authoritative
+   (`max(intended, scheduled)`, so a trailing cymbal decay is never clipped either). The
+   dropout drill was accidentally safe: it ends with a trailing paced section.
+2. **Per-round feedback wasn't per-round.** `runTempo`'s `roundFinished` callback fired for
+   every round at once *after* the take, while both the printed and on-screen instructions
+   promised feedback as you go. Since the whole point of M8 is a closed loop, the code was
+   changed to match the promise: each round is scored the moment its silence ends.
+3. **A data race introduced by that fix.** Scoring mid-take means reading `MIDIInput.events`
+   while CoreMIDI writes it, which the type's own comment said never happened. Capture is now
+   behind an `os_unfair_lock` — that is the MIDI delivery thread, not the audio thread, so a
+   lock costing nanoseconds a few times a second is free. The audio-side map cannot take a
+   lock, so instead the live path reads only `startHostTime` (entry 0, written once on the
+   first callback and immutable thereafter) and converts at the nominal sample rate; the
+   saved result still uses the full map after the engine stops.
+4. **The app never showed the feedback the CLI did.** `runTempo` was called without the
+   callback, so the app's tempo drill silently lacked its central mechanism while its
+   instructions described it. The take screen now shows the last few rounds — the one
+   deliberate exception to §2's blank-screen rule, and it appears during the click bars,
+   never during a measured silence.
+
+Also removed one dead property, and documented the cached summary fields in the session
+types: nothing reads them back (every view recomputes from raw taps so analysis fixes apply
+retroactively), but they keep the stored JSON legible.
+
+---
+
+## 7.13 Roadmap M9–M18
+
+Direction set with the player: **training depth** over new instruments or packaging;
+**20–30 minute structured sessions**; **research built in as a first-class feature** rather
+than run by hand. Ordered by dependency and value, not difficulty.
+
+### M9 — Session builder
+The app proposes and runs a whole session: warm-up calibration, two or three drills chosen
+from recent data, then a longer jam. One click to start; it moves between drills itself.
+Everything until now has been a menu of drills — this is the first milestone that decides
+*what to practise today*. Depends on nothing new; the drills exist.
+
+### M10 — Cold vs warm
+The first tempo data improved monotonically inside one sitting (−4.7% → −0.3%), and nothing
+in the app can say whether that is learning or dust shaking off. This adds a deliberate
+**cold measurement** as the first thing in every session — before any warm-up — and tracks
+cold-start values across days separately from within-session gains. Small, and it answers a
+question that is currently blocking interpretation of every trend.
+
+### M11 — Clock stability drills
+The measured weakness: clock 14.9 ms vs motor 9.3 ms, clock larger in 5 of 5 clean takes.
+Drills that train period *stability* specifically — longer silences, tempo memory (hear a
+tempo, wait through a distractor, reproduce it), and sustained holds at the edge of what the
+player can keep. Difficulty driven by measured clock SD.
+
+### M12 — Experiment runner
+Makes the research first-class: the app schedules its own A/B conditions (relaxed vs focused,
+tempo A vs B, cold vs warm), keeps them balanced, refuses to draw a conclusion before it has
+power, and says how many more takes it needs. Two confounds have already crept into this
+dataset by hand — a changed backing and a changed tempo — and this removes the opportunity.
+
+### M13 — Form ladder v2
+The level-2 data showed the player marking a steady **4-bar** phrase against an 8-bar
+setting: a consistent feel, not a lost one. Phrase length becomes a trained variable in its
+own right — nested phrasing (4 inside 8 inside 16), explicit "which period do you feel?"
+probes, and a ladder that grows the span rather than only removing landmarks.
+
+### M14 — Subdivision & feel
+Every drill so far is quarter notes. This adds eighths, sixteenths, triplets and swing —
+both as backing feels and as what the player is asked to produce. `TimingReport` already
+computes subdivision-conditional spread and nothing currently exercises it.
+
+### M15 — Unified adaptive difficulty
+Three drills now have three ad-hoc progression rules. Replace them with one model: a per-axis
+difficulty estimate updated from measured performance, so the app can say "you are ready for
+8 silent bars but not 16" consistently and across drills.
+
+### M16 — Longitudinal model
+Separate the two effects properly — within-session improvement (warm-up) from
+between-session improvement (learning) — instead of fitting one slope across everything.
+With enough sessions this is what answers "am I actually getting better" rigorously, and it
+subsumes the current `review trend`.
+
+### M17 — Musical depth
+Sectional arrangements with real dynamics, more styles, longer forms. No new measurement —
+but a 30-minute session has to be worth playing, and sustainability is what turns any of this
+into results.
+
+### M18 — Guitar input
+Audio onset detection through an interface, reusing the calibration and analysis already
+built. Deliberately last of the ten: a new input is additive once the drills and measurement
+are mature, and it is the only item requiring hardware the player does not own.
 
 ---
 

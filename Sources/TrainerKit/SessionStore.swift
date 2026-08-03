@@ -85,6 +85,7 @@ struct DropoutSession: Codable {
     let gridStartTime: Double
     let tapTimes: [Double]
 
+    // Cached summary, as above — `reconstruct()` is the source of truth.
     let pacedSDms: Double
     let unpacedIntervalSDms: Double
     let clockSDms: Double?
@@ -145,6 +146,9 @@ struct TempoSession: Codable {
     let roundHoldStarts: [Double]
     let roundHoldEnds: [Double]
 
+    // Cached summary, written at save time. Nothing reads it back — every view recomputes
+    // from `taps` and `roundWindows` so analysis fixes reach old sessions. Kept because it
+    // makes the stored JSON readable; treat it as a snapshot, not the current answer.
     let usableCount: Int
     let meanErrorPercent: Double?
     let meanAbsErrorPercent: Double?

@@ -97,8 +97,10 @@ public enum DropoutAnalysis {
 
         for (order, entry) in unpacedSections.enumerated() {
             let section = entry.element
-            let inSection = sorted.filter { $0.time >= section.startTime && $0.time < section.endTime }
-            unpacedCount += inSection.count
+            let raw = sorted.filter { $0.time >= section.startTime && $0.time < section.endTime }
+            unpacedCount += raw.count
+            // Collapse accidental double-triggers first — see `collapseIsochronous`.
+            let inSection = TapClustering.collapseIsochronous(raw)
 
             var intervals: [Double] = []
             if inSection.count >= 2 {

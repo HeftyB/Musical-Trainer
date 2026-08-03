@@ -636,7 +636,17 @@ public enum Commands {
         printInstructions(DrillInstructions.tempo)
         Console.prompt("Ready?")
 
-        let outcome = try TrainerEngine.runTempo(config)
+        print("")
+        // Printed as each round's silence ends, so the correction can be made on the spot.
+        let outcome = try TrainerEngine.runTempo(config, roundFinished: { result in
+            guard let produced = result.producedBpm, let pct = result.errorPercent else {
+                print("  Round \(result.index + 1): \(Console.dim)\(result.unusableReason ?? "not scored")\(Console.reset)")
+                return
+            }
+            let colour = abs(pct) < 2 ? Console.green : (abs(pct) < 5 ? "" : Console.yellow)
+            print(String(format: "  Round %d: target %.0f → you played %.1f  \(colour)%+.1f%%\(Console.reset)",
+                         result.index + 1, result.targetBpm, produced, pct))
+        })
         let feel = Console.readRating("\nHow did that feel?")
         reportTempo(outcome)
         let url = try TrainerEngine.save(outcome, feelRating: feel)

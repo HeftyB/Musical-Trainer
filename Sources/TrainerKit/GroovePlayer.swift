@@ -130,8 +130,21 @@ final class GroovePlayer {
         state.pointee.outMapCount = 0
     }
 
+    /// Host time of the very first rendered buffer, i.e. output sample 0.
+    ///
+    /// Safe to read while the engine is running, unlike `outputMapPairs`: entry 0 is written
+    /// on the first callback and never touched again, so once the count is non-zero the value
+    /// is immutable. Reading the whole map concurrently would be a genuine data race against
+    /// the render thread, which cannot take a lock.
+    var startHostTime: UInt64? {
+        state.pointee.outMapCount > 0 ? state.pointee.outMapHost[0] : nil
+    }
+
     /// (hostTime, sample) pairs captured during playback — feed to a `SampleHostMap` to
     /// convert MIDI host times into groove-sample positions.
+    ///
+    /// **Read only after the engine has stopped.** The render thread appends to this while
+    /// playing.
     var outputMapPairs: [(hostTime: UInt64, sample: Int64)] {
         (0..<state.pointee.outMapCount).map {
             (state.pointee.outMapHost[$0], state.pointee.outMapSample[$0])

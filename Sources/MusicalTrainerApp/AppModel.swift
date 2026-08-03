@@ -1,6 +1,7 @@
 import Foundation
 import GrooveCore
 import SwiftUI
+import TimingCore
 import TrainerKit
 
 @MainActor
@@ -101,12 +102,18 @@ final class AppModel: ObservableObject {
     @Published private(set) var tempoOutcome: TrainerEngine.TempoOutcome?
     @Published var feelRating: Int?
 
+    /// Rounds scored so far in a running tempo drill.
+    ///
+    /// The take screen is otherwise deliberately blank, but this drill *is* a feedback loop —
+    /// produce, be told, correct, produce again — so withholding the number until the end
+    /// would remove the mechanism rather than protect it. Feedback also arrives during the
+    /// click bars, never while a measured silence is in progress.
+    @Published private(set) var liveRounds: [TempoRoundResult] = []
+
     /// Set while a take is being torn down, so the button can acknowledge the press
     /// immediately rather than appearing to do nothing for a few milliseconds.
     @Published private(set) var isStopping = false
     private var cancellation: CancellationFlag?
-
-    var canStop: Bool { screen == .running }
 
     /// Abandon the running take. The recording is discarded, not analysed: a take stopped
     /// because something was wrong is not worth measuring, and saving a fragment would
@@ -158,6 +165,7 @@ final class AppModel: ObservableObject {
         formOutcome = nil
         dropoutOutcome = nil
         tempoOutcome = nil
+        liveRounds = []
         feelRating = nil
         isStopping = false
         let flag = CancellationFlag()
@@ -191,7 +199,11 @@ final class AppModel: ObservableObject {
                     let outcome = try TrainerEngine.runDropout(dropConfig, cancellation: flag)
                     Task { @MainActor in self.finish(dropout: outcome) }
                 case .tempo:
-                    let outcome = try TrainerEngine.runTempo(tempConfig, cancellation: flag)
+                    let outcome = try TrainerEngine.runTempo(
+                        tempConfig, cancellation: flag,
+                        roundFinished: { result in
+                            Task { @MainActor in self.liveRounds.append(result) }
+                        })
                     Task { @MainActor in self.finish(tempo: outcome) }
                 case .groove:
                     try TrainerEngine.playGroove(grooveConfig, cancellation: flag)

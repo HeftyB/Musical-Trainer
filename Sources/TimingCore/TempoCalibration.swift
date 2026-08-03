@@ -53,7 +53,10 @@ public enum TempoCalibrationAnalysis {
         var results: [TempoRoundResult] = []
 
         for round in rounds {
-            let inHold = sorted.filter { $0.time >= round.holdStart && $0.time < round.holdEnd }
+            let raw = sorted.filter { $0.time >= round.holdStart && $0.time < round.holdEnd }
+            // Collapse accidental double-triggers before scoring — one stray onset otherwise
+            // skews the period estimate the whole round rests on.
+            let inHold = TapClustering.collapseIsochronous(raw)
             let targetBeat = 60.0 / round.targetBpm
 
             guard inHold.count >= minimumNotes else {

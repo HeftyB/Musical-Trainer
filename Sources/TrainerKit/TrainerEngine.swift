@@ -9,6 +9,16 @@ import TimingCore
 /// what the other one measures.
 public enum TrainerEngine {
 
+    /// How long to actually play for.
+    ///
+    /// `scheduledDurationSeconds()` only knows where the last *sound* is, so any drill that
+    /// ends in silence — the tempo drill always, the form drill at level 3 — would be cut off
+    /// before its final measured stretch. The config knows the intended length; take whichever
+    /// is longer so a trailing cymbal decay is never clipped either.
+    private static func runLength(_ intended: Double, _ player: GroovePlayer) -> Double {
+        max(intended, player.scheduledDurationSeconds()) + 0.5
+    }
+
     // MARK: - Environment
 
     public struct Environment {
@@ -104,7 +114,7 @@ public enum TrainerEngine {
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
 
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+        try player.run(forSeconds: runLength(config.durationSeconds, player),
                        progress: progress, cancellation: cancellation)
 
         guard let reduced = JamAnalysis.reduce(
@@ -200,7 +210,7 @@ public enum TrainerEngine {
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
 
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+        try player.run(forSeconds: runLength(config.durationSeconds, player),
                        progress: progress, cancellation: cancellation)
 
         guard let epoch = player.outputMapPairs.first?.hostTime else {
@@ -306,7 +316,7 @@ public enum TrainerEngine {
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
 
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+        try player.run(forSeconds: runLength(config.durationSeconds, player),
                        progress: progress, cancellation: cancellation)
 
         guard let epoch = player.outputMapPairs.first?.hostTime else {
@@ -387,7 +397,7 @@ public enum TrainerEngine {
         public var durationSeconds: Double {
             (0..<rounds).reduce(0) { total, i in
                 total + Double(leadBars + holdBars) * 4 * 60 / target(forRound: i)
-            } + 2
+            } + 0.5      // matches the lead-in the scheduler inserts
         }
     }
 
@@ -448,8 +458,45 @@ public enum TrainerEngine {
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
 
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
-                       progress: progress, cancellation: cancellation)
+        // Report each round the moment its silence ends, not at the finish. The drill is a
+        // feedback loop — produce, be told, correct, produce again — and feedback delivered
+        // after every round is over would make it a plain measurement instead.
+        //
+        // Analysis runs on the taps captured so far. `MIDIInput.events` is written only by
+        // CoreMIDI's single delivery thread and read here on the take thread; a read racing a
+        // write can miss the very latest note, which at worst defers a round to the next tick.
+        var reported = 0
+        let totalSamples = Double(cursorSamples)
+        let watch: (Double) -> Void = { fraction in
+            progress?(fraction)
+            guard reported < roundWindows.count else { return }
+            let playedSamples = fraction * totalSamples
+            let window = roundWindows[reported]
+            guard playedSamples >= Double(window.holdEndSample) else { return }
+
+            // Only the epoch is read live — the full sample↔host map belongs to the render
+            // thread until it stops. Sample positions convert at the nominal rate, which the
+            // M0 calibration measured accurate to 0.2 ppm: far below what a round boundary
+            // needs. The final, saved result is recomputed from the real map afterwards.
+            guard let epoch = player.startHostTime else { return }
+            let start = Double(window.holdStartSample) / fs
+            let end = Double(window.holdEndSample) / fs
+
+            let offset = (env.calibrationMs ?? 0) / 1000
+            let soFar = midi.events.filter { !$0.isPad }.map {
+                Tap(time: HostClock.interval(from: epoch, to: $0.hostTime) - offset)
+            }
+            let round = TempoRound(index: reported, targetBpm: window.target,
+                                   holdStart: start, holdEnd: end)
+            let partial = TempoCalibrationAnalysis.analyze(taps: soFar, rounds: [round])
+            if let result = partial.rounds.first { roundFinished?(result) }
+            reported += 1
+        }
+
+        // The final round ends in silence, so the schedule's last sound is well short of the
+        // take's real end — `cursorSamples` is the truth.
+        try player.run(forSeconds: Double(cursorSamples) / fs + 0.5,
+                       progress: watch, cancellation: cancellation)
 
         guard let epoch = player.outputMapPairs.first?.hostTime else {
             throw SpikeError("Could not reconstruct the take — no audio timing map captured.")
@@ -471,7 +518,6 @@ public enum TrainerEngine {
         }
 
         let report = TempoCalibrationAnalysis.analyze(taps: taps, rounds: rounds)
-        report.rounds.forEach { roundFinished?($0) }
 
         return TempoOutcome(report: report, environment: env, config: config,
                             tapTimes: taps.map(\.time), rounds: rounds)
@@ -602,7 +648,7 @@ public enum TrainerEngine {
         midi?.onNoteEvent = { note, velocity, on, channel in
             player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
         }
-        try player.run(forSeconds: player.scheduledDurationSeconds() + 0.5,
+        try player.run(forSeconds: runLength(config.durationSeconds, player),
                        progress: progress, cancellation: cancellation)
     }
 }
