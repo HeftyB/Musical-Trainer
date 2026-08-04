@@ -31,11 +31,12 @@ final class AppModel: ObservableObject {
             }
         }
         /// Full instructions, shared with the console so the two can't describe a drill
-        /// differently.
-        var instructions: DrillInstructions {
+        /// differently. The form drill's text depends on the level — the landmarks it
+        /// describes are exactly what the ladder removes.
+        func instructions(formLevel: Int = 0) -> DrillInstructions {
             switch self {
             case .jam: return .jam
-            case .form: return .form
+            case .form: return .form(level: formLevel)
             case .dropout: return .dropout
             case .tempo: return .tempo
             case .memory: return .memory
@@ -323,6 +324,11 @@ final class AppModel: ObservableObject {
     var sessionRemainingSeconds: Double { runner?.remainingSeconds ?? 0 }
 
     /// What the take screen says, whether the take came from the menu or from a session.
+    /// Instructions for the mode as currently configured.
+    var currentInstructions: DrillInstructions {
+        mode.instructions(formLevel: formLevel.rawValue)
+    }
+
     var takePrompt: String {
         if let block = sessionBlock {
             if case .form = block.plan { return "Mark each phrase top." }

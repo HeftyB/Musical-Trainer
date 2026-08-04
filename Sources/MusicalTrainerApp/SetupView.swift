@@ -195,7 +195,7 @@ struct SetupView: View {
     /// The same text the console prints, rendered by the same view the session brief uses —
     /// so a drill cannot come to mean two different things depending on where you started it.
     private var instructions: some View {
-        InstructionsCard(guide: model.mode.instructions)
+        InstructionsCard(guide: model.currentInstructions)
     }
 
     private var footer: some View {

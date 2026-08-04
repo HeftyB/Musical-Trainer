@@ -168,7 +168,7 @@ enum Analysis {
                 let delta = Double(onset.sample) - expected
                 if delta < -searchRadius { continue }
                 if delta > searchRadius { break }
-                if best == nil || onset.peak > best!.peak { best = onset }
+                if onset.peak > (best?.peak ?? -.infinity) { best = onset }
             }
             guard let thock = best else { unmatched += 1; continue }
 

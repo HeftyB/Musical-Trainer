@@ -1,0 +1,12 @@
+# Normalise line endings; the toolchain and hooks assume LF.
+* text=auto eol=lf
+
+*.swift   text diff=swift
+*.md      text
+*.sh      text eol=lf
+*.plist   text
+
+# Generated or binary; never diff or merge these.
+*.png     binary
+*.wav     binary
+*.aiff    binary

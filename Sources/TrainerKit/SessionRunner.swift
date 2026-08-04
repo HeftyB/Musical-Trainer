@@ -52,10 +52,10 @@ public final class SessionRunner {
                      + "\(o.report.tightCount) nailed"
             case .dropout(let o):
                 let tempo = o.report.playedBpm.map { String(format: "%.0f BPM alone", $0) }
-                let split = o.report.splitIsReliable && o.report.wingKristofferson != nil
-                    ? String(format: "clock %.1f / motor %.1f ms",
-                             o.report.wingKristofferson!.clockSDms, o.report.wingKristofferson!.motorSDms)
-                    : "split unreliable"
+                var split = "split unreliable"
+                if o.report.splitIsReliable, let wk = o.report.wingKristofferson {
+                    split = String(format: "clock %.1f / motor %.1f ms", wk.clockSDms, wk.motorSDms)
+                }
                 return [tempo, split].compactMap { $0 }.joined(separator: " · ")
             case .tempo(let o):
                 guard let bias = o.report.meanErrorPercent else { return "no rounds scored" }

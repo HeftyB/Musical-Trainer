@@ -44,18 +44,21 @@ enum AudioDevices {
 
     static func info(for id: AudioDeviceID, input: Bool) -> Info {
         let scope = input ? kAudioObjectPropertyScopeInput : kAudioObjectPropertyScopeOutput
-        let transport = property(id, kAudioDevicePropertyTransportType, kAudioObjectPropertyScopeGlobal, UInt32.self) ?? 0
+        let transport = property(id, kAudioDevicePropertyTransportType,
+                                 kAudioObjectPropertyScopeGlobal, UInt32.self) ?? 0
         return Info(
             id: id,
             name: stringProperty(id, kAudioObjectPropertyName) ?? "(unknown)",
             dataSource: dataSourceName(id, scope: scope),
-            sampleRate: property(id, kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, Double.self) ?? 0,
+            sampleRate: property(id, kAudioDevicePropertyNominalSampleRate,
+                                 kAudioObjectPropertyScopeGlobal, Double.self) ?? 0,
             transport: fourCC(transport),
             isBluetooth: transport == kAudioDeviceTransportTypeBluetooth
                       || transport == kAudioDeviceTransportTypeBluetoothLE,
             reportedLatencyFrames: property(id, kAudioDevicePropertyLatency, scope, UInt32.self) ?? 0,
             safetyOffsetFrames: property(id, kAudioDevicePropertySafetyOffset, scope, UInt32.self) ?? 0,
-            bufferFrameSize: property(id, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeGlobal, UInt32.self) ?? 0)
+            bufferFrameSize: property(id, kAudioDevicePropertyBufferFrameSize,
+                                      kAudioObjectPropertyScopeGlobal, UInt32.self) ?? 0)
     }
 
     /// Request a smaller hardware buffer. Best-effort: the device may clamp or refuse,

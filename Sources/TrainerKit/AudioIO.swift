@@ -200,13 +200,15 @@ final class AudioIO {
 
             let from = max(start, bufferStart)
             let to = min(end, bufferEnd)
-            for absolute in from..<to {
-                let dst = Int(absolute - bufferStart)
-                let value = s.pointee.chirp[Int(absolute - start)] * s.pointee.gain
-                for buffer in abl {
-                    let channels = Int(buffer.mNumberChannels)
-                    let data = buffer.mData!.assumingMemoryBound(to: Float.self)
-                    // mNumberChannels > 1 means interleaved within this buffer.
+            // Resolved once per buffer rather than once per sample.
+            for buffer in abl {
+                guard let raw = buffer.mData else { continue }
+                let data = raw.assumingMemoryBound(to: Float.self)
+                // mNumberChannels > 1 means interleaved within this buffer.
+                let channels = Int(buffer.mNumberChannels)
+                for absolute in from..<to {
+                    let dst = Int(absolute - bufferStart)
+                    let value = s.pointee.chirp[Int(absolute - start)] * s.pointee.gain
                     for c in 0..<channels { data[dst * channels + c] += value }
                 }
             }

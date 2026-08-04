@@ -32,21 +32,57 @@ public struct DrillInstructions {
         measures: "Whether you sit ahead of or behind the beat, how much you scatter around it, "
                 + "and whether you correct each error or let it drift.")
 
-    public static let form = DrillInstructions(
-        goal: "Measures whether you know where you are in the music without counting.",
-        steps: [
-            "A drum groove plays in phrases — 8 bars each by default.",
-            "A drum fill warns you that a phrase is about to end.",
-            "Hit ANY PAD once on the downbeat where the groove restarts AFTER the fill.",
-            "Play whatever you like on the keys between marks, or nothing at all.",
-        ],
-        pitfalls: [
-            "Don't hit the pad during the fill. The fill is the warning; the target is the beat right after it.",
+    /// The form drill's instructions **depend on the level**, because the landmarks it
+    /// describes are exactly what the ladder takes away.
+    ///
+    /// This was a live bug, and the second one of its kind. A level-2 session printed "a drum
+    /// fill warns you that a phrase is about to end" over a backing with no fills in it, so the
+    /// player was told to wait for a cue that would never arrive. §6.1 already records two
+    /// takes lost to an instruction ambiguity; static text for a drill whose whole design is
+    /// removing cues was the same mistake wearing a different hat.
+    public static func form(level: Int = 0) -> DrillInstructions {
+        let cue: String
+        let target: String
+        var pitfalls = [
             "Don't count bars. If you lose your place, wait and catch the next phrase.",
             "Use a pad, not a key — keys are treated as ordinary playing.",
-        ],
-        measures: "How many phrase tops you found on the correct bar, and how close to the "
-                + "downbeat you landed.")
+        ]
+
+        switch level {
+        case 0:
+            cue = "A drum fill warns you that a phrase is about to end, and a crash lands on the downbeat itself."
+            target = "Hit ANY PAD once on that downbeat — aim to arrive WITH the crash, not after it."
+            pitfalls.insert("Don't hit the pad during the fill. The fill is the warning; the "
+                          + "target is the beat right after it.", at: 0)
+        case 1:
+            cue = "A drum fill warns you that a phrase is about to end. Nothing confirms the arrival."
+            target = "Hit ANY PAD once on the downbeat where the groove restarts after the fill."
+            pitfalls.insert("Don't hit the pad during the fill. The fill is the warning; the "
+                          + "target is the beat right after it.", at: 0)
+        case 3:
+            cue = "The band drops out before each phrase ends and returns after the turn. Nothing marks the corner."
+            target = "Hit ANY PAD once where you feel the new phrase begins, in the silence."
+            pitfalls.insert("Don't wait for the band to come back — the downbeat you are "
+                          + "marking happens while it is still silent.", at: 0)
+        default:
+            cue = "The groove runs straight through with NO fills and no signposts of any kind."
+            target = "Hit ANY PAD once where you feel each new phrase begins."
+            pitfalls.insert("Don't wait for a cue — at this level there isn't one. Commit to "
+                          + "where you feel the phrase turns.", at: 0)
+        }
+
+        return DrillInstructions(
+            goal: "Measures whether you know where you are in the music without counting.",
+            steps: [
+                "A drum groove plays in phrases — 8 bars each by default.",
+                cue,
+                target,
+                "Play whatever you like on the keys between marks, or nothing at all.",
+            ],
+            pitfalls: pitfalls,
+            measures: "How many phrase tops you found on the correct bar, and how close to the "
+                    + "downbeat you landed.")
+    }
 
     public static let dropout = DrillInstructions(
         goal: "Measures whether your unsteadiness comes from your sense of time or from your hands.",

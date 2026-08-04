@@ -474,7 +474,8 @@ private struct MemoryResults: View {
                 let longer = outcome.suggestedRetentionBars > outcome.config.retentionBars
                 Card {
                     Label(longer
-                          ? "Your clock is steady enough for a longer gap — try \(outcome.suggestedRetentionBars) bars next."
+                          ? "Your clock is steady enough for a longer gap — try "
+                            + "\(outcome.suggestedRetentionBars) bars next."
                           : "Try a shorter \(outcome.suggestedRetentionBars)-bar wait so more rounds come through.",
                           systemImage: longer ? "arrow.up.circle" : "arrow.down.circle")
                         .font(.callout)

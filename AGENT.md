@@ -1,13 +1,23 @@
 # Musical Trainer — agent guide
 
 macOS app that trains an autonomous internal pulse. One user: Andrew, 25+ years playing,
-theory-strong, timing is the weak axis. **[PLAN.md](PLAN.md) is the source of truth** for
-design, findings and roadmap — this file is the operating manual.
+theory-strong, timing is the weak axis.
+
+Four documents, four jobs — putting content in the wrong one is a defect:
+
+- **[PLAN.md](PLAN.md)** — design, rationale, findings, roadmap. **The reasoning lives here.**
+- **[STANDARDS.md](STANDARDS.md)** — binding engineering rules and the procedures that enforce
+  them. Read it before writing code.
+- **AGENT.md** (this file) — the operating manual.
+- **[README.md](README.md)** — what the app is and how to use it.
 
 ## Build, test, run
 
 ```sh
-swift test                              # 95 unit tests, no hardware needed
+./scripts/check.sh                      # the gate — must pass before every commit
+./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
+
+swift test                              # 159 unit tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -38,8 +48,8 @@ Two rules that keep this working:
    `swift test` against data whose answer is known by construction. Logic that lives in the
    command layer cannot be tested and has repeatedly turned out to be wrong.
 2. **Neither front end contains measurement logic.** `TrainerEngine.runJam` / `runForm` /
-   `runDropout` / `runTempo` are the only implementations, so the CLI and app can never
-   measure differently.
+   `runDropout` / `runTempo` / `runMemory` are the only implementations, so the CLI and app
+   can never measure differently. `SessionRunner` sequences them; it does not measure.
 
 ## Non-negotiables
 
@@ -74,7 +84,14 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 ## Data and analysis conventions
 
 - Sessions live in `~/Library/Application Support/MusicalTrainer/sessions/`, one JSON per
-  take, prefixed `jam-` / `form-` / `dropout-` / `tempo-`.
+  take, prefixed `jam-` / `form-` / `dropout-` / `tempo-` / `memory-`, plus a `session-`
+  manifest per planned session (what the planner chose, why, and what was skipped).
+- **Every take carries an optional `SessionPlacement`** — session id, block index, role, and
+  seconds elapsed into the sitting. That is what lets a cold take and a take twenty minutes in
+  be told apart, and it is why M9 changed storage before it changed anything else.
+- **Jam takes also store the raw note-ons** (`rawTimes` / `rawNotes` / `rawVelocities`) beside
+  the clustered timing series, so *what* was played is recoverable and not just *when*. Nothing
+  reads them yet; M12 does.
 - **Raw taps are stored and everything recomputes from them.** Cached summary fields exist to
   keep the JSON readable but nothing reads them back. This is deliberate: analysis fixes reach
   takes recorded before the fix, which has already mattered twice.
@@ -88,18 +105,25 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 ## What the data says about this player
 
-Current as of ~20 sessions. See PLAN.md §7.8 and §7.13.
+Current as of 39 takes across 4 sittings — 15 jams, 9 form, 8 continuation, 5 tempo, 2 recall.
+Recompute rather than trusting these; every figure comes from `review trend`, `review dropout`,
+`review feel` and `review cold`.
 
-- **r₁ is positive in every jam (+0.17 … +0.47).** He *under-corrects* — placement floats and
+- **r₁ is positive in all 15 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented
   way to make this worse, and he already reports it feels worse.
-- **Clock 14.9 ms vs motor 9.3 ms**, clock larger in 5 of 5 clean continuation takes. The
-  internal pulse is the weak half, not the hands.
-- **Unaccompanied tempo runs slow**, historically ~5%, and it *closes within a sitting*
-  (−4.7% → −0.3% over four tempo sessions in 27 minutes). Whether that is learning or warm-up
-  is **the open question** — M10 exists to answer it.
-- **Feel ratings track the measurement** (r ≈ −0.54 over 8 rated takes). His instinct is
-  reasonably calibrated, which is worth respecting in how results are framed.
+- **Clock is the looser half in 6 of 6 trustworthy splits.** At 4-bar silences it runs 14.9 ms
+  clock vs 9.3 ms motor; the one 8-bar take is 40.7 vs 20.9, which is a harder task rather than
+  a worse player — do not pool them.
+- **Unaccompanied tempo runs slow, ~5%**, and it closes within a sitting (−4.7% → −0.3% over
+  four tempo takes in 27 minutes). The first *controlled* cold probe read **−7.9%** against the
+  −0.3% that ended the previous evening, which is the M10 question in one number: n=1 so far.
+- **Feel tracks the measurement** (r ≈ −0.61 over 11 rated takes) — but the first full session
+  broke it: two jams with identical spread (24.1 vs 24.3 ms) were rated 4 and 1 twenty minutes
+  apart. His instinct is calibrated for precision and apparently not for fatigue.
+- **Off-grid rate and velocity spread both climbed** across that session (2.7% → 10.8%). His own
+  reading is that steady quarters send him to sleep and melody puts him in the pocket — that is
+  M12's hypothesis, and the pitch data to test it only started being recorded on 4 August.
 - He thinks in feel and sound, not bar counts. He is a strong developer — pitch technical
   explanations high, but never explain music theory to him.
 
@@ -107,6 +131,10 @@ Current as of ~20 sessions. See PLAN.md §7.8 and §7.13.
 
 - He commits and pushes himself (signed). **Do not commit.** Leave changes in the tree and say
   what's ready.
+- **Commit messages are terse.** `<type>(<scope>): <subject>`, a short body of what changed,
+  and `Refs: PLAN.md §<n>`. No rationale essays — the argument belongs in PLAN.md, which stays
+  current, not in a log nobody re-reads. STANDARDS.md §8.2 has the format and the hook that
+  enforces it.
 - Two displays — `screencapture` may grab the wrong one. Ask for a screenshot instead of
   guessing what the UI looks like.
 - Verify claims against the machine rather than asserting them. Several conclusions in this

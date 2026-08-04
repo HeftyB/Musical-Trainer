@@ -328,13 +328,13 @@ public enum SelfTest {
 
         // A note near each beat: emit time + constant + true asynchrony (+ light jitter).
         var rng = RNG()
-        var midi: [(hostTime: UInt64, velocity: Int)] = []
+        var midi: [(hostTime: UInt64, velocity: Int, note: Int)] = []
         for k in 0..<beats {
             let beatSample = grooveStart + Int64(k) * beatSamples
             let emitSec = Double(beatSample) / fs
             let jitter = rng.gaussian(sd: 0.003)
             let noteSec = emitSec + constantMs / 1000 + trueAsyncMs / 1000 + jitter
-            midi.append((epoch &+ HostClock.ticks(seconds: noteSec), 90))
+            midi.append((epoch &+ HostClock.ticks(seconds: noteSec), 90, 60))
         }
 
         let grooveEnd = grooveStart + Int64(beats) * beatSamples
@@ -367,7 +367,7 @@ public enum SelfTest {
 
         // Count-in / stray notes outside the window must be dropped.
         var withStray = midi
-        withStray.insert((epoch &+ HostClock.ticks(seconds: 0.1), 90), at: 0)   // during count-in
+        withStray.insert((epoch &+ HostClock.ticks(seconds: 0.1), 90, 60), at: 0)   // during count-in
         if let r = JamAnalysis.reduce(outputMap: outputMap, midi: withStray,
                                       grooveStartSample: grooveStart, grooveEndSample: grooveEnd,
                                       bpm: bpm, subdivisions: 1, calibrationConstantMs: constantMs) {

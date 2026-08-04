@@ -80,6 +80,10 @@ public enum TrainerEngine {
         public let config: JamConfig
         fileprivate let gridStartTime: Double
         fileprivate let taps: [Tap]
+        /// Every note-on in the window, before chord clustering — pitch, velocity and time.
+        /// Clustering collapses a chord to one rhythmic event, which is right for timing and
+        /// wrong for asking what was played.
+        fileprivate let rawTaps: [Tap]
     }
 
     public static func runJam(_ config: JamConfig,
@@ -119,7 +123,7 @@ public enum TrainerEngine {
 
         guard let reduced = JamAnalysis.reduce(
             outputMap: player.outputMapPairs,
-            midi: midi.events.map { ($0.hostTime, Int($0.velocity)) },
+            midi: midi.events.map { ($0.hostTime, Int($0.velocity), Int($0.note)) },
             grooveStartSample: startSample, grooveEndSample: endSample,
             bpm: config.bpm, subdivisions: backing.stepsPerBeat,
             calibrationConstantMs: env.calibrationMs ?? 0)
@@ -130,7 +134,8 @@ public enum TrainerEngine {
 
         return JamOutcome(report: report, notesCaptured: midi.events.count,
                           eventCount: events.count, environment: env, config: config,
-                          gridStartTime: reduced.grid.startTime, taps: events)
+                          gridStartTime: reduced.grid.startTime, taps: events,
+                          rawTaps: reduced.taps)
     }
 
     @discardableResult
@@ -148,7 +153,10 @@ public enum TrainerEngine {
             matchedCount: r.matchedCount, extraCount: r.extraCount, missedCount: r.missedCount,
             meanAsynchronyMs: r.meanAsynchronyMs, sdAsynchronyMs: r.sdAsynchronyMs,
             lag1Autocorrelation: r.lag1Autocorrelation, driftMsPerBeat: r.driftMsPerBeat,
-            headline: r.headline, placement: placement)
+            headline: r.headline, placement: placement,
+            rawTimes: outcome.rawTaps.map(\.time),
+            rawNotes: outcome.rawTaps.map(\.note),
+            rawVelocities: outcome.rawTaps.map(\.velocity))
         return try SessionStore.save(session)
     }
 
@@ -600,14 +608,15 @@ public enum TrainerEngine {
             let (taps, grid, sections) = session.reconstruct()
             let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
 
-            let split = r.splitIsReliable && r.wingKristofferson != nil
-                ? String(format: "clock %.1f / motor %.1f ms",
-                         r.wingKristofferson!.clockSDms, r.wingKristofferson!.motorSDms)
-                : "split unreliable"
+            var split = "split unreliable"
+            if r.splitIsReliable, let wk = r.wingKristofferson {
+                split = String(format: "clock %.1f / motor %.1f ms", wk.clockSDms, wk.motorSDms)
+            }
             let tempo = r.playedBpm.map { String(format: " · %.0f BPM alone", $0) } ?? ""
             return HistoryEntry(
                 date: session.date,
-                title: "\(session.pacedBars)+\(session.silentBars) bars × \(session.cycles) · \(Int(session.bpm)) BPM",
+                title: "\(session.pacedBars)+\(session.silentBars) bars × "
+                     + "\(session.cycles) · \(Int(session.bpm)) BPM",
                 detail: split + tempo,
                 feelRating: session.feelRating, headline: r.headline,
                 // Tempo bias is the metric worth trending: it is measured reliably every
@@ -714,10 +723,17 @@ public enum TrainerEngine {
                                         seed: 0x0D15 &+ UInt64(index))
             }
 
-            // One sound, and only one: the cue to start producing.
+            // One *instant*, and only one: the cue to start producing.
+            //
+            // A single kick turned out to be findable but easy to miss if you were not
+            // already listening for it — the first live run said so. Crash and kick together
+            // at full velocity is unmistakable, and it is still a single point in time, which
+            // is the property that matters: one onset carries no period. Two onsets, however
+            // quiet, would hand the tempo straight back.
             let reproduceStart = retentionEnd
             let reproduceEnd = reproduceStart + Int64(config.reproduceBars) * barSamples
-            hits.append(ScheduledHit(voice: .kick, sample: reproduceStart, velocity: 115))
+            hits.append(ScheduledHit(voice: .kick, sample: reproduceStart, velocity: 127))
+            hits.append(ScheduledHit(voice: .crash, sample: reproduceStart, velocity: 120))
 
             windows.append((filled ? .filled : .silent,
                             (retentionStart, retentionEnd), (reproduceStart, reproduceEnd)))
@@ -1044,7 +1060,10 @@ public enum TrainerEngine {
                     TrendAnalysis.row("|tempo bias|", reports.map { $0.tempoBiasBpm.map(abs) ?? .nan },
                                       lowerIsBetter: true),
                     TrendAnalysis.row("clock SD",
-                                      reports.map { $0.splitIsReliable ? ($0.wingKristofferson?.clockSDms ?? .nan) : .nan },
+                                      reports.map {
+                                          $0.splitIsReliable
+                                              ? ($0.wingKristofferson?.clockSDms ?? .nan) : .nan
+                                      },
                                       lowerIsBetter: true),
                 ]))
         }

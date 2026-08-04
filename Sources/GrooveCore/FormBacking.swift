@@ -28,7 +28,8 @@ public enum FormLevel: Int, CaseIterable, Comparable {
     public var advice: String {
         switch self {
         case .fillAndAccent:
-            return "The fill says the turn is coming; the crash lands on it. Aim to arrive WITH the crash, not after it."
+            return "The fill says the turn is coming; the crash lands on it. "
+                 + "Aim to arrive WITH the crash, not after it."
         case .fillOnly:
             return "The fill still warns you, but nothing confirms the arrival. You have to commit."
         case .noFills:

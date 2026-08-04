@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "allow": [
+      "Bash(swift build:*)",
+      "Bash(swift test:*)",
+      "Bash(swift package describe:*)",
+      "Bash(swift --version)",
+
+      "Bash(./scripts/check.sh:*)",
+      "Bash(./scripts/install-hooks.sh)",
+      "Bash(./build-app.sh:*)",
+      "Bash(./.githooks/commit-msg:*)",
+
+      "Bash(./.build/release/TimingSpike selftest)",
+      "Bash(./.build/release/TimingSpike show)",
+      "Bash(./.build/release/TimingSpike review:*)",
+      "Bash(./.build/release/TimingSpike session plan:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch --list:*)",
+      "Bash(git remote -v)",
+      "Bash(git config --get:*)",
+
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(wc:*)",
+      "Bash(file:*)",
+      "Bash(chmod +x:*)"
+    ],
+    "deny": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git restore:*)",
+      "Bash(rm -rf:*)",
+      "Bash(./.build/release/TimingSpike calibrate:*)"
+    ]
+  }
+}

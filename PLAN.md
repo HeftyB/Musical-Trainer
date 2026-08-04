@@ -230,13 +230,17 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M9** | Session builder | ✅ Done. The app proposes a 20/30/45 min session from recent data and runs it end to end. See §7.14. |
 | **M10** | Cold vs warm | ✅ Done. Within-sitting warm-up separated from between-sitting learning. See §7.15. |
 | **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
-| **M12** | Experiment runner | The app schedules its own A/B comparisons and says when they have power. |
-| **M13** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
-| **M14** | Subdivision & feel | Eighths, sixteenths, triplets, swing. Everything so far is quarters. |
-| **M15** | Unified adaptive difficulty | One progression model across all drills, replacing three ad-hoc rules. |
-| **M16** | Longitudinal model | Within-session vs between-session effects, separated properly. |
-| **M17** | Musical depth | Enough variety that a 30-minute session stays worth doing. |
-| **M18** | Guitar input | Audio onset detection. Needs an interface; additive once the rest is mature. |
+| **M12** | What you play | Does musical content change your timing? Storage landed early — see §7.17. |
+| **M13** | Experiment runner | The app schedules its own A/B comparisons and says when they have power. |
+| **M14** | Subdivision ladder | Eighths, sixteenths, triplets. Everything so far is quarters. |
+| **M15** | The feels | Swing, jazz comping, ska/reggae offbeat, latin. Placement as style, not error. |
+| **M16** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
+| **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. |
+| **M18** | Longitudinal model | Within-session vs between-session effects, separated properly. |
+| **M19** | Musical depth | Enough variety that a 30-minute session stays worth doing. |
+| **M20** | Drum mode | Pads and keys become the kit; the click becomes the band. |
+| **M21** | Guitar input | Audio onset detection. Needs an interface. |
+| **M22** | Computer-keyboard input | For anyone who doesn't own a MIDI controller. |
 | — | *Later* | TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
 
 ---
@@ -889,7 +893,7 @@ retroactively), but they keep the stored JSON legible.
 
 ---
 
-## 7.13 Roadmap M9–M18
+## 7.13 Roadmap M9–M22
 
 Direction set with the player: **training depth** over new instruments or packaging;
 **20–30 minute structured sessions**; **research built in as a first-class feature** rather
@@ -914,43 +918,134 @@ Drills that train period *stability* specifically — longer silences, tempo mem
 tempo, wait through a distractor, reproduce it), and sustained holds at the edge of what the
 player can keep. Difficulty driven by measured clock SD.
 
-### M12 — Experiment runner
-Makes the research first-class: the app schedules its own A/B conditions (relaxed vs focused,
-tempo A vs B, cold vs warm), keeps them balanced, refuses to draw a conclusion before it has
-power, and says how many more takes it needs. Two confounds have already crept into this
-dataset by hand — a changed backing and a changed tempo — and this removes the opportunity.
+### M12 — What you play
+**The player's own observation, from the first full session:** steady quarter notes with no
+pitch change are close to sleep-inducing, while playing an actual melody feels far more in the
+pocket. That is a hypothesis about *musical content changing timing*, and it is the most
+interesting untested claim in the project — because if it holds, "practise a boring exercise
+until it is tight" is the wrong prescription for this player.
 
-### M13 — Form ladder v2
+It is also, right now, unanswerable: every jam take stored *when* a note happened and threw
+the pitch away. The storage half landed immediately (§7.17) so that data collection can start
+before the analysis exists — the same reasoning as `SessionPlacement`, and for the same reason:
+a take recorded without pitch is lost to this question for good.
+
+The milestone itself is the analysis and the drills:
+
+- **Content measures per window** — note density, pitch-class variety, mean melodic interval,
+  contour reversals, chord size, velocity spread. Computed over 4- or 8-bar windows.
+- **Within-take correlation** of content against timing spread. Within-take is the strong
+  design: it holds the day, the fatigue and the tempo fixed, so it cannot be explained by the
+  confounds that a between-take comparison would carry.
+- **Deliberate conditions** through the M13 runner — the same take length played as steady
+  quarters, as a written melody, and as free improvisation.
+
+Three traps to design against, all visible in the first session's data:
+
+1. **Off-grid notes are censored, not counted.** Spread is computed only on notes inside the
+   matching window, so a more adventurous take drops more notes out of the statistic and the
+   surviving SD is a self-selected subset. Off-grid rate has to be reported next to spread,
+   never behind it.
+2. **Melodic playing uses more subdivisions**, and spread scales with the subdivision. The
+   comparison has to be per-subdivision or it measures note values rather than content.
+3. **Content and arousal are confounded.** Playing something interesting is both more melodic
+   *and* more engaging, and this design cannot separate them. Worth stating rather than
+   quietly claiming the melodic half.
+
+### M13 — Experiment runner
+Makes the research first-class: the app schedules its own A/B conditions (steady vs melodic,
+relaxed vs focused, tempo A vs B, cold vs warm), keeps them balanced, refuses to draw a
+conclusion before it has power, and says how many more takes it needs. Confounds have already
+crept into this dataset by hand — a changed backing, a changed tempo — and this removes the
+opportunity. Promoted above the feel work because M12 and M14–M15 all need it to produce
+clean comparisons.
+
+### M14 — Subdivision ladder
+Every drill so far is quarter notes, straight. This adds eighths, sixteenths and triplets —
+both as backing and as what the player is asked to produce. `TimingReport` already computes
+subdivision-conditional spread and nothing currently exercises it. Straight time only; the
+grid stays where it is.
+
+### M15 — The feels
+**Stated goal, in the player's words:** to handle "anything from classical and straight time,
+to swing time, jazz comping timing, to the off-beat timing of ska and reggae."
+
+This is the largest measurement change since M2, because every one of those styles moves the
+*target*, not just the tolerance. Everything the app measures today assumes a note is aiming
+at an even subdivision of the beat; in swing it is aiming at roughly two-thirds of the way
+through, in reggae at the offbeat, and in jazz comping at a placement that is deliberately
+elastic. Matching those against a straight grid would report style as error — the same class
+of mistake as §5.3's sign inversion, and far more insidious because the numbers stay
+plausible.
+
+So the grid itself becomes parameterised:
+
+- **`Grid` gains a feel**: an expected phase offset per subdivision, not just a count.
+  Straight is the special case where every offset is zero.
+- **Swing ratio becomes a measurement**, not a setting. Given eighth-note playing, the ratio
+  of long to short is the thing to report — and *consistency* of that ratio is the skill, in
+  the same way SD rather than bias is the skill for straight time. A player at a steady 1.7
+  is swinging; one oscillating between 1.4 and 2.0 is not.
+- **Offbeat placement as its own drill.** Ska and reggae put the emphasis where the grid says
+  nothing is: the measurement is placement against beats 2 and 4 upbeats with the downbeat
+  deliberately *unaccompanied*, which is a form of dropout the app already knows how to build.
+- **Jazz comping** is the hardest and comes last within the milestone: the target is a
+  distribution rather than a point, so it needs a different scoring model — probably
+  "did you land inside the idiomatic window, and did you vary within it?" rather than a
+  distance from a grid point.
+- **Backings per feel**, since a swing drill over a straight-eighths backing teaches the wrong
+  thing. Shares work with M19.
+
+The ladder across the whole milestone: straight → swing at a fixed ratio → swing where the
+ratio is yours → offbeat feels → comping. Each rung needs its own backing, its own grid, and
+its own idea of what "on" means.
+
+### M16 — Form ladder v2
 The level-2 data showed the player marking a steady **4-bar** phrase against an 8-bar
 setting: a consistent feel, not a lost one. Phrase length becomes a trained variable in its
 own right — nested phrasing (4 inside 8 inside 16), explicit "which period do you feel?"
 probes, and a ladder that grows the span rather than only removing landmarks.
 
-### M14 — Subdivision & feel
-Every drill so far is quarter notes. This adds eighths, sixteenths, triplets and swing —
-both as backing feels and as what the player is asked to produce. `TimingReport` already
-computes subdivision-conditional spread and nothing currently exercises it.
-
-### M15 — Unified adaptive difficulty
-Three drills now have three ad-hoc progression rules. Replace them with one model: a per-axis
+### M17 — Unified adaptive difficulty
+Four drills now have four ad-hoc progression rules. Replace them with one model: a per-axis
 difficulty estimate updated from measured performance, so the app can say "you are ready for
 8 silent bars but not 16" consistently and across drills.
 
-### M16 — Longitudinal model
+### M18 — Longitudinal model
 Separate the two effects properly — within-session improvement (warm-up) from
 between-session improvement (learning) — instead of fitting one slope across everything.
-With enough sessions this is what answers "am I actually getting better" rigorously, and it
-subsumes the current `review trend`.
+M10 does this for one metric at a time; this generalises it into a single model over all of
+them, and subsumes the current `review trend`.
 
-### M17 — Musical depth
+### M19 — Musical depth
 Sectional arrangements with real dynamics, more styles, longer forms. No new measurement —
-but a 30-minute session has to be worth playing, and sustainability is what turns any of this
-into results.
+but a 30-minute session has to be worth playing, and the first live session already ended on
+two 5-minute jams over a two-section backing. Sustainability is what turns any of this into
+results.
 
-### M18 — Guitar input
+### M20 — Drum mode
+The pads and keys become a drum kit, and the roles invert: **the player is the drummer and the
+backing is the click.** Levels from "keep a backbeat against the metronome" up through fills,
+independence, and dropout of the click itself.
+
+Two reasons this is worth building despite not being the player's instrument. It needs **no new
+hardware** — the Launchkey already has pads and the synth already exists, so it is cheaper than
+guitar. And it is the natural first test of multi-instrument support: the measurement is
+unchanged (onsets against a grid) while the *input mapping* and the *backing* both change,
+which is exactly the seam M21 and M22 have to widen.
+
+### M21 — Guitar input
 Audio onset detection through an interface, reusing the calibration and analysis already
-built. Deliberately last of the ten: a new input is additive once the drills and measurement
-are mature, and it is the only item requiring hardware the player does not own.
+built. A new input is additive once the drills and measurement are mature, and it is the only
+item requiring hardware the player does not own.
+
+### M22 — Computer-keyboard input
+Timing capture from the Mac keyboard, for anyone who does not own a MIDI controller. Last on
+purpose, and not only by priority: key-repeat suppression, rollover limits and the fact that
+HID timestamps are not driver-level MIDI timestamps all mean the *measurement quality* would
+have to be characterised from scratch — an M0-style validation run of its own before a single
+number could be trusted. Better as an on-ramp for other players than as a way for this one to
+practise.
 
 ---
 
@@ -987,7 +1082,7 @@ changed backing, a changed tempo. The cold probe and the benchmark are the two t
 never do that, so they are constants in the planner rather than settings. A test asserts they
 are byte-identical across six combinations of history and session length.
 
-### The planner (`TimingCore/SessionPlan.swift`, 16 tests)
+### The planner (`TimingCore/SessionPlan.swift`, 20 tests)
 
 Takes a `PlannerInput` of plain summaries rather than the stored session types, which is what
 makes "given three unreliable splits, does it schedule the continuation drill?" a test instead
@@ -1160,29 +1255,121 @@ that fails if it is ever crowded out again.
 
 ---
 
+## 7.17 First live session — findings and fixes
+
+The first end-to-end run of the session builder, 4 August: 30.5 minutes against a 30-minute
+target, all 8 blocks completed, nothing skipped.
+
+### What the session measured
+
+| # | block | result | feel |
+|---|---|---|---|
+| 1 | Tempo (cold) | **−7.9%** — runs slow | 3 |
+| 2 | Play (warm-up) | — | — |
+| 3 | Jam (benchmark) | SD 24.1 ms, mean −5.9 ms | 4 |
+| 4 | Alone | 95 BPM alone, clock the looser half | 2 |
+| 5 | Recall | silent 5.1% / filled 6.4%, cost +1.3 | 3 |
+| 6 | Form (level 2, 4-bar) | 4-bar phrases, mostly on form | 2 |
+| 7 | Jam (closing) | SD 24.4 ms, mean −5.4 ms | 1 |
+| 8 | Jam (closing) | SD 28.2 ms, mean −2.6 ms | 2 |
+
+**The cold probe is the headline: −7.9%, against −0.3% at the end of the previous sitting.**
+That is the first controlled cold measurement in the dataset and it is a long way from where
+the last evening finished. One point proves nothing, but it is exactly the gap M10 exists to
+measure, and it will be interpretable after two more sessions.
+
+**Feel came apart from the measurement.** Blocks 3 and 7 are the same take by every number —
+SD 24.1 against 24.4, mean −5.9 against −5.4 — and were rated 4 and 1. Only block 8 is
+genuinely looser. Whatever collapsed over those twenty minutes was not precision, and
+`review feel` (r ≈ −0.54 over the earlier takes) will need re-checking now that fatigue is in
+the data.
+
+**Off-grid rate climbed through the session**: 2.7% → 4.2% → 10.8%, and velocity spread jumped
+on the last jam (22.1 against ~16 everywhere else). Read carefully, that is playing that got
+freer and louder as well as looser — which is the M12 question arriving unbidden in the data.
+
+### Two defects the run exposed
+
+1. **The form drill described landmarks that were not there.** The session ran form at level 2
+   — no fills — while the instructions said "a drum fill warns you that a phrase is about to
+   end". The player was told to wait for a cue that never came. `DrillInstructions.form` is
+   now a function of the level, so the text describes the backing that is actually playing.
+   This is the *second* time static instructions have produced a bad take (§6.1); a drill whose
+   whole design is removing cues cannot have fixed text describing them.
+2. **`review cold` contradicted itself.** The continuation row read `+1.487/sitting worsening`
+   with an interval excluding zero, directly above a headline saying "neither effect is
+   separable from noise". `WarmUpAnalysis` only recognised improvement as a result; a cold
+   start reliably getting *worse* fell through to "neither". It now has its own verdict.
+
+### Pitch is now recorded
+
+The player's own reading of the evening: steady quarter notes with no pitch change are nearly
+sleep-inducing, while playing an actual melody feels far more in the pocket. The data agrees
+that *something* changed — off-grid rate 2.7% → 10.8%, velocity spread 16 → 22 — but it cannot
+say what, because **every jam take stored when a note happened and threw the pitch away.**
+
+`Tap` now carries an optional note number, and `JamSession` stores `rawTimes` / `rawNotes` /
+`rawVelocities`: every note-on in the window, before chord clustering. The clustered series
+that all existing analysis runs on is untouched, so no number moved; the raw arrays are
+optional, so every earlier take still decodes.
+
+Nothing reads them yet — that is M12. They are stored now for the same reason
+`SessionPlacement` was stored before M10 existed: a take recorded without pitch can never
+answer the question afterwards, and the question was asked the day the drill first ran.
+
+### The cue, and an asymmetry in the recall drill
+
+The single kick marking the end of the wait was "enough if you are really looking out for it".
+It is now a **crash and kick together at full velocity** — still one instant, which is the
+property that matters (one onset carries no period; two would hand the tempo back), but
+impossible to miss.
+
+More significant, and only visible with real data: **the silent rounds are violated far more
+often than the filled ones.** Across the two recall takes, 3 of 8 silent waits had the player
+still playing through them, against 1 of 8 filled. The distractor interrupts; silence invites
+you to carry on. That biases the control condition — the silent rounds that survive are the
+ones where stopping happened to be easy — and it is why one take scored only 5 of 8 rounds.
+Worth fixing before the interference cost is trusted: either a clearer "stop now" cue at the
+top of the wait, or scoring the violation rate as a result in its own right, since *being
+unable to stop* is itself evidence about how the period is held.
+
+---
+
 ## 8. Project layout
 
-Swift Package Manager modules, consumed by a thin Xcode app target:
-
-```
-Target layout (SPM library + thin app), grown incrementally rather than up front:
+Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what
+make the numbers testable, and the rule that keeps them honest is that **anything analysable
+goes in `TimingCore` or `GrooveCore`**, because only those run under `swift test` against data
+whose answer is known by construction.
 
 ```
 Musical Trainer/
 ├── Sources/
-│   ├── TimingCore/      # ✅ pure Swift. Grid, matching, asynchrony analysis,
-│   │                    # W-K decomposition, autocorrelation. No UI, no AVFoundation.
-│   ├── TimingSpike/     # ✅ console tool: audio/MIDI capture, calibration, the M0 rig.
-│   │                    # Will split into AudioEngine + MIDIIO as the app grows.
-│   └── (App/)           # SwiftUI take/review/settings — M4+.
+│   ├── TimingCore/          pure analysis. Grid, matching, W-K split, autocorrelation,
+│   │                        bootstrap, form, tempo calibration, tempo memory, trends,
+│   │                        warm-up decomposition, the session planner.
+│   │                        No AVFoundation, no CoreMIDI, no CoreAudio, no UI.
+│   ├── GrooveCore/          pure groove generation. Patterns, sequencer, arrangements,
+│   │                        dropout ladder, form backings, the aperiodic distractor.
+│   │                        Same purity rule; depends on nothing, not even TimingCore.
+│   ├── TrainerKit/          audio, MIDI, synthesis, calibration, storage, the drill
+│   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
+│   ├── TimingSpike/         console front end (main.swift only).
+│   └── MusicalTrainerApp/   SwiftUI front end.
 └── Tests/
-    └── TimingCoreTests/ # ✅ 25 cases, synthetic ground truth.
+    ├── TimingCoreTests/     synthetic ground truth
+    └── GrooveCoreTests/
 ```
 
-The current `TimingSpike` target still holds the audio (`AudioIO`), MIDI (`MIDIInput`),
-calibration, and DSP code together; §8's `AudioEngine` / `MIDIIO` / `Persistence` split
-happens when the SwiftUI app needs them as libraries. `TimingCore` is already carved out,
-because its boundary is what makes the numbers trustworthy. Keep it clean.
+`TrainerKit` exists because two front ends need one engine: `TrainerEngine.runJam` / `runForm`
+/ `runDropout` / `runTempo` / `runMemory` are the only implementations of anything measured, so
+the CLI and the app cannot drift apart. `build-app.sh` wraps the SPM binary in a minimal `.app`
+— without a bundle macOS treats the executable as a background process, with no dock icon, no
+menu bar and no Info.plist to request microphone access from.
+
+The one duplication that is deliberate: `GrooveCore` carries its own small seeded RNG rather
+than depending on `TimingCore` for one. Keeping both pure modules independent is worth more
+than a dozen shared lines.
 
 ---
 
@@ -1200,6 +1387,8 @@ because its boundary is what makes the numbers trustworthy. Keep it clean.
 5. **TD-6V needs a USB-MIDI interface** (DIN out only). Cheap, but a purchase.
 6. **Guitar needs an audio interface** for anything beyond a noisy built-in-mic experiment.
 7. ~~**Launchkey Mini MK2 key-scan latency is unknown.**~~ **Resolved** — jitter ≤ 0.63 ms, comfortably good enough. See §7.1.
+8. **Multi-instrument does not have to wait on hardware.** M20's drum mode uses the pads and keys already on the Launchkey, so it exercises the input-mapping and backing seams that M21 and M22 need — without a purchase. Worth doing before either.
+9. **Computer-keyboard timing quality is unknown** (M22). HID event timestamps are not driver-level MIDI timestamps, and key repeat and rollover both interfere. It would need its own M0-style validation before a single number from it could be trusted; assume nothing until that run exists.
 
 ---
 

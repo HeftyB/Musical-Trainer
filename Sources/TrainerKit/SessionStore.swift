@@ -69,6 +69,18 @@ struct JamSession: Codable {
 
     let placement: SessionPlacement?
 
+    // Every note-on in the window, before chord clustering: pitch, velocity, time.
+    //
+    // `tapTimes` above is the *clustered* series — a chord is one rhythmic event, which is
+    // right for timing and useless for asking what was played. Optional so every take
+    // recorded before this existed still decodes; nothing analyses them yet. They are stored
+    // now because the question "does playing something interesting change my timing?" can
+    // only ever be asked of takes that recorded what was played, and a take recorded without
+    // pitch is lost to it for good. Same reasoning as `SessionPlacement`.
+    let rawTimes: [Double]?
+    let rawNotes: [Int?]?
+    let rawVelocities: [Int?]?
+
     /// Rebuild the taps and grid for re-analysis in the review.
     func reconstruct() -> (taps: [Tap], grid: Grid) {
         let taps = zip(tapTimes, tapVelocities).map { Tap(time: $0, velocity: $1) }
@@ -382,8 +394,9 @@ enum SessionStore {
         // Silently dropping unreadable sessions is how a schema change quietly erases
         // history. Say so instead.
         if decoded.count < candidates.count {
-            FileHandle.standardError.write(Data(
-                "Note: \(candidates.count - decoded.count) '\(prefix)' session(s) could not be read (older format).\n".utf8))
+            let note = "Note: \(candidates.count - decoded.count) '\(prefix)' session(s) "
+                     + "could not be read (older format).\n"
+            FileHandle.standardError.write(Data(note.utf8))
         }
         return decoded
     }

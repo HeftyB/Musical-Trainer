@@ -301,7 +301,7 @@ public enum Commands {
         switch plan {
         case .groove:  return .groove
         case .jam:     return .jam
-        case .form:    return .form
+        case .form(let p): return .form(level: p.level)
         case .dropout: return .dropout
         case .tempo:   return .tempo
         case .memory:  return .memory
@@ -372,7 +372,8 @@ public enum Commands {
         let biasNote = uncalibrated ? "  \(Console.yellow)(uncalibrated)\(Console.reset)" : ""
         let rushDrag = report.meanAsynchronyMs < 0 ? "ahead / rushing" : "behind / dragging"
         print("Mean asynchrony:  \(Console.ms(report.meanAsynchronyMs))\(ci(meanCI))  (\(rushDrag))\(biasNote)")
-        print("Spread (SD):      \(Console.ms(report.sdAsynchronyMs))\(ci(sdCI))   \(precisionWord(report.sdAsynchronyMs))")
+        print("Spread (SD):      \(Console.ms(report.sdAsynchronyMs))\(ci(sdCI))   "
+            + "\(precisionWord(report.sdAsynchronyMs))")
         print("Median:           \(Console.ms(report.medianAsynchronyMs))")
 
         if let r = report.lag1Autocorrelation {
@@ -436,9 +437,11 @@ public enum Commands {
         case "list":
             Console.heading("Sessions (\(sessions.count))")
             for (i, s) in sessions.enumerated() {
+                // Recomputed, never the cached summary — see STANDARDS.md §3.
+                let r = s.report()
                 print(String(format: "%2d. %@   %3.0f BPM  %2d bars   mean %@  SD %@",
                              i + 1, dateLabel(s.date), s.bpm, s.bars,
-                             Console.ms(s.meanAsynchronyMs, 1), Console.ms(s.sdAsynchronyMs, 1)))
+                             Console.ms(r.meanAsynchronyMs, 1), Console.ms(r.sdAsynchronyMs, 1)))
             }
             return
         case "compare":
@@ -581,16 +584,20 @@ public enum Commands {
             let verdict: String
             if let d = diff {
                 changeStr = String(format: "%+.2f [%+.2f, %+.2f]", d.point, d.low, d.high)
-                verdict = d.excludesZero ? "\(Console.bold)real change\(Console.reset)" : "\(Console.dim)within noise\(Console.reset)"
+                verdict = d.excludesZero ? "\(Console.bold)real change\(Console.reset)"
+                                         : "\(Console.dim)within noise\(Console.reset)"
             } else { changeStr = "—"; verdict = "—" }
-            print("\(pad(name, 16))\(pad(String(format: "%+.2f\(unit)", va), 10))\(pad(String(format: "%+.2f\(unit)", vb), 10))\(pad(changeStr, 22))\(verdict)")
+            print("\(pad(name, 16))\(pad(String(format: "%+.2f\(unit)", va), 10))"
+                + "\(pad(String(format: "%+.2f\(unit)", vb), 10))"
+                + "\(pad(changeStr, 22))\(verdict)")
         }
 
         row("Mean async", Bootstrap.meanStat, unit: "")
         row("Spread (SD)", Bootstrap.sdStat, unit: "")
         row("r₁", Bootstrap.lag1Stat, unit: "")
 
-        print("\n\(Console.dim)Mean/SD in ms. \"within noise\" = the 95% interval for the change includes zero.\(Console.reset)")
+        print("\n\(Console.dim)Mean/SD in ms. \"within noise\" = the 95% interval "
+            + "for the change includes zero.\(Console.reset)")
     }
 
     private static func pad(_ s: String, _ width: Int) -> String {
@@ -629,8 +636,8 @@ public enum Commands {
 
         Console.heading("Conditions")
         print("\(pad("Tag", 14))\(pad("takes", 7))\(pad("events", 8))\(pad("mean", 20))\(pad("SD", 20))r₁")
-        for tag in groups.keys.sorted() {
-            let series = groups[tag]!.map(asynchronies(of:))
+        for (tag, takes) in groups.sorted(by: { $0.key < $1.key }) {
+            let series = takes.map(asynchronies(of:))
             let events = series.reduce(0) { $0 + $1.count }
             let mean = Bootstrap.pooledInterval(series, statistic: Bootstrap.meanStat)
             let sd = Bootstrap.pooledInterval(series, statistic: Bootstrap.sdStat)
@@ -639,14 +646,13 @@ public enum Commands {
                 guard let c else { return "—" }
                 return String(format: "%+.\(digits)f [%+.\(digits)f,%+.\(digits)f]", c.point, c.low, c.high)
             }
-            print("\(pad(tag, 14))\(pad("\(groups[tag]!.count)", 7))\(pad("\(events)", 8))"
+            print("\(pad(tag, 14))\(pad("\(takes.count)", 7))\(pad("\(events)", 8))"
                 + "\(pad(fmt(mean), 20))\(pad(fmt(sd), 20))\(fmt(r1, 2))")
         }
 
         // Pooling takes recorded under different conditions hides the confound inside a
         // single row, where no comparison step would ever surface it.
-        for tag in groups.keys.sorted() {
-            let takes = groups[tag]!
+        for (tag, takes) in groups.sorted(by: { $0.key < $1.key }) {
             var mixed: [String] = []
             if Set(takes.map(\.grooveName)).count > 1 { mixed.append("backings") }
             if Set(takes.map(\.bpm)).count > 1 { mixed.append("tempos") }
@@ -656,7 +662,8 @@ public enum Commands {
                     + "different \(mixed.joined(separator: " and ")) — the pooled figures blend them.")
             }
         }
-        print("\n\(Console.dim)Pooled across takes, 95% intervals. Compare two with:  review conditions <a> <b>\(Console.reset)")
+        print("\n\(Console.dim)Pooled across takes, 95% intervals. "
+            + "Compare two with:  review conditions <a> <b>\(Console.reset)")
     }
 
     /// Pooled comparison of two conditions — the experiment readout.
@@ -680,14 +687,16 @@ public enum Commands {
             let change = diff.map { String(format: "%+.2f [%+.2f, %+.2f]", $0.point, $0.low, $0.high) } ?? "—"
             let verdict = diff.map { $0.excludesZero ? "\(Console.bold)real change\(Console.reset)"
                                                      : "\(Console.dim)within noise\(Console.reset)" } ?? "—"
-            print("\(pad(name, 16))\(pad(String(format: "%+.2f", va), 10))\(pad(String(format: "%+.2f", vb), 10))\(pad(change, 22))\(verdict)")
+            print("\(pad(name, 16))\(pad(String(format: "%+.2f", va), 10))"
+                + "\(pad(String(format: "%+.2f", vb), 10))\(pad(change, 22))\(verdict)")
         }
         row("Mean async", Bootstrap.meanStat)
         row("Spread (SD)", Bootstrap.sdStat)
         row("r₁", Bootstrap.lag1Stat)
 
         if min(a.count, b.count) < 3 {
-            print("\n\(Console.yellow)Note:\(Console.reset) only \(min(a.count, b.count)) take(s) in the smaller group. "
+            print("\n\(Console.yellow)Note:\(Console.reset) only "
+                + "\(min(a.count, b.count)) take(s) in the smaller group. "
                 + "The intervals cover variation *within* takes but cannot see\nsession-to-session "
                 + "variation — 3+ takes per condition before trusting a null result.")
         }
@@ -701,7 +710,8 @@ public enum Commands {
         let rated = sessions.filter { $0.feelRating != nil }
         Console.heading("Feel vs measurement")
         guard rated.count >= 3 else {
-            print("Only \(rated.count) rated take(s). Record a few more — you're asked to rate each take before the numbers appear.")
+            print("Only \(rated.count) rated take(s). Record a few more — you're asked "
+                + "to rate each take before the numbers appear.")
             return
         }
 
@@ -718,7 +728,8 @@ public enum Commands {
         if let r = Stats.correlation(feels, spreads) {
             print(String(format: "\nfeel vs spread: r = %+.2f", r))
             if rated.count < 6 {
-                print("\(Console.dim)Too few takes to read much into this yet — it firms up around 6–8.\(Console.reset)")
+                print("\(Console.dim)Too few takes to read much into this yet — "
+                    + "it firms up around 6–8.\(Console.reset)")
             } else if r < -0.5 {
                 print("Your instinct is well calibrated: takes that felt good really were tighter.")
             } else if abs(r) < 0.3 {
@@ -752,7 +763,8 @@ public enum Commands {
         // Printed as each round's silence ends, so the correction can be made on the spot.
         let outcome = try TrainerEngine.runTempo(config, roundFinished: { result in
             guard let produced = result.producedBpm, let pct = result.errorPercent else {
-                print("  Round \(result.index + 1): \(Console.dim)\(result.unusableReason ?? "not scored")\(Console.reset)")
+                print("  Round \(result.index + 1): \(Console.dim)"
+                    + "\(result.unusableReason ?? "not scored")\(Console.reset)")
                 return
             }
             let colour = abs(pct) < 2 ? Console.green : (abs(pct) < 5 ? "" : Console.yellow)
@@ -1066,7 +1078,8 @@ public enum Commands {
             print("No dropout drills yet. Try:  TimingSpike dropout 100 4 4 6")
             return
         }
-        print("\(pad("When", 22))\(pad("cycle", 10))\(pad("clock", 10))\(pad("motor", 10))\(pad("tempo alone", 14))feel")
+        print("\(pad("When", 22))\(pad("cycle", 10))\(pad("clock", 10))"
+            + "\(pad("motor", 10))\(pad("tempo alone", 14))feel")
         for s in sessions {
             // Recomputed from the raw taps so older takes get the current analysis.
             let (taps, grid, sections) = s.reconstruct()
@@ -1098,7 +1111,7 @@ public enum Commands {
             + "at \(Int(bpm)) BPM  ·  "
             + String(format: "~%.1f min", config.durationSeconds / 60))
         print("Landmarks: \(level.label)")
-        printInstructions(DrillInstructions.form)
+        printInstructions(DrillInstructions.form(level: level.rawValue))
         if level.hasArrivalAccent {
             print("\n  \(Console.dim)At this level a crash cymbal lands exactly on the beat you are\n"
                 + "  aiming for — including the very first bar. Land with it, not after it.\(Console.reset)")

@@ -1,0 +1,180 @@
+#!/bin/bash
+# The single verification gate. See STANDARDS.md.
+#
+#   ./scripts/check.sh          full run: hygiene, invariants, build, tests, selftest
+#   ./scripts/check.sh --fast   skip the release build and selftest (pre-commit default)
+#
+# Exit code 0 means the tree meets the standard. Anything else means it does not.
+#
+# The static checks below exist because no Swift linter is installed on this machine and the
+# rules that matter here are project-specific anyway — no linter knows that reading a cached
+# summary field is a defect in this codebase.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+FAST=0
+[ "${1:-}" = "--fast" ] && FAST=1
+
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; OFF=$'\033[0m'
+FAILURES=0
+
+pass() { printf '  %sPASS%s  %s\n' "$GREEN" "$OFF" "$1"; }
+fail() { printf '  %sFAIL%s  %s\n' "$RED" "$OFF" "$1"; FAILURES=$((FAILURES + 1)); }
+warn() { printf '  %sWARN%s  %s\n' "$YELLOW" "$OFF" "$1"; }
+head2() { printf '\n%s\n%s\n' "$1" "$(printf '─%.0s' $(seq 1 ${#1}))"; }
+
+SWIFT_FILES=$(find Sources Tests -name '*.swift')
+
+# check <description> <command...>   — fails when the command produces any output
+expect_empty() {
+    local desc="$1"; shift
+    local out
+    out="$("$@" 2>/dev/null)"
+    if [ -z "$out" ]; then
+        pass "$desc"
+    else
+        fail "$desc"
+        printf '%s%s%s\n' "$DIM" "$(echo "$out" | sed 's/^/        /' | head -12)" "$OFF"
+    fi
+}
+
+grep_sources() { grep -rnE "$1" Sources --include='*.swift' "${@:2}"; }
+
+# ── 1. Module purity (STANDARDS §1.1) ────────────────────────────────────────────
+head2 "Module boundaries"
+
+expect_empty "pure modules import no audio, MIDI or UI framework" \
+    grep -rnE '^import (AVFoundation|CoreMIDI|CoreAudio|AudioToolbox|AppKit|SwiftUI|UIKit)' \
+        Sources/TimingCore Sources/GrooveCore --include='*.swift'
+
+expect_empty "GrooveCore does not depend on TimingCore" \
+    grep -rn '^import TimingCore' Sources/GrooveCore --include='*.swift'
+
+expect_empty "pure modules perform no console I/O" \
+    grep -rnE '(^|[^a-zA-Z])(print|NSLog|debugPrint)\(' \
+        Sources/TimingCore Sources/GrooveCore --include='*.swift'
+
+expect_empty "pure modules do not read the clock" \
+    grep -rnE 'Date\(\)|mach_absolute_time\(' \
+        Sources/TimingCore Sources/GrooveCore --include='*.swift'
+
+# ── 2. Real-time safety (STANDARDS §2) ───────────────────────────────────────────
+head2 "Real-time safety"
+
+expect_empty "no wall-clock timer is used for beat timing" \
+    grep_sources '\b(Timer\.scheduledTimer|DispatchSourceTimer|CADisplayLink)\b'
+
+expect_empty "audio engine files contain no logging" \
+    grep -rnE '(^|[^a-zA-Z])(print|NSLog|debugPrint)\(' \
+        Sources/TrainerKit/GroovePlayer.swift \
+        Sources/TrainerKit/AudioIO.swift \
+        Sources/TrainerKit/LiveInstrument.swift
+
+# ── 3. Measurement integrity (STANDARDS §3.1) ────────────────────────────────────
+head2 "Measurement integrity"
+
+# The defect this catches shipped three times: history, trends and `review list` all plotted
+# cached summaries that predate a later analysis fix. Reads must go through report().
+expect_empty "no cached summary field is read outside SessionStore" \
+    bash -c "grep -rnE '\\b(s|session|take|entry)\\.(sdAsynchronyMs|meanAsynchronyMs|lag1Autocorrelation|driftMsPerBeat|onFormCount|marksPlaced|tightCount|meanAbsFormErrorBars|phaseErrorMeanMs|slipBarsPerPhrase|clockSDms|motorSDms|pacedSDms|unpacedIntervalSDms|reentryErrorMeanMs|tempoBiasBpm|playedBpm|usableCount|meanErrorPercent|meanAbsErrorPercent|improvementPerRound|interferenceCost|silentMeanAbsErrorPercent|filledMeanAbsErrorPercent)\\b' Sources --include='*.swift' | grep -v 'SessionStore.swift'"
+
+# ── 4. Privacy and supply chain (STANDARDS §7) ───────────────────────────────────
+head2 "Privacy and supply chain"
+
+expect_empty "the app makes no network calls" \
+    grep_sources '\b(URLSession|NWConnection|NWBrowser|CFStream|Network\.)\b'
+
+expect_empty "no network framework is imported" \
+    grep_sources '^import (Network|CFNetwork)'
+
+if grep -q 'dependencies: \[$' Package.swift && \
+   grep -A2 'let package' Package.swift | grep -q '\.package('; then
+    fail "third-party dependencies declared in Package.swift"
+else
+    pass "zero third-party dependencies"
+fi
+
+expect_empty "no credential-shaped strings in the source tree" \
+    grep_sources '(BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})'
+
+# ── 5. Style (STANDARDS §4) ──────────────────────────────────────────────────────
+head2 "Style"
+
+LONG=$(echo "$SWIFT_FILES" | xargs awk 'length > 120 { printf "%s:%d (%d chars)\n", FILENAME, FNR, length }')
+if [ -z "$LONG" ]; then pass "no line exceeds 120 characters"
+else fail "lines exceed 120 characters"; printf '%s%s%s\n' "$DIM" "$(echo "$LONG" | sed 's/^/        /' | head -10)" "$OFF"; fi
+
+NEAR=$(echo "$SWIFT_FILES" | xargs awk 'length > 100 && length <= 120 { n++ } END { print n+0 }')
+[ "$NEAR" -gt 0 ] && warn "$NEAR line(s) over the 100-character target (limit is 120)"
+
+expect_empty "no tab indentation" \
+    bash -c "grep -rlP '^\\t' Sources Tests --include='*.swift' 2>/dev/null || grep -rl '	' Sources Tests --include='*.swift' 2>/dev/null"
+
+expect_empty "no trailing whitespace" \
+    grep -rn ' $' Sources Tests --include='*.swift'
+
+MISSING_EOL=$(for f in $SWIFT_FILES; do [ -n "$(tail -c1 "$f")" ] && echo "$f"; done)
+if [ -z "$MISSING_EOL" ]; then pass "every file ends with a newline"
+else fail "files missing a trailing newline"; printf '%s%s%s\n' "$DIM" "$(echo "$MISSING_EOL" | sed 's/^/        /')" "$OFF"; fi
+
+expect_empty "no force-unwrap or try! in Sources" \
+    grep_sources '(\btry!|\)!\.|\]!\.|[a-zA-Z0-9_]!\.[a-zA-Z])' --exclude-dir=MusicalTrainerApp
+
+# ── 6. Build and test (STANDARDS §5) ─────────────────────────────────────────────
+head2 "Build and test"
+
+# Each command runs once and its output is captured. Piping straight into `grep -q` looks
+# tidier and is wrong: grep exits on the first match, the upstream process takes SIGPIPE, and
+# `pipefail` then reports a passing test run as a failure.
+BUILD_OUT=$(swift build 2>&1)
+if echo "$BUILD_OUT" | grep -qE 'warning:|error:'; then
+    fail "debug build is not warning-free"
+    echo "$BUILD_OUT" | grep -E 'warning:|error:' | sed 's/^/        /' | head -10
+else
+    pass "debug build is clean"
+fi
+
+TEST_OUT=$(swift test 2>&1)
+if echo "$TEST_OUT" | grep -q 'with 0 failures'; then
+    COUNT=$(echo "$TEST_OUT" | grep -oE 'Executed [0-9]+ tests' | tail -1 | grep -oE '[0-9]+')
+    pass "all tests pass ($COUNT)"
+else
+    fail "tests failed"
+    echo "$TEST_OUT" | grep -E 'error:|XCTAssert' | sed 's/^/        /' | head -10
+fi
+
+if [ "$FAST" -eq 0 ]; then
+    RELEASE_OUT=$(swift build -c release 2>&1)
+    if echo "$RELEASE_OUT" | grep -qE 'warning:|error:'; then
+        fail "release build is not warning-free"
+        echo "$RELEASE_OUT" | grep -E 'warning:|error:' | sed 's/^/        /' | head -10
+    else
+        pass "release build is clean"
+    fi
+
+    SELFTEST_OUT=$(./.build/release/TimingSpike selftest 2>&1)
+    if echo "$SELFTEST_OUT" | grep -q 'Analysis pipeline verified'; then
+        CHECKS=$(echo "$SELFTEST_OUT" | grep -c 'PASS')
+        pass "selftest verifies the analysis pipeline ($CHECKS checks)"
+    else
+        fail "selftest did not verify the analysis pipeline"
+    fi
+
+    # STANDARDS §6.1: every take ever recorded must still decode.
+    if ./.build/release/TimingSpike review list >/dev/null 2>&1; then
+        pass "stored sessions still decode"
+    else
+        fail "stored sessions failed to decode — a schema change broke history"
+    fi
+else
+    printf '  %sSKIP%s  release build, selftest and decode check (--fast)\n' "$DIM" "$OFF"
+fi
+
+# ── Verdict ──────────────────────────────────────────────────────────────────────
+echo
+if [ "$FAILURES" -eq 0 ]; then
+    printf '%sReady to commit.%s\n' "$GREEN" "$OFF"
+    exit 0
+fi
+printf '%s%d check(s) failed.%s See STANDARDS.md.\n' "$RED" "$FAILURES" "$OFF"
+exit 1

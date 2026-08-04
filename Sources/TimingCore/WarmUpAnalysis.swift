@@ -27,6 +27,9 @@ public enum WarmUpVerdict: Equatable {
     /// Cold starts improve across days — the gain is still there before you have played
     /// anything, which is what learning looks like.
     case learning
+    /// Cold starts are getting *worse* across days. Separable, and a finding — the opposite
+    /// of one, but not the same thing as nothing.
+    case coldSlipping
     /// Both effects are real and separable.
     case both
     /// Neither slope excludes zero.
@@ -206,7 +209,13 @@ public enum WarmUpAnalysis {
         case (true, true):   return .both
         case (true, false):  return .warmUpOnly
         case (false, true):  return .learning
-        case (false, false): return between == nil && within == nil ? .notEnoughData : .neither
+        case (false, false):
+            // A cold start that is reliably getting *worse* is separable and is a result.
+            // Folding it into "neither" said "nothing to see" directly underneath a row
+            // reading "worsening" with an interval that excludes zero — a contradiction the
+            // first real session put on screen.
+            if between?.verdict == .worsening { return .coldSlipping }
+            return between == nil && within == nil ? .notEnoughData : .neither
         }
     }
 
@@ -221,6 +230,10 @@ public enum WarmUpAnalysis {
         case .learning:
             return "This is learning. Your cold start is better than it used to be, which is the "
                  + "gain that survived a night's sleep."
+        case .coldSlipping:
+            return "Your cold start is getting worse from sitting to sitting. Whatever you gain "
+                 + "inside a session is not surviving to the next one — worth looking at the gap "
+                 + "between sessions rather than what happens inside them."
         case .both:
             return "Both: you warm up within a session *and* your cold start has improved across "
                  + "them. The second is the one that counts."

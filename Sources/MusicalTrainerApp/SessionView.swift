@@ -326,7 +326,7 @@ func instructions(for plan: BlockPlan) -> DrillInstructions {
     switch plan {
     case .groove:  return .groove
     case .jam:     return .jam
-    case .form:    return .form
+    case .form(let p): return .form(level: p.level)
     case .dropout: return .dropout
     case .tempo:   return .tempo
     case .memory:  return .memory

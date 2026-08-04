@@ -1,0 +1,11 @@
+#!/bin/bash
+# Runs the fast gate before every commit. See STANDARDS.md §8.3.
+#
+# --fast skips the release build, selftest and decode check, which together take about a
+# minute. Run the full `./scripts/check.sh` yourself after touching analysis or audio;
+# STANDARDS.md §9.2 says when.
+#
+# Bypass with `git commit --no-verify` only when committing work you already know is broken
+# on a branch. Never on main.
+set -euo pipefail
+exec ./scripts/check.sh --fast

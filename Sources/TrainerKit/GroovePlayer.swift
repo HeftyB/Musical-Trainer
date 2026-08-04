@@ -235,12 +235,15 @@ final class GroovePlayer {
                 let gain = s.pointee.gains[i]
                 let from = max(start, bufferStart)
                 let to = min(end, bufferEnd)
-                for absolute in from..<to {
-                    let value = voice[Int(absolute - start)] * gain
-                    let dst = Int(absolute - bufferStart)
-                    for buffer in abl {
-                        let channels = Int(buffer.mNumberChannels)
-                        let data = buffer.mData!.assumingMemoryBound(to: Float.self)
+                // The buffer pointer is resolved once per buffer rather than once per
+                // sample: same result, one branch instead of thousands on the render thread.
+                for buffer in abl {
+                    guard let raw = buffer.mData else { continue }
+                    let data = raw.assumingMemoryBound(to: Float.self)
+                    let channels = Int(buffer.mNumberChannels)
+                    for absolute in from..<to {
+                        let value = voice[Int(absolute - start)] * gain
+                        let dst = Int(absolute - bufferStart)
                         for c in 0..<channels { data[dst * channels + c] += value }
                     }
                 }
@@ -253,8 +256,9 @@ final class GroovePlayer {
         // level, so it barely touches the drums and only tames the peaks.
         let scratch = instrument.render(frames: n)
         for buffer in abl {
+            guard let raw = buffer.mData else { continue }
+            let data = raw.assumingMemoryBound(to: Float.self)
             let channels = Int(buffer.mNumberChannels)
-            let data = buffer.mData!.assumingMemoryBound(to: Float.self)
             for f in 0..<n {
                 let voice = scratch[f]
                 for c in 0..<channels {

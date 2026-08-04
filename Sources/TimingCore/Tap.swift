@@ -10,10 +10,18 @@ public struct Tap: Equatable {
     public let time: Double
     /// MIDI velocity 0–127, when known. Needed only for velocity/timing coupling.
     public let velocity: Int?
+    /// MIDI note number, when known.
+    ///
+    /// The analysis here does not use it — timing is timing whatever the pitch. It is carried
+    /// so that *what* was played is recorded alongside *when*, which is the only way to test
+    /// whether playing something musically interesting changes the timing. A take recorded
+    /// without it can never answer that question afterwards.
+    public let note: Int?
 
-    public init(time: Double, velocity: Int? = nil) {
+    public init(time: Double, velocity: Int? = nil, note: Int? = nil) {
         self.time = time
         self.velocity = velocity
+        self.note = note
     }
 }
 

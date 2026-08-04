@@ -27,6 +27,12 @@ same engine (`TrainerKit`), so they can never measure differently.
 
 Plug the keyboard in before or after launch — sources are re-scanned before every take.
 
+## Contributing
+
+[STANDARDS.md](STANDARDS.md) holds the engineering rules — architecture, real-time safety,
+measurement integrity, security, and the commit format. `./scripts/check.sh` enforces what can
+be enforced; run `./scripts/install-hooks.sh` once so it runs before every commit.
+
 ## Layout
 
 - `Sources/TimingCore` — pure timing analysis (grid, matching, Wing–Kristofferson, drift,
@@ -66,6 +72,8 @@ swift build -c release   # the console tool
 | `review tags` | Pooled summary of every tagged condition. |
 | `review conditions <a> <b>` | Pooled comparison of two conditions — the experiment readout. |
 | `review feel` | Does your sense of a good take match the measurement? |
+| `review form` | Form-drill history — progress up the landmark ladder. |
+| `review dropout` | Continuation-drill history: the clock/motor split over time. |
 | `review tempo` | Tempo-calibration history. |
 | `review trend` | Is anything actually improving? Fits each metric with a confidence interval, splitting confounded groups. |
 | `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
@@ -73,7 +81,7 @@ swift build -c release   # the console tool
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is
 hardware or the clock bridge rather than the analysis — which is the entire point of having
-it. It has already caught four real defects that would otherwise have surfaced as
+it. It has already caught six real defects that would otherwise have surfaced as
 mysterious live-run failures.
 
 ### Before any live run

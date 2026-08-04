@@ -19,7 +19,7 @@ enum JamAnalysis {
     }
 
     static func reduce(outputMap: [(hostTime: UInt64, sample: Int64)],
-                       midi: [(hostTime: UInt64, velocity: Int)],
+                       midi: [(hostTime: UInt64, velocity: Int, note: Int)],
                        grooveStartSample: Int64,
                        grooveEndSample: Int64,
                        bpm: Double,
@@ -41,7 +41,7 @@ enum JamAnalysis {
         let taps = midi.compactMap { event -> Tap? in
             let t = HostClock.interval(from: epoch, to: event.hostTime) - constantSec
             guard t >= lo && t <= hi else { return nil }
-            return Tap(time: t, velocity: event.velocity)
+            return Tap(time: t, velocity: event.velocity, note: event.note)
         }
         return Reduced(taps: taps, grid: grid, tapsInWindow: taps.count)
     }
