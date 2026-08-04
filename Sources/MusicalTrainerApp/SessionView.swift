@@ -329,6 +329,7 @@ func instructions(for plan: BlockPlan) -> DrillInstructions {
     case .form:    return .form
     case .dropout: return .dropout
     case .tempo:   return .tempo
+    case .memory:  return .memory
     }
 }
 

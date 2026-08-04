@@ -304,6 +304,7 @@ public enum Commands {
         case .form:    return .form
         case .dropout: return .dropout
         case .tempo:   return .tempo
+        case .memory:  return .memory
         }
     }
 
@@ -821,6 +822,62 @@ public enum Commands {
             + "regardless of direction — that is the number to drive down.\(Console.reset)")
     }
 
+    // MARK: - M11 recall drill
+
+    public static func runMemory(bpm: Double, retentionBars: Int, rounds: Int) throws {
+        Console.heading("Recall — is the tempo stored, or just running?")
+        let config = TrainerEngine.MemoryConfig(bpm: bpm, referenceBars: 4,
+                                                retentionBars: retentionBars,
+                                                reproduceBars: 4, rounds: rounds)
+        let env = try TrainerEngine.environment()
+        print("Output: \(env.outputName)")
+        print(String(format: "\n%d rounds at %d BPM, %d-bar wait  ·  ~%.1f min",
+                     rounds, Int(bpm), retentionBars, config.durationSeconds / 60))
+        printInstructions(DrillInstructions.memory)
+        Console.prompt("Ready?")
+
+        let outcome = try TrainerEngine.runMemory(config)
+        let feel = Console.readRating("\nHow did that feel?")
+        reportMemory(outcome)
+        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
+    }
+
+    private static func reportMemory(_ outcome: TrainerEngine.MemoryOutcome) {
+        let r = outcome.report
+        Console.heading("Recall")
+        print("\(r.usableCount)/\(r.rounds.count) rounds scored\n")
+        print("\(pad("Round", 8))\(pad("wait", 9))\(pad("produced", 11))error")
+        for round in r.rounds {
+            let condition = round.condition == .silent ? "silent" : "filled"
+            if round.isUsable, let produced = round.producedBpm, let pct = round.errorPercent {
+                print("\(pad("\(round.index + 1)", 8))\(pad(condition, 9))"
+                    + "\(pad(String(format: "%.1f", produced), 11))"
+                    + String(format: "%+.1f%%", pct))
+            } else {
+                print("\(pad("\(round.index + 1)", 8))\(pad(condition, 9))"
+                    + "\(Console.dim)\(round.unusableReason ?? "not scored")\(Console.reset)")
+            }
+        }
+
+        if let silent = r.silentMeanAbsErrorPercent, let filled = r.filledMeanAbsErrorPercent {
+            print(String(format: "\nSilent wait: %.1f%% off   Filled wait: %.1f%% off", silent, filled))
+            if let interval = r.interferenceInterval {
+                print(String(format: "Interference cost: %+.1f points [%+.1f, %+.1f]  %@",
+                             interval.point, interval.low, interval.high,
+                             interval.excludesZero ? "\(Console.bold)real\(Console.reset)"
+                                                   : "\(Console.dim)within noise\(Console.reset)"))
+            }
+        }
+        print("\n\(r.headline)")
+        for note in r.notes { Console.warn(note) }
+
+        if outcome.suggestedRetentionBars != outcome.config.retentionBars {
+            print("\n\(Console.dim)Next time try a \(outcome.suggestedRetentionBars)-bar wait."
+                + "\(Console.reset)")
+        }
+    }
+
     // MARK: - Dropout drill
 
     public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int) throws {
@@ -961,6 +1018,7 @@ public enum Commands {
         case .form:    return "Form — on-form rate"
         case .dropout: return "Continuation — |tempo bias|"
         case .tempo:   return "Tempo drill — error"
+        case .memory:  return "Recall drill — interference cost"
         }
     }
 

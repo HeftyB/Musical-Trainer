@@ -628,6 +628,199 @@ public enum TrainerEngine {
         }
     }
 
+    // MARK: - M11 tempo memory
+
+    public struct MemoryConfig {
+        public var bpm: Double
+        public var referenceBars: Int
+        public var retentionBars: Int
+        public var reproduceBars: Int
+        public var rounds: Int
+
+        public init(bpm: Double = 100, referenceBars: Int = 4, retentionBars: Int = 4,
+                    reproduceBars: Int = 4, rounds: Int = 8) {
+            self.bpm = bpm; self.referenceBars = referenceBars
+            self.retentionBars = retentionBars; self.reproduceBars = reproduceBars
+            self.rounds = rounds
+        }
+
+        public var roundBars: Int { referenceBars + retentionBars + reproduceBars }
+        public var durationSeconds: Double { Double(rounds * roundBars) * 4 * 60 / bpm + 0.5 }
+    }
+
+    public struct MemoryOutcome {
+        public let report: TempoMemoryReport
+        public let environment: Environment
+        public let config: MemoryConfig
+        /// What to try next, from the measured clock stability.
+        public let suggestedRetentionBars: Int
+        fileprivate let tapTimes: [Double]
+        fileprivate let rounds: [MemoryRound]
+    }
+
+    /// Hear a tempo, wait through the gap, reproduce it.
+    ///
+    /// The gap is silent on even rounds and filled with an aperiodic distractor on odd ones,
+    /// which is the whole experiment — see `TempoMemoryAnalysis`. Two scheduling details are
+    /// load-bearing:
+    ///
+    /// 1. **The distractor is placed off-grid**, at sample positions with no relation to the
+    ///    beat. Built from `Pattern` it would land on sixteenths of the very tempo being
+    ///    remembered and rehearse it instead of interfering with it.
+    /// 2. **Exactly one sound in the reproduction window** — a single kick marking "go". One
+    ///    onset carries no period; two would hand the tempo straight back.
+    public static func runMemory(_ config: MemoryConfig,
+                                 progress: ((Double) -> Void)? = nil,
+                                 cancellation: CancellationFlag? = nil) throws -> MemoryOutcome {
+        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+        guard (1...16).contains(config.referenceBars), (1...32).contains(config.retentionBars),
+              (1...16).contains(config.reproduceBars) else {
+            throw SpikeError("Reference and reproduce must be 1–16 bars, the wait 1–32.")
+        }
+        guard (2...32).contains(config.rounds) else {
+            throw SpikeError("Rounds must be 2–32 — the drill needs both conditions.")
+        }
+        let env = try environment()
+
+        let player = try GroovePlayer()
+        let fs = player.outputSampleRate
+        let groove = GrooveLibrary.basicRock
+        let seq = Sequencer(bpm: config.bpm, sampleRate: fs)
+        let barSamples = seq.barStartSample(bar: 1, pattern: groove)
+        let beatSeconds = 60.0 / config.bpm
+
+        var hits: [ScheduledHit] = []
+        var cursor = Int64(0.5 * fs)
+        var windows: [(condition: RetentionCondition,
+                       retention: (Int64, Int64), reproduce: (Int64, Int64))] = []
+
+        for index in 0..<config.rounds {
+            let filled = TempoMemoryDrill.isFilled(round: index)
+
+            // Reference: the player plays along and entrains.
+            for bar in 0..<config.referenceBars {
+                for hit in seq.schedule(pattern: groove, bar: bar) {
+                    hits.append(ScheduledHit(voice: hit.voice, sample: cursor + hit.sample,
+                                             velocity: hit.velocity))
+                }
+            }
+
+            let retentionStart = cursor + Int64(config.referenceBars) * barSamples
+            let retentionEnd = retentionStart + Int64(config.retentionBars) * barSamples
+            if filled {
+                hits += Distractor.hits(from: retentionStart, to: retentionEnd,
+                                        sampleRate: fs, beatSeconds: beatSeconds,
+                                        gridOriginSample: cursor,
+                                        seed: 0x0D15 &+ UInt64(index))
+            }
+
+            // One sound, and only one: the cue to start producing.
+            let reproduceStart = retentionEnd
+            let reproduceEnd = reproduceStart + Int64(config.reproduceBars) * barSamples
+            hits.append(ScheduledHit(voice: .kick, sample: reproduceStart, velocity: 115))
+
+            windows.append((filled ? .filled : .silent,
+                            (retentionStart, retentionEnd), (reproduceStart, reproduceEnd)))
+            cursor = reproduceEnd
+        }
+
+        player.schedule(hits)
+
+        let midi = try MIDIInput.started()
+        defer { midi.end() }
+        midi.onNoteEvent = { note, velocity, on, channel in
+            player.noteEvent(note: note, velocity: velocity, on: on, channel: channel)
+        }
+
+        // The last round ends in silence, so the schedule's final sound is well short of the
+        // take's real end — the cursor is the truth. Same lesson as the tempo drill (§7.12).
+        try player.run(forSeconds: Double(cursor) / fs + 0.5,
+                       progress: progress, cancellation: cancellation)
+
+        guard let epoch = player.outputMapPairs.first?.hostTime else {
+            throw SpikeError("Could not reconstruct the take — no audio timing map captured.")
+        }
+        var map = SampleHostMap()
+        map.build(pairs: player.outputMapPairs, epoch: epoch)
+
+        let constantSec = (env.calibrationMs ?? 0) / 1000
+        let taps = midi.events.filter { !$0.isPad }.map {
+            Tap(time: HostClock.interval(from: epoch, to: $0.hostTime) - constantSec)
+        }
+
+        var rounds: [MemoryRound] = []
+        for (index, window) in windows.enumerated() {
+            guard let rStart = map.hostSeconds(atSample: Double(window.retention.0)),
+                  let rEnd = map.hostSeconds(atSample: Double(window.retention.1)),
+                  let pStart = map.hostSeconds(atSample: Double(window.reproduce.0)),
+                  let pEnd = map.hostSeconds(atSample: Double(window.reproduce.1))
+            else { continue }
+            rounds.append(MemoryRound(index: index, targetBpm: config.bpm,
+                                      condition: window.condition,
+                                      retentionStart: rStart, retentionEnd: rEnd,
+                                      reproduceStart: pStart, reproduceEnd: pEnd))
+        }
+
+        let report = TempoMemoryAnalysis.analyze(taps: taps, rounds: rounds)
+
+        // Difficulty follows the *clock*, which is what this drill trains — so it reads the
+        // continuation drill's most recent trustworthy split rather than its own accuracy.
+        let clockSD = SessionStore.loadAllDropout().reversed().compactMap { session -> Double? in
+            let (t, g, s) = session.reconstruct()
+            let r = DropoutAnalysis.analyze(taps: t, grid: g, sections: s)
+            return r.splitIsReliable ? r.wingKristofferson?.clockSDms : nil
+        }.first
+
+        return MemoryOutcome(
+            report: report, environment: env, config: config,
+            suggestedRetentionBars: TempoMemoryAnalysis.suggestedRetentionBars(
+                current: config.retentionBars, clockSDms: clockSD),
+            tapTimes: taps.map(\.time), rounds: rounds)
+    }
+
+    @discardableResult
+    public static func save(_ outcome: MemoryOutcome, feelRating: Int?,
+                            placement: SessionPlacement? = nil) throws -> URL {
+        let r = outcome.report
+        let session = MemorySession(
+            date: Date(), bpm: outcome.config.bpm,
+            referenceBars: outcome.config.referenceBars,
+            retentionBars: outcome.config.retentionBars,
+            reproduceBars: outcome.config.reproduceBars,
+            rounds: outcome.config.rounds, feelRating: feelRating,
+            tapTimes: outcome.tapTimes,
+            roundConditions: outcome.rounds.map { $0.condition.rawValue },
+            roundRetentionStarts: outcome.rounds.map(\.retentionStart),
+            roundRetentionEnds: outcome.rounds.map(\.retentionEnd),
+            roundReproduceStarts: outcome.rounds.map(\.reproduceStart),
+            roundReproduceEnds: outcome.rounds.map(\.reproduceEnd),
+            usableCount: r.usableCount,
+            silentMeanAbsErrorPercent: r.silentMeanAbsErrorPercent,
+            filledMeanAbsErrorPercent: r.filledMeanAbsErrorPercent,
+            interferenceCost: r.interferenceCost,
+            headline: r.headline, placement: placement)
+        return try SessionStore.save(session)
+    }
+
+    public static func memoryHistory() -> [HistoryEntry] {
+        SessionStore.loadAllMemory().map { session in
+            let r = TempoMemoryAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            let detail: String
+            if let silent = r.silentMeanAbsErrorPercent, let filled = r.filledMeanAbsErrorPercent {
+                detail = String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
+                                silent, filled, r.interferenceCost ?? 0)
+            } else {
+                detail = "\(r.usableCount)/\(session.rounds) rounds scored"
+            }
+            return HistoryEntry(
+                date: session.date,
+                title: "\(Int(session.bpm)) BPM · \(session.retentionBars)-bar wait × \(session.rounds)",
+                detail: detail, feelRating: session.feelRating, headline: r.headline,
+                // The interference cost is the number this drill exists to move.
+                metric: r.interferenceCost ?? .nan, metricLabel: "interference cost (points)")
+        }
+    }
+
     // MARK: - Session planning
 
     /// Reduce the stored history to the handful of numbers the planner consults.
@@ -667,7 +860,13 @@ public enum TrainerEngine {
                                       meanAbsErrorPercent: r.meanAbsErrorPercent)
         }
 
-        return PlannerInput(jams: jams, continuations: continuations, forms: forms, tempos: tempos)
+        let memories = SessionStore.loadAllMemory().map { session -> PlannerInput.Memory in
+            let r = TempoMemoryAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            return PlannerInput.Memory(retentionBars: session.retentionBars,
+                                       interferenceCost: r.interferenceCost)
+        }
+        return PlannerInput(jams: jams, continuations: continuations, forms: forms,
+                            tempos: tempos, memories: memories)
     }
 
     public static func planSession(targetMinutes: Int) -> SessionPlan {
@@ -757,13 +956,21 @@ public enum TrainerEngine {
                                  value: r.meanAbsErrorPercent ?? .nan)
             }
             return WarmUpAnalysis.analyze(sessioned(takes), lowerIsBetter: true)
+
+        case .memory:
+            let takes = SessionStore.loadAllMemory().map { session -> DatedTake in
+                let r = TempoMemoryAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+                return DatedTake(date: session.date, placement: session.placement,
+                                 value: r.interferenceCost ?? .nan)
+            }
+            return WarmUpAnalysis.analyze(sessioned(takes), lowerIsBetter: true)
         }
     }
 
     // MARK: - Trends
 
     public enum DrillKind: String, CaseIterable {
-        case jam, form, dropout, tempo
+        case jam, form, dropout, tempo, memory
     }
 
     /// Every trend the stored takes can support, with the confounds that make one unsafe.
@@ -773,7 +980,7 @@ public enum TrainerEngine {
     /// console warns about.
     public static func trends() -> [TrendSeries] {
         // Ordered as the console has always printed them.
-        [DrillKind.jam, .dropout, .form, .tempo].flatMap { trends(for: $0) }
+        [DrillKind.jam, .dropout, .form, .tempo, .memory].flatMap { trends(for: $0) }
     }
 
     public static func trends(for kind: DrillKind) -> [TrendSeries] {
@@ -782,6 +989,7 @@ public enum TrainerEngine {
         case .dropout: return dropoutTrends()
         case .form:    return formTrends()
         case .tempo:   return tempoTrends()
+        case .memory:  return memoryTrends()
         }
     }
 
@@ -863,6 +1071,24 @@ public enum TrainerEngine {
                 rows: [TrendAnalysis.row("on-form rate", reports.map(\.onFormRate), lowerIsBetter: false)]))
         }
         return series
+    }
+
+    private static func memoryTrends() -> [TrendSeries] {
+        let sessions = SessionStore.loadAllMemory()
+        guard !sessions.isEmpty else { return [] }
+        let reports = sessions.map {
+            TempoMemoryAnalysis.analyze(taps: $0.taps, rounds: $0.roundWindows)
+        }
+        var warnings: [String] = []
+        let waits = TrendAnalysis.distinct(sessions.map(\.retentionBars))
+        if waits.count > 1 {
+            warnings.append("mixed wait lengths (\(waits.map(String.init).joined(separator: ", ")) bars) — "
+                          + "a longer wait is a harder task.")
+        }
+        return [TrendSeries(
+            title: "Recall drill", takeCount: sessions.count, warnings: warnings,
+            rows: [TrendAnalysis.row("interference cost", reports.map { $0.interferenceCost ?? .nan },
+                                     lowerIsBetter: true)])]
     }
 
     private static func tempoTrends() -> [TrendSeries] {

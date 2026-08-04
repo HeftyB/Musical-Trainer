@@ -224,6 +224,51 @@ struct TempoSession: Codable {
     }
 }
 
+/// A recorded tempo-memory drill. Separate again, because it is the only drill with an
+/// experimental *condition* in it — the two retention types are the measurement, and pooling
+/// them with anything else would throw away the contrast.
+struct MemorySession: Codable {
+    let date: Date
+    let bpm: Double
+    let referenceBars: Int
+    let retentionBars: Int
+    let reproduceBars: Int
+    let rounds: Int
+    let feelRating: Int?
+
+    let tapTimes: [Double]
+    // The round windows are stored rather than recomputed: which rounds were filled is part
+    // of the design, and rebuilding it from a rule would silently change old takes if the
+    // alternation ever changed.
+    let roundConditions: [String]
+    let roundRetentionStarts: [Double]
+    let roundRetentionEnds: [Double]
+    let roundReproduceStarts: [Double]
+    let roundReproduceEnds: [Double]
+
+    // Cached summary, as everywhere else: written for legibility, never read back.
+    let usableCount: Int
+    let silentMeanAbsErrorPercent: Double?
+    let filledMeanAbsErrorPercent: Double?
+    let interferenceCost: Double?
+    let headline: String
+
+    let placement: SessionPlacement?
+
+    var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
+
+    var roundWindows: [MemoryRound] {
+        roundConditions.indices.map { i in
+            MemoryRound(index: i, targetBpm: bpm,
+                        condition: RetentionCondition(rawValue: roundConditions[i]) ?? .silent,
+                        retentionStart: roundRetentionStarts[i],
+                        retentionEnd: roundRetentionEnds[i],
+                        reproduceStart: roundReproduceStarts[i],
+                        reproduceEnd: roundReproduceEnds[i])
+        }
+    }
+}
+
 enum SessionStore {
     static var directory: URL {
         let base = FileManager.default
@@ -291,6 +336,21 @@ enum SessionStore {
 
     static func loadAllTempo() -> [TempoSession] {
         load(prefix: "tempo-", as: TempoSession.self).sorted { $0.date < $1.date }
+    }
+
+    @discardableResult
+    static func save(_ session: MemorySession) throws -> URL {
+        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
+        let url = directory.appendingPathComponent("memory-\(stamp).json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(session).write(to: url, options: .atomic)
+        return url
+    }
+
+    static func loadAllMemory() -> [MemorySession] {
+        load(prefix: "memory-", as: MemorySession.self).sorted { $0.date < $1.date }
     }
 
     @discardableResult

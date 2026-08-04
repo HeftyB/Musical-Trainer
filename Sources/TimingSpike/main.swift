@@ -35,6 +35,9 @@ func usage() {
                         The only drill that yields a clock/motor split. (100, 4, 4, 6)
       tempo [bpm ...]   M8: produce a tempo unaccompanied and be told what you produced.
                         Pass several to rotate the target (e.g. tempo 76 100 132).
+      memory [bpm] [waitBars] [rounds]
+                        M11: hear a tempo, wait through the gap, reproduce it. Half the
+                        waits are silent and half are filled. (100, 4, 8)
       session [minutes] M9: run a whole planned session end to end (default 30).
       session plan [minutes]
                         print what it would do, and why, without running it
@@ -109,6 +112,12 @@ do {
         } else {
             try Commands.runSession(targetMinutes: rest.first.flatMap(Int.init) ?? 30)
         }
+
+    case "memory":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        let wait = arguments.dropFirst(2).first.flatMap(Int.init) ?? 4
+        let rounds = arguments.dropFirst(3).first.flatMap(Int.init) ?? 8
+        try Commands.runMemory(bpm: bpm, retentionBars: wait, rounds: rounds)
 
     case "review":
         try Commands.runReview(Array(arguments.dropFirst()))

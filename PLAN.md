@@ -229,7 +229,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M8** | Tempo calibration drill | ✅ Done. Closed feedback loop on the tempo bias §7.8 found. See §7.10. |
 | **M9** | Session builder | ✅ Done. The app proposes a 20/30/45 min session from recent data and runs it end to end. See §7.14. |
 | **M10** | Cold vs warm | ✅ Done. Within-sitting warm-up separated from between-sitting learning. See §7.15. |
-| **M11** | Clock stability drills | Aimed at the axis actually measured weak (clock 14.9 ms vs motor 9.3 ms). |
+| **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
 | **M12** | Experiment runner | The app schedules its own A/B comparisons and says when they have power. |
 | **M13** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
 | **M14** | Subdivision & feel | Eighths, sixteenths, triplets, swing. Everything so far is quarters. |
@@ -1079,6 +1079,84 @@ warm-up effect".
 remains uninterpretable — which is the correct answer and the reason the question was worth
 building for rather than arguing about. It becomes answerable after three sessions from the
 builder, where the cold probe is controlled rather than inferred.
+
+---
+
+## 7.16 M11 — the recall drill, as built
+
+`memory [bpm] [waitBars] [rounds]`, and **Recall** in the app. The groove plays and you play
+along; it stops and you **stop too**; a single kick marks the end of the wait and you produce
+the tempo alone. Half the waits are silent, half are filled with scattered percussion.
+
+### Why this and not just longer silences
+
+The continuation drill asks whether a pulse survives while you keep producing it. This asks
+something different: whether the period is **stored**, or only exists while it is running. You
+let go of it entirely and pick it up from nothing.
+
+The two conditions are the experiment, and the prediction is specific. A period maintained by
+active attention should survive an empty gap and collapse against a distractor, because the
+distractor competes for exactly the resource doing the holding. A stored period should not care
+what was in the gap. For this player that is not abstract — "if my brain is out of the picture
+the flow is easy" (§1) predicts a real interference cost, and this is the first thing in the app
+that can put a number on it.
+
+### The trap that shaped the implementation
+
+The obvious way to build a distractor is a `Pattern`, like every other sound in the app. That
+would have been silently, completely wrong: patterns live on the 16-step grid, so every onset
+would land on a sixteenth of the exact tempo being remembered. The "distractor" would have
+**rehearsed the period** instead of interfering with it, and the filled condition would have
+measured nothing — while producing perfectly plausible numbers.
+
+So `Distractor` bypasses `Pattern` and emits `ScheduledHit` at arbitrary sample positions, with
+two properties enforced by tests:
+
+1. **No onset within 10% of a beat.** An onset on the beat is a metronome tick.
+2. **Beat-phase is spread, not concentrated.** Intervals are drawn from a range wider than one
+   beat, so phase random-walks instead of locking.
+
+Property 2 needed a second pass. The first version measured circular concentration at the
+fundamental only — and onsets on every *sixteenth* sit at phases 0, ¼, ½, ¾, which are spread
+perfectly evenly and score ≈0 there. A metronome would have passed. The measure now takes the
+worst case across the beat and its first four harmonics, and there is a test asserting that
+grid-aligned trains at 1, 2 and 4 per beat all score above 0.95, so a low score is evidence
+rather than an artefact.
+
+Also excluded: kick and crash. Both read as downbeats however they are placed, and a heard
+downbeat is a bar line to rebuild the tempo from.
+
+### Measurement decisions
+
+- **Per-round scoring is the tempo drill's**, reused rather than reimplemented. The five-note
+  floor, the isochrony gate and the subdivision normalisation each fixed a real wrong number
+  (§7.8); a parallel copy here would be a second place for them to be wrong.
+- **Playing through the wait invalidates the round.** Keeping the pulse running means nothing
+  about *storing* it was tested — that is the continuation drill. Up to two stray notes are
+  tolerated as a slip; more and the round says why it was discarded.
+- **Exactly one sound in the reproduction window.** One onset carries no period; two would hand
+  the tempo straight back.
+- The interference cost gets a plain (non-block) bootstrap: rounds are separate trials minutes
+  apart, not a serially-correlated stream, so there is no short-range structure for blocks to
+  preserve. Below three scored rounds per condition it reports the point estimate and refuses
+  the interval.
+- Difficulty follows the **measured clock SD**, not this drill's own accuracy, which would be
+  circular. A tight clock earns a longer wait; a loose one gets a shorter one so rounds stay
+  scorable.
+
+### Planner
+
+This fills the hole M11 was created for: the clock-dominant branch used to schedule nothing and
+leave a note saying no drill existed. It now schedules Recall — but only once the split says the
+clock is the weak half, because before that it would be training a weakness that has not been
+shown to exist.
+
+Adding it immediately exposed a regression worth recording: with three training slots and a
+priority list, Recall pushed **Form out of every session**. Form is the only drill on the other
+axis — where you are in the music, tens of seconds, not milliseconds (§6.1) — so ranking it
+against the clock drills on their evidence loses it the moment any clock drill has a reason. Form
+now takes the last training slot outright and the timing drills compete for the rest, with a test
+that fails if it is ever crowded out again.
 
 ---
 

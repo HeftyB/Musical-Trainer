@@ -67,12 +67,27 @@ public struct TempoPlan: Codable, Equatable {
     }
 }
 
+public struct MemoryPlan: Codable, Equatable {
+    public let bpm: Double
+    public let referenceBars: Int
+    public let retentionBars: Int
+    public let reproduceBars: Int
+    public let rounds: Int
+    public init(bpm: Double, referenceBars: Int, retentionBars: Int,
+                reproduceBars: Int, rounds: Int) {
+        self.bpm = bpm; self.referenceBars = referenceBars
+        self.retentionBars = retentionBars; self.reproduceBars = reproduceBars
+        self.rounds = rounds
+    }
+}
+
 public enum BlockPlan: Codable, Equatable {
     case groove(GroovePlan)
     case jam(JamPlan)
     case form(FormPlan)
     case dropout(DropoutPlan)
     case tempo(TempoPlan)
+    case memory(MemoryPlan)
 
     /// Short name for the plan preview.
     public var drillName: String {
@@ -82,6 +97,7 @@ public enum BlockPlan: Codable, Equatable {
         case .form:    return "Form"
         case .dropout: return "Alone"
         case .tempo:   return "Tempo"
+        case .memory:  return "Recall"
         }
     }
 
@@ -95,6 +111,8 @@ public enum BlockPlan: Codable, Equatable {
         case .tempo(let p):
             let targets = p.targets.map { String(Int($0)) }.joined(separator: "/")
             return "\(targets) BPM · \(p.rounds)× \(p.holdBars)-bar holds"
+        case .memory(let p):
+            return "\(Int(p.bpm)) BPM · \(p.retentionBars)-bar wait × \(p.rounds)"
         }
     }
 
@@ -113,6 +131,9 @@ public enum BlockPlan: Codable, Equatable {
             return (0..<p.rounds).reduce(0.5) { total, i in
                 total + Double(p.leadBars + p.holdBars) * 4 * 60 / p.targets[i % p.targets.count]
             }
+        case .memory(let p):
+            let bars = p.rounds * (p.referenceBars + p.retentionBars + p.reproduceBars)
+            return Double(bars) * 4 * 60 / p.bpm + 0.5
         }
     }
 }
@@ -206,16 +227,26 @@ public struct PlannerInput: Equatable {
         }
     }
 
+    public struct Memory: Equatable {
+        public let retentionBars: Int
+        /// filled − silent, in percentage points. Positive means the distractor hurt.
+        public let interferenceCost: Double?
+        public init(retentionBars: Int, interferenceCost: Double?) {
+            self.retentionBars = retentionBars; self.interferenceCost = interferenceCost
+        }
+    }
+
     /// All oldest-first, matching `SessionStore`.
     public let jams: [Jam]
     public let continuations: [Continuation]
     public let forms: [Form]
     public let tempos: [Tempo]
+    public let memories: [Memory]
 
     public init(jams: [Jam] = [], continuations: [Continuation] = [],
-                forms: [Form] = [], tempos: [Tempo] = []) {
+                forms: [Form] = [], tempos: [Tempo] = [], memories: [Memory] = []) {
         self.jams = jams; self.continuations = continuations
-        self.forms = forms; self.tempos = tempos
+        self.forms = forms; self.tempos = tempos; self.memories = memories
     }
 }
 
@@ -266,18 +297,25 @@ public enum SessionPlanner {
         /// gives two takes at different points in the evening: the within-session contrast
         /// `SessionPlacement.elapsedSeconds` exists to expose.
         let closingCapBars: Int
+        /// Always even, so the silent and filled conditions stay balanced.
+        let memoryRounds: Int
 
         init(targetMinutes: Int) {
             switch targetMinutes {
-            case ..<25:  self = Sizes(dropoutCycles: 6, formBars: 64, tempoRounds: 8, closingCapBars: 160)
-            case ..<40:  self = Sizes(dropoutCycles: 8, formBars: 96, tempoRounds: 12, closingCapBars: 224)
-            default:     self = Sizes(dropoutCycles: 10, formBars: 128, tempoRounds: 16, closingCapBars: 256)
+            case ..<25:  self = Sizes(dropoutCycles: 6, formBars: 64, tempoRounds: 8,
+                                      closingCapBars: 160, memoryRounds: 6)
+            case ..<40:  self = Sizes(dropoutCycles: 8, formBars: 96, tempoRounds: 12,
+                                      closingCapBars: 224, memoryRounds: 8)
+            default:     self = Sizes(dropoutCycles: 10, formBars: 128, tempoRounds: 16,
+                                      closingCapBars: 256, memoryRounds: 10)
             }
         }
 
-        private init(dropoutCycles: Int, formBars: Int, tempoRounds: Int, closingCapBars: Int) {
+        private init(dropoutCycles: Int, formBars: Int, tempoRounds: Int,
+                     closingCapBars: Int, memoryRounds: Int) {
             self.dropoutCycles = dropoutCycles; self.formBars = formBars
             self.tempoRounds = tempoRounds; self.closingCapBars = closingCapBars
+            self.memoryRounds = memoryRounds
         }
     }
 
@@ -297,13 +335,23 @@ public enum SessionPlanner {
                 + Double(max(0, blocks.count - 1)) * betweenBlockSeconds
         }
 
-        for candidate in trainingCandidates(from: input, sizes: sizes, notes: &notes) {
-            guard blocks.filter({ $0.role == .training }).count < maximumTrainingBlocks else { break }
-            let trial = blocks + [candidate]
+        func fits(_ candidate: SessionBlock) -> Bool {
             // + the gap before the closing jam, and the closing jam itself.
-            guard spent(trial) + betweenBlockSeconds + closingFloor <= budget else { continue }
-            blocks = trial
+            spent(blocks + [candidate]) + betweenBlockSeconds + closingFloor <= budget
         }
+
+        // Timing candidates compete with each other for all but one slot.
+        for candidate in timingCandidates(from: input, sizes: sizes, notes: &notes) {
+            guard blocks.filter({ $0.role == .training }).count < maximumTrainingBlocks - 1 else { break }
+            if fits(candidate) { blocks.append(candidate) }
+        }
+
+        // Form gets the remaining slot outright rather than competing for it. It is the only
+        // drill on the *other* axis — knowing where you are in the music, which is tens of
+        // seconds, not milliseconds (§6.1) — so ranking it against the clock drills on their
+        // evidence would drop it from every session the moment a clock drill had a reason.
+        let form = formBlock(from: input, sizes: sizes)
+        if fits(form) { blocks.append(form) }
 
         // Whatever is left goes to closing jams, snapped to whole 8-bar phrases.
         //
@@ -337,7 +385,8 @@ public enum SessionPlanner {
                     + "about how the pulse holds up than one long one would."))
         }
 
-        if input.jams.isEmpty && input.continuations.isEmpty && input.forms.isEmpty && input.tempos.isEmpty {
+        if input.jams.isEmpty && input.continuations.isEmpty && input.forms.isEmpty
+            && input.tempos.isEmpty && input.memories.isEmpty {
             notes.append("No history yet, so this is the standard opening session. From the "
                        + "second session on, the training blocks are chosen from what the data says.")
         }
@@ -374,15 +423,17 @@ public enum SessionPlanner {
 
     // MARK: Training selection
 
-    /// Candidate training blocks, most-needed first. The caller takes as many as fit.
-    private static func trainingCandidates(from input: PlannerInput, sizes: Sizes,
-                                           notes: inout [String]) -> [SessionBlock] {
+    /// Beat-level candidates, most-needed first. The caller takes as many as fit.
+    ///
+    /// Form is deliberately not here — see `plan`.
+    private static func timingCandidates(from input: PlannerInput, sizes: Sizes,
+                                         notes: inout [String]) -> [SessionBlock] {
         var candidates: [SessionBlock] = []
         if let block = continuationBlock(from: input, sizes: sizes, notes: &notes) {
             candidates.append(block)
         }
+        if let block = memoryBlock(from: input, sizes: sizes) { candidates.append(block) }
         if let block = tempoBlock(from: input, sizes: sizes) { candidates.append(block) }
-        candidates.append(formBlock(from: input, sizes: sizes))
         return candidates
     }
 
@@ -429,9 +480,60 @@ public enum SessionPlanner {
         }
         notes.append(String(format: "Motor noise is now the larger half (%.1f ms against %.1f ms "
                           + "clock). That changes the training target — evenness and dynamics "
-                          + "rather than longer silences — and no drill for it exists yet (M11).",
+                          + "rather than longer silences — and no drill for it exists yet.",
                             motor, clock))
         return nil
+    }
+
+    /// The recall drill, once the clock is known to be the weak half.
+    ///
+    /// The continuation drill loads the clock by making it run longer. This loads it a
+    /// different way: by making the player *let go* of the period and pick it up again. A
+    /// pulse that only survives while it is being produced is a different weakness from one
+    /// that is genuinely unstable, and the two need different work — which is why this is a
+    /// separate drill and not a longer silence.
+    private static func memoryBlock(from input: PlannerInput, sizes: Sizes) -> SessionBlock? {
+        let recentSplits = Array(input.continuations.suffix(recentWindow)).filter(\.splitIsReliable)
+        let clock = mean(recentSplits.compactMap(\.clockSDms))
+        let motor = mean(recentSplits.compactMap(\.motorSDms))
+        // Only worth scheduling once the split says the clock is the problem. Before that it
+        // would be training a weakness that has not been shown to exist.
+        guard let clock, let motor, clock > motor else { return nil }
+
+        let recent = Array(input.memories.suffix(recentWindow))
+        let retention = recent.last.map {
+            TempoMemoryAnalysis.suggestedRetentionBars(current: $0.retentionBars, clockSDms: clock)
+        } ?? 4
+
+        guard let last = recent.last else {
+            return SessionBlock(
+                role: .training,
+                plan: .memory(MemoryPlan(bpm: referenceBpm, referenceBars: 4,
+                                         retentionBars: retention, reproduceBars: 4,
+                                         rounds: sizes.memoryRounds)),
+                reason: String(format: "Your clock is the looser half (%.1f ms against %.1f ms "
+                             + "motor). This asks whether the period is *stored* or only held "
+                             + "by keeping it running — half the waits are silent, half are "
+                             + "filled with unrelated percussion.", clock, motor))
+        }
+
+        if let cost = last.interferenceCost, cost > 1 {
+            return SessionBlock(
+                role: .training,
+                plan: .memory(MemoryPlan(bpm: referenceBpm, referenceBars: 4,
+                                         retentionBars: retention, reproduceBars: 4,
+                                         rounds: sizes.memoryRounds)),
+                reason: String(format: "Interference cost you %.1f points last time — the period "
+                             + "goes when something else needs the attention. More rounds at a "
+                             + "%d-bar wait.", cost, retention))
+        }
+        return SessionBlock(
+            role: .training,
+            plan: .memory(MemoryPlan(bpm: referenceBpm, referenceBars: 4,
+                                     retentionBars: retention, reproduceBars: 4,
+                                     rounds: sizes.memoryRounds)),
+            reason: "The wait goes to \(retention) bars. The period survived the last one — "
+                  + "the question is how long it keeps surviving.")
     }
 
     /// Tempo calibration, while the produced period is still off.

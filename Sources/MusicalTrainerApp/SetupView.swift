@@ -69,7 +69,7 @@ struct SetupView: View {
                 }
 
                 // The dropout drill's length comes from its own cycle controls below.
-                if model.mode != .dropout && model.mode != .tempo {
+                if model.mode != .dropout && model.mode != .tempo && model.mode != .memory {
                     LabeledContent("Length") {
                         HStack(spacing: 12) {
                             Slider(value: Binding(get: { Double(model.bars) },
@@ -128,6 +128,27 @@ struct SetupView: View {
                     }
                     Text("Rotating the target trains the mapping from a tempo to a period, "
                        + "rather than memorising one number.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if model.mode == .memory {
+                    Divider()
+                    LabeledContent("Wait") {
+                        Picker("", selection: $model.retentionBars) {
+                            ForEach([2, 4, 8, 16], id: \.self) { Text("\($0) bars").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 130)
+                    }
+                    LabeledContent("Rounds") {
+                        Picker("", selection: $model.memoryRounds) {
+                            ForEach([4, 6, 8, 12], id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        .labelsHidden().frame(width: 130)
+                    }
+                    Text("Half the waits are silent and half are filled with scattered "
+                       + "percussion. The gap between them is the measurement: a period held "
+                       + "by attention survives the empty wait and not the filled one.")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

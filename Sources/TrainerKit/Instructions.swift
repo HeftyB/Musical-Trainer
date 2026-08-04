@@ -80,6 +80,28 @@ public struct DrillInstructions {
         measures: "The tempo you produce unaccompanied each round, and whether your accuracy "
                 + "improves across the session.")
 
+    public static let memory = DrillInstructions(
+        goal: "Measures whether you can store a tempo, or only hold one by keeping it going.",
+        steps: [
+            "The groove plays for a few bars. Play along and let the tempo settle in.",
+            "When it stops, STOP PLAYING and wait. Some waits are silent, some are filled "
+                + "with scattered percussion.",
+            "A single kick marks the end of the wait. From there, play ONE NOTE PER BEAT at "
+                + "the tempo you heard.",
+            "The groove returns at the right tempo, and the next round begins.",
+        ],
+        pitfalls: [
+            "Don't keep playing during the wait — that keeps the pulse running, which is the "
+                + "Alone drill, not this one. The round is discarded.",
+            "Don't try to follow the scattered percussion. It is deliberately unrelated to "
+                + "the tempo and following it will pull you off.",
+            "Don't count through the wait. If counting is what holds the tempo, the filled "
+                + "waits will show it — that is the finding, not a failure.",
+        ],
+        measures: "How accurately you reproduce the tempo after an empty wait against a "
+                + "filled one. A gap between the two means the period is being held by "
+                + "attention rather than stored.")
+
     public static let groove = DrillInstructions(
         goal: "Just the backing track. Nothing is recorded or measured.",
         steps: [

@@ -17,6 +17,8 @@ struct ResultsView: View {
                     DropoutResults(outcome: outcome)
                 } else if let outcome = model.tempoOutcome {
                     TempoResults(outcome: outcome)
+                } else if let outcome = model.memoryOutcome {
+                    MemoryResults(outcome: outcome)
                 }
 
                 HStack {
@@ -436,5 +438,123 @@ private struct FormResults: View {
     private var reactionNote: String? {
         guard outcome.config.level.hasArrivalAccent else { return "from the bar line" }
         return report.phaseErrorMeanMs > 120 ? "reacting to the crash" : "arriving with it"
+    }
+}
+
+
+// MARK: - Recall (tempo memory)
+
+private struct MemoryResults: View {
+    let outcome: TrainerEngine.MemoryOutcome
+    private var report: TempoMemoryReport { outcome.report }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(report.headline)
+                .font(.title2).fontWeight(.semibold)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("\(report.usableCount)/\(report.rounds.count) rounds scored · "
+               + "\(outcome.config.retentionBars)-bar wait")
+                .font(.callout).foregroundStyle(.secondary)
+
+            summary
+            comparisonChart
+            roundList
+
+            ForEach(report.notes, id: \.self) { note in
+                Card {
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if outcome.suggestedRetentionBars != outcome.config.retentionBars {
+                let longer = outcome.suggestedRetentionBars > outcome.config.retentionBars
+                Card {
+                    Label(longer
+                          ? "Your clock is steady enough for a longer gap — try \(outcome.suggestedRetentionBars) bars next."
+                          : "Try a shorter \(outcome.suggestedRetentionBars)-bar wait so more rounds come through.",
+                          systemImage: longer ? "arrow.up.circle" : "arrow.down.circle")
+                        .font(.callout)
+                }
+            }
+        }
+    }
+
+    private var summary: some View {
+        Card {
+            HStack(alignment: .top, spacing: 24) {
+                if let silent = report.silentMeanAbsErrorPercent {
+                    Metric(label: "After silence", value: String(format: "%.1f%%", silent),
+                           note: "nothing in the gap", emphasis: true)
+                }
+                if let filled = report.filledMeanAbsErrorPercent {
+                    Metric(label: "After interference", value: String(format: "%.1f%%", filled),
+                           note: "distractor in the gap", emphasis: true)
+                }
+                if let cost = report.interferenceCost {
+                    Metric(label: "Cost", value: String(format: "%+.1f", cost),
+                           note: report.interferenceInterval.map {
+                               $0.excludesZero ? "real" : "within noise" } ?? "too few rounds",
+                           emphasis: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var comparisonChart: some View {
+        let scored = report.rounds.filter(\.isUsable)
+        if scored.count > 1 {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Every round").font(.headline)
+                    Text("How far off you were. Blue waits were silent, orange ones were filled.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Chart {
+                        RuleMark(y: .value("On target", 0))
+                            .foregroundStyle(.secondary.opacity(0.6))
+                        ForEach(scored, id: \.index) { round in
+                            BarMark(x: .value("Round", round.index + 1),
+                                    y: .value("Error %", round.errorPercent ?? 0))
+                                .foregroundStyle(round.condition == .silent
+                                                 ? Color.accentColor : Color.orange)
+                        }
+                    }
+                    .chartYAxisLabel("error (%)")
+                    .chartXAxisLabel("round")
+                    .frame(height: 160)
+                }
+            }
+        }
+    }
+
+    private var roundList: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(report.rounds, id: \.index) { round in
+                    HStack {
+                        Text("Round \(round.index + 1)").frame(width: 90, alignment: .leading)
+                        Text(round.condition == .silent ? "silent" : "filled")
+                            .foregroundStyle(round.condition == .silent ? Color.accentColor : Color.orange)
+                            .frame(width: 70, alignment: .leading)
+                        if round.isUsable, let produced = round.producedBpm,
+                           let pct = round.errorPercent {
+                            Text(String(format: "%.1f", produced)).monospacedDigit()
+                                .frame(width: 70, alignment: .trailing)
+                            Text(String(format: "%+.1f%%", pct)).monospacedDigit()
+                                .foregroundStyle(abs(pct) < 2 ? Color.green : Color.orange)
+                                .frame(width: 70, alignment: .trailing)
+                        } else {
+                            Text(round.unusableReason ?? "not scored").foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                    }
+                    .font(.callout)
+                }
+            }
+        }
     }
 }

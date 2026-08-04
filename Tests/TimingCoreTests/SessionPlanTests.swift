@@ -225,6 +225,45 @@ final class SessionPlanTests: XCTestCase {
         XCTAssertNil(firstTempoTraining(SessionPlanner.plan(targetMinutes: 30, from: input)))
     }
 
+    // MARK: The recall drill
+
+    /// Only worth scheduling once the split says the clock is the problem — before that it
+    /// would be training a weakness that has not been shown to exist.
+    func testRecallIsNotScheduledUntilTheClockIsKnownToBeTheWeakHalf() {
+        let unsettled = PlannerInput(continuations: [continuation(reliable: false),
+                                                     continuation(reliable: false)])
+        XCTAssertFalse(hasMemoryBlock(SessionPlanner.plan(targetMinutes: 30, from: unsettled)))
+
+        let motorDominant = PlannerInput(continuations: (0..<3).map { _ in
+            continuation(reliable: true, clock: 8, motor: 16) })
+        XCTAssertFalse(hasMemoryBlock(SessionPlanner.plan(targetMinutes: 30, from: motorDominant)))
+
+        let clockDominant = PlannerInput(continuations: (0..<3).map { _ in
+            continuation(reliable: true, clock: 15, motor: 9) })
+        XCTAssertTrue(hasMemoryBlock(SessionPlanner.plan(targetMinutes: 30, from: clockDominant)))
+    }
+
+    /// Form is the only drill on the *other* axis — where you are in the music, not where the
+    /// note is. Ranking it against the clock drills on their evidence would drop it from every
+    /// session the moment a clock drill had a reason, which is exactly what happened the
+    /// moment the recall drill was added.
+    func testFormKeepsItsSlotEvenWhenEveryClockDrillHasAReason() {
+        let input = PlannerInput(
+            continuations: (0..<3).map { _ in continuation(reliable: true, clock: 15, motor: 9) },
+            forms: [form(level: 2, onFormRate: 0.5)],
+            tempos: [PlannerInput.Tempo(targetCount: 1, meanAbsErrorPercent: 5)])
+        let plan = SessionPlanner.plan(targetMinutes: 30, from: input)
+
+        XCTAssertNotNil(firstForm(plan), "form was crowded out by the clock drills")
+        XCTAssertTrue(hasMemoryBlock(plan))
+        XCTAssertLessThanOrEqual(blocks(plan, role: .training).count,
+                                 SessionPlanner.maximumTrainingBlocks)
+    }
+
+    private func hasMemoryBlock(_ plan: SessionPlan) -> Bool {
+        plan.blocks.contains { if case .memory = $0.plan { return true } else { return false } }
+    }
+
     // MARK: Form ladder
 
     /// A player marking a steady 4-bar phrase against an 8-bar setting has a consistent feel,

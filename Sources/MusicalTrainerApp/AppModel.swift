@@ -8,7 +8,7 @@ import TrainerKit
 final class AppModel: ObservableObject {
 
     enum Mode: String, CaseIterable, Identifiable {
-        case jam, form, dropout, tempo, groove
+        case jam, form, dropout, tempo, memory, groove
         var id: String { rawValue }
         var title: String {
             switch self {
@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
             case .form: return "Form"
             case .dropout: return "Alone"
             case .tempo: return "Tempo"
+            case .memory: return "Recall"
             case .groove: return "Play"
             }
         }
@@ -25,6 +26,7 @@ final class AppModel: ObservableObject {
             case .form: return "square.grid.3x3"
             case .dropout: return "speaker.slash"
             case .tempo: return "metronome"
+            case .memory: return "brain.head.profile"
             case .groove: return "play.circle"
             }
         }
@@ -36,6 +38,7 @@ final class AppModel: ObservableObject {
             case .form: return .form
             case .dropout: return .dropout
             case .tempo: return .tempo
+            case .memory: return .memory
             case .groove: return .groove
             }
         }
@@ -46,6 +49,7 @@ final class AppModel: ObservableObject {
             case .form: return "Mark the top of each phrase without counting."
             case .dropout: return "Hold quarter notes through the silences — is it your clock or your hands?"
             case .tempo: return "Produce a tempo unaccompanied and find out what you actually played."
+            case .memory: return "Hear a tempo, let go of it, then get it back — stored, or just running?"
             case .groove: return "Just the backing. Nothing measured."
             }
         }
@@ -76,6 +80,10 @@ final class AppModel: ObservableObject {
     @Published var pacedBars: Int = 4
     @Published var silentBars: Int = 4
     @Published var cycles: Int = 6
+
+    // Recall drill.
+    @Published var retentionBars: Int = 4
+    @Published var memoryRounds: Int = 8
 
     // Tempo calibration.
     @Published var tempoTargets: [Double] = [100]
@@ -108,6 +116,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var formOutcome: TrainerEngine.FormOutcome?
     @Published private(set) var dropoutOutcome: TrainerEngine.DropoutOutcome?
     @Published private(set) var tempoOutcome: TrainerEngine.TempoOutcome?
+    @Published private(set) var memoryOutcome: TrainerEngine.MemoryOutcome?
     @Published var feelRating: Int?
 
     /// Rounds scored so far in a running tempo drill.
@@ -151,6 +160,7 @@ final class AppModel: ObservableObject {
                                                       level: formLevel).durationSeconds
         case .dropout: return dropoutConfig.durationSeconds
         case .tempo: return tempoConfig.durationSeconds
+        case .memory: return memoryConfig.durationSeconds
         case .groove: return TrainerEngine.GrooveConfig(bpm: bpm, bars: bars).durationSeconds
         }
     }
@@ -160,6 +170,11 @@ final class AppModel: ObservableObject {
     var tempoConfig: TrainerEngine.TempoConfig {
         TrainerEngine.TempoConfig(targets: tempoTargets, leadBars: 4,
                                   holdBars: holdBars, rounds: tempoRounds)
+    }
+
+    var memoryConfig: TrainerEngine.MemoryConfig {
+        TrainerEngine.MemoryConfig(bpm: bpm, referenceBars: 4, retentionBars: retentionBars,
+                                   reproduceBars: 4, rounds: memoryRounds)
     }
 
     var dropoutConfig: TrainerEngine.DropoutConfig {
@@ -173,6 +188,7 @@ final class AppModel: ObservableObject {
         formOutcome = nil
         dropoutOutcome = nil
         tempoOutcome = nil
+        memoryOutcome = nil
         liveRounds = []
         feelRating = nil
         isStopping = false
@@ -189,6 +205,7 @@ final class AppModel: ObservableObject {
         let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars)
         let dropConfig = dropoutConfig
         let tempConfig = tempoConfig
+        let memConfig = memoryConfig
 
         // The engine blocks for the length of the take, so it runs off the main thread and
         // the UI stays responsive. `self` is captured strongly: the closure runs once and
@@ -213,6 +230,9 @@ final class AppModel: ObservableObject {
                             Task { @MainActor in self.liveRounds.append(result) }
                         })
                     Task { @MainActor in self.finish(tempo: outcome) }
+                case .memory:
+                    let outcome = try TrainerEngine.runMemory(memConfig, cancellation: flag)
+                    Task { @MainActor in self.finish(memory: outcome) }
                 case .groove:
                     try TrainerEngine.playGroove(grooveConfig, cancellation: flag)
                     Task { @MainActor in self.backToSetup() }
@@ -250,6 +270,11 @@ final class AppModel: ObservableObject {
         screen = .rating
     }
 
+    private func finish(memory outcome: TrainerEngine.MemoryOutcome) {
+        memoryOutcome = outcome
+        screen = .rating
+    }
+
     /// Store the rating and reveal the numbers — unless a session is running, in which case
     /// the numbers wait for the debrief and this just advances to the next block.
     func submitRating(_ rating: Int?) {
@@ -260,6 +285,7 @@ final class AppModel: ObservableObject {
             if let outcome = formOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
             if let outcome = dropoutOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
             if let outcome = tempoOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
+            if let outcome = memoryOutcome { try TrainerEngine.save(outcome, feelRating: rating) }
         } catch {
             errorMessage = "Could not save the take: \(error.localizedDescription)"
         }

@@ -21,6 +21,7 @@ public final class SessionRunner {
         case form(TrainerEngine.FormOutcome)
         case dropout(TrainerEngine.DropoutOutcome)
         case tempo(TrainerEngine.TempoOutcome)
+        case memory(TrainerEngine.MemoryOutcome)
         /// The warm-up: played, not measured, nothing to rate or save.
         case unmeasured
 
@@ -35,6 +36,7 @@ public final class SessionRunner {
             case .form(let o):    return o.report.headline
             case .dropout(let o): return o.report.headline
             case .tempo(let o):   return o.report.headline
+            case .memory(let o):  return o.report.headline
             case .unmeasured:     return nil
             }
         }
@@ -59,6 +61,13 @@ public final class SessionRunner {
                 guard let bias = o.report.meanErrorPercent else { return "no rounds scored" }
                 return String(format: "%+.1f%% bias · %d/%d rounds scored",
                               bias, o.report.usableCount, o.report.rounds.count)
+            case .memory(let o):
+                guard let silent = o.report.silentMeanAbsErrorPercent,
+                      let filled = o.report.filledMeanAbsErrorPercent else {
+                    return "\(o.report.usableCount)/\(o.report.rounds.count) rounds scored"
+                }
+                return String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
+                              silent, filled, o.report.interferenceCost ?? 0)
             case .unmeasured:
                 return nil
             }
@@ -141,6 +150,13 @@ public final class SessionRunner {
                                             silentBars: p.silentBars, cycles: p.cycles),
                 progress: progress, cancellation: cancellation))
 
+        case .memory(let p):
+            return .memory(try TrainerEngine.runMemory(
+                TrainerEngine.MemoryConfig(bpm: p.bpm, referenceBars: p.referenceBars,
+                                           retentionBars: p.retentionBars,
+                                           reproduceBars: p.reproduceBars, rounds: p.rounds),
+                progress: progress, cancellation: cancellation))
+
         case .tempo(let p):
             return .tempo(try TrainerEngine.runTempo(
                 TrainerEngine.TempoConfig(targets: p.targets, leadBars: p.leadBars,
@@ -164,6 +180,7 @@ public final class SessionRunner {
         case .form(let o):    try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
         case .dropout(let o): try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
         case .tempo(let o):   try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
+        case .memory(let o):  try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
         case .unmeasured:     break
         }
         results.append(BlockResult(index: index, block: block, outcome: outcome,
