@@ -226,10 +226,19 @@ malformed packets must not index out of range.
 
 ## 8. Version control
 
-### 8.1 Branching
+### 8.1 Branching and review
 
-`main` is always green — `check.sh` passes at every commit. Work that spans more than one
-sitting goes on a branch named `<area>/<short-description>`.
+`main` is always green — `check.sh` passes at every commit.
+
+Branch for anything that is not a one-line fix. Name it `<type>/<short-description>` using the
+same types as §8.2: `feat/content-analysis`, `fix/form-instructions`, `build/woodpecker`.
+
+Open a pull request in Gitea against `main`. The verification pipeline runs on the PR and must
+be green before merge. Self-review is still review: read the diff in the PR view before
+merging — it catches things the editor does not.
+
+Merge with a merge commit, not a squash. The commits are already one-logical-change each, and
+squashing them destroys that.
 
 ### 8.2 Commit format
 
@@ -294,6 +303,49 @@ swift build -c release && ./.build/release/TimingSpike selftest
 ```sh
 ./build-app.sh && open "Musical Trainer.app"
 ```
+
+### 9.4.1 Cutting a release
+
+Releases are cut **locally and deliberately**, because there is no macOS CI agent and this
+workstation must not become one — see `.woodpecker/release.yaml.disabled` for why.
+
+```sh
+git tag -s v0.2.0 -m 'v0.2.0'
+./scripts/package-release.sh v0.2.0     # runs the full gate, then packages
+git push origin v0.2.0
+./scripts/publish-release.sh v0.2.0     # creates the Gitea release, uploads dist/
+```
+
+`package-release.sh` runs `check.sh` before it packages anything, so a release still cannot be
+cut from an unverified tree. That guarantee comes from the script, not from CI, and survives
+the absence of a Mac runner.
+
+The Gitea token lives in the macOS keychain, never in the repository:
+
+```sh
+security add-generic-password -s musical-trainer-gitea -a "$USER" -w
+```
+
+When a dedicated macOS machine exists, rename `.woodpecker/release.yaml.disabled` back to
+`release.yaml` and the last two steps become automatic on tag. **Do not point it at the
+workstation**: a release build pegs every core for about a minute, and an unattended build
+firing during a take could perturb the render thread and corrupt a measurement in a way that
+looks like the player's own timing.
+
+### 9.4.2 Continuous integration
+
+| Pipeline | Runs on | Where | Covers |
+|---|---|---|---|
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, all 170 tests |
+| `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
+
+The Linux leg is possible because `Package.swift` excludes the Apple-only targets off macOS.
+That is the strictest available check of §1.1: an accidental `import AVFoundation` in a pure
+module stops compiling rather than merely tripping a grep. Every test lives in `TimingCoreTests`
+and `GrooveCoreTests`, so the Linux leg runs the whole suite.
+
+What CI cannot cover today: `TrainerKit`, both front ends, `selftest`, and the stored-session
+decode check. Those run in `./scripts/check.sh` locally, which the pre-commit hook enforces.
 
 ### 9.5 Adding a drill
 

@@ -1,0 +1,31 @@
+# Verification pipeline — runs on every push and pull request.
+#
+# Runs in a Linux container, which is possible because `Package.swift` excludes the
+# Apple-only targets off macOS. That is not a workaround; it is the strictest available
+# check of the purity rule in STANDARDS.md §1.1. An accidental `import AVFoundation` in
+# TimingCore stops compiling here rather than merely tripping a grep.
+#
+# The whole test suite lives in TimingCoreTests and GrooveCoreTests, so this leg runs all of
+# it. What it cannot do is build TrainerKit, the CLI or the app, or run `selftest` — those
+# need macOS and belong to release.yaml.
+
+when:
+  - event: [push, pull_request, manual]
+
+steps:
+  - name: verify
+    image: swift:5.7-jammy
+    commands:
+      # Fail loudly if the platform assumption ever stops holding, rather than silently
+      # testing nothing.
+      - swift --version
+      - swift package describe --type json > /dev/null
+      - ./scripts/check.sh --fast
+
+  - name: purity
+    image: swift:5.7-jammy
+    commands:
+      # Belt and braces: build each pure module on its own, so a dependency added between
+      # them (GrooveCore must not depend on TimingCore) fails here.
+      - swift build --target TimingCore
+      - swift build --target GrooveCore

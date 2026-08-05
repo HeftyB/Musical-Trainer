@@ -12,6 +12,9 @@ DerivedData/
 # Built app bundle — produced by ./build-app.sh, never committed
 Musical Trainer.app/
 
+# Release artifacts — produced by ./scripts/package-release.sh
+dist/
+
 # Scratch work. Probes and one-off experiments are useful but disposable; keep them out of
 # the repo so the source tree only ever contains code that ships or tests.
 Scratch/
