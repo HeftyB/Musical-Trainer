@@ -706,9 +706,12 @@ public enum TrainerEngine {
         for index in 0..<config.rounds {
             let filled = TempoMemoryDrill.isFilled(round: index)
 
-            // Reference: the player plays along and entrains.
+            // Reference: the player plays along and entrains. The last bar carries a fill
+            // that warns the silence is coming — see `TempoMemoryDrill.isWarningBar`.
             for bar in 0..<config.referenceBars {
-                for hit in seq.schedule(pattern: groove, bar: bar) {
+                let pattern = TempoMemoryDrill.referencePattern(
+                    bar: bar, referenceBars: config.referenceBars, groove: groove)
+                for hit in seq.schedule(pattern: pattern, bar: bar) {
                     hits.append(ScheduledHit(voice: hit.voice, sample: cursor + hit.sample,
                                              velocity: hit.velocity))
                 }

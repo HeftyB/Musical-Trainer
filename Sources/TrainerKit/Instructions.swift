@@ -120,10 +120,11 @@ public struct DrillInstructions {
         goal: "Measures whether you can store a tempo, or only hold one by keeping it going.",
         steps: [
             "The groove plays for a few bars. Play along and let the tempo settle in.",
+            "A snare fill in the last bar warns you the groove is about to stop.",
             "When it stops, STOP PLAYING and wait. Some waits are silent, some are filled "
                 + "with scattered percussion.",
-            "A single kick marks the end of the wait. From there, play ONE NOTE PER BEAT at "
-                + "the tempo you heard.",
+            "A crash and kick together mark the end of the wait. From there, play ONE NOTE "
+                + "PER BEAT at the tempo you heard.",
             "The groove returns at the right tempo, and the next round begins.",
         ],
         pitfalls: [

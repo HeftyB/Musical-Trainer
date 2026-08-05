@@ -267,14 +267,38 @@ final class SessionPlanTests: XCTestCase {
     // MARK: Form ladder
 
     /// A player marking a steady 4-bar phrase against an 8-bar setting has a consistent feel,
-    /// not a lost one. Following it measures something; scoring it down measures nothing.
-    func testFormFollowsTheFeltPhraseLength() {
-        let input = PlannerInput(forms: [form(level: 2, phraseBars: 8, onFormRate: 0.56,
-                                              markedEvery: 4)])
+    /// not a lost one — but only if they do it twice. Following one take is how the setting
+    /// started oscillating.
+    func testFormFollowsAFeltPhraseLengthConfirmedByTwoTakes() {
+        let input = PlannerInput(forms: [form(level: 2, phraseBars: 8, onFormRate: 0.6, markedEvery: 4),
+                                         form(level: 2, phraseBars: 8, onFormRate: 0.56, markedEvery: 4)])
         let plan = SessionPlanner.plan(targetMinutes: 30, from: input)
         XCTAssertEqual(firstForm(plan)?.phraseBars, 4)
         XCTAssertEqual(firstForm(plan)?.level, 2, "changing the phrase and the level at once "
                      + "would confound the next result")
+    }
+
+    /// The defect this replaced: an 8-bar setting where the player felt 4 moved the drill to
+    /// 4, and the next take at 4 — where they felt 8 — would have moved it straight back.
+    /// One take is not evidence of a stable felt period.
+    func testASingleDisagreeingTakeDoesNotMoveThePhraseLength() {
+        let input = PlannerInput(forms: [form(level: 2, phraseBars: 4, onFormRate: 0.94, markedEvery: 4),
+                                         form(level: 2, phraseBars: 4, onFormRate: 0.36, markedEvery: 8)])
+        let plan = SessionPlanner.plan(targetMinutes: 30, from: input)
+
+        XCTAssertEqual(firstForm(plan)?.phraseBars, 4, "the setting must not chase one take")
+        XCTAssertTrue(plan.notes.contains { $0.contains("two takes running") },
+                      "and it should say why it held: \(plan.notes)")
+    }
+
+    /// Real sequence from the first two planned sessions, which oscillated 8 → 4 → 8.
+    func testTheRealOscillationSequenceSettles() {
+        // Felt 4 at the 8-bar setting, then felt 8 at the 4-bar setting.
+        let history = [form(level: 2, phraseBars: 8, onFormRate: 0.56, markedEvery: 4),
+                       form(level: 2, phraseBars: 4, onFormRate: 0.94, markedEvery: 4),
+                       form(level: 2, phraseBars: 4, onFormRate: 0.36, markedEvery: 8)]
+        let plan = SessionPlanner.plan(targetMinutes: 30, from: PlannerInput(forms: history))
+        XCTAssertEqual(firstForm(plan)?.phraseBars, 4, "one take feeling 8 must not flip it back")
     }
 
     func testCleanTakeEarnsTheNextLandmarkLevel() {

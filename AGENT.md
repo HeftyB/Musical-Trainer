@@ -45,7 +45,7 @@ tags | conditions | compare | form | dropout | tempo`.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is all 170 tests, because `Package.swift` excludes the Apple-only targets off macOS.
+  is all 175 tests, because `Package.swift` excludes the Apple-only targets off macOS.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
 - **Not installed:** `swiftlint`, `swift-format`, `gh`, `tea`, `jq`, `shellcheck`. `scripts/check.sh`
@@ -58,7 +58,7 @@ tags | conditions | compare | form | dropout | tempo`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 170 unit tests, no hardware needed
+swift test                              # 175 unit tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -146,25 +146,29 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 ## What the data says about this player
 
-Current as of 39 takes across 4 sittings — 15 jams, 9 form, 8 continuation, 5 tempo, 2 recall.
-Recompute rather than trusting these; every figure comes from `review trend`, `review dropout`,
-`review feel` and `review cold`.
+Current as of 46 takes across 5 sittings — 17 jams, 10 form, 9 continuation, 6 tempo, 4 recall,
+2 planned sessions. Recompute rather than trusting these: `review trend`, `review dropout`,
+`review feel`, `review cold`, `review content`.
 
-- **r₁ is positive in all 15 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
+- **r₁ is positive in all 17 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented
   way to make this worse, and he already reports it feels worse.
-- **Clock is the looser half in 6 of 6 trustworthy splits.** At 4-bar silences it runs 14.9 ms
-  clock vs 9.3 ms motor; the one 8-bar take is 40.7 vs 20.9, which is a harder task rather than
-  a worse player — do not pool them.
-- **Unaccompanied tempo runs slow, ~5%**, and it closes within a sitting (−4.7% → −0.3% over
-  four tempo takes in 27 minutes). The first *controlled* cold probe read **−7.9%** against the
-  −0.3% that ended the previous evening, which is the M10 question in one number: n=1 so far.
-- **Feel tracks the measurement** (r ≈ −0.61 over 11 rated takes) — but the first full session
-  broke it: two jams with identical spread (24.1 vs 24.3 ms) were rated 4 and 1 twenty minutes
-  apart. His instinct is calibrated for precision and apparently not for fatigue.
-- **Off-grid rate and velocity spread both climbed** across that session (2.7% → 10.8%). His own
-  reading is that steady quarters send him to sleep and melody puts him in the pocket — that is
-  M12's hypothesis, and the pitch data to test it only started being recorded on 4 August.
+- **The benchmark jam tightened for real**: 24.1 → 17.4 ms spread between the two planned
+  sessions, bootstrapped interval [−9.41, −3.82], same device and calibration. Bias moved the
+  other way in the same take, −5.9 → −22.6 ms. Variance is the skill; treat this as a good
+  session with a large placement shift, not a mixed one. n = 2 — the 13-take trend is still flat.
+- **Clock is the looser half in every trustworthy split.** Do not pool across silence lengths:
+  4-bar gives ~14.9 / 9.3 ms, 8-bar 40.7 / 20.9, 16-bar 22.1 / 6.8. Longer is a harder task.
+- **Unaccompanied tempo is converging on target.** Historically ~5% slow; the latest
+  continuation take produced 99 BPM (−1%). The controlled cold probe read −7.9% then −4.0%.
+- **Feel tracks the measurement** (r ≈ −0.63 over 13 rated takes) — but fatigue breaks it: two
+  jams with identical spread were rated 4 and 1 twenty minutes apart (§7.17).
+- **The recall drill's interference cost flipped sign** once he stopped playing through the
+  silent waits (§7.19). The current reading is that a distractor *helps*, plausibly because an
+  empty gap invites counting. Two takes per direction — do not state it as settled.
+- **M12's first data contradicts his hunch**: busier playing went with *looser* timing within a
+  take, and the censoring bias runs against that result rather than producing it. His hunch is
+  about the mode of playing across a take, which M12 cannot test and M13 can.
 - He thinks in feel and sound, not bar counts. He is a strong developer — pitch technical
   explanations high, but never explain music theory to him.
 

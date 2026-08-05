@@ -40,6 +40,31 @@ public enum TempoMemoryDrill {
     /// balanced across the session rather than confounded with fatigue. Proper counterbalancing
     /// is M12's job; this is enough to make the contrast interpretable.
     public static func isFilled(round: Int) -> Bool { round % 2 == 1 }
+
+    /// The last bar of the reference section, which carries a fill warning the silence is
+    /// coming.
+    ///
+    /// Without it the groove simply stops and the player is caught out — reported after the
+    /// first live run of the drill. A fill is the idiomatic way to say "something changes
+    /// next", and it costs nothing analytically: it lands while the groove is still playing,
+    /// so the tempo it carries is tempo the player already has. Nothing is given away.
+    ///
+    /// It also makes the round's shape learnable. With the fill always in the same place and
+    /// the retention length fixed for a session, the player can start anticipating the
+    /// re-entry rather than waiting to be told — which is the point of the drill.
+    public static func isWarningBar(bar: Int, referenceBars: Int) -> Bool {
+        referenceBars > 1 && bar == referenceBars - 1
+    }
+
+    /// What plays in a given bar of the reference section.
+    ///
+    /// The fill **adds to** the groove rather than replacing it, the same invariant the form
+    /// drill enforces (PLAN.md §6.1): a fill that leaves a hole where the pulse should be
+    /// makes the player re-find the beat, which is the opposite of what is being trained.
+    public static func referencePattern(bar: Int, referenceBars: Int, groove: Pattern) -> Pattern {
+        guard isWarningBar(bar: bar, referenceBars: referenceBars) else { return groove }
+        return groove.adding(GrooveLibrary.snareFill.hits.filter { $0.voice == .snare })
+    }
 }
 
 // The next retention length is chosen from the measured clock SD, which makes it a question

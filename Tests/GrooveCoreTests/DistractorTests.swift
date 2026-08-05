@@ -141,6 +141,44 @@ final class DistractorTests: XCTestCase {
 
     // MARK: - Difficulty
 
+    /// The groove stopping with no warning caught the player out on the first live run. The
+    /// fill lands in the last reference bar, while the groove is still playing, so it gives
+    /// away no tempo the player does not already have.
+    func testTheLastReferenceBarCarriesAStopWarning() {
+        XCTAssertFalse(TempoMemoryDrill.isWarningBar(bar: 0, referenceBars: 4))
+        XCTAssertFalse(TempoMemoryDrill.isWarningBar(bar: 2, referenceBars: 4))
+        XCTAssertTrue(TempoMemoryDrill.isWarningBar(bar: 3, referenceBars: 4))
+
+        let groove = GrooveLibrary.basicRock
+        let plain = TempoMemoryDrill.referencePattern(bar: 0, referenceBars: 4, groove: groove)
+        let warning = TempoMemoryDrill.referencePattern(bar: 3, referenceBars: 4, groove: groove)
+
+        XCTAssertEqual(plain, groove, "only the last bar differs")
+        XCTAssertGreaterThan(warning.hits.count, groove.hits.count, "the fill adds hits")
+    }
+
+    /// The fill **adds to** the groove. A fill that replaced it would leave a hole where the
+    /// pulse should be, and the player would have to re-find the beat going into the silence —
+    /// the opposite of what the drill trains (PLAN.md §6.1).
+    func testTheWarningFillNeverRemovesThePulse() {
+        let groove = GrooveLibrary.basicRock
+        let warning = TempoMemoryDrill.referencePattern(bar: 3, referenceBars: 4, groove: groove)
+        for hit in groove.hits {
+            XCTAssertTrue(warning.hits.contains(hit),
+                          "the groove's own \(hit.voice) at step \(hit.step) was dropped")
+        }
+        XCTAssertFalse(warning.hits.contains { $0.voice == .crash },
+                       "a crash would be a landmark, not a warning")
+    }
+
+    /// A one-bar reference section has no room for a warning bar that is not the whole thing.
+    func testASingleReferenceBarCarriesNoWarning() {
+        XCTAssertFalse(TempoMemoryDrill.isWarningBar(bar: 0, referenceBars: 1))
+        XCTAssertEqual(TempoMemoryDrill.referencePattern(bar: 0, referenceBars: 1,
+                                                         groove: GrooveLibrary.basicRock),
+                       GrooveLibrary.basicRock)
+    }
+
     func testConditionsAlternateStartingWithTheControl() {
         XCTAssertFalse(TempoMemoryDrill.isFilled(round: 0), "the first round is the control")
         XCTAssertTrue(TempoMemoryDrill.isFilled(round: 1))

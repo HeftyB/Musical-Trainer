@@ -350,7 +350,7 @@ public enum SessionPlanner {
         // drill on the *other* axis — knowing where you are in the music, which is tens of
         // seconds, not milliseconds (§6.1) — so ranking it against the clock drills on their
         // evidence would drop it from every session the moment a clock drill had a reason.
-        let form = formBlock(from: input, sizes: sizes)
+        let form = formBlock(from: input, sizes: sizes, notes: &notes)
         if fits(form) { blocks.append(form) }
 
         // Whatever is left goes to closing jams, snapped to whole 8-bar phrases.
@@ -574,8 +574,10 @@ public enum SessionPlanner {
 
     /// Form is always available — it trains a different axis from everything above, so it
     /// never competes with them on evidence.
-    private static func formBlock(from input: PlannerInput, sizes: Sizes) -> SessionBlock {
-        guard let last = input.forms.last else {
+    private static func formBlock(from input: PlannerInput, sizes: Sizes,
+                                  notes: inout [String]) -> SessionBlock {
+        let recent = Array(input.forms.suffix(recentWindow))
+        guard let last = recent.last else {
             return SessionBlock(
                 role: .training,
                 plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars, phraseBars: 8, level: 0)),
@@ -586,16 +588,33 @@ public enum SessionPlanner {
         // A player who consistently marked a shorter period was not lost; they were feeling a
         // different phrase. Following the feel measures something, scoring it down measures
         // nothing.
-        if let felt = last.markedEveryBars, Int(felt.rounded()) != last.phraseBars,
-           [2, 4, 8, 16, 32].contains(Int(felt.rounded())) {
-            let bars = Int(felt.rounded())
+        //
+        // But following it on a *single* take makes the planner chase the player. It did
+        // exactly that: an 8-bar setting where the player felt 4 moved the drill to 4, and the
+        // next take at 4 — where they felt 8 — would have moved it straight back. The two
+        // takes at 4 bars also disagreed wildly with each other (16/17 on form, then 5/14), so
+        // one take is not evidence of a stable felt period at all.
+        //
+        // The rule now needs the two most recent takes to agree. That cannot oscillate on
+        // noise, and when it does move, something real has been measured twice.
+        let feltPeriods = recent.suffix(2).map { $0.markedEveryBars.map { Int($0.rounded()) } }
+        if feltPeriods.count == 2, let latest = feltPeriods[1], let previous = feltPeriods[0],
+           latest == previous, latest != last.phraseBars, [2, 4, 8, 16, 32].contains(latest) {
             return SessionBlock(
                 role: .training,
-                plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars, phraseBars: bars,
+                plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars, phraseBars: latest,
                                      level: last.level)),
-                reason: "Last time you marked a steady \(bars)-bar phrase against the "
-                      + "\(last.phraseBars)-bar setting. That is a consistent feel, not a lost one, "
-                      + "so the drill follows it — \(bars)-bar phrases at level \(last.level).")
+                reason: "Both of your last two form takes marked a steady \(latest)-bar phrase "
+                      + "against the \(last.phraseBars)-bar setting. Twice is a feel rather than "
+                      + "a slip, so the drill follows it — \(latest)-bar phrases at level "
+                      + "\(last.level).")
+        }
+        if let latest = feltPeriods.last ?? nil, latest != last.phraseBars,
+           [2, 4, 8, 16, 32].contains(latest) {
+            notes.append("Your last form take marked a steady \(latest)-bar phrase against the "
+                       + "\(last.phraseBars)-bar setting, but the take before it did not agree. "
+                       + "The phrase length stays put until two takes running say the same "
+                       + "thing — chasing one take is how the setting started oscillating.")
         }
 
         if last.onFormRate >= 0.9 && !last.hasUnmarkedPhrases && last.level < 3 {

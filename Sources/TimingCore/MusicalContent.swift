@@ -259,15 +259,29 @@ public enum MusicalContentAnalysis {
         guard !windows.isEmpty else { return notes }
 
         // 1. Censoring. Spread is computed on matched events only.
+        //
+        // The direction matters and is easy to get backwards. Off-grid notes are the
+        // *worst-placed* ones, so excluding them shrinks the spread of whichever windows lose
+        // most — which are the busier ones. Busy windows therefore have their spread
+        // understated, and the censoring pushes the measured relationship toward "busier looks
+        // tighter". Which way that cuts depends on the sign actually observed, so say it.
         let offGrid = windows.map(\.offGridRate)
-        if let spreadOfOffGrid = Stats.correlation(offGrid, windows.map(\.spreadMs)),
-           let interestVsOffGrid = Stats.correlation(windows.map(\.content.interest), offGrid),
+        let interest = windows.map(\.content.interest)
+        if let interestVsOffGrid = Stats.correlation(interest, offGrid),
            abs(interestVsOffGrid) > 0.4 {
-            notes.append(String(format: "Off-grid rate tracks what you played (r = %+.2f), and "
-                              + "spread is measured only on notes that stayed on the grid "
-                              + "(r = %+.2f against spread). The busier windows are being "
-                              + "scored on a self-selected subset of their notes.",
-                                interestVsOffGrid, spreadOfOffGrid))
+            var note = String(format: "Off-grid rate tracks what you played (r = %+.2f), and "
+                            + "spread is measured only on notes that stayed on the grid. "
+                            + "Busier windows are scored on a self-selected subset — and since "
+                            + "the notes dropped are the worst-placed ones, their spread is "
+                            + "understated.", interestVsOffGrid)
+            if let observed = Stats.correlation(interest, windows.map(\.spreadMs)) {
+                note += observed > 0
+                    ? " That bias favours \"busier is tighter\", and the measurement came out "
+                    + "the other way, so the effect is at least as large as it looks."
+                    : " That bias points the same way as the measured effect, so some of "
+                    + "\"busier is tighter\" here may be the censoring rather than the playing."
+            }
+            notes.append(note)
         }
         if (offGrid.max() ?? 0) > 0.2 {
             notes.append(String(format: "Up to %.0f%% of events in a window fell off the grid. "

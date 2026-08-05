@@ -1382,6 +1382,89 @@ runner: the same take length played as steady quarters, as a written melody, and
 
 ---
 
+## 7.19 Second planned session — the first movement in the data
+
+5 August 2026, 30-minute session, 29.7 minutes actual, all seven blocks completed.
+
+### The benchmark moved, and both changes are real
+
+Same locked settings, same output device, same calibration constant (2.58 ms), one day apart:
+
+| | 4 Aug | 5 Aug | change (bootstrapped) |
+|---|---|---|---|
+| Spread | 24.07 ms | **17.37 ms** | −6.70 [−9.41, −3.82] **real** |
+| Bias | −5.85 ms | −22.59 ms | −16.74 [−22.47, −11.01] **real** |
+| r₁ | +0.43 | +0.46 | within noise |
+
+17.4 ms is the tightest benchmark recorded. By this project's own doctrine — variance is the
+skill, bias is not failure (§2) — that is a good session, with a large simultaneous shift in
+placement. This is the first time the locked benchmark slot has paid for itself: two takes a
+day apart, nothing varying but the player.
+
+It is still n = 2, and the trend across all 13 jams at 100 BPM remains flat on every metric.
+
+### The recall result reversed, and the first one was probably an artefact
+
+| date | wait | usable | silent | filled | cost |
+|---|---|---|---|---|---|
+| 4 Aug | 4 bars | 7/8 | 9.9% | 13.2% | **+3.26** |
+| 4 Aug | 4 bars | 5/8 | 5.1% | 6.4% | **+1.30** |
+| 5 Aug | 2 bars | 6/8 | 5.9% | 4.4% | **−1.49** |
+| 5 Aug | 4 bars | 8/8 | 5.1% | 4.1% | **−0.98** |
+
+§7.17 recorded that silent rounds were violated far more often than filled ones — 3 of 8
+against 1 of 8 — because an empty gap invites you to carry on playing while a distractor
+interrupts. The surviving silent rounds were therefore a biased subset. On 5 August the player
+reached 8/8 usable, that bias disappeared, **and the sign flipped**.
+
+The defensible reading: the original "interference hurts" was the violation bias, and the
+cleaner measurement says the distractor **helps**. The mechanism is the project's own thesis —
+an empty gap invites counting, and the distractor prevents it. Two takes per direction, no
+interval; M13 is what turns this into a result.
+
+### M12's first data contradicts the hypothesis, and the bias runs against it
+
+Both takes with pitch: busier playing went with **looser** timing (r = +0.40 over 8 windows,
++0.57 over 27). Pitch variety was the most consistent component (+0.67, +0.43).
+
+The censoring warning now states its direction, because it decides how to read this. Off-grid
+notes are the worst-placed ones, so excluding them shrinks the spread of whichever windows lose
+most — the busier ones. The bias therefore favours "busier is tighter", and the measurement
+came out the other way: **the effect is at least as large as it looks.**
+
+The qualification that matters: this is a *within-take* relationship, windows where the player
+happened to play busier. The stated hunch is about the *mode* of playing — a melodic take
+against a quarter-note take — which M12 cannot test. That needs M13.
+
+### Three fixes this session forced
+
+1. **The planner was oscillating the form phrase length.** It read `markedEveryBars` from a
+   single take: an 8-bar setting where the player felt 4 moved the drill to 4, and the next
+   take at 4 — where they felt 8 — would have moved it straight back. The two takes at 4 bars
+   also disagreed wildly with each other (16/17 on form, then 5/14), so one take was never
+   evidence of a stable felt period. The rule now needs the two most recent takes to agree, and
+   says so when it holds.
+2. **The recall drill had no warning before the silence.** The groove simply stopped and the
+   player was caught out every round. The last reference bar now carries a snare fill, which
+   adds to the groove rather than replacing it (§6.1's invariant) and gives away no tempo,
+   since it lands while the groove is still playing. With the fill in a fixed place and the
+   retention length constant for a session, the round's shape becomes learnable — the player
+   can start anticipating re-entry instead of waiting to be told.
+3. **The censoring warning did not state its direction**, which is the difference between a
+   caveat and a finding.
+
+### Smaller notes
+
+- **Cold probe #2: −4%**, against −7.9%. Three controlled sittings are needed before
+  `review cold` will fit anything.
+- **Continuation at 16-bar silences: clock 22.1 / motor 6.8 ms, 99 BPM alone (−1%)** — better
+  on a *harder* task than the 8-bar take (40.7 / 20.9, −5%). The "runs ~5% slow unaccompanied"
+  finding is weakening; 99 BPM is the closest to target yet.
+- **`|bias|` no longer trends "worsening"**, consistent with that slope having been driven by
+  the stale first point fixed in §7.17.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what
