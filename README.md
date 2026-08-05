@@ -15,7 +15,10 @@ the drills from what your last takes measured, tells you why it picked each one,
 in order. Nothing measured appears on screen until the debrief at the end.
 
 Or pick a mode (Jam / Form / Alone / Tempo / Recall / Play), set the options, hit Start. Each mode
-shows exactly what it expects of you before you begin. The take screen is
+shows exactly what it expects of you before you begin. Jam, Alone and Tempo can ask for a
+**subdivision** — quarters, eighths, triplet eighths or sixteenths — and score against it; the
+picker offers only the ones your chosen tempo can measure honestly, and the Jam defaults to free
+playing. The take screen is
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
 
@@ -43,7 +46,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 373 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 393 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh

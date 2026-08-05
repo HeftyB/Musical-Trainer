@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is in progress — steps 0–5 done, step 6 to go, planned in §7.23.** The subdivision
+**M0–M14 are built — every step of §7.23 is in. M14 has never run live.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -25,6 +25,7 @@ roadmap through M22.
 | M5–M8 | SwiftUI app, continuation drill, trends, tempo calibration |
 | M9–M12 | Session builder, cold-vs-warm, recall drill, musical content |
 | M13 | Experiment runner — preregistered A/B arms, no verdict before the declared n |
+| M14 | Interval ladder — rungs, tempo ceilings, a tempo-rotating block, `slow-vs-fast` (§7.23) |
 | T1 | Test infrastructure: the take factory, storage under test (§7.22) |
 
 **§7.20 is the pre-M13 review** — eleven places where a number or a rule said more than it
@@ -35,9 +36,12 @@ the *enforcement* being fake rather than the code being wrong.
 exposed — nothing had ever tested *writing* a take. It is not an M-number on purpose: it is a
 different axis from product capability, and steps d–e of it are done.
 
-**M13 has never run live.** The experiment block appears in the next planned session. Watch that
-the arm text on screen matches the arm the debrief reports — the one defect step 4 found lived
-exactly in the gap between two tested pieces.
+**M13 and M14 have never run live.** The next planned session is the first to carry an
+experiment take *and* an interval-ladder take. Two things to watch, both in the gap between
+tested pieces where the last defect of this shape lived: the **arm text** on screen must match
+the arm the debrief reports, and the **rung** the ladder block announces must match the rung the
+take is stored with. A backing above eighths has also never been played along to at all — only
+rendered and listened to (§7.23 step 2).
 
 The three *planned* sessions written up are §7.17 (4 Aug 2026), §7.19 (5 Aug morning) and §7.21
 (5 Aug afternoon) — one manifest each on disk. Read them before touching drills: between them
@@ -51,7 +55,8 @@ written up; 14 of the 21 jams carry no session placement, so they are invisible 
 Both front ends drive `TrainerEngine`; neither contains measurement logic.
 
 **App** (`./build-app.sh`): Session (a planned evening), six single-take modes — Jam, Form,
-Alone, Tempo, Recall, Play — and History.
+Alone, Tempo, Recall, Play — and History. Jam, Alone and Tempo carry a **subdivision picker**
+that offers only the rungs the chosen tempo can score honestly.
 
 **CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
 and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
@@ -69,8 +74,8 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 299 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (74 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 313 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (80 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -84,7 +89,7 @@ that precondition is met without booking a live run.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 373 tests, no hardware needed
+swift test                              # 393 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

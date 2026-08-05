@@ -340,9 +340,8 @@ public enum Commands {
             // Above its ceiling the rung discards notes the player aimed correctly, and the
             // off-grid rate stops being a fact about them (§7.23 step 1). Said here rather than
             // refused: the planner enforces, a hand-run take is the player's call.
-            let spreads = SessionStore.loadAll().suffix(6)
-                .compactMap { Stats.finite($0.report().sdAsynchronyMs) }
-            let spreadMs = spreads.isEmpty ? 20 : Stats.median(spreads)
+            let spreads = TrainerEngine.recentJamSpreadsMs()
+            let spreadMs = spreads.isEmpty ? SessionPlanner.assumedSpreadMs : Stats.median(spreads)
             if !prescribed.isScorable(atBpm: bpm, spreadMs: spreadMs) {
                 Console.warn(String(format: "%@ at %d BPM is above its %.0f BPM ceiling for your "
                                   + "%.1f ms spread. The matching window is narrower than three "
@@ -994,8 +993,8 @@ public enum Commands {
 
         // The ceiling is a fact about *this* player, so it comes from their own takes rather
         // than a constant. Falling back to a stated default is better than refusing to render.
-        let spreads = SessionStore.loadAll().suffix(6).compactMap { Stats.finite($0.report().sdAsynchronyMs) }
-        let spreadMs = spreads.isEmpty ? 20 : Stats.median(spreads)
+        let spreads = TrainerEngine.recentJamSpreadsMs()
+        let spreadMs = spreads.isEmpty ? SessionPlanner.assumedSpreadMs : Stats.median(spreads)
 
         let subjects: [(name: String, rung: IntervalRung?, arrangement: Arrangement)] =
             [("quarters", .quarters, LadderBackings.backing(notesPerBeat: 1)),

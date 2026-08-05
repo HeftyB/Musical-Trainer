@@ -709,7 +709,13 @@ public enum TrainerEngine {
             let r = s.report()
             return HistoryEntry(
                 date: s.date,
-                title: "\(Int(s.bpm)) BPM · \(s.bars) bars" + (s.tag.map { " · \($0)" } ?? ""),
+                // The rung belongs in the title, not the detail: two takes at the same tempo
+                // and length are different tasks if one was asked for a subdivision, and the
+                // list is where they sit next to each other.
+                title: "\(Int(s.bpm)) BPM · \(s.bars) bars"
+                     + (s.rung.flatMap { IntervalRung(rawValue: $0)?.label }
+                            .map { " · \($0)" } ?? "")
+                     + (s.tag.map { " · \($0)" } ?? ""),
                 detail: String(format: "mean %+.1f ms · SD %.1f ms", r.meanAsynchronyMs, r.sdAsynchronyMs),
                 feelRating: s.feelRating, headline: r.headline,
                 metric: r.sdAsynchronyMs, metricLabel: "spread (ms)")
@@ -730,7 +736,9 @@ public enum TrainerEngine {
             return HistoryEntry(
                 date: session.date,
                 title: "\(session.pacedBars)+\(session.silentBars) bars × "
-                     + "\(session.cycles) · \(Int(session.bpm)) BPM",
+                     + "\(session.cycles) · \(Int(session.bpm)) BPM"
+                     + (session.rung.flatMap { IntervalRung(rawValue: $0)?.label }
+                            .map { " · \($0)" } ?? ""),
                 detail: split + tempo,
                 feelRating: session.feelRating, headline: r.headline,
                 // Tempo bias is the metric worth trending: it is measured reliably every
@@ -1022,6 +1030,19 @@ public enum TrainerEngine {
                 biasMs: Stats.finite(r.meanAsynchronyMs),
                 sittingId: session.placement?.sessionId)
         }
+    }
+
+    /// The player's own recent jam spreads, newest last — what every tempo ceiling rests on.
+    ///
+    /// One implementation, because the ceiling has to mean the same thing wherever it is
+    /// computed: `render` marks a rung above it, the jam command warns before a take, and the
+    /// app's rung picker offers only what is under it. Three copies of "the median of the last
+    /// six" would be three chances for those three to disagree about what is scorable.
+    ///
+    /// Recomputed from raw taps like everything else (R3.1), so an analysis fix moves the
+    /// ceiling with it.
+    public static func recentJamSpreadsMs(_ count: Int = 6) -> [Double] {
+        SessionStore.loadAll().suffix(count).compactMap { Stats.finite($0.report().sdAsynchronyMs) }
     }
 
     /// Every jam's notes, keyed by the interval they were produced at.

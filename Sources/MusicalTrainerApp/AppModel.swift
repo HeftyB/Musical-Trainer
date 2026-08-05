@@ -33,12 +33,12 @@ final class AppModel: ObservableObject {
         /// Full instructions, shared with the console so the two can't describe a drill
         /// differently. The form drill's text depends on the level — the landmarks it
         /// describes are exactly what the ladder removes.
-        func instructions(formLevel: Int = 0) -> DrillInstructions {
+        func instructions(formLevel: Int = 0, rung: IntervalRung? = nil) -> DrillInstructions {
             switch self {
-            case .jam: return .jam
+            case .jam: return .jam(rung: rung)
             case .form: return .form(level: formLevel)
-            case .dropout: return .dropout
-            case .tempo: return .tempo
+            case .dropout: return .dropout(rung: rung ?? .quarters)
+            case .tempo: return .tempo(rung: rung ?? .quarters)
             case .memory: return .memory
             case .groove: return .groove
             }
@@ -74,6 +74,12 @@ final class AppModel: ObservableObject {
     @Published var bpm: Double = 100
     @Published private(set) var bars: Int = 32
     @Published var tag: String = ""
+    /// The subdivision to ask for, or `nil` for free playing.
+    ///
+    /// `nil` is the default and it is not "quarters": free playing prescribes nothing, which is
+    /// what every take on record is. Applies to Jam, Alone and Tempo — the three drills whose
+    /// analysis is scored against a note value (§7.23 steps 4b and 4e).
+    @Published var rung: IntervalRung?
     @Published var phraseBars: Int = 8 { didSet { setBars(bars) } }
     @Published var formLevel: FormLevel = .fillAndAccent
 
@@ -156,7 +162,7 @@ final class AppModel: ObservableObject {
 
     var estimatedDuration: Double {
         switch mode {
-        case .jam:    return TrainerEngine.JamConfig(bpm: bpm, bars: bars).durationSeconds
+        case .jam:    return TrainerEngine.JamConfig(bpm: bpm, bars: bars, rung: rung).durationSeconds
         case .form:   return TrainerEngine.FormConfig(bpm: bpm, bars: bars, phraseBars: phraseBars,
                                                       level: formLevel).durationSeconds
         case .dropout: return dropoutConfig.durationSeconds
@@ -169,8 +175,12 @@ final class AppModel: ObservableObject {
     var phraseCount: Int { max(1, bars / max(1, phraseBars)) }
 
     var tempoConfig: TrainerEngine.TempoConfig {
+        // These two default to quarters rather than to nothing: both drills have asked for one
+        // note per beat in words since M6 and M8, and leaving it unset would make the analysis
+        // infer what the instructions already state (§7.23 step 4e).
         TrainerEngine.TempoConfig(targets: tempoTargets, leadBars: 4,
-                                  holdBars: holdBars, rounds: tempoRounds)
+                                  holdBars: holdBars, rounds: tempoRounds,
+                                  rung: rung ?? .quarters)
     }
 
     var memoryConfig: TrainerEngine.MemoryConfig {
@@ -180,7 +190,8 @@ final class AppModel: ObservableObject {
 
     var dropoutConfig: TrainerEngine.DropoutConfig {
         TrainerEngine.DropoutConfig(bpm: bpm, pacedBars: pacedBars,
-                                    silentBars: silentBars, cycles: cycles)
+                                    silentBars: silentBars, cycles: cycles,
+                                    rung: rung ?? .quarters)
     }
 
     func start() {
@@ -200,7 +211,8 @@ final class AppModel: ObservableObject {
         let mode = self.mode
         let jamConfig = TrainerEngine.JamConfig(
             bpm: bpm, bars: bars,
-            tag: tag.trimmingCharacters(in: .whitespaces).isEmpty ? nil : tag)
+            tag: tag.trimmingCharacters(in: .whitespaces).isEmpty ? nil : tag,
+            rung: rung)
         let formConfig = TrainerEngine.FormConfig(bpm: bpm, bars: bars,
                                                   phraseBars: phraseBars, level: formLevel)
         let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars)
@@ -326,7 +338,49 @@ final class AppModel: ObservableObject {
     /// What the take screen says, whether the take came from the menu or from a session.
     /// Instructions for the mode as currently configured.
     var currentInstructions: DrillInstructions {
-        mode.instructions(formLevel: formLevel.rawValue)
+        mode.instructions(formLevel: formLevel.rawValue, rung: rung)
+    }
+
+    /// Rungs this tempo can score honestly, for a player of this spread.
+    ///
+    /// Above its ceiling a rung's matching window is worth fewer than three of the player's own
+    /// spreads, so notes they aimed correctly are discarded and the off-grid rate becomes a
+    /// property of the rung rather than of them (§7.23 step 1). The picker offers what is
+    /// scorable rather than offering everything and reporting a caveat afterwards.
+    var scorableRungs: [IntervalRung] {
+        IntervalRung.scorable(atBpm: bpm, spreadMs: recentSpreadMs)
+    }
+
+    /// The player's own recent spread, which is what the ceiling is derived from. Falls back to
+    /// the figure §7.23 step 1 works its table through when there is nothing to measure.
+    var recentSpreadMs: Double {
+        let spreads = TrainerEngine.recentJamSpreadsMs()
+        guard !spreads.isEmpty else { return SessionPlanner.assumedSpreadMs }
+        return Stats.median(spreads)
+    }
+
+    /// One line under the picker saying what the choice costs, in the player's terms.
+    var rungAdvice: String {
+        let hidden = IntervalRung.ladder.count - scorableRungs.count
+        let ceiling = hidden > 0
+            ? String(format: " Finer divisions are hidden at %d BPM: the scoring window would be "
+                   + "narrower than three of your own %.0f ms spread, so notes you aimed "
+                   + "correctly would be thrown out as off-grid.", Int(bpm), recentSpreadMs)
+            : ""
+        guard let rung else {
+            return "Free playing measures where you put notes without asking for any particular "
+                 + "note value — what every take on record is." + ceiling
+        }
+        return String(format: "Asks for %@ and scores against them: a %.0f ms gap between notes "
+                    + "at %d BPM. A coarser note value lands off-grid and is discarded rather "
+                    + "than counted late.%@",
+                      rung.label, rung.intervalSeconds(atBpm: bpm) * 1000, Int(bpm), ceiling)
+    }
+
+    /// Drop a rung that this tempo can no longer score, so the picker and the take never
+    /// disagree about what is legal. Called when the tempo moves.
+    func clampRungToTempo() {
+        if let rung, !scorableRungs.contains(rung) { self.rung = scorableRungs.last }
     }
 
     var takePrompt: String {

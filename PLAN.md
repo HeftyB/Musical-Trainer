@@ -232,7 +232,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
 | **M12** | What you play | ✅ Done. Content measured per window against timing, within-take. See §7.18. |
 | **M13** | Experiment runner | ✅ Done. Preregistered A/B experiments: arms assigned and counterbalanced before play, no verdict before the declared n. See §7.22. |
-| **M14** | Subdivision ladder + tempo | Eighths, sixteenths, triplets, and tempo as a measured variable. Both move the same axis: the inter-onset interval. See §7.23. |
+| **M14** | Subdivision ladder + tempo | ✅ Built, **never run live**. Rungs, tempo ceilings derived from the matching window, a tempo-rotating training block, and `slow-vs-fast`. See §7.23. |
 | **M15** | The feels | Swing, jazz comping, ska/reggae offbeat, latin. Placement as style, not error. |
 | **M16** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
 | **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. |
@@ -2427,7 +2427,7 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | 4d ✅ | Planner rotates tempo on a ladder training block only, picking the rung after the tempo, with tests that it never touches the benchmark, the cold probe or an experiment block. |
 | 4e ✅ | The continuation and tempo drills gain a rung, and the period estimate stops guessing the note value (trap 4). |
 | 5 ✅ | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
-| 6 | Both surfaces, and docs. |
+| 6 ✅ | Both surfaces, and docs. |
 
 ### Step 0, as built
 
@@ -2929,6 +2929,39 @@ sittings and finishes after thirty-two. That is the stopping rule working rather
 engineer around (§7.20), and it is the reason the ladder's observational readout matters in the
 meantime: it answers the same question sooner and less cleanly, which is the right trade while
 the preregistered one collects.
+
+### Step 6, as built — the app can ask for a rung too
+
+Until now a rung could only be set from the console, which is the shape of §7.20 finding 9: not
+a presentation gap but a **capability** one, where the app cannot do something the CLI can. Jam,
+Alone and Tempo gain a subdivision picker; Form deliberately does not, for the reason step 4e
+gives.
+
+**The picker offers only what the tempo can score.** Rather than listing four rungs and
+explaining afterwards that two of them would throw away notes, it lists the scorable ones and
+says why the others are missing — and moving the tempo slider drops a rung that has just gone
+above its ceiling, so the picker and the take can never disagree about what is legal.
+
+**Free is the jam's default and is not quarters.** The other two default to quarters, because
+their instructions have asked for one note per beat since M6 and M8.
+
+**The take screen still shows nothing**, and the results screen now says what the take was
+scored against: the rung, the grid, and the window in milliseconds. That last number is why it
+is there — the window is ±40% of the division, so it is four times narrower at sixteenths than
+at quarters and the off-grid count is not comparable between them. Jam and continuation history
+rows carry the rung in their title, since two takes at one tempo and length are different tasks
+if one was asked for a subdivision.
+
+**One more constant collapsed.** `render`, the `jam` command and now the app all need the
+player's recent spread to place a ceiling, and all three were computing "the median of the last
+six" separately — three chances to disagree about which rungs exist.
+`TrainerEngine.recentJamSpreadsMs()` is the one implementation, with four tests including the
+one that matters: a tighter history raises the ceiling it feeds, which is the property that
+makes the ceiling a fact about the player rather than a number somebody picked.
+
+**Not tested, and worth saying plainly.** The picker itself is SwiftUI in `MusicalTrainerApp`,
+which has no test target — the logic under it (`IntervalRung.scorable`, `recentJamSpreadsMs`) is
+covered, the view is not. It needs eyes on it, like every other screen in this app.
 
 ### What this cannot verify
 

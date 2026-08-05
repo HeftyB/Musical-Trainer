@@ -54,6 +54,17 @@ private struct JamResults: View {
                + "\(report.matchedCount) on the grid")
                 .font(.callout).foregroundStyle(.secondary)
 
+            // What the take was scored against, since a rung changes what "on the grid" means:
+            // the window is ±40% of the division, so it is four times narrower at sixteenths
+            // than at quarters and the off-grid count is not comparable between them.
+            if let rung = outcome.config.rung {
+                Text("Asked for \(rung.label) · scored against a "
+                   + "\(rung.subdivisions)-per-beat grid, "
+                   + "±\(Int(rung.windowSeconds(atBpm: outcome.config.bpm) * 1000)) ms per note")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Card {
                 HStack(alignment: .top, spacing: 24) {
                     Metric(label: outcome.report.meanAsynchronyMs < 0 ? "Rushing" : "Dragging",
