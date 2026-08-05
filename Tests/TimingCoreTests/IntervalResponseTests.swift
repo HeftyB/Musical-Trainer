@@ -120,12 +120,46 @@ final class IntervalResponseTests: XCTestCase {
         XCTAssertTrue(report.notes.contains { $0.contains("one sitting") }, report.notes.description)
     }
 
-    func testTheNormalisationIsAlwaysExplained() {
+    /// Both units are offered and neither is declared the comparable one in advance.
+    ///
+    /// This asserted the opposite until M14 step 3b: that the report always explains why it
+    /// normalised by the interval. It normalised on §7.23's premise that scatter grows with the
+    /// interval — and `ProducedIntervalAnalysis`, run over the notes already on disk, found that
+    /// premise false for this player. Reporting one derived number and an explanation of it is
+    /// how an assumption becomes a result, so the report now shows milliseconds *and*
+    /// percentages and says which one turned out flat.
+    func testBothUnitsAreOfferedRatherThanOneBeingAssumed() {
         let observations = takes(bpm: 60, spread: [20, 21], bias: [-30, -32])
                          + takes(bpm: 100, spread: [20, 19], bias: [-18, -20])
         let report = IntervalResponseAnalysis.analyze(observations)
-        XCTAssertTrue(report.notes.contains { $0.contains("faster is tighter") },
+        XCTAssertTrue(report.notes.contains { $0.contains("milliseconds")
+                                           && $0.contains("percentage") },
                       report.notes.description)
+    }
+
+    /// A player with constant absolute spread and one with constant relative spread must not
+    /// produce the same report, or the two fits are not carrying independent information.
+    func testTheTwoSpreadFitsSeparateTheTwoKindsOfPlayer() throws {
+        let intervals = [(60.0, 1000.0), (100.0, 600.0), (150.0, 400.0)]
+
+        let flatMs = intervals.flatMap { bpm, _ in
+            takes(bpm: bpm, spread: [20, 21, 19], bias: [-12, -13, -11])
+        }
+        let flatPercent = intervals.flatMap { bpm, ms in
+            takes(bpm: bpm, spread: [ms * 0.04, ms * 0.042, ms * 0.038], bias: [-12, -13, -11])
+        }
+
+        let absolute = IntervalResponseAnalysis.analyze(flatMs)
+        XCTAssertEqual(absolute.absoluteSpreadVsInterval?.isReal, false)
+        XCTAssertEqual(absolute.relativeSpreadVsInterval?.isReal, true)
+        XCTAssertTrue(absolute.notes.contains { $0.contains("milliseconds are what compares") },
+                      absolute.notes.description)
+
+        let relative = IntervalResponseAnalysis.analyze(flatPercent)
+        XCTAssertEqual(relative.relativeSpreadVsInterval?.isReal, false)
+        XCTAssertEqual(relative.absoluteSpreadVsInterval?.isReal, true)
+        XCTAssertTrue(relative.notes.contains { $0.contains("percentages are what compare") },
+                      relative.notes.description)
     }
 
     /// "To a point" is an optimum, and a straight line cannot carry it. Saying so is the

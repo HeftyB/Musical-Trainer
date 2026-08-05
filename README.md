@@ -81,7 +81,7 @@ swift build -c release   # the console tool
 | `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
 | `review experiment` | **M13.** What the A/B experiments have collected. Arms are assigned before you play and balanced against what has already run; nothing is compared until every arm reaches the number of takes declared up front. |
 | `render [bpm] [bars]` | **M14.** Renders every ladder backing — quarters, eighths, triplet eighths, sixteenths — plus the jam backing to WAV files in `temp/renders`, so a groove can be judged by ear without a live run. Flags any rung above its tempo ceiling. Default 100, 8. |
-| `review interval` | **M14.** Does tempo change how you play? Buckets takes by the interval they were played at, reports spread *relative to that interval* — raw milliseconds fall at faster tempos on their own — and fits placement and precision against it. Refuses to fit until tempo has actually been varied. |
+| `review interval` | **M14.** Does the gap between notes change how you play? Two readouts. Across takes, buckets them by the interval each was asked for and refuses to fit until tempo has actually been varied. Then, on the notes themselves, bins every note by how far it sat from the one before it and reports whether your spread is a fixed number of milliseconds or a fixed fraction of the gap — which decides what may be compared with what. |
 | `show` | Prints stored calibration and the constant for each device. |
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is

@@ -942,7 +942,8 @@ public enum TrainerEngine {
                 return ExperimentTake(
                     arm: assigned.arm, value: value,
                     elapsedMinutes: session.placement.map { $0.elapsedSeconds / 60 },
-                    sittingId: session.placement?.sessionId)
+                    sittingId: session.placement?.sessionId,
+                    notesPerBeat: session.notesPerBeat)
             }
             return ExperimentAnalysis.analyze(design: design, takes: takes)
         }
@@ -965,6 +966,20 @@ public enum TrainerEngine {
                 biasMs: Stats.finite(r.meanAsynchronyMs),
                 sittingId: session.placement?.sessionId)
         }
+    }
+
+    /// Every jam's notes, keyed by the interval they were produced at.
+    ///
+    /// Pooled across takes on purpose. The question is about a property *within* playing — does
+    /// a note 300 ms after the last one scatter differently from one 600 ms after — and the unit
+    /// is therefore the note, not the take. That is the opposite of `ExperimentAnalysis`, where
+    /// the take is the unit because the comparison is between conditions days apart.
+    ///
+    /// Pooling across tempos is safe here because the key is the interval in milliseconds, not
+    /// the grid gap: a gap of four at 100 BPM is 600 ms and at 120 BPM is 500 ms, and they land
+    /// in different bins as they should.
+    public static func producedIntervalProfile() -> ProducedIntervalProfile {
+        ProducedIntervalAnalysis.analyze(SessionStore.loadAll().flatMap { $0.producedNotes() })
     }
 
     public static func plannerInput() -> PlannerInput {

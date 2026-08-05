@@ -2421,6 +2421,8 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | 1 ✅ | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
 | 2 ✅ | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
 | 3 ✅ | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
+| 3b ✅ | The premise underneath step 3, measured instead of assumed: does spread actually scale with the interval? It does not. See below. |
+| 4a ✅ | Ground clearing found by the pre-step-4 review: one matching-window constant, one block-to-instructions mapping, one meaning for `LadderBackings`' parameter. |
 | 4 | Drills gain a rung; instructions generated from it (R3.6); planner rotates tempo on training blocks only, with a test that it never touches the benchmark or an experiment block. |
 | 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
 | 6 | Both surfaces, and docs. |
@@ -2481,6 +2483,9 @@ ladder and the matcher cannot disagree about what counts as on the grid.
 | Eighths | 200 BPM |
 | Triplet eighths | 133 BPM |
 | **Sixteenths** | **100 BPM** |
+
+This rests on the player's spread being the same number of milliseconds whatever the interval,
+which was an assumption when it was written and is a measurement since step 3b below.
 
 **Sixteenths are already at their ceiling at the reference tempo**, and one BPM above it the top
 rung stops being honest. That is not a defect, and it is not a reason to loosen the rule — it is
@@ -2604,12 +2609,114 @@ exactly what a slope fitted through three points would have hidden.
 It also sharpens what to record. Four takes at one tempo six minutes apart bought almost nothing;
 one take per tempo per sitting, rotated, is what turns this from a refusal into an answer.
 
+### Step 3b — the premise, measured, and it is false
+
+Everything above rests on one sentence, stated three times in this section as fact: **scatter
+grows with the interval it sits inside.** Step 3 divides spread by the interval on that basis.
+Step 1 derives tempo ceilings that only bind if the *opposite* is true — a window fixed at 40%
+of the interval is a constant number of spreads at every rung if spread scales, and no ceiling
+would ever bind. Both cannot be right, and neither had been checked.
+
+The takes on disk can check it. Bin every matched note by the gap **in grid steps** to the note
+before it, and compare spread across bins.
+
+| Notes apart | Share of all matched notes |
+|---|---|
+| a sixteenth | **0.5%** — 25 notes in 21 takes |
+| an eighth | 10.5% |
+| **a beat** | **82.4%** |
+| two beats | 2.7% |
+
+| Interval | Notes | Spread | Of interval |
+|---|---|---|---|
+| 273 ms | 220 | 25.6 ms | 9.4% |
+| 300 ms | 361 | 25.2 ms | 8.4% |
+| 500 ms | 292 | 19.1 ms | 3.8% |
+| 545 ms | 485 | 22.4 ms | 4.1% |
+| 600 ms | 3778 | 22.4 ms | 3.7% |
+| 1200 ms | 131 | 26.8 ms | 2.2% |
+
+**Absolute spread is flat and relative spread is not**: +0.02 ms of spread per 100 ms of
+interval, interval [−3.53, +0.79], against −0.72 points per 100 ms [−2.35, −0.40] for the
+percentage. Milliseconds are this player's invariant. Over a 4.4× range of interval his scatter
+is the same ~22–26 ms throughout, and within single takes the busier passages are if anything
+the *looser* ones — which is M12's within-take result (+0.40, +0.57) arriving on a second route.
+
+**The bin key has to be the grid gap and never the measured one**, and the reason is not
+fussiness. A measured inter-onset interval is `gap × interval + async − asyncOfPrevious`, so a
+note's own error sits inside its own bin key; conditioning on that difference pins each bin's
+mean at half its own offset. It leaves spread almost untouched and fabricates a *placement*
+slope of about +0.5 ms per ms out of a player whose placement never moved — which is precisely
+the "slow tempos make me rush" claim. A test plants a constant-placement player and requires the
+measured-IOI binning to invent that slope. Its first version asserted the artefact would show up
+in spread, and it failing is what found the real shape.
+
+Three limits, stated because they bound what this licenses:
+
+1. **Every spread here is a floor.** All bins are censored at the same ±40% window, so the
+   comparison across bins is fair, but the tails are cut off. Censoring compresses an ordering,
+   it cannot invert one — a scaling player would still read as scaling — so the flatness
+   survives it while the absolute figures do not.
+2. **It says nothing about sixteenths.** 25 notes in 21 takes is not a measurement, and
+   sixteenths are the rung the ceiling actually binds on. The ceiling's extrapolation from a
+   150 ms grid down to a 150 ms *task* is still an extrapolation.
+3. **It is free playing, at one tempo per bin.** The gaps are ones the player chose moment to
+   moment, not rungs he was set. Whether a prescribed rung behaves the same way is what step 4
+   collects.
+
+**Falsifier**: a prescribed-sixteenths take whose absolute spread comes back near 6 ms rather
+than near 22 kills this and restores step 3's premise.
+
+#### What it decides
+
+**The ceiling stands** (step 1). Its assumption is the measured one, not an unexamined one.
+Step 4d feeds each rung its *own* spread once that rung has takes, with a minimum count before
+the per-rung figure is trusted, so one bad evening cannot lock the player out of a tempo he can
+handle. The relative formulation is positively contradicted — at 3.7% it would have said no rung
+ever has a ceiling.
+
+**Step 3 stops asserting an answer.** `review interval` now fits absolute and relative side by
+side and names which came out flat, rather than dividing by the interval and reporting one
+number. Its headline test planted a player at "3% of the interval at every tempo" and required
+no tempo effect, which encoded the assumption into the suite; it now has a mirror twin planting
+constant milliseconds, and the analysis has to tell them apart.
+
+**`steady-vs-melodic` is left exactly as preregistered.** The confound raised against it before
+this was measured — that the melodic arm gets a mechanical advantage because shorter intervals
+scatter less in milliseconds — predicted ~11 ms against 22 ms. The measurement is 25.2 ms at
+300 ms against 22.4 ms at 600 ms. The prediction was wrong by a factor of two and in the wrong
+direction, and the options built on it (normalising the metric, blocking on density, narrowing
+the arms to pitch-only) were all solving a problem that does not exist.
+
+What remains is not a confound but the hypothesis. The arms differ in density by construction,
+density does track spread here, and "melodic playing is looser because it is busier" *is* an
+answer to "does what you play change how you time it". So density becomes a **reported
+covariate** on both surfaces — never a blocker, because blocking on the condition guarantees a
+refusal after five evenings, and never a normaliser, because dividing by the treatment would
+delete the effect it is meant to expose.
+
+#### The thing this recontextualises
+
+**82.4% of every matched note this project has ever recorded is a beat apart from the last one.**
+So 24.07, 17.37, 22.00, "his ~20 ms spread", the trend line, `review feel`, both experiments and
+the ceiling are all, to within a rounding error, *quarter-note placement in free playing*. The
+sixteenth-note grid those takes were scored on is doing almost no work.
+
+That reframes M14. §7.13 and this section describe the ladder as extending a measured skill onto
+new rungs. It is not: it is the first measurement of 90% of the space. Everything derived from
+quarters should carry less confidence into it than the prose above assumed, and the value of
+the milestone is correspondingly higher.
+
 ### What this cannot verify
 
 The clock bridge is untouched, so `selftest` remains the arbiter of the maths. But the ladder
 changes what the *backing* plays, and backings have no tests beyond pattern structure — whether
 a sixteenth-note groove is playable-along-to at all is a live-run question (R5.6). The first rung
 above eighths should not be promoted by the planner until one session has been played on it.
+
+Step 3b is measured from free playing only. It cannot say what a *prescribed* rung does, and the
+tempo half of the axis remains unmeasured — one tempo is well sampled, one evening covers 110,
+and one take covers 120.
 
 ---
 

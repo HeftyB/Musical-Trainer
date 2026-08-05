@@ -12,11 +12,22 @@ public struct ExperimentTake: Equatable {
     public let elapsedMinutes: Double?
     /// Which sitting, so an arm concentrated in one evening can be spotted.
     public let sittingId: UUID?
+    /// Matched notes per beat this take actually produced. A covariate, never a filter.
+    ///
+    /// `steady-vs-melodic` asks one arm for one note per beat and the other for a melodic line,
+    /// so the arms differ in density **by construction** — that is the condition, not a flaw in
+    /// it. Blocking the comparison on it would guarantee a refusal after five evenings, and
+    /// normalising the metric by it would divide by the treatment. Reporting it is the third
+    /// option and the honest one: a verdict then reads "melodic was looser, and it was also
+    /// this much busier", which is a result a reader can interpret rather than one they have to
+    /// take on trust. See PLAN.md §7.23.
+    public let notesPerBeat: Double?
 
     public init(arm: String, value: Double?, elapsedMinutes: Double? = nil,
-                sittingId: UUID? = nil) {
+                sittingId: UUID? = nil, notesPerBeat: Double? = nil) {
         self.arm = arm; self.value = value
         self.elapsedMinutes = elapsedMinutes; self.sittingId = sittingId
+        self.notesPerBeat = notesPerBeat
     }
 }
 
@@ -32,6 +43,8 @@ public struct ArmSummary: Equatable {
     public let betweenTakeSD: Double?
     /// Mean minutes into the sitting, for the position confound.
     public let meanElapsedMinutes: Double?
+    /// Mean matched notes per beat across this arm's scored takes. Reported, never scored.
+    public let meanNotesPerBeat: Double?
 }
 
 public enum ExperimentVerdict: Equatable {
@@ -96,11 +109,13 @@ public enum ExperimentAnalysis {
             let mine = takes.filter { $0.arm == arm }
             let values = mine.compactMap(\.value).filter(\.isFinite)
             let elapsed = mine.compactMap(\.elapsedMinutes)
+            let density = mine.compactMap(\.notesPerBeat).filter(\.isFinite)
             return ArmSummary(
                 arm: arm, assigned: mine.count, scored: values.count,
                 mean: values.isEmpty ? nil : Stats.mean(values),
                 betweenTakeSD: Stats.finite(Stats.sd(values)),
-                meanElapsedMinutes: elapsed.isEmpty ? nil : Stats.mean(elapsed))
+                meanElapsedMinutes: elapsed.isEmpty ? nil : Stats.mean(elapsed),
+                meanNotesPerBeat: density.isEmpty ? nil : Stats.mean(density))
         }
 
         var notes = caveats(design: design, arms: arms, takes: takes)
@@ -223,7 +238,24 @@ public enum ExperimentAnalysis {
             }
         }
 
-        // 3. The metric has no better direction.
+        // 3. Note density, reported rather than blocked on.
+        //
+        // A difference here is not a defect in the design — for an instruction-only experiment
+        // about *what* is played it is the condition arriving in the data. It is stated so a
+        // verdict cannot be read as being about content alone when density moved with it.
+        let densities = arms.compactMap { arm in arm.meanNotesPerBeat.map { (arm.arm, $0) } }
+        if densities.count == arms.count, densities.count >= 2,
+           let hi = densities.max(by: { $0.1 < $1.1 }), let lo = densities.min(by: { $0.1 < $1.1 }),
+           hi.1 > lo.1 * 1.25 {
+            notes.append(String(format: "The arms differ in how densely they were played — "
+                              + "%@ at %.2f notes per beat against %@ at %.2f. That is the "
+                              + "condition doing its job, not a fault, but any difference found "
+                              + "is a difference between two ways of playing that includes the "
+                              + "density, and not about content on its own.",
+                                hi.0, hi.1, lo.0, lo.1))
+        }
+
+        // 4. The metric has no better direction.
         if design.metric.lowerIsBetter == nil {
             notes.append("\(design.metric.label) has no better direction — it is reported, not "
                        + "scored. Bias is not failure; variance is the skill.")

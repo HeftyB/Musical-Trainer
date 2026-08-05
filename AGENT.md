@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is in progress — steps 0–3 of 6, planned in §7.23.** The subdivision
+**M0–M13 are done. M14 is in progress — steps 0–3 plus 3b and 4a, planned in §7.23.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -151,7 +151,7 @@ reaches takes recorded before it.
 | Analyse | `TimingCore/TimingReport`, `WingKristofferson`, `DropoutAnalysis`, `FormAnalysis`, `TempoCalibration`, `TempoMemory`, `MusicalContent` | One analysis per drill, all pure |
 | Quantify uncertainty | `TimingCore/Bootstrap`, `Statistics` | Three bootstraps, and picking the wrong one is a defect (R3.2) |
 | Store | `TrainerKit/SessionStore` | One JSON per take; raw taps plus a summary nothing reads back |
-| Aggregate | `TimingCore/TrendAnalysis`, `WarmUpAnalysis`, `ExperimentAnalysis` | Trends, cold-vs-warm, and the A/B readout |
+| Aggregate | `TimingCore/TrendAnalysis`, `WarmUpAnalysis`, `ExperimentAnalysis`, `IntervalResponse`, `ProducedInterval` | Trends, cold-vs-warm, the A/B readout, and the interval axis. The last two are the only pair where the unit differs on purpose — takes for the first, **notes** for the second |
 | Decide what to practise | `TimingCore/SessionPlan` (`SessionPlanner`), `Experiment` | Builds the evening; `ExperimentSchedule` assigns arms |
 | Run the evening | `TrainerKit/SessionRunner` | State machine over blocks; stamps placement and arm. Sequences, never measures |
 | Drive it all | `TrainerKit/TrainerEngine` | `runJam` / `runForm` / `runDropout` / `runTempo` / `runMemory` — the **only** implementations of anything measured |
@@ -161,6 +161,12 @@ Types worth knowing before changing anything:
 
 - **`Grid`** — index arithmetic, never accumulation. `subdivisions` is grid points per beat.
 - **`IntervalRung`** — a rung of M14's ladder, and the tempo ceiling its matching window implies.
+  The ceiling assumes absolute spread does not move with the interval, which §7.23 step 3b
+  measured rather than assumed.
+- **`ProducedNote`** — one matched note keyed by the gap **in grid steps** to the note before it.
+  Never key this on a *measured* inter-onset interval: a note's own error is inside its measured
+  gap, and binning on it fabricates a placement slope out of a player who has none. There is a
+  test that plants exactly that.
 - **`TimingReport`** — what a jam produced. `subdivisionStats` is **phase-conditional** (where in
   the beat a note landed), not a measure of note values played.
 - **`SessionPlacement`** — where a take sat in a planned evening. Optional; 14 of 21 jams have none.
@@ -270,6 +276,16 @@ Current as of 59 takes across 8 sittings — 21 jams, 12 form, 11 continuation, 
 - **Feel tracks the measurement** (r = −0.66 over 19 rated takes) and reads "well calibrated" —
   but fatigue broke it once: two jams with identical spread rated 4 and 1 twenty minutes apart
   (§7.17). It has not recurred.
+- **82.4% of every matched note ever recorded is a beat apart from the last one** — an eighth
+  10.5%, a sixteenth 0.5% (25 notes in 21 takes). So every headline figure this project quotes,
+  including "his ~20 ms spread", is *quarter-note placement in free playing*; the sixteenth-note
+  grid the takes are scored on is doing almost no work. M14 is therefore the first measurement
+  of most of the space, not an extension of a measured skill (§7.23 step 3b).
+- **His spread is a fixed number of milliseconds, not a fixed fraction of the interval.** Flat at
+  ~22–26 ms from 273 ms to 1200 ms between notes; +0.02 ms per 100 ms [−3.53, +0.79], while the
+  percentage form moves for real. Milliseconds are what compare across tempos and rungs for this
+  player — **do not normalise spread by the interval**, and do not assume "faster is tighter" is
+  arithmetic. That premise was stated as fact in §7.23 for three steps before it was checked.
 - **Tempo is not analysed anywhere.** It is only ever *controlled for* — trends split mixed-tempo
   groups and `review tags` warns about them. His stated hypothesis is that faster is easier to a
   point and that slow tempos make him rush, and no readout can currently ask it. The data cannot

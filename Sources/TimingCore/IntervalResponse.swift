@@ -59,8 +59,18 @@ public enum IntervalVerdict: Equatable {
 public struct IntervalResponseReport: Equatable {
     public let buckets: [IntervalBucket]
     /// Relative spread against interval. Negative means tighter *relative to the interval* as
-    /// the interval lengthens — the "faster is easier" claim, in the only form that can carry it.
+    /// the interval lengthens.
     public let relativeSpreadVsInterval: TrendFit?
+    /// Absolute spread against interval, in ms of spread per ms of interval.
+    ///
+    /// Reported **beside** the relative fit rather than instead of it, because which of the two
+    /// is the invariant is an open question about this player and not a thing the analysis is
+    /// entitled to decide. This file used to normalise and report only the relative form, on
+    /// §7.23's premise that scatter grows with the interval. `ProducedIntervalAnalysis` measured
+    /// that premise on the takes already recorded and it did not hold — so an analysis that
+    /// divides by the interval and reports one number is asserting the answer, not testing it.
+    /// Exactly one of these two should be flat; which one is the finding.
+    public let absoluteSpreadVsInterval: TrendFit?
     /// Signed asynchrony against interval. Negative means further ahead of the beat as the
     /// interval lengthens — the "slow tempos make me rush" claim.
     public let biasVsInterval: TrendFit?
@@ -123,7 +133,8 @@ public enum IntervalResponseAnalysis {
         // answer to the question, it is an answer to a different one.
         if let reason = whyNotEnoughRange(buckets: buckets) {
             return IntervalResponseReport(
-                buckets: buckets, relativeSpreadVsInterval: nil, biasVsInterval: nil,
+                buckets: buckets, relativeSpreadVsInterval: nil,
+                absoluteSpreadVsInterval: nil, biasVsInterval: nil,
                 verdict: .notEnoughRange(reason: reason),
                 headline: "Tempo has not been varied enough to ask the question. \(reason)",
                 notes: notes)
@@ -140,18 +151,27 @@ public enum IntervalResponseAnalysis {
             return (o.intervalMs, bias)
         }
 
+        let absolutePoints = usable.compactMap { o -> (Double, Double)? in
+            guard let spread = o.spreadMs, spread.isFinite, o.intervalMs > 0 else { return nil }
+            return (o.intervalMs, spread)
+        }
+
         let spreadFit = TrendAnalysis.fit(x: spreadPoints.map(\.0), y: spreadPoints.map(\.1),
                                           lowerIsBetter: true, iterations: iterations, seed: seed)
+        let absoluteFit = TrendAnalysis.fit(x: absolutePoints.map(\.0), y: absolutePoints.map(\.1),
+                                            lowerIsBetter: true, iterations: iterations, seed: seed)
         let biasFit = TrendAnalysis.fit(x: biasPoints.map(\.0), y: biasPoints.map(\.1),
                                         lowerIsBetter: true, iterations: iterations, seed: seed)
 
         let responds = spreadFit?.isReal == true || biasFit?.isReal == true
+        notes.append(invariantNote(relative: spreadFit, absolute: absoluteFit))
         notes.append("\"Easier to a point\" is a claim about an optimum, and a straight line "
                    + "cannot carry it. Reading a curve needs more distinct intervals than a "
                    + "slope does — \(buckets.count) so far.")
 
         return IntervalResponseReport(
-            buckets: buckets, relativeSpreadVsInterval: spreadFit, biasVsInterval: biasFit,
+            buckets: buckets, relativeSpreadVsInterval: spreadFit,
+            absoluteSpreadVsInterval: absoluteFit, biasVsInterval: biasFit,
             verdict: responds ? .responds : .noResponseFound,
             headline: headline(spread: spreadFit, bias: biasFit), notes: notes)
     }
@@ -183,13 +203,34 @@ public enum IntervalResponseAnalysis {
                                 bucket.intervalMs, bucket.bpm))
         }
 
-        // Raw spread across tempos is the trap this whole analysis exists to avoid.
+        // Both forms are shown because which one is comparable is the open question, not a
+        // settled premise. Reporting only one is how an assumption becomes a result.
         if buckets.count > 1 {
-            notes.append("Spread is reported relative to the interval because scatter grows with "
-                       + "the interval it sits inside. Comparing raw milliseconds across tempos "
-                       + "would report \"faster is tighter\" as arithmetic rather than skill.")
+            notes.append("Spread is shown in milliseconds and as a percentage of the interval. "
+                       + "If scatter grows with the interval, only the percentage compares "
+                       + "across tempos; if it does not, only the milliseconds do. The intervals "
+                       + "you actually produced, below, fit that question on notes rather than "
+                       + "on takes and have far more of them to work with.")
         }
         return notes
+    }
+
+    /// Name which description of spread is flat, since exactly one of them should be.
+    private static func invariantNote(relative: TrendFit?, absolute: TrendFit?) -> String {
+        switch (absolute?.isReal, relative?.isReal) {
+        case (false, true):
+            return "Across these takes the millisecond spread is flat while the percentage "
+                 + "moves, so milliseconds are what compares across tempos here."
+        case (true, false):
+            return "Across these takes the percentage is flat while the millisecond spread "
+                 + "moves, so spread scales with the interval and percentages are what compare."
+        case (true, true):
+            return "Both the millisecond spread and the percentage move with the interval, so "
+                 + "neither is a clean unit — something other than the interval is varying."
+        default:
+            return "Neither the millisecond spread nor the percentage is separable from noise "
+                 + "across these takes, so this cannot yet say which unit compares."
+        }
     }
 
     private static func headline(spread: TrendFit?, bias: TrendFit?) -> String {

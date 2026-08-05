@@ -313,6 +313,10 @@ private struct ExperimentCard: View {
                             .monospacedDigit().frame(width: 70, alignment: .trailing)
                         Text(arm.betweenTakeSD.map { String(format: "± %.2f", $0) } ?? "—")
                             .font(.caption).foregroundStyle(.secondary)
+                        // Mirrors the console exactly (R3.4). A covariate, never scored: for an
+                        // instruction-only experiment the arms differ in density by design.
+                        Text(arm.meanNotesPerBeat.map { String(format: "%.2f/beat", $0) } ?? "—")
+                            .font(.caption).foregroundStyle(.secondary)
                         Spacer()
                     }
                     .font(.callout)

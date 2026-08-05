@@ -126,6 +126,25 @@ struct JamSession: Codable, StoredTake {
 
     var asynchroniesMs: [Double] { report().asynchroniesMs }
 
+    /// Matched notes per beat — how densely this take was actually played.
+    ///
+    /// Recomputed like everything else (R3.1), and matched notes rather than raw ones so it
+    /// counts rhythmic events: a chord is one note here, which is what "density" has to mean
+    /// for a keyboard player. `nil` when the take has no length to divide by.
+    var notesPerBeat: Double? {
+        let beats = Double(bars * 4)
+        guard beats > 0 else { return nil }
+        return Double(report().matchedCount) / beats
+    }
+
+    /// This take's notes keyed by the interval they were produced at.
+    ///
+    /// Straight off the one report, so the clustering and matching that produced every other
+    /// number produced these too.
+    func producedNotes() -> [ProducedNote] {
+        ProducedIntervalAnalysis.notes(from: report().matched, grid: reconstruct().grid)
+    }
+
     /// Every note-on, for content analysis. Empty for takes recorded before pitch was stored;
     /// callers must say so rather than reporting an empty result as a finding.
     var playedNotes: [PlayedNote] {

@@ -1125,11 +1125,62 @@ public enum Commands {
                              fit.low * 100, fit.high * 100), 34) + verdict)
         }
         print("\nPer 100 ms of extra interval:")
-        row("relative spread", report.relativeSpreadVsInterval, " pts")
+        row("spread, milliseconds", report.absoluteSpreadVsInterval, " ms")
+        row("spread, % of interval", report.relativeSpreadVsInterval, " pts")
         row("placement", report.biasVsInterval, " ms")
 
         print("\n\(report.headline)")
         for note in report.notes { Console.warn(note) }
+
+        printProducedIntervals()
+    }
+
+    /// The same question asked of notes instead of takes — and the one that can be answered.
+    ///
+    /// `review interval` above compares whole takes at the interval each was *asked* for, and on
+    /// today's history that is one interval per tempo and three tempos, so it refuses. Within a
+    /// take the player produces several intervals by choice, which is thousands of notes across
+    /// a real range, and the question of which description of spread survives a change of
+    /// interval is answerable there now. See PLAN.md §7.23.
+    private static func printProducedIntervals() {
+        let profile = TrainerEngine.producedIntervalProfile()
+        guard !profile.bins.isEmpty else { return }
+
+        Console.heading("The intervals you actually produce")
+        print("\(Console.dim)Each note keyed by the gap in grid points to the note before it, "
+            + "never by the measured\ngap — a note's own error sits inside its measured gap, and "
+            + "binning on that fabricates\na placement slope out of a player who has "
+            + "none.\(Console.reset)\n")
+
+        print(pad("interval", 12) + pad("notes", 9) + pad("share", 9)
+            + pad("spread", 11) + pad("of interval", 13) + "placement")
+        for bin in profile.bins {
+            print(pad(String(format: "%.0f ms", bin.intervalMs), 12)
+                + pad("\(bin.notes)", 9)
+                + pad(String(format: "%.1f%%", bin.shareOfNotes * 100), 9)
+                + pad(String(format: "%.1f ms", bin.sdMs), 11)
+                + pad(String(format: "%.1f%%", bin.relativeSpreadPercent), 13)
+                + String(format: "%+.1f ms", bin.meanMs))
+        }
+
+        func row(_ label: String, _ fit: TrendFit?, _ unit: String) {
+            guard let fit else {
+                print("  \(pad(label, 26))\(Console.dim)not enough range\(Console.reset)")
+                return
+            }
+            print("  \(pad(label, 26))"
+                + pad(String(format: "%+.2f%@ [%+.2f, %+.2f]", fit.slope * 100, unit,
+                             fit.low * 100, fit.high * 100), 34)
+                + (fit.isReal ? "\(Console.bold)real\(Console.reset)"
+                              : "\(Console.dim)within noise\(Console.reset)"))
+        }
+        print("\nPer 100 ms of extra interval:")
+        row("spread, milliseconds", profile.absoluteFit, " ms")
+        row("spread, % of interval", profile.relativeFit, " pts")
+        row("placement", profile.placementFit, " ms")
+
+        print("\n\(profile.headline)")
+        for note in profile.notes { Console.warn(note) }
     }
 
     /// M13: what the experiments have collected, and what they are allowed to say.
@@ -1147,13 +1198,19 @@ public enum Commands {
                 + "arm\(Console.reset)")
             print("  \(Console.dim)\(design.question)\(Console.reset)")
 
-            print("  " + pad("arm", 12) + pad("takes", 8) + pad("mean", 12) + "between takes")
+            print("  " + pad("arm", 12) + pad("takes", 8) + pad("mean", 12)
+                + pad("between takes", 12) + "density")
             for arm in result.arms {
                 let mean = arm.mean.map { String(format: "%+.2f", $0) } ?? "—"
                 let sd = arm.betweenTakeSD.map { String(format: "± %.2f", $0) } ?? "—"
+                // Density is a covariate, printed beside the metric and never scored against
+                // it. For an instruction-only experiment about what is played, the arms differ
+                // here by construction — see `ExperimentTake.notesPerBeat`.
+                let density = arm.meanNotesPerBeat
+                    .map { String(format: "%.2f/beat", $0) } ?? "—"
                 print("  " + pad(arm.arm, 12)
                     + pad("\(arm.scored)/\(design.takesPerArm)", 8)
-                    + pad(mean, 12) + sd)
+                    + pad(mean, 12) + pad(sd, 12) + "\(Console.dim)\(density)\(Console.reset)")
             }
 
             switch result.verdict {
