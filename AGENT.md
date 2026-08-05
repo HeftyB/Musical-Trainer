@@ -27,6 +27,10 @@ a "as built" section for each; §7.13 is the roadmap through M22.
 or a rule says more than it can support, with the fix order and the M13 build order. Read it
 before starting either.
 
+**§7.22 (T1) comes before M13's storage step.** Finding 11 destroyed a take live because
+nothing in this project has ever tested *writing* one; T1 is the test infrastructure that
+closes it. It is not an M-number on purpose — it is a different axis from product capability.
+
 The two live sessions are §7.17 (4 Aug 2026) and §7.19 (5 Aug, the most recent). Read them
 before touching drills: between them they produced two instruction bugs, one reporting bug,
 and the project's only retracted finding — none of them maths.
@@ -154,26 +158,31 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 ## What the data says about this player
 
 Current as of 51 takes across 6 sittings — 19 jams, 10 form, 10 continuation, 7 tempo, 5 recall,
-3 planned sessions. The figures below predate the third planned session (5 Aug, 21.6 min),
-whose takes are stored but not yet written up. **Recompute rather than trusting any of this:**
-`review trend`, `review dropout`, `review feel`, `review cold`, `review content`.
+3 planned sessions. **Recompute rather than trusting any of this:** `review trend`,
+`review dropout`, `review feel`, `review cold`, `review content`.
 
-- **r₁ is positive in all 17 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
+- **r₁ is positive in all 19 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented
-  way to make this worse, and he already reports it feels worse.
-- **The benchmark jam tightened for real**: 24.1 → 17.4 ms spread between the two planned
-  sessions, bootstrapped interval [−9.41, −3.82], same device and calibration. Bias moved the
-  other way in the same take, −5.9 → −22.6 ms. Variance is the skill; treat this as a good
-  session with a large placement shift, not a mixed one. n = 2 — the 13-take trend is still flat.
+  way to make this worse, and he already reports it feels worse. The lowest reading is the most
+  recent benchmark (+0.20, §7.21), which is the direction §10 defines as success — one take.
+- **The benchmark jam is bouncing, not trending**: 24.1 → 17.4 → 22.0 ms across three sittings
+  at locked settings. §7.19 recorded the first step as a real tightening and it did not hold
+  (§7.21). Each pairwise comparison was measured correctly; none of them is a trend. The 19-take
+  jam trend remains flat on every metric.
+- **A large placement shift persisted all day.** Bias went −5.9 ms on 4 Aug to −22.6, −16.1,
+  −20.8, −22.4 across every jam on 5 Aug. Stable, not an excursion, and unexplained. Bias is
+  not failure (§2) and the spread did not move with it.
 - **Clock is the looser half in every trustworthy split.** Do not pool across silence lengths:
   4-bar gives ~14.9 / 9.3 ms, 8-bar 40.7 / 20.9, 16-bar 22.1 / 6.8. Longer is a harder task.
-- **Unaccompanied tempo is converging on target.** Historically ~5% slow; the latest
-  continuation take produced 99 BPM (−1%). The controlled cold probe read −7.9% then −4.0%.
-- **Feel tracks the measurement** (r ≈ −0.63 over 13 rated takes) — but fatigue breaks it: two
-  jams with identical spread were rated 4 and 1 twenty minutes apart (§7.17).
-- **The recall drill's interference cost flipped sign** once he stopped playing through the
-  silent waits (§7.19). The current reading is that a distractor *helps*, plausibly because an
-  empty gap invites counting. Two takes per direction — do not state it as settled.
+- **"Runs ~5% slow unaccompanied" is dead.** The last two 16-bar continuation takes produced
+  99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% — monotonic
+  across three sittings, still fitted as flat because the series includes an uncontrolled proxy.
+- **Feel tracks the measurement** (r = −0.64 over 17 rated takes) and now reads "well
+  calibrated" — but fatigue broke it once: two jams with identical spread rated 4 and 1 twenty
+  minutes apart (§7.17). It has not recurred.
+- **The recall drill's interference cost is not established.** §7.19 read it as the distractor
+  *helping*; since the attrition rule landed (§7.20 finding 2), three of the four takes are
+  withheld as non-comparable and one remains. Treat it as unmeasured, not as a direction.
 - **M12's first data contradicts his hunch**: busier playing went with *looser* timing within a
   take, and the censoring bias runs against that result rather than producing it. His hunch is
   about the mode of playing across a take, which M12 cannot test and M13 can.

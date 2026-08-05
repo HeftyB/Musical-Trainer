@@ -241,6 +241,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M20** | Drum mode | Pads and keys become the kit; the click becomes the band. |
 | **M21** | Guitar input | Audio onset detection. Needs an interface. |
 | **M22** | Computer-keyboard input | For anyone who doesn't own a MIDI controller. |
+| **T1** | **Test infrastructure — the take factory** | A different axis from the M-sequence: what the project can verify about itself. Synthetic takes, a degenerate corpus, a macOS-only `TrainerKitTests` target, and a seam under the drill runners. Ordered **before M13's storage step**. See §7.22. |
 | — | *Later* | TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
 
 ---
@@ -1719,6 +1720,7 @@ because none of it is load-bearing for the milestone.
 | 4 | 7, 8 — comment placement, parallel-array decode | mixed |
 | — ✅ | 11 — non-finite summaries destroying takes. Jumped the queue: found in a live session, and every further session was losing data until it landed. | `TimingCore/Statistics.swift`, `TrainerKit` |
 | later | 11's root cause — `.nan` as a sentinel replaced by `Optional` across the three reports | `TimingCore` |
+| T1 | The gap finding 11 exposed: nothing has ever tested writing a take. See §7.22. | new test target |
 | 5 | 9 — folded into M13 step 5, since it is the same view | `MusicalTrainerApp` |
 
 ### What this sequences into — the M13 build order
@@ -1771,6 +1773,157 @@ across takes** (n = 2 per direction with no interval, and finding 2 must land fi
 Steps 4 and 5 touch the runner and the instruction path, which have no unit tests and will not
 get them. Per R5.6 they need a live session and the result goes here. Two of the three defects
 the first live session found were instruction and reporting bugs; expect the same class again.
+
+---
+
+## 7.21 Third planned session — the tightening did not hold, the placement did
+
+5 August 2026, second sitting of the day, 20-minute target and 21.6 minutes actual. Seven
+blocks, six completed. **The form block was destroyed by finding 11** and there is no form data
+for this session. The player's read of the sitting as a whole was 4 out of 5; the per-take
+ratings were 3, 3, 4, 2, — and 4.
+
+### The benchmark, on three points instead of two
+
+| | 4 Aug | 5 Aug am | 5 Aug pm |
+|---|---|---|---|
+| Spread | 24.07 ms | 17.37 ms | **22.00 ms** |
+| Bias | −5.85 ms | −22.59 ms | −20.76 ms |
+| r₁ | +0.43 | +0.46 | **+0.20** |
+
+§7.19 recorded the 24.1 → 17.4 tightening as real, bootstrapped at [−9.41, −3.82]. It was real
+*for that pair* — and it did not hold. The afternoon benchmark is 22.0, a real change of +4.63
+[+1.89, +7.60] against the morning, same locked settings, same device, same calibration, 2.7
+hours apart.
+
+So the honest reading of the benchmark is now three points bouncing around ~21 ms with no
+direction, and §7.19's finding should be read as what it was: a difference between two takes,
+correctly measured, and never evidence of a trend. That distinction is exactly what §7.20
+finding 1 was about, arriving from the other side — the pairwise comparison was sound, and the
+inference drawn from it was one take too eager.
+
+### The placement shift is the real result
+
+Bias went −5.9 → −22.6 in §7.19 and that looked like a large excursion in a single take. It was
+not. Every jam on 5 August sits there: −22.6, −16.1, −20.8, −22.4, across two sittings and 2.7
+hours. A stable new placement about 15 ms further ahead of the beat, held all day.
+
+By this project's doctrine that is not failure (§2) — variance is the skill, and the spread did
+not move with it. But it is the largest persistent change in the dataset and nothing explains
+it yet. Worth watching for whether it reverts overnight, which is the one thing that would tell
+warm-up apart from something that actually changed.
+
+### r₁ fell to +0.20, which is the direction success is defined in
+
+§10 puts it first: `r₁` near zero while playing something demanding. Every jam so far has been
++0.13 … +0.47, and the afternoon benchmark reads +0.20 — a real change from +0.46 that morning
+[−0.43, −0.01]. One take, one interval, and r₁ is noisy. It is not a finding. It is the first
+movement toward the thing the project is for, and the benchmark slot exists to say whether it
+repeats.
+
+### Smaller notes
+
+- **Unaccompanied tempo: 100 BPM, −0%**, at 16-bar silences, rated 4 — the best of the whole
+  dataset, after 99 BPM at the same length the sitting before. The "runs ~5% slow unaccompanied"
+  finding from §7.8 is dead. The clock/motor split was unreliable on this take, so it says
+  nothing about which half is looser.
+- **Cold probes across the three controlled sittings: −7.9%, −4.2%, −3.3%** — monotonic toward
+  target. `review cold` still fits flat, because the series it fits also contains an
+  uncontrolled proxy from 3 August. Three controlled probes is the minimum §7.19 said was
+  needed; three points moving one way is not yet a slope.
+- **The recall drill's attrition ran the other way**: 1 of 3 filled rounds played through
+  against 0 of 3 silent. The cost is withheld, correctly, and this is the first take where the
+  *distractor* side lost the rounds — a useful check that step 1's rule is not one-directional.
+- **`review feel` is at r = −0.64** over the rated takes and now reads "well calibrated". The
+  fatigue break recorded in §7.17 has not recurred.
+
+---
+
+## 7.22 T1 — the take factory
+
+**Not an M-number.** M0–M22 are one axis, product capability, and this is another: what the
+project can verify about itself. Numbering it into that sequence would either renumber ten
+milestones or imply it sits behind them, and neither is true. It is `T1`, it runs alongside,
+and its dependency order puts it **before M13's storage step**.
+
+### The argument, which finding 11 made rather than won
+
+A form take was destroyed because `JSONEncoder` refuses a non-finite `Double`, and the gate was
+green throughout. It was green because **no test in this project has ever written a take.** 187
+tests, 40 self-test checks, and the entire path from "a drill finished" to "a file exists on
+disk" was covered by nothing.
+
+The cause is a boundary that was drawn for a good reason and then treated as a law. R1.1.1 says
+anything analysable goes in the pure modules *because only those run under `swift test`* — and
+that is true of `Package.swift` as it stands, not of the code. Most of `TrainerKit` is not
+hardware: the session types, storage, the planner-input mapping, `DrillInstructions`,
+`SessionRunner`'s sequencing. Only a thin shell genuinely needs audio and MIDI. "Testable" was
+allowed to mean "pure", and everything else fell off the edge.
+
+M13 makes this urgent rather than merely true. Its first step adds `ExperimentAssignment` to all
+five take types — a schema change to exactly the code finding 11 lives in, in exactly the file
+that has never been exercised by a test.
+
+### What it builds
+
+**1. A performance generator.** Given a grid and a description of a player — bias, SD, lag-1
+correlation, drift, subdivision mix, off-grid rate, chord density, velocity spread — produce
+note events with times, pitches and velocities. Seeded, so R1.2.1 holds. Every test file
+currently rolls its own: `BootstrapTests` has `gaussianSeries`, `TempoMemoryTests` has its round
+layout, `SelfTest` has a third. One generator means one place to add a pathology and every
+drill inherits it.
+
+**2. A degenerate corpus.** The empty take. One note. Every note off-grid. Doubled hits. Playing
+through the waits. A take ending in silence. 512 bars. Each drill against each pathology, as a
+matrix rather than as remembered cases. Finding 11 is one cell of it, and the interesting claim
+is that a matrix would have found it before a live session did.
+
+**3. A macOS-only `TrainerKitTests` target.** The structural change, and the one with a cost.
+`TrainerKit` is macOS-only by `Package.swift`, so these tests cannot run on the Linux CI leg;
+they run in `check.sh`, which the pre-commit hook enforces. That asymmetry has to be stated
+plainly in `STANDARDS.md` §9.4.2 when it lands, or the CI badge will quietly imply coverage
+that does not exist — which is the failure R5.6 exists to prevent, in a new place.
+
+**4. A seam under the drill runners.** `TrainerEngine.run*` welds scheduling, capture, analysis
+and saving into one function, and that is why none of it can be tested. Split it: a `TakeSource`
+that yields captured events plus a grid and an environment, with the live implementation driving
+`GroovePlayer` and `MIDIInput`, and a synthetic one replaying generated events. The analysis and
+save half then becomes ordinary testable code, and so do `SessionRunner`'s sequencing, placement
+stamping and skip behaviour.
+
+The rule that constrains this: **the synthetic source produces inputs, never results.** R1.1.2
+says there is exactly one implementation of anything measured, and a test double that computed
+its own asynchronies would be a second one — a measurement path that only ever runs under test,
+agreeing with itself. The seam goes on the *input* side of the analysis or not at all.
+
+**5. The round-trip property.** For every generated take of every type: save it, reload it,
+recompute the report, and require the reloaded report to equal the original. One property, and
+it subsumes finding 11, the R3.1 cached-summary class that shipped three times, and every future
+schema change — because a field that fails to encode, or that decodes to something the analysis
+reads differently, fails it by construction.
+
+### What it cannot do, which has to be said before it is built
+
+It cannot validate the clock bridge, buffer-phase conversion, MIDI timestamp fidelity, or audio
+scheduling. Those are M0's two-path rig and `selftest`, and they need hardware. The risk is not
+that T1 fails to cover them; it is that a large green test suite makes it *feel* as though it
+does. R5.6 already says hardware paths are verified by a live run or the gap is stated — T1 must
+restate that gap louder, not quieter, because it will be the first time the suite is big enough
+to be mistaken for complete.
+
+### Order within T1
+
+| | Delivers |
+|---|---|
+| a | `TrainerKitTests` target, macOS-only, wired into `check.sh`; the round-trip property for all five stored types |
+| b | The performance generator, and the existing ad-hoc builders migrated onto it |
+| c | The degenerate corpus as a matrix, replacing the three `selftest` encode checks |
+| d | The `TakeSource` seam; `TrainerEngine`'s analyse-and-save half under test |
+| e | `SessionRunner` sequencing, placement and skip behaviour under test |
+
+Steps a–c need no architectural change and would have caught finding 11. Step d is the
+expensive one and the one to review carefully, because it moves a boundary that currently
+guarantees something valuable. Doing a–c before M13 and d–e after is a defensible split.
 
 ---
 
