@@ -1843,7 +1843,7 @@ claims.
 |---|---|
 | 0 ✅ | Cluster bootstrap (finding 1) |
 | 1 ✅ | `ExperimentAssignment` storage, written and unread |
-| 2 | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
+| 2 ✅ | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
 | 3 | `ExperimentAnalysis.swift` — pooled arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |
 | 4 | Planner blocks at locked parameters (R3.5), arm-specific instructions (R3.6), engine wiring |
 | 5 | Console `experiment` + `review experiment`, and the app card (finding 9) |
@@ -1875,6 +1875,47 @@ already waiting. Five tests, including a take whose `experiment` key is deleted 
 entirely, which is the closest a test gets to a take from 4 August. One of them asserts the
 planner assigns *no* arms, so it fails the moment step 4 starts assigning them, which is when
 the analysis has to exist to receive them.
+
+### Step 2, as built
+
+`ExperimentDesign` (id, name, question, arms, metric, takes per arm) and `ExperimentSchedule`
+(assignment, progress, the stopping rule). Fifteen tests against planted histories.
+
+**The design refuses what it cannot answer.** Fewer than two distinct arms, or fewer than two
+takes per arm, and `init` returns nil rather than repairing it. One take per arm cannot see
+between-take variation at all, which is finding 1 restated as a precondition.
+
+**Bias has no better direction.** `ExperimentMetric.lowerIsBetter` is `nil` for bias and only
+for bias. Spread, interference cost, tempo error and |r₁| all go down; bias is reported and never
+scored, because playing ahead of the beat is normal and variance is the skill (§2). An
+experiment that could score bias down would be a machine for teaching the wrong lesson.
+
+**Assignment is min-count with a seeded tie-break**, and the tie-break is the part that matters.
+Balance alone would be satisfied by strict alternation — and `ABABAB` is the wrong design,
+because it puts one arm in every odd position, so any effect of *where in a sequence* a take
+falls lands entirely on one arm. §7.17's two identical takes rated 4 and 1 twenty minutes apart
+is exactly that effect, and it is large.
+
+The min-count rule instead produces a random `ABBA`-like sequence: a repeat can only occur across
+a tie, and after it that arm is ahead so the other must follow. Two is the ceiling on a run, the
+arms never drift more than one take apart, and neither arm monopolises the odd or even slots.
+Writing the test for strict alternation first is what surfaced this — the assertion failed, and
+the failing sequence was better than the one being asserted.
+
+**The seed comes from the design's UUID bytes, not `hashValue`.** Swift salts its hasher per
+process, so a schedule keyed on `hashValue` would differ on every launch while looking perfectly
+deterministic — R1.2.2 broken in the least visible way possible.
+
+**The stopping rule is the whole point of step 2.** `hasPower` is false until *every* arm reaches
+the preregistered target, and below it no verdict is computed at all — the headline reports how
+many takes remain and nothing else, with a test asserting it contains none of "real change",
+"within noise", "better", "worse" or "wins". The app recomputes after every session, which is
+optional stopping; without a fixed stopping point it would be running the comparison dozens of
+times and keeping whichever answer it liked. The player is shown no running tally either, since a
+score on screen biases the takes still to come.
+
+**An unknown arm counts toward no arm.** A take stamped with an arm the design no longer lists
+still happened — `runIndex` counts it — but it is not quietly folded into a neighbour.
 
 The first three experiments, chosen by what they unblock: **steady vs melodic** (the
 mode-of-playing hypothesis §7.19 says M12 cannot test), **silent vs filled retention pooled
