@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M12 are done. M13 (experiment runner) is in progress — steps 1–4 of 6 landed.** PLAN.md §7 has the milestone table with
+**M0–M13 are done.** M14 (subdivision ladder) is next. PLAN.md §7 has the milestone table with
 a "as built" section for each; §7.13 is the roadmap through M22.
 
 | Done | |
@@ -22,14 +22,20 @@ a "as built" section for each; §7.13 is the roadmap through M22.
 | M2–M4 | `TimingCore`, groove engine, jam capture |
 | M5–M8 | SwiftUI app, continuation drill, trends, tempo calibration |
 | M9–M12 | Session builder, cold-vs-warm, recall drill, musical content |
+| M13 | Experiment runner — preregistered A/B arms, no verdict before the declared n |
+| T1 | Test infrastructure: the take factory, storage under test (§7.22) |
 
-**§7.20 is the current work queue** — a review before M13 that found eleven places where a number
-or a rule says more than it can support, with the fix order and the M13 build order. Read it
-before starting either.
+**§7.20 is the pre-M13 review** — eleven places where a number or a rule said more than it
+could support, all closed. Read it before trusting any statistic here: four of the eleven were
+the *enforcement* being fake rather than the code being wrong.
 
-**§7.22 (T1) comes before M13's storage step.** Finding 11 destroyed a take live because
-nothing in this project has ever tested *writing* one; T1 is the test infrastructure that
-closes it. It is not an M-number on purpose — it is a different axis from product capability.
+**§7.22 is M13 and T1 as built.** T1 is the test infrastructure that closed the gap finding 11
+exposed — nothing had ever tested *writing* a take. It is not an M-number on purpose: it is a
+different axis from product capability, and steps d–e of it are done.
+
+**M13 has never run live.** The experiment block appears in the next planned session. Watch that
+the arm text on screen matches the arm the debrief reports — the one defect step 4 found lived
+exactly in the gap between two tested pieces.
 
 The two live sessions are §7.17 (4 Aug 2026) and §7.19 (5 Aug, the most recent). Read them
 before touching drills: between them they produced two instruction bugs, one reporting bug,
@@ -45,7 +51,7 @@ Alone, Tempo, Recall, Play — and History.
 **CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
 and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
 has the annotated table. The analysis readouts are `review trend | cold | content | feel |
-tags | conditions | compare | form | dropout | tempo`.
+tags | conditions | compare | form | dropout | tempo | experiment`.
 
 ## Environment constraints — check these before proposing a solution
 
@@ -55,7 +61,7 @@ tags | conditions | compare | form | dropout | tempo`.
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 230 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (45 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (50 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -69,7 +75,7 @@ tags | conditions | compare | form | dropout | tempo`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 275 tests, no hardware needed
+swift test                              # 280 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

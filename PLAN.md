@@ -231,7 +231,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M10** | Cold vs warm | ✅ Done. Within-sitting warm-up separated from between-sitting learning. See §7.15. |
 | **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
 | **M12** | What you play | ✅ Done. Content measured per window against timing, within-take. See §7.18. |
-| **M13** | Experiment runner | The app schedules its own A/B comparisons and says when they have power. |
+| **M13** | Experiment runner | ✅ Done. Preregistered A/B experiments: arms assigned and counterbalanced before play, no verdict before the declared n. See §7.22. |
 | **M14** | Subdivision ladder | Eighths, sixteenths, triplets. Everything so far is quarters. |
 | **M15** | The feels | Swing, jazz comping, ska/reggae offbeat, latin. Placement as style, not error. |
 | **M16** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
@@ -1720,7 +1720,7 @@ Two things worth keeping from doing it:
   not readable, here is its name"; finding 8 is just another reason for a file to be in that
   list. Three `selftest` checks cover it, including the property that used to trap.
 
-### 9. Neither the content nor the condition readout exists in the app
+### 9. Neither the content nor the condition readout exists in the app — partly fixed
 
 The app's History carries trends and the warm-up card. `review content`, `review tags`,
 `review conditions` and `review feel` are console-only.
@@ -1730,8 +1730,13 @@ the experiment readout — which arm is ahead, how many takes remain, whether th
 conclude anything — *is* the milestone's output, and the app is where sessions actually get
 run. A milestone whose result the player never sees where they practise has not shipped.
 
-This is not the `R1.1.2` violation it might look like; no measurement moves. It is a surface
-gap, and M13 step 5 closes it for the experiment readout at minimum.
+This is not the `R1.1.2` violation it might look like; no measurement moves. It is a surface gap.
+
+**Closed for the experiment readout** in M13 step 5: `review experiment` exists on the console
+and as a card in the app's History, mirroring each other. `review content`, `tags`, `conditions`
+and `feel` are still console-only, and remain so deliberately — M13 needed one of them on the
+surface where sessions are run, and porting the rest is presentation work with no question
+waiting on it.
 
 ### 10. `AGENT.md` pointed at the wrong live session — fixed in this pass
 
@@ -1846,8 +1851,8 @@ claims.
 | 2 ✅ | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
 | 3 ✅ | `ExperimentAnalysis.swift` — arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |
 | 4 ✅ | Planner blocks at locked parameters (R3.5), arm-specific instructions (R3.6), engine wiring |
-| 5 | Console `experiment` + `review experiment`, and the app card (finding 9) |
-| 6 | `PLAN.md` as-built, `README.md` command table, `AGENT.md` state |
+| 5 ✅ | `review experiment` on both surfaces (finding 9) |
+| 6 ✅ | `PLAN.md` as-built, `README.md` command table, `AGENT.md` state |
 
 ### Step 1, as built
 
@@ -2010,6 +2015,46 @@ defect to make that concrete.
 Sixteen tests across the two modules, including one that every arm the library declares has
 instructions of its own — an arm added to a design without text would run as a plain jam and be
 recorded as a condition it never was.
+
+### Step 5, as built
+
+`review experiment` on the console and an `ExperimentCard` in the app's History, mirroring each
+other line for line. R3.4 says both surfaces warn identically, and a readout blunter on one of
+them would be the same defect as a drill whose instructions differ by surface.
+
+**One command, not two.** §7.22 planned `experiment` for status and `review experiment` for the
+readout. The readout already reports progress when it is below target — that *is* its state
+before it has power — so a second command would have been a second way to ask one question.
+
+**No number appears before the experiment has its takes.** The card shows arm counts and how
+many remain, and nothing else. A running tally on screen would bias the takes still to come, in
+a project whose first principle is that watching the number changes the playing.
+
+The metric is pulled from the recomputed report, never the stored summary (R3.1). That matters
+more here than anywhere else: an experiment's two arms may be weeks apart, so an analysis fix
+landing between them would otherwise compare a take under the old analysis against one under the
+new — R3.1's defect with a delay fuse.
+
+A test holds that every design in the library uses a metric a jam can actually produce. An
+experiment declared on `interferenceCost` or `tempoError` would collect takes forever while
+reporting "still collecting" — evenings spent on something that cannot finish, which is the most
+expensive quiet failure available here.
+
+### M13, and what it has not done
+
+Steps 1–6 are in: storage, scheduling, analysis, planning, both readouts, documentation. The
+experiment block appears in the next planned session and the first arms get assigned then.
+
+**Nothing here has been through a live run.** The planner, the runner and the instruction path
+are exercised by tests that stop at the boundary of audio, and R5.6 says that is not verification.
+The specific thing to watch on the first session carrying an experiment take is that **the arm
+text on screen matches the arm the debrief reports** — the defect found in step 4 lived exactly
+in the gap between two tested pieces, and a second one of that shape would look like data rather
+than like a bug.
+
+**No experiment can conclude for ten takes.** Both designs ask for five per arm, so the earliest
+either says anything is five sittings away. That is the stopping rule working, not a delay to be
+engineered around.
 
 The first three experiments, chosen by what they unblock: **steady vs melodic** (the
 mode-of-playing hypothesis §7.19 says M12 cannot test), **silent vs filled retention pooled

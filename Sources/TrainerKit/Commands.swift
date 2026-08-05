@@ -416,6 +416,7 @@ public enum Commands {
         if args.first == "trend" { runTrend(); return }
         if args.first == "cold" { runCold(); return }
         if args.first == "content" { runContent(); return }
+        if args.first == "experiment" { runExperiments(); return }
         if args.first == "tempo" { runTempoHistory(); return }
 
         let sessions = SessionStore.loadAll()
@@ -1014,6 +1015,53 @@ public enum Commands {
             print("\(Console.dim)TimingSpike dropout \(Int(outcome.config.bpm)) "
                 + "\(outcome.config.pacedBars) \(outcome.suggestedSilentBars) "
                 + "\(outcome.config.cycles)\(Console.reset)")
+        }
+    }
+
+    /// M13: what the experiments have collected, and what they are allowed to say.
+    private static func runExperiments() {
+        Console.heading("Experiments")
+        print("\(Console.dim)Arms are assigned before you play and balanced against what has "
+            + "already run. Nothing is\ncompared until every arm reaches the number of takes "
+            + "declared up front — the app re-runs this\nafter every session, and that is "
+            + "optional stopping unless the finish line was fixed first.\(Console.reset)")
+
+        for result in TrainerEngine.experimentResults() {
+            let design = result.design
+            print("\n\(Console.bold)\(design.name)\(Console.reset)  "
+                + "\(Console.dim)\(design.metric.label) · \(design.takesPerArm) takes per "
+                + "arm\(Console.reset)")
+            print("  \(Console.dim)\(design.question)\(Console.reset)")
+
+            print("  " + pad("arm", 12) + pad("takes", 8) + pad("mean", 12) + "between takes")
+            for arm in result.arms {
+                let mean = arm.mean.map { String(format: "%+.2f", $0) } ?? "—"
+                let sd = arm.betweenTakeSD.map { String(format: "± %.2f", $0) } ?? "—"
+                print("  " + pad(arm.arm, 12)
+                    + pad("\(arm.scored)/\(design.takesPerArm)", 8)
+                    + pad(mean, 12) + sd)
+            }
+
+            switch result.verdict {
+            case .collecting:
+                break      // the headline below already says how many are left
+            case .unusable(let reason):
+                Console.warn(reason)
+            case .noDifferenceFound, .difference:
+                if let d = result.difference {
+                    print(String(format: "  Difference: %+.2f [%+.2f, %+.2f]  %@",
+                                 d.point, d.low, d.high,
+                                 d.excludesZero ? "\(Console.bold)real\(Console.reset)"
+                                                : "\(Console.dim)within noise\(Console.reset)"))
+                }
+            }
+            if let mde = result.minimumDetectableEffect {
+                print(String(format: "  \(Console.dim)Smallest difference %d takes per arm "
+                           + "could separate from zero: %.2f\(Console.reset)",
+                             design.takesPerArm, mde))
+            }
+            print("  \(result.headline)")
+            for note in result.notes { Console.warn(note) }
         }
     }
 

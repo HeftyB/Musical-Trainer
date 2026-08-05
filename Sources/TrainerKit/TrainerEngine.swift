@@ -896,6 +896,40 @@ public enum TrainerEngine {
     ///
     /// Everything is recomputed from raw taps here too — a planner choosing tonight's drills
     /// from a stale cached summary would be picking work for a player who no longer exists.
+    /// Every experiment's current state, read from the takes assigned to it.
+    ///
+    /// The metric is pulled from the recomputed report, never the stored summary (R3.1), so an
+    /// analysis fix reaches takes recorded before it — which matters more here than anywhere
+    /// else, since an experiment's two arms may be weeks apart and a fix landing between them
+    /// would otherwise compare a take under the old analysis with one under the new.
+    public static func experimentResults() -> [ExperimentResult] {
+        let jams = SessionStore.loadAll()
+        return ExperimentLibrary.all.map { design in
+            let takes = jams.compactMap { session -> ExperimentTake? in
+                guard let assigned = session.experiment, assigned.name == design.name else {
+                    return nil
+                }
+                let r = session.report()
+                let value: Double?
+                switch design.metric {
+                case .spread:         value = Stats.finite(r.sdAsynchronyMs)
+                case .bias:           value = Stats.finite(r.meanAsynchronyMs)
+                case .correctionGain: value = Stats.finite(r.lag1Autocorrelation.map(abs))
+                // Not derivable from a jam. No experiment in the library uses these yet, and a
+                // test holds that line — an experiment declared on one would collect takes
+                // forever while reporting "still collecting", which is the most expensive kind
+                // of quiet failure this project can have.
+                case .interferenceCost, .tempoError: value = nil
+                }
+                return ExperimentTake(
+                    arm: assigned.arm, value: value,
+                    elapsedMinutes: session.placement.map { $0.elapsedSeconds / 60 },
+                    sittingId: session.placement?.sessionId)
+            }
+            return ExperimentAnalysis.analyze(design: design, takes: takes)
+        }
+    }
+
     public static func plannerInput() -> PlannerInput {
         let jams = SessionStore.loadAll().map { session -> PlannerInput.Jam in
             let r = session.report()

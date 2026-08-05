@@ -112,6 +112,16 @@ struct HistoryView: View {
 
                         WarmUpCard(report: TrainerEngine.warmUpReport(for: kind.drill))
 
+                        // The experiment readout, on the surface where sessions are actually
+                        // run. It lived only in the console until now (§7.20 finding 9), which
+                        // for M13 would have meant a milestone whose whole output the player
+                        // never saw where they practise.
+                        if kind == .jam {
+                            ForEach(TrainerEngine.experimentResults(), id: \.design.name) {
+                                ExperimentCard(result: $0)
+                            }
+                        }
+
                         ForEach(entries.reversed()) { entry in
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack {
@@ -270,6 +280,66 @@ private struct WarmUpCard: View {
         case .improving: return .green
         case .worsening: return .orange
         case .flat:      return .secondary
+        }
+    }
+}
+
+/// One experiment: what each arm has collected, and what may be said about it.
+///
+/// Mirrors `review experiment` line for line. R3.4 says both surfaces warn identically, and an
+/// experiment readout that was blunter on one of them would be the same defect as a drill whose
+/// instructions differ by surface.
+private struct ExperimentCard: View {
+    let result: ExperimentResult
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(result.design.name).font(.headline)
+                    Text("\(result.design.metric.label) · \(result.design.takesPerArm) per arm")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text(result.design.question)
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(result.arms, id: \.arm) { arm in
+                    HStack(spacing: 12) {
+                        Text(arm.arm).frame(width: 90, alignment: .leading)
+                        Text("\(arm.scored)/\(result.design.takesPerArm)")
+                            .monospacedDigit().frame(width: 50, alignment: .trailing)
+                        Text(arm.mean.map { String(format: "%+.2f", $0) } ?? "—")
+                            .monospacedDigit().frame(width: 70, alignment: .trailing)
+                        Text(arm.betweenTakeSD.map { String(format: "± %.2f", $0) } ?? "—")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .font(.callout)
+                }
+
+                // No number appears here until the experiment has its preregistered takes. A
+                // running tally on screen would bias the takes still to come, in a project whose
+                // first principle is that watching the number changes the playing.
+                if case .collecting = result.verdict {
+                    Text(result.headline).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    if let d = result.difference {
+                        Text(String(format: "%+.2f [%+.2f, %+.2f]", d.point, d.low, d.high))
+                            .font(.callout).monospacedDigit()
+                            .foregroundStyle(d.excludesZero ? .primary : .secondary)
+                    }
+                    Text(result.headline).font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ForEach(result.notes, id: \.self) { note in
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 }

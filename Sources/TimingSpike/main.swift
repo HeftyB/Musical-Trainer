@@ -44,6 +44,7 @@ func usage() {
       review [n]        re-analyze the latest saved take, or take n
       review list       list all takes
       review compare [i j]      two takes side by side, with significance
+      review experiment         what the A/B experiments have collected
       review tags               pooled summary of every tagged condition
       review conditions <a> <b> pooled comparison of two conditions
       review feel               does your sense of a good take match the measurement?
