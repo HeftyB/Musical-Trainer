@@ -64,7 +64,7 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 241 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 250 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (55 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -79,7 +79,7 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 296 tests, no hardware needed
+swift test                              # 305 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -137,7 +137,7 @@ reaches takes recorded before it.
 
 | Stage | Where | What it is |
 |---|---|---|
-| Schedule the backing | `GrooveCore/Sequencer`, `Pattern`, `Library` | Patterns in steps-per-bar; `Library` holds the named backings (`jamBacking`, `basicRock`) |
+| Schedule the backing | `GrooveCore/Sequencer`, `Pattern`, `Library`, `LadderBackings` | Patterns in steps-per-bar; `Library` holds the named backings (`jamBacking`, `basicRock`), `LadderBackings` one groove per subdivision. **A pattern's step resolution is not the analysis grid** |
 | Play it | `TrainerKit/GroovePlayer`, `DrumSynth`, `LiveInstrument` | Render callback owns the sample clock; synthesis is in-app, no samples |
 | Capture keys | `TrainerKit/MIDIInput` | One CoreMIDI client per process, never disposed |
 | Bridge the clocks | `TrainerKit/HostClock` (`SampleHostMap`), `JamAnalysis.reduce` | Least-squares fit of (hostTime, sample); calibration applied here, sign and all |

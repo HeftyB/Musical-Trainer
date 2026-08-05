@@ -2410,7 +2410,7 @@ experiment would either break R3.5 or silently confound five evenings of collect
 |---|---|
 | 0 ✅ | Store the grid's actual subdivision instead of a hardcoded 4. Prerequisite, and worth doing whether or not M14 proceeds. |
 | 1 ✅ | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
-| 2 | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
+| 2 ✅ | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
 | 3 | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
 | 4 | Drills gain a rung; instructions generated from it (R3.6); planner rotates tempo on training blocks only, with a test that it never touches the benchmark or an experiment block. |
 | 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
@@ -2482,6 +2482,52 @@ comes down, which is the thing being trained.
 It also settles a question step 4 would otherwise have had to guess at: the tempo rotation and
 the rung cannot be chosen independently. A training block at sixteenths has to stay at or below
 100 BPM, so the planner picks the rung *after* the tempo, and the two together are one decision.
+
+### Step 2, as built
+
+`LadderBackings` — one groove per subdivision, with the hat carrying the division and everything
+else held constant: kick on 1 and 3, backbeat on 2 and 4, at every rung. Only the density
+changes, which is the point. Nine tests, and `jamBacking` is untouched, so the benchmark and both
+running experiments play over exactly what they always did.
+
+**Keyed by steps per beat, not by `IntervalRung`.** `GrooveCore` depends on nothing, not even
+`TimingCore` (R1.1.3), so the rung-to-backing pairing belongs in `TrainerKit` and lands in step
+4. The alternative — importing `TimingCore` for one enum — would trade a rule that has held since
+M3 for a convenience.
+
+**The pattern's step resolution is not the analysis grid**, and this is the distinction the whole
+step turns on. The step grid is how finely the drums can be programmed; the analysis grid is what
+the player is scored against. They coincide at 4 today, which is why every take so far has been
+scored on a sixteenth-note grid — and why, at this player's spread, every take so far has been
+scored at exactly the ceiling step 1 derived.
+
+I then made that very conflation in the code while documenting it: the fill builder passed the
+*rung's* subdivision where the *pattern's* resolution belonged, so a quarters fill came out
+claiming one step per beat. The test asserting that a fill keeps its groove's resolution caught
+it immediately. Worth recording because the header comment explaining the distinction was already
+written above the line that got it wrong.
+
+**Triplets carry their own step resolution** — twelve to the bar, three to the beat — rather than
+an approximation on sixteenths. No step grid carries both, which is exactly why a take is
+straight or triplet and never both.
+
+The strongest test is in seconds rather than step indices. Step numbers are easy to get right and
+prove nothing: the sequencer converts them at `60 / bpm / stepsPerBeat`, and a twelve-step bar is
+where that could quietly produce a bar of the wrong length. So the assertion is that the gap
+between hats equals the rung's own interval, and that a bar lasts four beats however it is
+divided.
+
+#### What the existing takes already say about the ceiling
+
+Step 1 put sixteenths at a 100 BPM ceiling for this player. The 120 BPM take (#21) was scored on
+a sixteenth grid, so it ran above that ceiling, and its off-grid rate is 5.3% against 4.3–4.9%
+for the 100 BPM takes either side of it.
+
+The direction matches, the magnitude is about what the narrowed window predicts (roughly one
+point), and it is one take. What it mainly shows is that the window effect is **small next to the
+baseline**: 4–5% of notes are off-grid at the reference tempo, so most off-grid notes are
+genuinely off-grid playing rather than a scoring artefact. The ceiling is worth keeping, and it
+is not what is driving the off-grid rate.
 
 ### What this cannot verify
 
