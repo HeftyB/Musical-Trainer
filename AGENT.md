@@ -207,7 +207,9 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    a known answer and recovers it.
 3. **Write the message as you go.** `temp/current-git-commit-message.txt` (gitignored) holds
    the message for whatever is currently uncommitted, and is updated whenever the tree changes.
-   A change you cannot describe yet is usually two changes.
+   A change you cannot describe yet is usually two changes. The `post-commit` hook empties it
+   once that message lands, so a stale one never gets committed unread. If a change genuinely
+   needs two commits, add `-2.txt` alongside it — STANDARDS.md §8.2.1, and rarely.
 4. **Update the documentation — always a closing step.** Walk PLAN.md, AGENT.md, STANDARDS.md
    and README.md and correct anything the change made untrue. Re-derive any count or figure
    quoted in prose rather than trusting it; four separate accuracy passes have each found
@@ -215,6 +217,12 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
 5. **`./scripts/check.sh`** last. The pre-commit hook runs the fast half; run the whole thing
    after touching analysis or audio.
 6. **Hand over.** Andrew commits and pushes; leave the tree ready and give him the commands.
+
+**Run these to the end before starting the next change.** Every change updates PLAN.md and
+usually AGENT.md, so two uncommitted changes put both sets of edits in the same files — and
+`git add PLAN.md` cannot then stage one without the other. Splitting them afterwards means
+editing one change's documentation back out, committing, and putting it back. That has already
+cost two rounds of it in a single sitting (STANDARDS.md §8.2.2). Finish, hand over, then start.
 
 Adding a drill has its own seven-step checklist — STANDARDS.md §9.5.
 

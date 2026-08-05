@@ -1,0 +1,33 @@
+#!/bin/bash
+# Clear the rolling commit message once the message it holds has actually landed.
+#
+# STANDARDS.md §8.2.1 requires the file to describe the change *in progress*. A message left
+# behind after its own commit is worse than an empty file: the next change inherits it, and
+# `git commit -F` then uses it unread. That is not hypothetical — the §7.19 message was still
+# sitting in the file two changes later and was staged for a commit it did not describe.
+#
+# Only clears when what landed *is* what the file holds. A `git commit -m` for something else,
+# an amend of an unrelated commit, or a merge must leave a file describing still-uncommitted
+# work alone.
+#
+# `git stripspace` is git's own normalisation, so the comparison sees the message the way git
+# stored it — trailing whitespace and runs of blank lines are not differences. Comparing raw
+# text would never match.
+#
+# No `set -e`: a hook that aborts halfway could leave one of several files cleared and the
+# rest not. Nothing here is allowed to fail the commit, which has already happened by now.
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+landed="$(git log -1 --pretty=%B | git stripspace)"
+
+# The glob covers the numbered files §8.2.1 allows for a genuine two-commit change.
+for file in "$root"/temp/current-git-commit-message*.txt; do
+    [ -s "$file" ] || continue
+    if [ "$landed" = "$(git stripspace < "$file")" ]; then
+        : > "$file"
+        printf 'Cleared %s — that message has landed.\n' "${file#"$root"/}"
+        break
+    fi
+done
+exit 0

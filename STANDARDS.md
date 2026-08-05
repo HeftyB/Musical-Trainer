@@ -290,13 +290,47 @@ commit itself is the record.
   write yet is a change you cannot yet describe, which usually means it is really two changes.
 - **Update it whenever the working tree changes.** A stale message is worse than none, because
   it will be used.
-- **Clear it once committed.** `: > temp/current-git-commit-message.txt`, or replace it with
-  the message for the next change.
+- **Clearing it is automatic.** The `post-commit` hook compares what landed against the file
+  and empties it when they match. A message left behind is worse than an empty file: the next
+  change inherits it and `git commit -F` uses it unread, which has happened. The hook leaves
+  the file alone when the commit was made some other way, so a message for still-uncommitted
+  work survives a `git commit -m` on something else.
 - Commit with `git commit -F temp/current-git-commit-message.txt` so the file that was reviewed
   is the message that lands.
 
-If the change needs more than one commit, the file holds all of them in order, separated by a
-line of `---`, each with the `git add` that precedes it.
+**More than one commit.** `git commit -F` reads the whole file, so several messages cannot
+share one. When a change genuinely has to land as two commits, add
+`temp/current-git-commit-message-2.txt`, numbered in the order they will be committed. Each
+file holds one message and nothing else — no `git add` lines, no separators, nothing that
+would end up in the log if the file were used as-is. The hook clears whichever one matched.
+
+**Only when absolutely needed.** A second file is a prompt to re-read "one logical change per
+commit" above and check the split is real: usually it is one change described badly, or the
+documentation half of a change that belongs with the change. The case it exists for is work
+where the first commit stands on its own without the second — a review recorded before the
+first fix it queues, say. If both halves have to land together to make sense, they are one
+commit.
+
+### 8.2.2 One change at a time
+
+**Take a change all the way to commit-ready before starting the next one.** Commit-ready means
+§8.3: the gate passes, all four documents are level, and the message file describes it.
+
+The reason is mechanical and it is not obvious until it bites. Every change here updates
+`PLAN.md` and usually `AGENT.md` — that is §8.3 item 4, and it is not optional. Do two changes
+before committing either and both sets of edits are sitting in the same files, at which point
+`git add PLAN.md` cannot stage one without the other. The commits can no longer be separated by
+file, and splitting them means either hunk surgery or rewriting one change's documentation out
+of the file, committing, and putting it back.
+
+> This cost two rounds of exactly that surgery in one sitting: the §7.20 review and the step-0
+> bootstrap fix were both written before either was committed, so the review's section and the
+> fix's as-built subsection were interleaved in one `PLAN.md`, and the same again for the fix
+> and the hook you are reading about. Both were separable only by hand.
+
+So: finish, commit, then start. If a second change is genuinely urgent mid-flight, branch for
+it rather than layering it on top — the cost of a branch is nothing next to the cost of
+untangling two changes out of one document.
 
 `check.sh` warns when the tree is dirty and this file is missing or older than the most
 recently changed file. It is a warning, not a failure: the standard is a discipline, not a
