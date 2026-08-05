@@ -61,8 +61,11 @@ struct JamSession: Codable {
     let matchedCount: Int
     let extraCount: Int
     let missedCount: Int
-    let meanAsynchronyMs: Double
-    let sdAsynchronyMs: Double
+    // Optional because these are NaN whenever too little was matched to compute them, and
+    // JSONEncoder throws on a non-finite Double — which loses the whole take. See
+    // `Stats.finite`. Older takes stored a number and still decode.
+    let meanAsynchronyMs: Double?
+    let sdAsynchronyMs: Double?
     let lag1Autocorrelation: Double?
     let driftMsPerBeat: Double?
     let headline: String
@@ -141,9 +144,10 @@ struct FormSession: Codable {
     let marksPlaced: Int
     let onFormCount: Int
     let tightCount: Int
-    let meanAbsFormErrorBars: Double
-    let phaseErrorMeanMs: Double
-    let phaseErrorSDms: Double
+    // Optional for the reason in `JamSession` above: no marks, or one, and these are NaN.
+    let meanAbsFormErrorBars: Double?
+    let phaseErrorMeanMs: Double?
+    let phaseErrorSDms: Double?
     let slipBarsPerPhrase: Double?
     let missedPhrases: [Int]
     let headline: String
@@ -174,13 +178,14 @@ struct DropoutSession: Codable {
     let tapTimes: [Double]
 
     // Cached summary, as above — `reconstruct()` is the source of truth.
-    let pacedSDms: Double
-    let unpacedIntervalSDms: Double
+    // Optional for the reason in `JamSession` above: too few usable trials and these are NaN.
+    let pacedSDms: Double?
+    let unpacedIntervalSDms: Double?
     let clockSDms: Double?
     let motorSDms: Double?
     let modelHolds: Bool
-    let reentryErrorMeanMs: Double
-    let reentryErrorSDms: Double
+    let reentryErrorMeanMs: Double?
+    let reentryErrorSDms: Double?
     let headline: String
 
     // Cached summaries. Optional so sessions written before these existed still decode —

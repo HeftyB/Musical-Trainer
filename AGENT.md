@@ -23,7 +23,7 @@ a "as built" section for each; §7.13 is the roadmap through M22.
 | M5–M8 | SwiftUI app, continuation drill, trends, tempo calibration |
 | M9–M12 | Session builder, cold-vs-warm, recall drill, musical content |
 
-**§7.20 is the current work queue** — a review before M13 that found ten places where a number
+**§7.20 is the current work queue** — a review before M13 that found eleven places where a number
 or a rule says more than it can support, with the fix order and the M13 build order. Read it
 before starting either.
 
@@ -153,9 +153,10 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 ## What the data says about this player
 
-Current as of 46 takes across 5 sittings — 17 jams, 10 form, 9 continuation, 6 tempo, 4 recall,
-2 planned sessions. Recompute rather than trusting these: `review trend`, `review dropout`,
-`review feel`, `review cold`, `review content`.
+Current as of 51 takes across 6 sittings — 19 jams, 10 form, 10 continuation, 7 tempo, 5 recall,
+3 planned sessions. The figures below predate the third planned session (5 Aug, 21.6 min),
+whose takes are stored but not yet written up. **Recompute rather than trusting any of this:**
+`review trend`, `review dropout`, `review feel`, `review cold`, `review content`.
 
 - **r₁ is positive in all 17 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented

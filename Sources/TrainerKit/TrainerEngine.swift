@@ -151,8 +151,10 @@ public enum TrainerEngine {
             gridStartTime: outcome.gridStartTime,
             tapTimes: outcome.taps.map(\.time), tapVelocities: outcome.taps.map(\.velocity),
             matchedCount: r.matchedCount, extraCount: r.extraCount, missedCount: r.missedCount,
-            meanAsynchronyMs: r.meanAsynchronyMs, sdAsynchronyMs: r.sdAsynchronyMs,
-            lag1Autocorrelation: r.lag1Autocorrelation, driftMsPerBeat: r.driftMsPerBeat,
+            meanAsynchronyMs: Stats.finite(r.meanAsynchronyMs),
+            sdAsynchronyMs: Stats.finite(r.sdAsynchronyMs),
+            lag1Autocorrelation: Stats.finite(r.lag1Autocorrelation),
+            driftMsPerBeat: Stats.finite(r.driftMsPerBeat),
             headline: r.headline, placement: placement,
             rawTimes: outcome.rawTaps.map(\.time),
             rawNotes: outcome.rawTaps.map(\.note),
@@ -255,9 +257,10 @@ public enum TrainerEngine {
             markTimes: outcome.markTimes,
             phrasesAvailable: r.phrasesAvailable, marksPlaced: r.marksPlaced,
             onFormCount: r.onFormCount, tightCount: r.tightCount,
-            meanAbsFormErrorBars: r.meanAbsFormErrorBars,
-            phaseErrorMeanMs: r.phaseErrorMeanMs, phaseErrorSDms: r.phaseErrorSDms,
-            slipBarsPerPhrase: r.slipBarsPerPhrase, missedPhrases: r.missedPhrases,
+            meanAbsFormErrorBars: Stats.finite(r.meanAbsFormErrorBars),
+            phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
+            phaseErrorSDms: Stats.finite(r.phaseErrorSDms),
+            slipBarsPerPhrase: Stats.finite(r.slipBarsPerPhrase), missedPhrases: r.missedPhrases,
             headline: r.headline, placement: placement)
         return try SessionStore.save(session)
     }
@@ -378,13 +381,13 @@ public enum TrainerEngine {
             pacedBars: outcome.config.pacedBars, silentBars: outcome.config.silentBars,
             cycles: outcome.config.cycles, feelRating: feelRating,
             gridStartTime: outcome.gridStartTime, tapTimes: outcome.tapTimes,
-            pacedSDms: r.pacedSDms, unpacedIntervalSDms: r.unpacedIntervalSDms,
-            clockSDms: r.wingKristofferson?.clockSDms,
-            motorSDms: r.wingKristofferson?.motorSDms,
+            pacedSDms: Stats.finite(r.pacedSDms), unpacedIntervalSDms: Stats.finite(r.unpacedIntervalSDms),
+            clockSDms: Stats.finite(r.wingKristofferson?.clockSDms),
+            motorSDms: Stats.finite(r.wingKristofferson?.motorSDms),
             modelHolds: r.wingKristofferson?.modelHolds ?? false,
-            reentryErrorMeanMs: r.reentryErrorMeanMs, reentryErrorSDms: r.reentryErrorSDms,
+            reentryErrorMeanMs: Stats.finite(r.reentryErrorMeanMs), reentryErrorSDms: Stats.finite(r.reentryErrorSDms),
             headline: r.headline,
-            tempoBiasBpm: r.tempoBiasBpm, playedBpm: r.playedBpm,
+            tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
             placement: placement)
         return try SessionStore.save(session)
@@ -547,9 +550,9 @@ public enum TrainerEngine {
             roundTargets: outcome.rounds.map(\.targetBpm),
             roundHoldStarts: outcome.rounds.map(\.holdStart),
             roundHoldEnds: outcome.rounds.map(\.holdEnd),
-            usableCount: r.usableCount, meanErrorPercent: r.meanErrorPercent,
-            meanAbsErrorPercent: r.meanAbsErrorPercent,
-            improvementPerRound: r.improvementPerRound, headline: r.headline,
+            usableCount: r.usableCount, meanErrorPercent: Stats.finite(r.meanErrorPercent),
+            meanAbsErrorPercent: Stats.finite(r.meanAbsErrorPercent),
+            improvementPerRound: Stats.finite(r.improvementPerRound), headline: r.headline,
             placement: placement)
         return try SessionStore.save(session)
     }
@@ -814,9 +817,9 @@ public enum TrainerEngine {
             roundReproduceStarts: outcome.rounds.map(\.reproduceStart),
             roundReproduceEnds: outcome.rounds.map(\.reproduceEnd),
             usableCount: r.usableCount,
-            silentMeanAbsErrorPercent: r.silentMeanAbsErrorPercent,
-            filledMeanAbsErrorPercent: r.filledMeanAbsErrorPercent,
-            interferenceCost: r.interferenceCost,
+            silentMeanAbsErrorPercent: Stats.finite(r.silentMeanAbsErrorPercent),
+            filledMeanAbsErrorPercent: Stats.finite(r.filledMeanAbsErrorPercent),
+            interferenceCost: Stats.finite(r.interferenceCost),
             headline: r.headline, placement: placement)
         return try SessionStore.save(session)
     }

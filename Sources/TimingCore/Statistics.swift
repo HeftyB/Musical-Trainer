@@ -14,6 +14,24 @@ public struct Regression: Equatable {
 }
 
 public enum Stats {
+    /// `nil` when the value is NaN or infinite, otherwise the value.
+    ///
+    /// Every non-finite number that reaches storage goes through here, and it is not a
+    /// nicety. The statistics below return `.nan` for "not computable from this input" — an
+    /// empty series, a single point — and `JSONEncoder` refuses to encode a non-finite Double,
+    /// throwing `NSCocoaErrorDomain 4866`, "The data couldn't be written because it isn't in
+    /// the correct format".
+    ///
+    /// That destroyed a whole form take in the live session of 5 Aug 2026: the drill ran, the
+    /// analysis completed, the save threw, and the session recorded the block as skipped. The
+    /// inversion is what makes it serious — a take is lost exactly when it went *badly*, since
+    /// that is when marks, usable trials or matched notes are too few to compute a summary. The
+    /// most diagnostic takes were the ones being thrown away.
+    public static func finite(_ x: Double?) -> Double? {
+        guard let x, x.isFinite else { return nil }
+        return x
+    }
+
     public static func mean(_ x: [Double]) -> Double {
         x.isEmpty ? .nan : x.reduce(0, +) / Double(x.count)
     }

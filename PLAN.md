@@ -1465,13 +1465,16 @@ against a quarter-note take — which M12 cannot test. That needs M13.
 
 ---
 
-## 7.20 Second codebase review — ten findings, and the order they get fixed
+## 7.20 Second codebase review — eleven findings, and the order they get fixed
 
 A full pass over the tree before M13 starts, on the principle that an experiment runner
-inherits every weakness of the statistics underneath it. The gate was green at the time of the
-review and stayed green throughout: 175 tests then, 36 selftest checks, a warning-free release
-build, every stored take decoding, the 46 takes on disk matching the counts quoted in
-`AGENT.md`.
+inherits every weakness of the statistics underneath it. Ten findings from reading; an
+eleventh, and the most serious, arrived from a live session while the fixes were in progress.
+
+The gate was green at the time of the review and stayed green throughout: 175 tests then, 36
+selftest checks, a warning-free release build, every stored take decoding, the 46 takes then on
+disk matching the counts quoted in `AGENT.md`. Finding 11 is the reminder that a green gate
+bounds what has been checked, not what is true — no test in the suite ever wrote a take.
 
 So none of this is a crash or a broken build. All ten are the other failure mode, the one
 §3 of `STANDARDS.md` exists for: **a number, a rule or a document saying more than it can
@@ -1655,6 +1658,51 @@ table and not the sentence under it.
 Corrected here rather than queued: a wrong pointer in the operating manual misleads every
 reader who arrives before the queue drains, and the fix is one sentence.
 
+### 11. A take is destroyed when its summary is not computable — found live, fixed at once
+
+The third session (5 August, 21.6 minutes, 20-minute target) failed to save its form take:
+
+> Could not save that take: The data couldn't be written because it isn't in the correct format.
+
+That is `NSCocoaErrorDomain 4866`, `JSONEncoder` refusing a non-finite `Double`, confirmed by
+reproducing it. `FormAnalysis` writes `.nan` for `phaseErrorMeanMs` when no mark landed and for
+`phaseErrorSDms` when fewer than two did — the honest output of `Stats.mean` and `Stats.sd` on
+an empty series — and the encoder throws on it. The drill ran, the analysis completed, the save
+threw, and `SessionRunner` recorded the block as skipped. **The take is gone.**
+
+The exposure was three of the five drills, not one:
+
+| Take | Non-finite when |
+|---|---|
+| Form | no mark placed, or only one |
+| Continuation | too few usable trials for a paced SD, an interval SD or a re-entry |
+| Jam | nothing matched the grid |
+
+**The inversion is what makes this the worst defect found in the review.** A take is destroyed
+exactly when it went *badly* — that is when marks, usable trials or matched notes are too few
+to compute a summary. The takes being thrown away were the most diagnostic ones in the set, and
+the drill it hit is the one whose whole design is removing the landmarks until the player is
+guessing. §7.19 had just moved the form drill from 4-bar to 8-bar phrases at level 2.
+
+It also breaks R6.2 in the one way the rule does not literally say: nothing deletes a stored
+take, but a take that never reaches storage is lost just as completely, and the session manifest
+records it as "skipped" so nothing downstream can tell that a measurement was destroyed rather
+than declined.
+
+**Fixed.** Every stored summary now passes through `Stats.finite`, which is `nil` for NaN and
+infinity, and the seven affected fields are `Optional`. Nothing reads cached summaries back
+(R3.1), so writing `null` costs nothing — the raw taps and marks are stored either way, and the
+report recomputes from those. Old takes hold a number and still decode.
+
+Guarded by three new `selftest` checks that encode a degenerate form, continuation and jam take.
+They live in `selftest` rather than `swift test` because the session types are `TrainerKit`,
+which has no unit tests; `check.sh` runs `selftest`, so the gate still covers it.
+
+**Not fixed, and queued:** `.nan` is being used as a sentinel for "not computable" throughout
+the analysis, and `Optional` is what the rest of the codebase uses for exactly that. Converting
+`FormReport`, `DropoutReport` and `TimingReport` to optionals is the root fix and touches every
+display site, so it is its own change. This one stops the data loss.
+
 ### Fix order
 
 Findings 1 and 2 are M13 prerequisites: the first because every conclusion the experiment
@@ -1669,6 +1717,8 @@ because none of it is load-bearing for the milestone.
 | 2 | 3, 4 — partial content window; trend take axis | `TimingCore` |
 | 3 | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
 | 4 | 7, 8 — comment placement, parallel-array decode | mixed |
+| — ✅ | 11 — non-finite summaries destroying takes. Jumped the queue: found in a live session, and every further session was losing data until it landed. | `TimingCore/Statistics.swift`, `TrainerKit` |
+| later | 11's root cause — `.nan` as a sentinel replaced by `Optional` across the three reports | `TimingCore` |
 | 5 | 9 — folded into M13 step 5, since it is the same view | `MusicalTrainerApp` |
 
 ### What this sequences into — the M13 build order

@@ -48,6 +48,7 @@ public enum SelfTest {
         ok = grooveRendering() && ok
         ok = liveInstrument() && ok
         ok = jamReduction() && ok
+        ok = degenerateTakesStillEncode() && ok
         ok = fullPipeline() && ok
 
         print("\n" + (ok
@@ -386,6 +387,94 @@ public enum SelfTest {
     /// would play. If the residual still comes back tight, that proves the measurement is
     /// independent of how accurately the player performs, which is the central claim of
     /// the two-path design.
+    // MARK: - A take that produced nothing must still be storable
+
+    /// The worst take of the evening must survive being written to disk.
+    ///
+    /// A form drill with no marks, a continuation drill with no usable silence and a jam with
+    /// nothing on the grid all leave their summary statistics as `.nan` — that is what
+    /// `Stats.mean` and `Stats.sd` return for an empty series. `JSONEncoder` refuses a
+    /// non-finite Double and throws, so the save failed and the take was gone: the drill ran,
+    /// the analysis completed, and the session recorded the block as skipped. That happened
+    /// live on 5 Aug 2026 and cost a whole form take.
+    ///
+    /// The inversion is the reason this is a self-test and not a footnote. A take is destroyed
+    /// exactly when it went *badly*, because that is when there are too few marks or matched
+    /// notes to compute a summary — so the takes being thrown away were the most diagnostic
+    /// ones in the set.
+    ///
+    /// This lives here rather than in `swift test` because the session types are `TrainerKit`,
+    /// which has no unit tests. `check.sh` runs `selftest`, so it is still gated.
+    private static func degenerateTakesStillEncode() -> Bool {
+        var ok = true
+        let grid = Grid(startTime: 0, bpm: 100, subdivisions: 4)
+
+        // Nothing played at all: every statistic below is non-computable.
+        let emptyJam = TimingAnalysis.analyze(taps: [], grid: grid)
+        ok = check("empty jam report has non-finite summaries",
+                   !emptyJam.sdAsynchronyMs.isFinite,
+                   "sd = \(emptyJam.sdAsynchronyMs) — the case that has to survive storage") && ok
+        ok = check("empty jam take encodes", canEncode(
+            JamSession(date: Date(), bpm: 100, device: "test", calibrationConstantMs: nil,
+                       calibrationSource: nil, grooveName: "jamBacking", bars: 8, subdivisions: 4,
+                       tag: nil, feelRating: nil, gridStartTime: 0, tapTimes: [], tapVelocities: [],
+                       matchedCount: 0, extraCount: 0, missedCount: 0,
+                       meanAsynchronyMs: Stats.finite(emptyJam.meanAsynchronyMs),
+                       sdAsynchronyMs: Stats.finite(emptyJam.sdAsynchronyMs),
+                       lag1Autocorrelation: Stats.finite(emptyJam.lag1Autocorrelation),
+                       driftMsPerBeat: Stats.finite(emptyJam.driftMsPerBeat),
+                       headline: emptyJam.headline, placement: nil,
+                       rawTimes: [], rawNotes: [], rawVelocities: [])),
+                   "no note landed on the grid") && ok
+
+        // A form drill where the player never committed to a phrase top.
+        let emptyForm = FormAnalysis.analyze(markTimes: [], grid: grid, beatsPerBar: 4,
+                                             barsPerPhrase: 8, totalBars: 64)
+        ok = check("form take with no marks encodes", canEncode(
+            FormSession(date: Date(), bpm: 100, bars: 64, phraseBars: 8, level: 2,
+                        feelRating: nil, gridStartTime: 0, markTimes: [],
+                        phrasesAvailable: emptyForm.phrasesAvailable,
+                        marksPlaced: emptyForm.marksPlaced, onFormCount: emptyForm.onFormCount,
+                        tightCount: emptyForm.tightCount,
+                        meanAbsFormErrorBars: Stats.finite(emptyForm.meanAbsFormErrorBars),
+                        phaseErrorMeanMs: Stats.finite(emptyForm.phaseErrorMeanMs),
+                        phaseErrorSDms: Stats.finite(emptyForm.phaseErrorSDms),
+                        slipBarsPerPhrase: Stats.finite(emptyForm.slipBarsPerPhrase),
+                        missedPhrases: emptyForm.missedPhrases, headline: emptyForm.headline,
+                        placement: nil)),
+                   "the take lost live on 5 Aug 2026") && ok
+
+        // A continuation drill with nothing usable in any silence.
+        let sections = [DropoutSection(startTime: 0, endTime: 9.6, isPaced: true),
+                        DropoutSection(startTime: 9.6, endTime: 19.2, isPaced: false)]
+        let emptyDropout = DropoutAnalysis.analyze(taps: [], grid: Grid(startTime: 0, bpm: 100,
+                                                                       subdivisions: 1),
+                                                   sections: sections)
+        ok = check("continuation with no usable trial encodes", canEncode(
+            DropoutSession(date: Date(), bpm: 100, pacedBars: 4, silentBars: 4, cycles: 1,
+                           feelRating: nil, gridStartTime: 0, tapTimes: [],
+                           pacedSDms: Stats.finite(emptyDropout.pacedSDms),
+                           unpacedIntervalSDms: Stats.finite(emptyDropout.unpacedIntervalSDms),
+                           clockSDms: Stats.finite(emptyDropout.wingKristofferson?.clockSDms),
+                           motorSDms: Stats.finite(emptyDropout.wingKristofferson?.motorSDms),
+                           modelHolds: emptyDropout.wingKristofferson?.modelHolds ?? false,
+                           reentryErrorMeanMs: Stats.finite(emptyDropout.reentryErrorMeanMs),
+                           reentryErrorSDms: Stats.finite(emptyDropout.reentryErrorSDms),
+                           headline: emptyDropout.headline,
+                           tempoBiasBpm: Stats.finite(emptyDropout.tempoBiasBpm),
+                           playedBpm: Stats.finite(emptyDropout.playedBpm),
+                           splitIsReliable: emptyDropout.splitIsReliable,
+                           discardedTrials: emptyDropout.discardedTrials, placement: nil)),
+                   "no silence was scorable") && ok
+        return ok
+    }
+
+    private static func canEncode<T: Encodable>(_ value: T) -> Bool {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return (try? encoder.encode(value)) != nil
+    }
+
     private static func fullPipeline() -> Bool {
         print("\nFull pipeline (100 beats, synthetic)")
 
