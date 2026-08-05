@@ -2409,7 +2409,7 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | | Delivers |
 |---|---|
 | 0 ✅ | Store the grid's actual subdivision instead of a hardcoded 4. Prerequisite, and worth doing whether or not M14 proceeds. |
-| 1 | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
+| 1 ✅ | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
 | 2 | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
 | 3 | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
 | 4 | Drills gain a rung; instructions generated from it (R3.6); planner rotates tempo on training blocks only, with a test that it never touches the benchmark or an experiment block. |
@@ -2446,6 +2446,42 @@ changed while test objects were still compiled against the old ones. It reproduc
 in isolation, and disappeared entirely under `swift package clean`. Recorded because a crash that
 vanishes is exactly the kind of thing that gets waved away, and the way to tell the two apart is
 a clean build rather than a re-run.
+
+### Step 1, as built, and the ceiling it exposes
+
+`IntervalRung` — quarters, eighths, triplet eighths, sixteenths — carrying its subdivision, the
+interval it implies at a tempo, and the tempo above which it can no longer be scored honestly.
+Eleven tests.
+
+**The ceiling is derived, not chosen.** The matching window is `0.4 × 60 / (bpm × subdivisions)`,
+and requiring it to be worth at least three of the player's own spreads rearranges to a maximum
+tempo. Three spreads because a note 3 SD from where it was aimed still scores and only ~0.3% fall
+outside; at two it is 4.6%, and the off-grid rate has become a property of the rung rather than
+of the player. That is §7.18's censoring trap arriving through the ladder.
+
+Because it is derived from the player's measured spread, the ceiling **moves as they change** —
+a fact about them and the arithmetic rather than a number somebody picked. At 10 ms it doubles;
+at 40 ms it halves. The window fraction now lives on `Matching` and is read from there, so the
+ladder and the matcher cannot disagree about what counts as on the grid.
+
+#### At this player's ~20 ms spread
+
+| Rung | Ceiling |
+|---|---|
+| Quarters | 400 BPM (the engine's own limit of 260 binds first) |
+| Eighths | 200 BPM |
+| Triplet eighths | 133 BPM |
+| **Sixteenths** | **100 BPM** |
+
+**Sixteenths are already at their ceiling at the reference tempo**, and one BPM above it the top
+rung stops being honest. That is not a defect, and it is not a reason to loosen the rule — it is
+the ladder saying that at 20 ms spread, sixteenths at 100 BPM is the edge of what this app can
+measure about this player. The rung becomes available at higher tempos exactly when the spread
+comes down, which is the thing being trained.
+
+It also settles a question step 4 would otherwise have had to guess at: the tempo rotation and
+the rung cannot be chosen independently. A training block at sixteenths has to stay at or below
+100 BPM, so the planner picks the rung *after* the tempo, and the two together are one decision.
 
 ### What this cannot verify
 

@@ -13,10 +13,10 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is next and is planned in §7.23** — the subdivision ladder, reframed to
-carry tempo with it, because both move the same variable: the inter-onset interval. Step 0 is a
-latent storage defect worth fixing whether or not M14 proceeds. PLAN.md §7 has the milestone
-table with an "as built" section for each; §7.13 is the roadmap through M22.
+**M0–M13 are done. M14 is in progress — steps 0 and 1 of 6, planned in §7.23.** The subdivision
+ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
+interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
+roadmap through M22.
 
 | Done | |
 |---|---|
@@ -64,7 +64,7 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 230 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 241 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (55 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -79,11 +79,25 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 285 tests, no hardware needed
+swift test                              # 296 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
 ```
+
+Four test targets, and where each runs:
+
+| Target | Runs | Covers |
+|---|---|---|
+| `TimingCoreTests` | everywhere, including CI | every analysis, against planted ground truth |
+| `GrooveCoreTests` | everywhere, including CI | patterns, sequencer, backings |
+| `TrainerKitTests` | **`check.sh` only — macOS** | storage, the clock-bridge reduction, config validation, session sequencing |
+| `Tests/TestSupport` | not a test target | the shared generators every suite imports; add pathologies here, not per file |
+
+`Tests/TrainerKitTests/TakeFactory.swift` builds stored takes of any type and
+`StoreBackedTestCase` redirects storage into a temp directory — **subclass it rather than
+calling `SessionStore.save` directly**, or a test will write into the real practice history.
+`check.sh` fails if anything outside `Tests/` arms that redirect.
 
 **Run `selftest` after any change to analysis or audio.** It has caught six real defects that
 would otherwise have surfaced as mysterious live-run failures. If it passes and a live run
@@ -113,6 +127,56 @@ Two rules that keep this working:
 2. **Neither front end contains measurement logic.** `TrainerEngine.runJam` / `runForm` /
    `runDropout` / `runTempo` / `runMemory` are the only implementations, so the CLI and app
    can never measure differently. `SessionRunner` sequences them; it does not measure.
+
+## The codebase, in the order data moves through it
+
+A take goes: **groove scheduled → MIDI captured → both clocks reduced to one timeline → notes
+clustered → matched to a grid → analysed → stored → recomputed on every read.** Nothing reads a
+stored summary back (R3.1); the review re-runs the analysis from raw taps, which is why a fix
+reaches takes recorded before it.
+
+| Stage | Where | What it is |
+|---|---|---|
+| Schedule the backing | `GrooveCore/Sequencer`, `Pattern`, `Library` | Patterns in steps-per-bar; `Library` holds the named backings (`jamBacking`, `basicRock`) |
+| Play it | `TrainerKit/GroovePlayer`, `DrumSynth`, `LiveInstrument` | Render callback owns the sample clock; synthesis is in-app, no samples |
+| Capture keys | `TrainerKit/MIDIInput` | One CoreMIDI client per process, never disposed |
+| Bridge the clocks | `TrainerKit/HostClock` (`SampleHostMap`), `JamAnalysis.reduce` | Least-squares fit of (hostTime, sample); calibration applied here, sign and all |
+| Collapse chords | `TimingCore/TapClustering` | Near-simultaneous note-ons are one rhythmic event |
+| Match to the grid | `TimingCore/Grid`, `Matching` | ±40% window (`Matching.defaultWindowFraction`); outside it is an *extra*, never a late note |
+| Analyse | `TimingCore/TimingReport`, `WingKristofferson`, `DropoutAnalysis`, `FormAnalysis`, `TempoCalibration`, `TempoMemory`, `MusicalContent` | One analysis per drill, all pure |
+| Quantify uncertainty | `TimingCore/Bootstrap`, `Statistics` | Three bootstraps, and picking the wrong one is a defect (R3.2) |
+| Store | `TrainerKit/SessionStore` | One JSON per take; raw taps plus a summary nothing reads back |
+| Aggregate | `TimingCore/TrendAnalysis`, `WarmUpAnalysis`, `ExperimentAnalysis` | Trends, cold-vs-warm, and the A/B readout |
+| Decide what to practise | `TimingCore/SessionPlan` (`SessionPlanner`), `Experiment` | Builds the evening; `ExperimentSchedule` assigns arms |
+| Run the evening | `TrainerKit/SessionRunner` | State machine over blocks; stamps placement and arm. Sequences, never measures |
+| Drive it all | `TrainerKit/TrainerEngine` | `runJam` / `runForm` / `runDropout` / `runTempo` / `runMemory` — the **only** implementations of anything measured |
+| Show it | `TrainerKit/Commands` (console), `Sources/MusicalTrainerApp` (SwiftUI) | Presentation only |
+
+Types worth knowing before changing anything:
+
+- **`Grid`** — index arithmetic, never accumulation. `subdivisions` is grid points per beat.
+- **`IntervalRung`** — a rung of M14's ladder, and the tempo ceiling its matching window implies.
+- **`TimingReport`** — what a jam produced. `subdivisionStats` is **phase-conditional** (where in
+  the beat a note landed), not a measure of note values played.
+- **`SessionPlacement`** — where a take sat in a planned evening. Optional; 14 of 21 jams have none.
+- **`ExperimentAssignment`** — which experiment and arm a take belongs to. Optional.
+- **`DrillInstructions.forBlock(_:)`** — the one mapping from a planned block to its instructions,
+  arm included. Both surfaces call it; do not add a second.
+- **`Stats.finite(_:)`** — every stored summary goes through it. `JSONEncoder` refuses a
+  non-finite `Double` and a take was destroyed live because of it.
+
+## What is not covered, and must be said rather than implied
+
+- **Audio, MIDI and the drill runners have no tests.** `TrainerEngine.run*` past its config
+  validation, `GroovePlayer`, `MIDIInput`, `AudioIO`, calibration — all verified only by a live
+  run (R5.6), and the result recorded in PLAN.md.
+- **`TrainerKitTests` cannot run in CI.** `TrainerKit` is macOS-only, so a green Woodpecker
+  pipeline covers *less* than a green `check.sh`.
+- **M13 has never run live.** See the warning above.
+- **`selftest` covers the analysis pipeline against synthetic ground truth**, not storage — that
+  moved to `TrainerKitTests` with T1.
+- **Backings are tested for pattern structure only.** Whether a groove is playable-along-to is a
+  live-run question.
 
 ## Non-negotiables
 
@@ -262,6 +326,12 @@ usually AGENT.md, so two uncommitted changes put both sets of edits in the same 
 editing one change's documentation back out, committing, and putting it back. That has already
 cost two rounds of it in a single sitting (STANDARDS.md §8.2.2). Finish, hand over, then start.
 
-Adding a drill has its own seven-step checklist — STANDARDS.md §9.5.
+Checklists for the things with more than one moving part: **a drill** is STANDARDS.md §9.5,
+**an experiment** is §9.5.1, **a finding** is §9.6. After a storage change, §9.3. After analysis
+or audio, §9.2.
+
+Inspecting the data is what `review` is for — `review list`, `review <n>`, and the readouts in
+Surfaces above. Prefer it to reading the JSON: every readout recomputes from raw taps, so it
+shows what the current analysis says rather than what was true when the take was recorded.
 
 `./scripts/install-hooks.sh` once per clone, or none of the above is enforced.

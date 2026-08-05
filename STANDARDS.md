@@ -448,7 +448,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 230 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 241 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 **`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 55 tests
@@ -473,6 +473,20 @@ decode check. Those run in `./scripts/check.sh` locally, which the pre-commit ho
 5. Both surfaces: CLI command and app mode.
 6. Planner rule in `SessionPlanner`, with a test for when it must *not* fire.
 7. `PLAN.md` section; `README.md` command table; `AGENT.md` if procedure changed.
+
+### 9.5.1 Adding an experiment
+
+1. Declare it in `ExperimentLibrary` with a **fixed** UUID. The arm schedule is seeded from the
+   id; a fresh one each launch reshuffles an experiment already half collected.
+2. Pick a metric a take can actually produce. One declared on a metric nothing derives collects
+   takes forever while reporting "still collecting" — there is a test holding that line.
+3. Set `takesPerArm` before any data exists, and do not revise it afterwards. That number is the
+   stopping rule, and moving it once collection has started is optional stopping with extra steps.
+4. If the arms differ only in what the player is *told*, write both texts in
+   `DrillInstructions.jam(arm:)` — the instruction is then the independent variable, not a
+   description of one.
+5. Leave the benchmark and any other experiment's block alone (R3.5).
+6. `PLAN.md` gets the question, the arms and what would falsify it, before the first take.
 
 ### 9.6 Recording a finding
 

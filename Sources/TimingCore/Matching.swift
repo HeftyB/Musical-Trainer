@@ -1,6 +1,14 @@
 import Foundation
 
 public enum Matching {
+    /// Half-width of a grid point's capture window, as a fraction of the subdivision interval.
+    ///
+    /// Named rather than left as a default argument because the interval ladder derives its
+    /// tempo ceilings from it: how fast a rung can be played before correctly aimed notes start
+    /// falling outside the window is a function of exactly this number, and two copies of it
+    /// would let the ladder and the matcher disagree about what counts as on the grid.
+    public static let defaultWindowFraction = 0.4
+
     /// Align taps to grid points.
     ///
     /// - Parameter windowFraction: half-width of a grid point's capture window, as a
@@ -8,7 +16,8 @@ public enum Matching {
     ///   overlap. This is what defeats the sign-inversion trap of PLAN.md §5.3: a note 60%
     ///   of a subdivision late is outside every window and is recorded as an extra, rather
     ///   than snapping to the next grid point and being reported — wrongly — as early.
-    public static func match(taps: [Tap], to grid: Grid, windowFraction: Double = 0.4) -> MatchResult {
+    public static func match(taps: [Tap], to grid: Grid,
+                             windowFraction: Double = defaultWindowFraction) -> MatchResult {
         precondition(windowFraction > 0 && windowFraction < 0.5,
                      "windowFraction must be in (0, 0.5) to keep windows disjoint")
         let windowSec = windowFraction * grid.interval
