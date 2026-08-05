@@ -425,6 +425,7 @@ public enum Commands {
         if args.first == "dropout" { runDropoutHistory(); return }
         if args.first == "trend" { runTrend(); return }
         if args.first == "cold" { runCold(); return }
+        if args.first == "content" { runContent(); return }
         if args.first == "tempo" { runTempoHistory(); return }
 
         let sessions = SessionStore.loadAll()
@@ -988,6 +989,46 @@ public enum Commands {
     /// so "my spread is coming down" is either supported or isn't. Confounded groups are
     /// split rather than blended — a tempo change moves timing spread on its own, and a trend
     /// computed across the change would be measuring the tempo, not the player.
+    /// M12: does what you play change how you time it?
+    private static func runContent() {
+        Console.heading("What you play")
+        print("\(Console.dim)Within a take, does more interesting playing go with tighter "
+            + "timing? Within-take holds the day,\nthe tempo and the fatigue fixed — so a "
+            + "relationship here cannot be explained by any of them.\(Console.reset)")
+
+        let sessions = SessionStore.loadAll()
+        let withPitch = sessions.filter(\.hasPitchData)
+        guard !withPitch.isEmpty else {
+            print("\nNo take has pitch data yet. Note numbers have been recorded since "
+                + "4 August 2026; play a jam and this fills in.")
+            return
+        }
+        if withPitch.count < sessions.count {
+            Console.warn("\(sessions.count - withPitch.count) of \(sessions.count) takes predate "
+                       + "pitch recording and cannot be analysed.")
+        }
+
+        for session in withPitch {
+            let r = session.contentReport()
+            print("\n\(Console.bold)\(dateLabel(session.date))\(Console.reset)  "
+                + "\(Console.dim)\(Int(session.bpm)) BPM · \(session.bars) bars · "
+                + "\(r.windows.count) window(s)\(Console.reset)")
+
+            for c in r.correlations {
+                let strength = abs(c.r) < 0.3 ? "\(Console.dim)flat\(Console.reset)"
+                    : c.r < 0 ? "\(Console.green)tighter\(Console.reset)"
+                              : "\(Console.yellow)looser\(Console.reset)"
+                print("  \(pad(c.measure, 20))" + pad(String(format: "r = %+.2f", c.r), 14) + strength)
+            }
+            print("  \(r.headline)")
+            for note in r.notes { Console.warn(note) }
+        }
+
+        print("\n\(Console.dim)\"tighter\" means more of that measure went with less timing "
+            + "spread. One take is a hypothesis;\nthe experiment runner (M13) is what turns "
+            + "these into a result.\(Console.reset)")
+    }
+
     /// M10: is the improvement warming up, or getting better?
     private static func runCold() {
         Console.heading("Cold vs warm")

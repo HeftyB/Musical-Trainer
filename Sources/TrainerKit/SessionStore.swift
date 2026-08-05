@@ -100,6 +100,27 @@ struct JamSession: Codable {
     }
 
     var asynchroniesMs: [Double] { report().asynchroniesMs }
+
+    /// Every note-on, for content analysis. Empty for takes recorded before pitch was stored;
+    /// callers must say so rather than reporting an empty result as a finding.
+    var playedNotes: [PlayedNote] {
+        guard let times = rawTimes else { return [] }
+        let notes = rawNotes ?? Array(repeating: nil, count: times.count)
+        let velocities = rawVelocities ?? Array(repeating: nil, count: times.count)
+        guard notes.count == times.count, velocities.count == times.count else { return [] }
+        return times.indices.map {
+            PlayedNote(time: times[$0], note: notes[$0], velocity: velocities[$0])
+        }
+    }
+
+    var hasPitchData: Bool { !(rawTimes?.isEmpty ?? true) }
+
+    /// What was played against how it was timed, within this take.
+    func contentReport() -> ContentReport {
+        let (taps, grid) = reconstruct()
+        let events = TapClustering.collapse(taps, windowSeconds: 0.035)
+        return MusicalContentAnalysis.analyze(rawNotes: playedNotes, events: events, grid: grid)
+    }
 }
 
 /// A recorded form drill. Kept separate from `JamSession` because it measures a different
