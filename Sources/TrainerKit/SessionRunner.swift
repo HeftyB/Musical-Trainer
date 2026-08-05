@@ -181,12 +181,25 @@ public final class SessionRunner {
         let placement = SessionPlacement(sessionId: sessionId, blockIndex: index,
                                          role: block.role.rawValue,
                                          elapsedSeconds: blockStartElapsed)
+        // The arm comes from the block, so a take is stamped with the condition the plan said
+        // it would run under rather than with one decided at save time.
+        let experiment = block.experiment
         switch outcome {
-        case .jam(let o):     try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .form(let o):    try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .dropout(let o): try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .tempo(let o):   try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .memory(let o):  try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
+        case .jam(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .form(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .dropout(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .tempo(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .memory(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
         case .unmeasured:     break
         }
         results.append(BlockResult(index: index, block: block, outcome: outcome,

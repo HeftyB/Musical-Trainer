@@ -149,7 +149,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: JamOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = JamSession(
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
@@ -164,7 +165,7 @@ public enum TrainerEngine {
             sdAsynchronyMs: Stats.finite(r.sdAsynchronyMs),
             lag1Autocorrelation: Stats.finite(r.lag1Autocorrelation),
             driftMsPerBeat: Stats.finite(r.driftMsPerBeat),
-            headline: r.headline, placement: placement,
+            headline: r.headline, placement: placement, experiment: experiment,
             rawTimes: outcome.rawTaps.map(\.time),
             rawNotes: outcome.rawTaps.map(\.note),
             rawVelocities: outcome.rawTaps.map(\.velocity))
@@ -264,7 +265,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: FormOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = FormSession(
             date: Date(), bpm: outcome.config.bpm, bars: outcome.config.bars,
@@ -277,7 +279,7 @@ public enum TrainerEngine {
             phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
             phaseErrorSDms: Stats.finite(r.phaseErrorSDms),
             slipBarsPerPhrase: Stats.finite(r.slipBarsPerPhrase), missedPhrases: r.missedPhrases,
-            headline: r.headline, placement: placement)
+            headline: r.headline, placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 
@@ -395,7 +397,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: DropoutOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = DropoutSession(
             date: Date(), bpm: outcome.config.bpm,
@@ -410,7 +413,7 @@ public enum TrainerEngine {
             headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: placement)
+            placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 
@@ -573,7 +576,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: TempoOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = TempoSession(
             date: Date(), targets: outcome.config.targets,
@@ -586,7 +590,7 @@ public enum TrainerEngine {
             usableCount: r.usableCount, meanErrorPercent: Stats.finite(r.meanErrorPercent),
             meanAbsErrorPercent: Stats.finite(r.meanAbsErrorPercent),
             improvementPerRound: Stats.finite(r.improvementPerRound), headline: r.headline,
-            placement: placement)
+            placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 
@@ -840,7 +844,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: MemoryOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = MemorySession(
             date: Date(), bpm: outcome.config.bpm,
@@ -858,7 +863,7 @@ public enum TrainerEngine {
             silentMeanAbsErrorPercent: Stats.finite(r.silentMeanAbsErrorPercent),
             filledMeanAbsErrorPercent: Stats.finite(r.filledMeanAbsErrorPercent),
             interferenceCost: Stats.finite(r.interferenceCost),
-            headline: r.headline, placement: placement)
+            headline: r.headline, placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 

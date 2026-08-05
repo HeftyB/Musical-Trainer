@@ -1842,12 +1842,39 @@ claims.
 | Step | Delivers |
 |---|---|
 | 0 ✅ | Cluster bootstrap (finding 1) |
-| 1 | `ExperimentAssignment` storage, written and unread |
+| 1 ✅ | `ExperimentAssignment` storage, written and unread |
 | 2 | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
 | 3 | `ExperimentAnalysis.swift` — pooled arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |
 | 4 | Planner blocks at locked parameters (R3.5), arm-specific instructions (R3.6), engine wiring |
 | 5 | Console `experiment` + `review experiment`, and the app card (finding 9) |
 | 6 | `PLAN.md` as-built, `README.md` command table, `AGENT.md` state |
+
+### Step 1, as built
+
+`ExperimentAssignment` — experiment id, name, arm, run index — optional on all five take types,
+and optional on `SessionBlock` so the arm travels with the thing that decides it. `SessionRunner`
+stamps it from the block, beside the placement it already writes. Nothing reads it.
+
+Four decisions worth keeping:
+
+- **The arm is a raw string**, like `SessionPlacement.role`, so adding an arm to an experiment
+  never makes an already-recorded take undecodable.
+- **The design is not stored on the take.** Arms, target n and the stopping rule belong to the
+  experiment; copying them into every file would let two takes disagree about what experiment
+  they were part of.
+- **`runIndex` is stored** because counterbalancing has to be checkable after the fact rather
+  than merely intended. §7.17 has two takes identical on every number rated 4 and 1 twenty
+  minutes apart, so an arm that drifted toward the tired end of a sitting would measure fatigue —
+  and the placement's `elapsedSeconds`, already stored, is the other half of that check.
+- **It sits on `SessionBlock`, not on the runner's call.** A plan that says which arm it is
+  running can be shown, stored and checked before a note is played.
+
+This is the third time a field has landed ahead of the analysis that needs it — `SessionPlacement`
+before M10, pitch before M12 — and the first time one has arrived with T1's round-trip property
+already waiting. Five tests, including a take whose `experiment` key is deleted from the JSON
+entirely, which is the closest a test gets to a take from 4 August. One of them asserts the
+planner assigns *no* arms, so it fails the moment step 4 starts assigning them, which is when
+the analysis has to exist to receive them.
 
 The first three experiments, chosen by what they unblock: **steady vs melodic** (the
 mode-of-playing hypothesis §7.19 says M12 cannot test), **silent vs filled retention pooled

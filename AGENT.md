@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M12 are done. M13 (experiment runner) is next.** PLAN.md §7 has the milestone table with
+**M0–M12 are done. M13 (experiment runner) is in progress — step 1 of 6 landed.** PLAN.md §7 has the milestone table with
 a "as built" section for each; §7.13 is the roadmap through M22.
 
 | Done | |
@@ -55,7 +55,7 @@ tags | conditions | compare | form | dropout | tempo`.
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 192 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (34 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (39 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -69,7 +69,7 @@ tags | conditions | compare | form | dropout | tempo`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 226 tests, no hardware needed
+swift test                              # 231 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -139,6 +139,9 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 - Sessions live in `~/Library/Application Support/MusicalTrainer/sessions/`, one JSON per
   take, prefixed `jam-` / `form-` / `dropout-` / `tempo-` / `memory-`, plus a `session-`
   manifest per planned session (what the planner chose, why, and what was skipped).
+- **Every take carries an optional `ExperimentAssignment`** — experiment id, name, arm, run
+  index — written since M13 step 1 and read by nothing yet. Same reasoning as the two below: a
+  take recorded without its arm is lost to the comparison for good.
 - **Every take carries an optional `SessionPlacement`** — session id, block index, role, and
   seconds elapsed into the sitting. That is what lets a cold take and a take twenty minutes in
   be told apart, and it is why M9 changed storage before it changed anything else.

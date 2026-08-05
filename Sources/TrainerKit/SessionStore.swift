@@ -90,6 +90,9 @@ struct JamSession: Codable, StoredTake {
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     // Every note-on in the window, before chord clustering: pitch, velocity, time.
     //
@@ -173,6 +176,9 @@ struct FormSession: Codable, StoredTake {
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     /// Re-analyse from the stored marks, like the other drills, so an analysis fix reaches
     /// takes recorded before it. Everything the analysis needs is stored: tempo, grid origin,
@@ -217,6 +223,9 @@ struct DropoutSession: Codable, StoredTake {
     let discardedTrials: Int?
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     /// Rebuild the inputs to the analysis, so a stored drill can be re-analysed with the
     /// current logic. The stored summary is only a cache; this is the source of truth.
@@ -271,6 +280,9 @@ struct TempoSession: Codable, StoredTake {
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
 
@@ -319,6 +331,9 @@ struct MemorySession: Codable, StoredTake {
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
 

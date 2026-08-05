@@ -148,9 +148,18 @@ public struct SessionBlock: Codable, Equatable {
     /// Shown with the plan before the session starts. A session the app chose but cannot
     /// justify is one the player has no way to disagree with.
     public let reason: String
+    /// The experiment and arm this block belongs to, when the planner assigned one.
+    ///
+    /// Optional and always nil until M13's runner exists. It sits on the block rather than
+    /// being handed to `SessionRunner` separately so that the arm travels with the thing that
+    /// decides it — a plan that says which arm it is running can be shown, stored and checked
+    /// before a note is played, and the runner only has to carry it through.
+    public let experiment: ExperimentAssignment?
 
-    public init(role: BlockRole, plan: BlockPlan, reason: String) {
+    public init(role: BlockRole, plan: BlockPlan, reason: String,
+                experiment: ExperimentAssignment? = nil) {
         self.role = role; self.plan = plan; self.reason = reason
+        self.experiment = experiment
     }
 
     public var estimatedSeconds: Double { plan.estimatedSeconds }

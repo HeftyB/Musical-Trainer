@@ -12,6 +12,13 @@ import TestSupport
 /// visibility rather than chosen, which is the only reason it is here.
 enum TakeFactory {
 
+    /// A stand-in assignment, so a test can check the arm survives storage.
+    static func assignment(arm: String, runIndex: Int = 0) -> ExperimentAssignment {
+        ExperimentAssignment(
+            experimentId: UUID(uuidString: "00000000-0000-0000-0000-00000000E00D") ?? UUID(),
+            name: "steady-vs-melodic", arm: arm, runIndex: runIndex)
+    }
+
     static func grid(bpm: Double = 100, subdivisions: Int = 4) -> Grid {
         Grid(startTime: 1_000, bpm: bpm, subdivisions: subdivisions)
     }
@@ -21,7 +28,8 @@ enum TakeFactory {
     // Built through the same summary fields the engine writes, so a change to what is stored
     // shows up here rather than only in a live run.
 
-    static func jam(_ p: Performance = .steady, bars: Int = 32, tag: String? = nil) -> JamSession {
+    static func jam(_ p: Performance = .steady, bars: Int = 32, tag: String? = nil,
+                    experiment: ExperimentAssignment? = nil) -> JamSession {
         let g = grid()
         let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
@@ -38,6 +46,7 @@ enum TakeFactory {
             lag1Autocorrelation: Stats.finite(r.lag1Autocorrelation),
             driftMsPerBeat: Stats.finite(r.driftMsPerBeat),
             headline: r.headline, placement: placement(role: "benchmark"),
+            experiment: experiment,
             rawTimes: raw.map(\.time), rawNotes: raw.map(\.note),
             rawVelocities: raw.map(\.velocity))
     }
@@ -58,7 +67,7 @@ enum TakeFactory {
             phaseErrorSDms: Stats.finite(r.phaseErrorSDms),
             slipBarsPerPhrase: Stats.finite(r.slipBarsPerPhrase),
             missedPhrases: r.missedPhrases, headline: r.headline,
-            placement: placement(role: "training"))
+            placement: placement(role: "training"), experiment: nil)
     }
 
     static func dropout(_ p: Performance = .steady, cycles: Int = 4) -> DropoutSession {
@@ -70,7 +79,7 @@ enum TakeFactory {
             pacedSDms: nil, unpacedIntervalSDms: nil, clockSDms: nil, motorSDms: nil,
             modelHolds: false, reentryErrorMeanMs: nil, reentryErrorSDms: nil,
             headline: "", tempoBiasBpm: nil, playedBpm: nil, splitIsReliable: nil,
-            discardedTrials: nil, placement: placement(role: "training"))
+            discardedTrials: nil, placement: placement(role: "training"), experiment: nil)
         // Recompute through the same path the engine uses, so the stored summary is the one the
         // analysis actually produces rather than a hand-written guess.
         let (t, gr, sections) = session.reconstruct()
@@ -88,7 +97,7 @@ enum TakeFactory {
             reentryErrorSDms: Stats.finite(r.reentryErrorSDms), headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: session.placement)
+            placement: session.placement, experiment: nil)
     }
 
     static func tempo(rounds: Int = 4) -> TempoSession {
@@ -101,7 +110,8 @@ enum TakeFactory {
             roundTargets: Array(repeating: 100, count: rounds),
             roundHoldStarts: starts, roundHoldEnds: starts.map { $0 + holdSeconds },
             usableCount: rounds, meanErrorPercent: nil, meanAbsErrorPercent: nil,
-            improvementPerRound: nil, headline: "", placement: placement(role: "cold"))
+            improvementPerRound: nil, headline: "", placement: placement(role: "cold"),
+            experiment: nil)
     }
 
     static func memory(rounds: Int = 4) -> MemorySession {
@@ -116,7 +126,7 @@ enum TakeFactory {
             roundReproduceEnds: starts.map { $0 + 19.2 },
             usableCount: rounds, silentMeanAbsErrorPercent: nil,
             filledMeanAbsErrorPercent: nil, interferenceCost: nil, headline: "",
-            placement: placement(role: "training"))
+            placement: placement(role: "training"), experiment: nil)
     }
 
     private static func placement(role: String) -> SessionPlacement {
