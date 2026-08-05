@@ -104,12 +104,38 @@ to keep stored JSON legible. **Nothing reads them back.** Enforced by `check.sh`
 > of 16.7 ms against 18.3 ms recomputed — and fitted slopes through the difference.
 
 **R3.2 — Point estimates carry uncertainty.** Any reported comparison states an interval and
-says "real change" or "within noise". The bootstrap is moving-block for serially correlated
-series and plain for independent trials; using the wrong one is a defect, not a preference.
+says "real change" or "within noise". Using the wrong bootstrap is a defect, not a preference:
+
+| Data | Bootstrap |
+|---|---|
+| One serially correlated series (asynchronies within a take) | moving-block |
+| Independent trials (drill rounds, minutes apart) | plain |
+| Anything pooled across takes or sittings | **two-stage: resample takes, then blocks within each** |
+| One value per take, compared across conditions | plain, over the per-take values |
+
+> The third row shipped wrong for three milestones. Resampling only within takes leaves each
+> take's mean frozen in every iteration, so the interval is blind to between-take variation —
+> which is most of the variation. Over the two benchmark jams, whose means sit 16.7 ms apart,
+> it produced an interval 6 ms wide and let `review conditions` call a difference real on that
+> basis. See PLAN.md §7.20.
+
+**R3.2.1 — A group of one take gets no interval.** The only variation inside a single take is
+within-take variation, and offering it as a condition's uncertainty is the same defect in a
+smaller form. Say why the number is missing.
 
 **R3.3 — When a measurement cannot be trusted, say so and say why.** `splitIsReliable`,
 `discardedTrials`, `unusableReason` and the comparability notes are the pattern. Silence is not
 an acceptable way to express low confidence.
+
+**R3.3.1 — A value that is untrustworthy under a condition is withheld at source, not flagged
+for callers.** Return `nil` from the analysis; do not return the number beside a boolean and
+expect every reader to check it.
+
+> The recall drill's interference cost is derived in three independent places — the report, the
+> history chart, and the planner's input. Built as a flag, two of the three were gated and the
+> third was found only because a trend that should have moved did not. A value that is safe
+> only when every caller remembers a precondition is R3.1's cached-summary defect in a new
+> costume. See PLAN.md §7.20 finding 2.
 
 **R3.4 — Confounds are named, never blended.** A group that mixes backings, tempos, devices,
 difficulty levels or drill parameters says so at the point of display. Both surfaces must warn
@@ -174,8 +200,27 @@ synthetic ground truth without hardware. If it passes and a live run fails, the 
 hardware or the clock bridge, not the maths — that separation is the whole reason it exists.
 
 **R5.6 — Hardware paths are verified by a live run**, and the result is recorded in `PLAN.md`.
+
+**R5.7 — A rule in `check.sh` is verified by making it fail.** Add the rule, plant a violation,
+watch it report FAIL, remove the violation, watch it report PASS. Reading the pattern is not
+verification.
+
+> The force-unwrap rule matched `!` only when followed by `.`, so eleven force-unwraps sat in
+> `Sources` under a green PASS. Its replacement was then broken the same way — `[A-Za-z0-9_)\]]!`
+> closes the bracket expression at the first `]`, because a backslash inside brackets is
+> literal — and two rounds of checking at the shell missed it, because the shell and the script
+> disagreed. Only planting a violation and running `check.sh` found it. See PLAN.md §7.20.
 Audio, MIDI and the drill runners cannot be unit tested; pretending otherwise is worse than
 admitting the gap.
+
+**R5.8 — Every stored type has a round-trip test**: save it, load it back, recompute, and require
+the report not to move. Add one with the type, not after the first take is lost.
+
+> A whole class of defect lived where nothing had ever written a take. The encoder refusing a
+> non-finite `Double` destroyed a form take live; a self-contradictory file trapped on read; two
+> takes sharing a timestamp overwrote each other. One property catches all three. Tests write
+> through `SessionStore.directoryOverride` into a temporary directory — never the player's
+> history, which `check.sh` enforces. See PLAN.md §7.22.
 
 ---
 
@@ -275,13 +320,47 @@ commit itself is the record.
   write yet is a change you cannot yet describe, which usually means it is really two changes.
 - **Update it whenever the working tree changes.** A stale message is worse than none, because
   it will be used.
-- **Clear it once committed.** `: > temp/current-git-commit-message.txt`, or replace it with
-  the message for the next change.
+- **Clearing it is automatic.** The `post-commit` hook compares what landed against the file
+  and empties it when they match. A message left behind is worse than an empty file: the next
+  change inherits it and `git commit -F` uses it unread, which has happened. The hook leaves
+  the file alone when the commit was made some other way, so a message for still-uncommitted
+  work survives a `git commit -m` on something else.
 - Commit with `git commit -F temp/current-git-commit-message.txt` so the file that was reviewed
   is the message that lands.
 
-If the change needs more than one commit, the file holds all of them in order, separated by a
-line of `---`, each with the `git add` that precedes it.
+**More than one commit.** `git commit -F` reads the whole file, so several messages cannot
+share one. When a change genuinely has to land as two commits, add
+`temp/current-git-commit-message-2.txt`, numbered in the order they will be committed. Each
+file holds one message and nothing else — no `git add` lines, no separators, nothing that
+would end up in the log if the file were used as-is. The hook clears whichever one matched.
+
+**Only when absolutely needed.** A second file is a prompt to re-read "one logical change per
+commit" above and check the split is real: usually it is one change described badly, or the
+documentation half of a change that belongs with the change. The case it exists for is work
+where the first commit stands on its own without the second — a review recorded before the
+first fix it queues, say. If both halves have to land together to make sense, they are one
+commit.
+
+### 8.2.2 One change at a time
+
+**Take a change all the way to commit-ready before starting the next one.** Commit-ready means
+§8.3: the gate passes, all four documents are level, and the message file describes it.
+
+The reason is mechanical and it is not obvious until it bites. Every change here updates
+`PLAN.md` and usually `AGENT.md` — that is §8.3 item 4, and it is not optional. Do two changes
+before committing either and both sets of edits are sitting in the same files, at which point
+`git add PLAN.md` cannot stage one without the other. The commits can no longer be separated by
+file, and splitting them means either hunk surgery or rewriting one change's documentation out
+of the file, committing, and putting it back.
+
+> This cost two rounds of exactly that surgery in one sitting: the §7.20 review and the step-0
+> bootstrap fix were both written before either was committed, so the review's section and the
+> fix's as-built subsection were interleaved in one `PLAN.md`, and the same again for the fix
+> and the hook you are reading about. Both were separable only by hand.
+
+So: finish, commit, then start. If a second change is genuinely urgent mid-flight, branch for
+it rather than layering it on top — the cost of a branch is nothing next to the cost of
+untangling two changes out of one document.
 
 `check.sh` warns when the tree is dirty and this file is missing or older than the most
 recently changed file. It is a warning, not a failure: the standard is a discipline, not a
@@ -327,6 +406,10 @@ swift build -c release && ./.build/release/TimingSpike selftest
 ./.build/release/TimingSpike review list     # every historical take must still decode
 ```
 
+It checks all six stored types, not just the jams it lists, and **exits non-zero** if any file
+fails to decode. `check.sh` reads that status. For most of its life this command printed a note
+and exited 0, so the check could not fail.
+
 ### 9.4 Releasing a build to yourself
 
 ```sh
@@ -365,8 +448,13 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, all 175 tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 230 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
+
+**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 50 tests
+run only in `./scripts/check.sh`, which the pre-commit hook enforces. A green pipeline therefore
+covers less than a green `check.sh`, and saying so is the point: the gap that destroyed a take
+existed because the split between tested and untested had stopped being visible.
 
 The Linux leg is possible because `Package.swift` excludes the Apple-only targets off macOS.
 That is the strictest available check of §1.1: an accidental `import AVFoundation` in a pure

@@ -102,18 +102,46 @@ public enum Bootstrap {
                                   level: level)
     }
 
+    /// Fewer takes than this in a group and no pooled interval is produced at all.
+    ///
+    /// One take cannot support a statement about takes. The only variation available inside it
+    /// is within-take variation, and presenting that as a condition's uncertainty is exactly
+    /// the defect the two-stage resample below exists to remove — so a single take gets a gap
+    /// rather than a narrow, wrong interval.
+    public static let minimumTakes = 2
+
+    /// Below this the interval is honest but coarsely estimated: the outer stage has very few
+    /// distinct takes to draw from, so its tails are a handful of steps rather than a curve.
+    /// Callers say so; they do not suppress the number.
+    public static let stableIntervalTakes = 4
+
     /// Interval for a statistic over several takes pooled together.
     ///
-    /// Blocks are resampled *within* each take and then concatenated, so a block never spans
-    /// a session boundary — that would invent a correlation between the end of one take and
-    /// the start of another, which cannot exist.
+    /// **Two-stage (cluster) resample: takes with replacement, then blocks within each take
+    /// that was drawn.** Both stages are load-bearing and for different reasons.
+    ///
+    /// The outer stage is the one this got wrong for three milestones. Resampling only
+    /// *within* takes leaves each take contributing its own fixed mean to every iteration, so
+    /// the interval describes variation inside takes and is blind to variation between them —
+    /// while the quantity being compared varies mostly between them. This dataset says so
+    /// plainly: the two `benchmark` jams sit at −5.9 and −22.6 ms mean asynchrony (§7.19), and
+    /// the old pooled interval over exactly those two takes was 6 ms wide. It was narrower
+    /// than the gap between the two numbers it pooled, and `review conditions` was allowed to
+    /// call a difference "real change" on that basis.
+    ///
+    /// The inner stage stays as it was, and blocks still never span a take boundary — that
+    /// would invent a correlation between the end of one take and the start of another, which
+    /// cannot exist.
+    ///
+    /// `WarmUpAnalysis.withinSessionFit` has resampled whole sittings from the day it was
+    /// written, for this reason. The pooled path simply never got the same treatment.
     public static func pooledInterval(_ groups: [[Double]],
                                       statistic: ([Double]) -> Double,
                                       iterations: Int = defaultIterations,
                                       level: Double = 0.95,
                                       seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
         let usable = groups.filter { $0.count >= 8 }
-        guard !usable.isEmpty else { return nil }
+        guard usable.count >= minimumTakes else { return nil }
         var rng = SplitMix64(seed: seed)
         var stats = [Double](); stats.reserveCapacity(iterations)
         for _ in 0..<iterations {
@@ -128,13 +156,18 @@ public enum Bootstrap {
 
     /// Interval for the difference of a pooled statistic between two sets of takes,
     /// `statistic(a) − statistic(b)`. Excluding zero means the conditions really differ.
+    ///
+    /// Two-stage on both sides, for the reason in `pooledInterval`. This is the readout M13's
+    /// experiment runner is built on, so it is the one place in the project where a too-narrow
+    /// interval would not merely mislead a reader but drive the app's own decision to stop
+    /// collecting.
     public static func pooledDifference(_ a: [[Double]], _ b: [[Double]],
                                         statistic: ([Double]) -> Double,
                                         iterations: Int = defaultIterations,
                                         level: Double = 0.95,
                                         seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
         let ua = a.filter { $0.count >= 8 }, ub = b.filter { $0.count >= 8 }
-        guard !ua.isEmpty, !ub.isEmpty else { return nil }
+        guard ua.count >= minimumTakes, ub.count >= minimumTakes else { return nil }
         var rng = SplitMix64(seed: seed)
         var deltas = [Double](); deltas.reserveCapacity(iterations)
         for _ in 0..<iterations {
@@ -147,10 +180,49 @@ public enum Bootstrap {
                                   level: level)
     }
 
+    /// One two-stage resample: `groups.count` takes drawn **with replacement**, then a
+    /// moving-block resample inside each take that was drawn.
+    ///
+    /// Drawing with replacement is the whole point — an iteration that happens to draw one
+    /// take three times and another none is what carries the between-take variation into the
+    /// interval. Replacing this loop with `for g in groups` restores the old defect exactly,
+    /// and `testPooledDifferenceDoesNotCallOneOddEveningARealChange` fails if it is.
+    /// Percentile interval for the difference of means between two sets of **independent
+    /// values**, `mean(a) − mean(b)`.
+    ///
+    /// A plain resample, not the moving-block one above: these are one number per take or per
+    /// round, minutes or days apart, not a serially correlated stream. There is no short-range
+    /// structure for blocks to preserve, and using the block version would be the wrong
+    /// bootstrap for the data (R3.2).
+    ///
+    /// This is also the right tool for comparing conditions when the unit of analysis is the
+    /// take — see `ExperimentAnalysis`, which is what settled that question.
+    public static func plainDifference(_ a: [Double], _ b: [Double],
+                                       iterations: Int = defaultIterations,
+                                       level: Double = 0.95,
+                                       seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
+        guard !a.isEmpty, !b.isEmpty else { return nil }
+        var rng = SplitMix64(seed: seed)
+        var deltas: [Double] = []
+        deltas.reserveCapacity(iterations)
+        for _ in 0..<iterations {
+            var sa = 0.0, sb = 0.0
+            for _ in a.indices { sa += a[Int(rng.next() % UInt64(a.count))] }
+            for _ in b.indices { sb += b[Int(rng.next() % UInt64(b.count))] }
+            deltas.append(sa / Double(a.count) - sb / Double(b.count))
+        }
+        let alpha = (1 - level) / 2
+        return ConfidenceInterval(point: Stats.mean(a) - Stats.mean(b),
+                                  low: Stats.percentile(deltas, alpha),
+                                  high: Stats.percentile(deltas, 1 - alpha),
+                                  level: level)
+    }
+
     private static func resamplePool(_ groups: [[Double]], using rng: inout SplitMix64) -> [Double] {
         var sample: [Double] = []
         sample.reserveCapacity(groups.reduce(0) { $0 + $1.count })
-        for g in groups {
+        for _ in groups.indices {
+            let g = groups[Int(rng.next() % UInt64(groups.count))]
             sample.append(contentsOf: blockResample(g, blockLength: defaultBlockLength(g.count), using: &rng))
         }
         return sample

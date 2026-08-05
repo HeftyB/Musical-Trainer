@@ -29,12 +29,31 @@ public struct SessionPlacement: Codable, Equatable {
     }
 }
 
+/// A stored take that can check its own internal consistency.
+///
+/// `Codable` proves the fields are present and correctly typed. It cannot prove that several
+/// parallel arrays describing the same rounds are the same length — a file where they disagree
+/// decodes cleanly and then traps on the first index out of range. A crash while reading
+/// history is precisely the failure R6.4 exists to prevent, and it would take the app down
+/// rather than reporting anything.
+///
+/// Types carrying parallel arrays implement this; everything else takes the default. An invalid
+/// file is treated as unreadable, so it surfaces through `unreadableFiles()` and `review list`
+/// with a name attached instead of as a stack trace.
+protocol StoredTake: Decodable {
+    var isStructurallyValid: Bool { get }
+}
+
+extension StoredTake {
+    var isStructurallyValid: Bool { true }
+}
+
 /// A recorded jam, persisted to disk.
 ///
 /// Stores the raw taps and grid parameters, not just the summary, so the M5 review can
 /// re-analyze and plot a session without the player having to record it again. The summary
 /// fields are duplicated for cheap listing.
-struct JamSession: Codable {
+struct JamSession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let device: String
@@ -61,13 +80,19 @@ struct JamSession: Codable {
     let matchedCount: Int
     let extraCount: Int
     let missedCount: Int
-    let meanAsynchronyMs: Double
-    let sdAsynchronyMs: Double
+    // Optional because these are NaN whenever too little was matched to compute them, and
+    // JSONEncoder throws on a non-finite Double — which loses the whole take. See
+    // `Stats.finite`. Older takes stored a number and still decode.
+    let meanAsynchronyMs: Double?
+    let sdAsynchronyMs: Double?
     let lag1Autocorrelation: Double?
     let driftMsPerBeat: Double?
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     // Every note-on in the window, before chord clustering: pitch, velocity, time.
     //
@@ -119,14 +144,15 @@ struct JamSession: Codable {
     func contentReport() -> ContentReport {
         let (taps, grid) = reconstruct()
         let events = TapClustering.collapse(taps, windowSeconds: 0.035)
-        return MusicalContentAnalysis.analyze(rawNotes: playedNotes, events: events, grid: grid)
+        return MusicalContentAnalysis.analyze(rawNotes: playedNotes, events: events, grid: grid,
+                                              totalBars: bars)
     }
 }
 
 /// A recorded form drill. Kept separate from `JamSession` because it measures a different
 /// thing — where you are in the music, not how you place a beat — and pooling the two would
 /// be meaningless.
-struct FormSession: Codable {
+struct FormSession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let bars: Int
@@ -141,14 +167,18 @@ struct FormSession: Codable {
     let marksPlaced: Int
     let onFormCount: Int
     let tightCount: Int
-    let meanAbsFormErrorBars: Double
-    let phaseErrorMeanMs: Double
-    let phaseErrorSDms: Double
+    // Optional for the reason in `JamSession` above: no marks, or one, and these are NaN.
+    let meanAbsFormErrorBars: Double?
+    let phaseErrorMeanMs: Double?
+    let phaseErrorSDms: Double?
     let slipBarsPerPhrase: Double?
     let missedPhrases: [Int]
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     /// Re-analyse from the stored marks, like the other drills, so an analysis fix reaches
     /// takes recorded before it. Everything the analysis needs is stored: tempo, grid origin,
@@ -162,7 +192,7 @@ struct FormSession: Codable {
 
 /// A recorded continuation drill. Separate again: it is the only session type that yields a
 /// clock/motor split, because it is the only one with unpaced playing in it.
-struct DropoutSession: Codable {
+struct DropoutSession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let pacedBars: Int
@@ -174,13 +204,14 @@ struct DropoutSession: Codable {
     let tapTimes: [Double]
 
     // Cached summary, as above — `reconstruct()` is the source of truth.
-    let pacedSDms: Double
-    let unpacedIntervalSDms: Double
+    // Optional for the reason in `JamSession` above: too few usable trials and these are NaN.
+    let pacedSDms: Double?
+    let unpacedIntervalSDms: Double?
     let clockSDms: Double?
     let motorSDms: Double?
     let modelHolds: Bool
-    let reentryErrorMeanMs: Double
-    let reentryErrorSDms: Double
+    let reentryErrorMeanMs: Double?
+    let reentryErrorSDms: Double?
     let headline: String
 
     // Cached summaries. Optional so sessions written before these existed still decode —
@@ -192,6 +223,9 @@ struct DropoutSession: Codable {
     let discardedTrials: Int?
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     /// Rebuild the inputs to the analysis, so a stored drill can be re-analysed with the
     /// current logic. The stored summary is only a cache; this is the source of truth.
@@ -221,7 +255,7 @@ struct DropoutSession: Codable {
 }
 
 /// A recorded tempo-calibration session.
-struct TempoSession: Codable {
+struct TempoSession: Codable, StoredTake {
     let date: Date
     let targets: [Double]
     let leadBars: Int
@@ -246,8 +280,18 @@ struct TempoSession: Codable {
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
+
+    /// Three arrays describe the same rounds. `roundWindows` uses `zip`, which does not trap
+    /// on a mismatch — it silently truncates to the shortest, so a malformed file would report
+    /// a take with fewer rounds than were played and look entirely plausible.
+    var isStructurallyValid: Bool {
+        roundHoldStarts.count == roundTargets.count && roundHoldEnds.count == roundTargets.count
+    }
 
     var roundWindows: [TempoRound] {
         zip(roundTargets.indices, zip(roundTargets, zip(roundHoldStarts, roundHoldEnds))).map {
@@ -260,7 +304,7 @@ struct TempoSession: Codable {
 /// A recorded tempo-memory drill. Separate again, because it is the only drill with an
 /// experimental *condition* in it — the two retention types are the measurement, and pooling
 /// them with anything else would throw away the contrast.
-struct MemorySession: Codable {
+struct MemorySession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let referenceBars: Int
@@ -287,11 +331,25 @@ struct MemorySession: Codable {
     let headline: String
 
     let placement: SessionPlacement?
+    /// Which experiment and arm, when this take was played as part of one. Written since M13;
+    /// nothing reads it yet. See `ExperimentAssignment`.
+    let experiment: ExperimentAssignment?
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
 
+    /// Five arrays describe the same rounds, so they must be the same length. A file where
+    /// they disagree would trap on the first index out of range.
+    var isStructurallyValid: Bool {
+        let n = roundConditions.count
+        return roundRetentionStarts.count == n && roundRetentionEnds.count == n
+            && roundReproduceStarts.count == n && roundReproduceEnds.count == n
+    }
+
     var roundWindows: [MemoryRound] {
-        roundConditions.indices.map { i in
+        // Belt and braces: such a file never loads, and if one reaches here it yields no
+        // rounds rather than crashing.
+        guard isStructurallyValid else { return [] }
+        return roundConditions.indices.map { i in
             MemoryRound(index: i, targetBpm: bpm,
                         condition: RetentionCondition(rawValue: roundConditions[i]) ?? .silent,
                         retentionStart: roundRetentionStarts[i],
@@ -303,8 +361,16 @@ struct MemorySession: Codable {
 }
 
 enum SessionStore {
+    /// Redirects storage somewhere else. **Tests only, and nil in every other context.**
+    ///
+    /// The real directory holds primary data that R6.2 says must never be deleted or rewritten,
+    /// and a test suite that saves takes has to save them somewhere else — a suite that could
+    /// scribble on the player's practice history would be a worse defect than any it caught.
+    /// `check.sh` fails if anything outside `Tests/` assigns this.
+    static var directoryOverride: URL?
+
     static var directory: URL {
-        let base = FileManager.default
+        let base = directoryOverride ?? FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MusicalTrainer/sessions", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -313,8 +379,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: JamSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("jam-\(stamp).json")
+        let url = uniqueURL(prefix: "jam-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -328,8 +393,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: FormSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("form-\(stamp).json")
+        let url = uniqueURL(prefix: "form-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -343,8 +407,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: DropoutSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("dropout-\(stamp).json")
+        let url = uniqueURL(prefix: "dropout-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -358,8 +421,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: TempoSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("tempo-\(stamp).json")
+        let url = uniqueURL(prefix: "tempo-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -373,8 +435,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: MemorySession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("memory-\(stamp).json")
+        let url = uniqueURL(prefix: "memory-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -388,8 +449,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ record: TrainingSessionRecord) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: record.date)
-        let url = directory.appendingPathComponent("session-\(stamp).json")
+        let url = uniqueURL(prefix: "session-", date: record.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -401,17 +461,75 @@ enum SessionStore {
         load(prefix: "session-", as: TrainingSessionRecord.self).sorted { $0.date < $1.date }
     }
 
-    /// Decode every file with the given name prefix. The prefix keeps jam and form takes
-    /// apart, so neither can be silently decoded as the other.
-    private static func load<T: Decodable>(prefix: String, as type: T.Type) -> [T] {
+    /// A path for this take, made unique if one with the same timestamp already exists.
+    ///
+    /// The name is derived from the take's own date, so two takes finishing in the same second
+    /// resolved to the same file and the second silently overwrote the first. R6.2 says a
+    /// stored take is never rewritten, and "two drills cannot finish in the same second" is the
+    /// kind of assumption that turns out to be wrong once. The test suite hit it on its first
+    /// run, saving several synthetic takes that shared a date.
+    private static func uniqueURL(prefix: String, date: Date) -> URL {
+        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: date)
+        var url = directory.appendingPathComponent("\(prefix)\(stamp).json")
+        var attempt = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = directory.appendingPathComponent("\(prefix)\(stamp)-\(attempt).json")
+            attempt += 1
+        }
+        return url
+    }
+
+    /// Every stored file that no longer decodes, across **every** take type.
+    ///
+    /// R6.1 says every take ever recorded must continue to decode, "verified by running
+    /// `review list`" — and that verification did not exist. `load` writes a note to stderr and
+    /// returns whatever survived, so the command exited 0 and `check.sh` printed PASS however
+    /// much history had been orphaned. `review list` also loads only jams, so a schema change
+    /// to any of the other five types could never have been caught by it at all.
+    ///
+    /// This is deliberately separate from loading: an integrity check that runs as a side
+    /// effect of reading is one a caller can forget to look at.
+    static func unreadableFiles() -> [URL] {
+        var bad = unreadable(prefix: "jam-", as: JamSession.self)
+        bad += unreadable(prefix: "form-", as: FormSession.self)
+        bad += unreadable(prefix: "dropout-", as: DropoutSession.self)
+        bad += unreadable(prefix: "tempo-", as: TempoSession.self)
+        bad += unreadable(prefix: "memory-", as: MemorySession.self)
+        bad += unreadable(prefix: "session-", as: TrainingSessionRecord.self)
+        return bad.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    private static func unreadable<T: StoredTake>(prefix: String, as type: T.Type) -> [URL] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        return storedFiles(prefix: prefix).filter { url in
+            guard let data = try? Data(contentsOf: url),
+                  let value = try? decoder.decode(T.self, from: data) else { return true }
+            return !value.isStructurallyValid
+        }
+    }
+
+    /// Files on disk carrying a given prefix, in name order.
+    private static func storedFiles(prefix: String) -> [URL] {
         let files = (try? FileManager.default.contentsOfDirectory(at: directory,
                         includingPropertiesForKeys: nil)) ?? []
-        let candidates = files.filter {
+        return files.filter {
             $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix(prefix)
         }
-        let decoded = candidates.compactMap { try? decoder.decode(T.self, from: Data(contentsOf: $0)) }
+    }
+
+    /// Decode every file with the given name prefix. The prefix keeps jam and form takes
+    /// apart, so neither can be silently decoded as the other.
+    private static func load<T: StoredTake>(prefix: String, as type: T.Type) -> [T] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let candidates = storedFiles(prefix: prefix)
+        let decoded = candidates.compactMap { url -> T? in
+            guard let data = try? Data(contentsOf: url),
+                  let value = try? decoder.decode(T.self, from: data),
+                  value.isStructurallyValid else { return nil }
+            return value
+        }
         // Silently dropping unreadable sessions is how a schema change quietly erases
         // history. Say so instead.
         if decoded.count < candidates.count {

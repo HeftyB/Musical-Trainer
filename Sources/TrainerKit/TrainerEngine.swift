@@ -70,6 +70,16 @@ public enum TrainerEngine {
             self.bpm = bpm; self.bars = bars; self.tag = tag
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
+
+        /// R7.6: the boundary validates before anything is scheduled.
+        ///
+        /// Lives on the config rather than inside `runJam` so it can be tested without opening
+        /// an audio device. A test that reaches the engine to check a range check is one
+        /// regression away from playing a full take through the speakers.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (4...512).contains(bars) else { throw SpikeError("Bars must be 4–512.") }
+        }
     }
 
     public struct JamOutcome {
@@ -89,8 +99,7 @@ public enum TrainerEngine {
     public static func runJam(_ config: JamConfig,
                               progress: ((Double) -> Void)? = nil,
                               cancellation: CancellationFlag? = nil) throws -> JamOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (4...512).contains(config.bars) else { throw SpikeError("Bars must be 4–512.") }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -140,7 +149,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: JamOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = JamSession(
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
@@ -151,9 +161,11 @@ public enum TrainerEngine {
             gridStartTime: outcome.gridStartTime,
             tapTimes: outcome.taps.map(\.time), tapVelocities: outcome.taps.map(\.velocity),
             matchedCount: r.matchedCount, extraCount: r.extraCount, missedCount: r.missedCount,
-            meanAsynchronyMs: r.meanAsynchronyMs, sdAsynchronyMs: r.sdAsynchronyMs,
-            lag1Autocorrelation: r.lag1Autocorrelation, driftMsPerBeat: r.driftMsPerBeat,
-            headline: r.headline, placement: placement,
+            meanAsynchronyMs: Stats.finite(r.meanAsynchronyMs),
+            sdAsynchronyMs: Stats.finite(r.sdAsynchronyMs),
+            lag1Autocorrelation: Stats.finite(r.lag1Autocorrelation),
+            driftMsPerBeat: Stats.finite(r.driftMsPerBeat),
+            headline: r.headline, placement: placement, experiment: experiment,
             rawTimes: outcome.rawTaps.map(\.time),
             rawNotes: outcome.rawTaps.map(\.note),
             rawVelocities: outcome.rawTaps.map(\.velocity))
@@ -173,6 +185,17 @@ public enum TrainerEngine {
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
         public var phrases: Int { bars / phraseBars }
+
+        /// R7.6 — see `JamConfig.validate`.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (2...32).contains(phraseBars) else {
+                throw SpikeError("Phrase length must be 2–32 bars.")
+            }
+            guard bars >= phraseBars, bars <= 512 else {
+                throw SpikeError("Bars must be between the phrase length and 512.")
+            }
+        }
     }
 
     public struct FormOutcome {
@@ -187,11 +210,7 @@ public enum TrainerEngine {
     public static func runForm(_ config: FormConfig,
                                progress: ((Double) -> Void)? = nil,
                                cancellation: CancellationFlag? = nil) throws -> FormOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (2...32).contains(config.phraseBars) else { throw SpikeError("Phrase length must be 2–32 bars.") }
-        guard config.bars >= config.phraseBars, config.bars <= 512 else {
-            throw SpikeError("Bars must be between the phrase length and 512.")
-        }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -246,7 +265,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: FormOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = FormSession(
             date: Date(), bpm: outcome.config.bpm, bars: outcome.config.bars,
@@ -255,10 +275,11 @@ public enum TrainerEngine {
             markTimes: outcome.markTimes,
             phrasesAvailable: r.phrasesAvailable, marksPlaced: r.marksPlaced,
             onFormCount: r.onFormCount, tightCount: r.tightCount,
-            meanAbsFormErrorBars: r.meanAbsFormErrorBars,
-            phaseErrorMeanMs: r.phaseErrorMeanMs, phaseErrorSDms: r.phaseErrorSDms,
-            slipBarsPerPhrase: r.slipBarsPerPhrase, missedPhrases: r.missedPhrases,
-            headline: r.headline, placement: placement)
+            meanAbsFormErrorBars: Stats.finite(r.meanAbsFormErrorBars),
+            phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
+            phaseErrorSDms: Stats.finite(r.phaseErrorSDms),
+            slipBarsPerPhrase: Stats.finite(r.slipBarsPerPhrase), missedPhrases: r.missedPhrases,
+            headline: r.headline, placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 
@@ -278,6 +299,15 @@ public enum TrainerEngine {
         /// One extra paced stretch on the end so the final silence has a re-entry to measure.
         public var totalBars: Int { cycles * cycle.totalBars + pacedBars }
         public var durationSeconds: Double { Double(totalBars + 2) * 4 * 60 / bpm }
+
+        /// R7.6 — see `JamConfig.validate`.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (1...16).contains(pacedBars), (1...32).contains(silentBars) else {
+                throw SpikeError("Paced bars must be 1–16 and silent bars 1–32.")
+            }
+            guard (1...32).contains(cycles) else { throw SpikeError("Cycles must be 1–32.") }
+        }
     }
 
     public struct DropoutOutcome {
@@ -294,11 +324,7 @@ public enum TrainerEngine {
     public static func runDropout(_ config: DropoutConfig,
                                   progress: ((Double) -> Void)? = nil,
                                   cancellation: CancellationFlag? = nil) throws -> DropoutOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (1...16).contains(config.pacedBars), (1...32).contains(config.silentBars) else {
-            throw SpikeError("Paced bars must be 1–16 and silent bars 1–32.")
-        }
-        guard (1...32).contains(config.cycles) else { throw SpikeError("Cycles must be 1–32.") }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -371,22 +397,23 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: DropoutOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = DropoutSession(
             date: Date(), bpm: outcome.config.bpm,
             pacedBars: outcome.config.pacedBars, silentBars: outcome.config.silentBars,
             cycles: outcome.config.cycles, feelRating: feelRating,
             gridStartTime: outcome.gridStartTime, tapTimes: outcome.tapTimes,
-            pacedSDms: r.pacedSDms, unpacedIntervalSDms: r.unpacedIntervalSDms,
-            clockSDms: r.wingKristofferson?.clockSDms,
-            motorSDms: r.wingKristofferson?.motorSDms,
+            pacedSDms: Stats.finite(r.pacedSDms), unpacedIntervalSDms: Stats.finite(r.unpacedIntervalSDms),
+            clockSDms: Stats.finite(r.wingKristofferson?.clockSDms),
+            motorSDms: Stats.finite(r.wingKristofferson?.motorSDms),
             modelHolds: r.wingKristofferson?.modelHolds ?? false,
-            reentryErrorMeanMs: r.reentryErrorMeanMs, reentryErrorSDms: r.reentryErrorSDms,
+            reentryErrorMeanMs: Stats.finite(r.reentryErrorMeanMs), reentryErrorSDms: Stats.finite(r.reentryErrorSDms),
             headline: r.headline,
-            tempoBiasBpm: r.tempoBiasBpm, playedBpm: r.playedBpm,
+            tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: placement)
+            placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 
@@ -411,6 +438,24 @@ public enum TrainerEngine {
                 total + Double(leadBars + holdBars) * 4 * 60 / target(forRound: i)
             } + 0.5      // matches the lead-in the scheduler inserts
         }
+
+        /// R7.6 — see `JamConfig.validate`.
+        ///
+        /// The empty case cannot arrive through `init`, which substitutes a default, but
+        /// `targets` is a `var` and `target(forRound:)` traps on `% 0`. A guard that reads as
+        /// a range check on every element accepts a list with no elements at all.
+        public func validate() throws {
+            guard !targets.isEmpty else {
+                throw SpikeError("The tempo drill needs at least one target tempo.")
+            }
+            guard targets.allSatisfy({ (40...260).contains($0) }) else {
+                throw SpikeError("Every target tempo must be 40–260 BPM.")
+            }
+            guard (1...16).contains(leadBars), (1...16).contains(holdBars) else {
+                throw SpikeError("Lead and hold must each be 1–16 bars.")
+            }
+            guard (1...32).contains(rounds) else { throw SpikeError("Rounds must be 1–32.") }
+        }
     }
 
     public struct TempoOutcome {
@@ -425,13 +470,7 @@ public enum TrainerEngine {
                                 progress: ((Double) -> Void)? = nil,
                                 cancellation: CancellationFlag? = nil,
                                 roundFinished: ((TempoRoundResult) -> Void)? = nil) throws -> TempoOutcome {
-        guard config.targets.allSatisfy({ (40...260).contains($0) }) else {
-            throw SpikeError("Every target tempo must be 40–260 BPM.")
-        }
-        guard (1...16).contains(config.leadBars), (1...16).contains(config.holdBars) else {
-            throw SpikeError("Lead and hold must each be 1–16 bars.")
-        }
-        guard (1...32).contains(config.rounds) else { throw SpikeError("Rounds must be 1–32.") }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -537,7 +576,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: TempoOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = TempoSession(
             date: Date(), targets: outcome.config.targets,
@@ -547,10 +587,10 @@ public enum TrainerEngine {
             roundTargets: outcome.rounds.map(\.targetBpm),
             roundHoldStarts: outcome.rounds.map(\.holdStart),
             roundHoldEnds: outcome.rounds.map(\.holdEnd),
-            usableCount: r.usableCount, meanErrorPercent: r.meanErrorPercent,
-            meanAbsErrorPercent: r.meanAbsErrorPercent,
-            improvementPerRound: r.improvementPerRound, headline: r.headline,
-            placement: placement)
+            usableCount: r.usableCount, meanErrorPercent: Stats.finite(r.meanErrorPercent),
+            meanAbsErrorPercent: Stats.finite(r.meanAbsErrorPercent),
+            improvementPerRound: Stats.finite(r.improvementPerRound), headline: r.headline,
+            placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 
@@ -655,6 +695,18 @@ public enum TrainerEngine {
 
         public var roundBars: Int { referenceBars + retentionBars + reproduceBars }
         public var durationSeconds: Double { Double(rounds * roundBars) * 4 * 60 / bpm + 0.5 }
+
+        /// R7.6 — see `JamConfig.validate`.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (1...16).contains(referenceBars), (1...32).contains(retentionBars),
+                  (1...16).contains(reproduceBars) else {
+                throw SpikeError("Reference and reproduce must be 1–16 bars, the wait 1–32.")
+            }
+            guard (2...32).contains(rounds) else {
+                throw SpikeError("Rounds must be 2–32 — the drill needs both conditions.")
+            }
+        }
     }
 
     public struct MemoryOutcome {
@@ -681,14 +733,7 @@ public enum TrainerEngine {
     public static func runMemory(_ config: MemoryConfig,
                                  progress: ((Double) -> Void)? = nil,
                                  cancellation: CancellationFlag? = nil) throws -> MemoryOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (1...16).contains(config.referenceBars), (1...32).contains(config.retentionBars),
-              (1...16).contains(config.reproduceBars) else {
-            throw SpikeError("Reference and reproduce must be 1–16 bars, the wait 1–32.")
-        }
-        guard (2...32).contains(config.rounds) else {
-            throw SpikeError("Rounds must be 2–32 — the drill needs both conditions.")
-        }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -799,7 +844,8 @@ public enum TrainerEngine {
 
     @discardableResult
     public static func save(_ outcome: MemoryOutcome, feelRating: Int?,
-                            placement: SessionPlacement? = nil) throws -> URL {
+                            placement: SessionPlacement? = nil,
+                            experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = MemorySession(
             date: Date(), bpm: outcome.config.bpm,
@@ -814,10 +860,10 @@ public enum TrainerEngine {
             roundReproduceStarts: outcome.rounds.map(\.reproduceStart),
             roundReproduceEnds: outcome.rounds.map(\.reproduceEnd),
             usableCount: r.usableCount,
-            silentMeanAbsErrorPercent: r.silentMeanAbsErrorPercent,
-            filledMeanAbsErrorPercent: r.filledMeanAbsErrorPercent,
-            interferenceCost: r.interferenceCost,
-            headline: r.headline, placement: placement)
+            silentMeanAbsErrorPercent: Stats.finite(r.silentMeanAbsErrorPercent),
+            filledMeanAbsErrorPercent: Stats.finite(r.filledMeanAbsErrorPercent),
+            interferenceCost: Stats.finite(r.interferenceCost),
+            headline: r.headline, placement: placement, experiment: experiment)
         return try SessionStore.save(session)
     }
 
@@ -826,8 +872,11 @@ public enum TrainerEngine {
             let r = TempoMemoryAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
             let detail: String
             if let silent = r.silentMeanAbsErrorPercent, let filled = r.filledMeanAbsErrorPercent {
-                detail = String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
-                                silent, filled, r.interferenceCost ?? 0)
+                detail = r.attritionIsImbalanced
+                    ? String(format: "silent %.1f%% · filled %.1f%% · cost withheld, "
+                           + "unequal attrition", silent, filled)
+                    : String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
+                             silent, filled, r.interferenceCost ?? 0)
             } else {
                 detail = "\(r.usableCount)/\(session.rounds) rounds scored"
             }
@@ -835,7 +884,8 @@ public enum TrainerEngine {
                 date: session.date,
                 title: "\(Int(session.bpm)) BPM · \(session.retentionBars)-bar wait × \(session.rounds)",
                 detail: detail, feelRating: session.feelRating, headline: r.headline,
-                // The interference cost is the number this drill exists to move.
+                // The number this drill exists to move — already withheld by the analysis when
+                // the conditions are not comparable, so an artefact never reaches the chart.
                 metric: r.interferenceCost ?? .nan, metricLabel: "interference cost (points)")
         }
     }
@@ -846,6 +896,40 @@ public enum TrainerEngine {
     ///
     /// Everything is recomputed from raw taps here too — a planner choosing tonight's drills
     /// from a stale cached summary would be picking work for a player who no longer exists.
+    /// Every experiment's current state, read from the takes assigned to it.
+    ///
+    /// The metric is pulled from the recomputed report, never the stored summary (R3.1), so an
+    /// analysis fix reaches takes recorded before it — which matters more here than anywhere
+    /// else, since an experiment's two arms may be weeks apart and a fix landing between them
+    /// would otherwise compare a take under the old analysis with one under the new.
+    public static func experimentResults() -> [ExperimentResult] {
+        let jams = SessionStore.loadAll()
+        return ExperimentLibrary.all.map { design in
+            let takes = jams.compactMap { session -> ExperimentTake? in
+                guard let assigned = session.experiment, assigned.name == design.name else {
+                    return nil
+                }
+                let r = session.report()
+                let value: Double?
+                switch design.metric {
+                case .spread:         value = Stats.finite(r.sdAsynchronyMs)
+                case .bias:           value = Stats.finite(r.meanAsynchronyMs)
+                case .correctionGain: value = Stats.finite(r.lag1Autocorrelation.map(abs))
+                // Not derivable from a jam. No experiment in the library uses these yet, and a
+                // test holds that line — an experiment declared on one would collect takes
+                // forever while reporting "still collecting", which is the most expensive kind
+                // of quiet failure this project can have.
+                case .interferenceCost, .tempoError: value = nil
+                }
+                return ExperimentTake(
+                    arm: assigned.arm, value: value,
+                    elapsedMinutes: session.placement.map { $0.elapsedSeconds / 60 },
+                    sittingId: session.placement?.sessionId)
+            }
+            return ExperimentAnalysis.analyze(design: design, takes: takes)
+        }
+    }
+
     public static func plannerInput() -> PlannerInput {
         let jams = SessionStore.loadAll().map { session -> PlannerInput.Jam in
             let r = session.report()
@@ -881,11 +965,25 @@ public enum TrainerEngine {
 
         let memories = SessionStore.loadAllMemory().map { session -> PlannerInput.Memory in
             let r = TempoMemoryAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            // Already nil when the two conditions lost different numbers of rounds — the
+            // analysis withholds it rather than trusting every caller to check.
             return PlannerInput.Memory(retentionBars: session.retentionBars,
                                        interferenceCost: r.interferenceCost)
         }
+        // Which arms each experiment has already collected, oldest-first. Read from the takes
+        // themselves rather than from a separate ledger: the assignment on the take is the
+        // record of what actually ran, and a ledger could disagree with it.
+        var armsByExperiment: [String: [String]] = [:]
+        for session in SessionStore.loadAll() {
+            guard let assigned = session.experiment else { continue }
+            armsByExperiment[assigned.name, default: []].append(assigned.arm)
+        }
+        let experiments = ExperimentLibrary.all.map {
+            PlannerInput.Experiment(name: $0.name, completedArms: armsByExperiment[$0.name] ?? [])
+        }
+
         return PlannerInput(jams: jams, continuations: continuations, forms: forms,
-                            tempos: tempos, memories: memories)
+                            tempos: tempos, memories: memories, experiments: experiments)
     }
 
     public static func planSession(targetMinutes: Int) -> SessionPlan {

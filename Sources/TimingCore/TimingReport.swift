@@ -113,8 +113,7 @@ public enum TimingAnalysis {
         for tap in match.matched {
             byPhase[grid.phase(ofIndex: tap.gridIndex), default: []].append(tap.asynchronyMs)
         }
-        return byPhase.keys.sorted().map { phase in
-            let values = byPhase[phase]!
+        return byPhase.sorted { $0.key < $1.key }.map { phase, values in
             return SubdivisionStats(subdivision: phase,
                                     count: values.count,
                                     meanAsynchronyMs: Stats.mean(values),

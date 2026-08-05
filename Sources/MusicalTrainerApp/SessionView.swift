@@ -151,7 +151,7 @@ struct SessionBriefView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        InstructionsCard(guide: instructions(for: block.plan))
+                        InstructionsCard(guide: DrillInstructions.forBlock(block))
                     }
                 }
                 footer
@@ -322,16 +322,6 @@ struct InstructionsCard: View {
     }
 }
 
-func instructions(for plan: BlockPlan) -> DrillInstructions {
-    switch plan {
-    case .groove:  return .groove
-    case .jam:     return .jam
-    case .form(let p): return .form(level: p.level)
-    case .dropout: return .dropout
-    case .tempo:   return .tempo
-    case .memory:  return .memory
-    }
-}
 
 func roleLabel(_ role: BlockRole) -> String {
     switch role {
@@ -340,6 +330,7 @@ func roleLabel(_ role: BlockRole) -> String {
     case .benchmark: return "benchmark"
     case .training:  return "training"
     case .closing:   return "playing"
+    case .experiment: return "experiment"
     }
 }
 

@@ -3,6 +3,34 @@ import XCTest
 
 final class TrendAnalysisTests: XCTestCase {
 
+    /// An unscorable take leaves a gap in the axis; it does not close it
+    /// (PLAN.md §7.20 finding 4).
+    ///
+    /// Filtering the non-finite values and then numbering `0..<count` slides every later take
+    /// one place earlier, so the slope becomes per *usable* take while every label, unit string
+    /// and doc comment says per take.
+    func testAnUnscorableTakeLeavesAGapInTheAxisRatherThanClosingIt() {
+        // y = 10 − takeNumber, with take 1 unscorable. The truth is −1.00 per take.
+        let values: [Double] = [10, .nan, 8, 7, 6]
+        guard let fit = TrendAnalysis.fit(values, lowerIsBetter: true) else {
+            return XCTFail("four usable points is enough to fit")
+        }
+        // Renumbering gives −1.30: the remaining points land at 0, 1, 2, 3 instead of 0, 2, 3, 4.
+        XCTAssertEqual(fit.slope, -1.0, accuracy: 1e-9,
+                       "the axis is take number, not position among the scorable takes")
+        XCTAssertEqual(fit.pointCount, 4)
+    }
+
+    /// The convenience wrapper is the path every caller actually uses, so it has to hand the
+    /// fit the original series. Passing it the filtered one restores the defect one level up.
+    func testRowFitsAgainstTheOriginalTakeNumbers() {
+        let row = TrendAnalysis.row("spread", [10, .nan, 8, 7, 6], lowerIsBetter: true)
+        XCTAssertEqual(row.fit?.slope ?? .nan, -1.0, accuracy: 1e-9)
+        // The chart still plots only the points that exist.
+        XCTAssertEqual(row.values.count, 4)
+    }
+
+
     /// A series with a known slope plus a little noise.
     private func ramp(_ n: Int, start: Double, per: Double, noise: Double, seed: UInt64) -> [Double] {
         var rng = SplitMix64(seed: seed)

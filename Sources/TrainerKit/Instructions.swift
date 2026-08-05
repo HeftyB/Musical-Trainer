@@ -1,4 +1,5 @@
 import Foundation
+import TimingCore
 
 /// What each drill asks of the player, written so someone who has never seen the app knows
 /// exactly what to do.
@@ -31,6 +32,88 @@ public struct DrillInstructions {
         ],
         measures: "Whether you sit ahead of or behind the beat, how much you scatter around it, "
                 + "and whether you correct each error or let it drift.")
+
+    /// The jam's instructions **for a given experiment arm**.
+    ///
+    /// This is the sharpest case of R3.6 in the project so far. For `steady-vs-melodic` the two
+    /// arms play the same backing at the same tempo for the same length: **the instruction text
+    /// is the entire independent variable.** Text that described the wrong arm would not merely
+    /// confuse the player, it would silently swap the conditions and the experiment would
+    /// measure nothing while looking like it worked.
+    ///
+    /// Static text has already cost this project two takes and a live session (§6.1, §7.17),
+    /// and in both cases it was only *describing* something that had moved. Here it would be
+    /// the thing itself.
+    ///
+    /// An unknown arm returns the plain jam instructions rather than guessing, so a design
+    /// whose arms are renamed degrades to an ordinary take instead of a mislabelled one.
+    public static func jam(arm: String?) -> DrillInstructions {
+        switch arm {
+        case "steady":
+            return DrillInstructions(
+                goal: "Same take as the benchmark, played deliberately plainly. Half of an "
+                    + "experiment: does what you play change how tightly you play it?",
+                steps: [
+                    "A two-bar count-in plays, then the usual groove starts.",
+                    "Play one note per beat, straight through — no melody, no chords, no fills.",
+                    "Stay on one note if you like. Dullness is the condition, not a failure.",
+                    "Keep going to the end. Nothing to read on screen while you play.",
+                ],
+                pitfalls: [
+                    "Don't drift into playing a line — that is the other arm, and the two takes "
+                    + "have to differ only in this.",
+                    "Don't compensate by concentrating harder than usual. Play it as you would.",
+                ],
+                measures: "The same numbers as any jam. The comparison is against the melodic "
+                        + "takes, and only once both arms have enough.")
+        case "melodic":
+            return DrillInstructions(
+                goal: "Same take as the benchmark, played as actual music. Half of an "
+                    + "experiment: does what you play change how tightly you play it?",
+                steps: [
+                    "A two-bar count-in plays, then the usual groove starts.",
+                    "Play a real line — a melody, a riff, something with shape and dynamics.",
+                    "Aim every note at a beat or an off-beat, as always.",
+                    "Keep going to the end. Nothing to read on screen while you play.",
+                ],
+                pitfalls: [
+                    "Don't lapse into one repeated note — that is the other arm.",
+                    "Don't play so free that the notes stop aiming at the grid; off-grid notes "
+                    + "are discarded and the two arms would then be scored on different sets.",
+                ],
+                measures: "The same numbers as any jam. The comparison is against the steady "
+                        + "takes, and only once both arms have enough.")
+        case "relaxed":
+            return DrillInstructions(
+                goal: "Play without trying. Half of an experiment on what focusing does to your "
+                    + "timing — the project's oldest untested claim.",
+                steps: [
+                    "A two-bar count-in plays, then the usual groove starts.",
+                    "Play whatever you like, and deliberately do not concentrate on the beat.",
+                    "Let it run. If your attention wanders, that is the condition working.",
+                ],
+                pitfalls: [
+                    "Don't check yourself against the click. Noticing you have drifted and "
+                    + "correcting is the other arm.",
+                ],
+                measures: "Correction gain — whether you let placement drift or chase each beat.")
+        case "focused":
+            return DrillInstructions(
+                goal: "Play trying hard to be accurate. The other half of the focus experiment.",
+                steps: [
+                    "A two-bar count-in plays, then the usual groove starts.",
+                    "Concentrate on placing every note exactly on the beat.",
+                    "Keep that effort up for the whole take, even when it stops feeling good.",
+                ],
+                pitfalls: [
+                    "Don't relax into it when it gets tiring — that is the other arm.",
+                ],
+                measures: "Correction gain. The prediction is that this arm chases the click and "
+                        + "the relaxed one does not; nobody has ever measured it.")
+        default:
+            return jam
+        }
+    }
 
     /// The form drill's instructions **depend on the level**, because the landmarks it
     /// describes are exactly what the ladder takes away.
@@ -158,5 +241,29 @@ public struct DrillInstructions {
         }
         lines += ["", "  \(dim)Reports: \(measures)\(reset)"]
         return lines.joined(separator: "\n")
+    }
+}
+
+public extension DrillInstructions {
+    /// The instructions for a planned block, **from the block rather than its plan**.
+    ///
+    /// Taking the plan alone was the bug this replaced: the plan knows the drill and its
+    /// settings, and knows nothing about the experiment arm — so an instruction-only condition
+    /// would have shown the generic jam text on both surfaces and run neither arm while
+    /// recording one. R3.6 is that instructions come from the configuration that will actually
+    /// run, and for an experiment the arm *is* part of that configuration.
+    ///
+    /// One mapping, not one per surface. The console and the app each had their own copy, which
+    /// is precisely how a drill comes to mean two different things depending on where it was
+    /// started (§7.11).
+    static func forBlock(_ block: SessionBlock) -> DrillInstructions {
+        switch block.plan {
+        case .groove:      return .groove
+        case .jam:         return .jam(arm: block.experiment?.arm)
+        case .form(let p): return .form(level: p.level)
+        case .dropout:     return .dropout
+        case .tempo:       return .tempo
+        case .memory:      return .memory
+        }
     }
 }

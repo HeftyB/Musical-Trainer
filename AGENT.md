@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M12 are done. M13 (experiment runner) is next.** PLAN.md §7 has the milestone table with
+**M0–M13 are done.** M14 (subdivision ladder) is next. PLAN.md §7 has the milestone table with
 a "as built" section for each; §7.13 is the roadmap through M22.
 
 | Done | |
@@ -22,9 +22,24 @@ a "as built" section for each; §7.13 is the roadmap through M22.
 | M2–M4 | `TimingCore`, groove engine, jam capture |
 | M5–M8 | SwiftUI app, continuation drill, trends, tempo calibration |
 | M9–M12 | Session builder, cold-vs-warm, recall drill, musical content |
+| M13 | Experiment runner — preregistered A/B arms, no verdict before the declared n |
+| T1 | Test infrastructure: the take factory, storage under test (§7.22) |
 
-The last live session (4 Aug 2026) is written up in §7.17 — read it before touching drills,
-because two of the three defects it found were instruction and reporting bugs, not maths.
+**§7.20 is the pre-M13 review** — eleven places where a number or a rule said more than it
+could support, all closed. Read it before trusting any statistic here: four of the eleven were
+the *enforcement* being fake rather than the code being wrong.
+
+**§7.22 is M13 and T1 as built.** T1 is the test infrastructure that closed the gap finding 11
+exposed — nothing had ever tested *writing* a take. It is not an M-number on purpose: it is a
+different axis from product capability, and steps d–e of it are done.
+
+**M13 has never run live.** The experiment block appears in the next planned session. Watch that
+the arm text on screen matches the arm the debrief reports — the one defect step 4 found lived
+exactly in the gap between two tested pieces.
+
+The two live sessions are §7.17 (4 Aug 2026) and §7.19 (5 Aug, the most recent). Read them
+before touching drills: between them they produced two instruction bugs, one reporting bug,
+and the project's only retracted finding — none of them maths.
 
 ## Surfaces
 
@@ -36,7 +51,7 @@ Alone, Tempo, Recall, Play — and History.
 **CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
 and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
 has the annotated table. The analysis readouts are `review trend | cold | content | feel |
-tags | conditions | compare | form | dropout | tempo`.
+tags | conditions | compare | form | dropout | tempo | experiment`.
 
 ## Environment constraints — check these before proposing a solution
 
@@ -45,7 +60,9 @@ tags | conditions | compare | form | dropout | tempo`.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is all 175 tests, because `Package.swift` excludes the Apple-only targets off macOS.
+  is the 230 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (50 tests) is macOS-only and runs in `check.sh` alone, so a
+  green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
 - **Not installed:** `swiftlint`, `swift-format`, `gh`, `tea`, `jq`, `shellcheck`. `scripts/check.sh`
@@ -58,7 +75,7 @@ tags | conditions | compare | form | dropout | tempo`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 175 unit tests, no hardware needed
+swift test                              # 280 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -79,6 +96,7 @@ reach for newer language features.
 TimingCore    pure analysis. NO AVFoundation, CoreMIDI, CoreAudio, or UI.
 GrooveCore    pure pattern/sequencer/backing logic. Same purity rule.
 TrainerKit    audio, MIDI, synthesis, calibration, sessions, drill runners, console layer.
+              Storage is tested by TrainerKitTests; audio and MIDI still are not.
 TimingSpike   CLI front end (main.swift only).
 MusicalTrainerApp  SwiftUI front end.
 ```
@@ -127,6 +145,9 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 - Sessions live in `~/Library/Application Support/MusicalTrainer/sessions/`, one JSON per
   take, prefixed `jam-` / `form-` / `dropout-` / `tempo-` / `memory-`, plus a `session-`
   manifest per planned session (what the planner chose, why, and what was skipped).
+- **Every take carries an optional `ExperimentAssignment`** — experiment id, name, arm, run
+  index — written since M13 step 1 and read by nothing yet. Same reasoning as the two below: a
+  take recorded without its arm is lost to the comparison for good.
 - **Every take carries an optional `SessionPlacement`** — session id, block index, role, and
   seconds elapsed into the sitting. That is what lets a cold take and a take twenty minutes in
   be told apart, and it is why M9 changed storage before it changed anything else.
@@ -137,35 +158,43 @@ Each of these came from a real bug. Breaking one silently corrupts data.
   keep the JSON readable but nothing reads them back. This is deliberate: analysis fixes reach
   takes recorded before the fix, which has already mattered twice.
 - Uncertainty is not optional. Point estimates get bootstrap confidence intervals
-  (`Bootstrap`), and comparisons say "real change" or "within noise". The bootstrap is
-  **moving-block** because asynchronies are serially correlated — that correlation is the r₁
-  the app reports.
+  (`Bootstrap`), and comparisons say "real change" or "within noise". Within one take the
+  bootstrap is **moving-block**, because asynchronies are serially correlated — that
+  correlation is the r₁ the app reports. **Anything pooled across takes is two-stage**: takes
+  resampled with replacement, then blocks within each. Picking the wrong one is a defect
+  (STANDARDS R3.2); the pooled path had it wrong for three milestones (§7.20).
 - When a measurement can't be trusted, say so and say why. `splitIsReliable`,
   `discardedTrials`, `unusableReason`, and the comparability notes all exist because a
   confident wrong number is worse than an honest gap.
 
 ## What the data says about this player
 
-Current as of 46 takes across 5 sittings — 17 jams, 10 form, 9 continuation, 6 tempo, 4 recall,
-2 planned sessions. Recompute rather than trusting these: `review trend`, `review dropout`,
-`review feel`, `review cold`, `review content`.
+Current as of 51 takes across 6 sittings — 19 jams, 10 form, 10 continuation, 7 tempo, 5 recall,
+3 planned sessions. **Recompute rather than trusting any of this:** `review trend`,
+`review dropout`, `review feel`, `review cold`, `review content`.
 
-- **r₁ is positive in all 17 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
+- **r₁ is positive in all 19 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented
-  way to make this worse, and he already reports it feels worse.
-- **The benchmark jam tightened for real**: 24.1 → 17.4 ms spread between the two planned
-  sessions, bootstrapped interval [−9.41, −3.82], same device and calibration. Bias moved the
-  other way in the same take, −5.9 → −22.6 ms. Variance is the skill; treat this as a good
-  session with a large placement shift, not a mixed one. n = 2 — the 13-take trend is still flat.
+  way to make this worse, and he already reports it feels worse. The lowest reading is the most
+  recent benchmark (+0.20, §7.21), which is the direction §10 defines as success — one take.
+- **The benchmark jam is bouncing, not trending**: 24.1 → 17.4 → 22.0 ms across three sittings
+  at locked settings. §7.19 recorded the first step as a real tightening and it did not hold
+  (§7.21). Each pairwise comparison was measured correctly; none of them is a trend. The 19-take
+  jam trend remains flat on every metric.
+- **A large placement shift persisted all day.** Bias went −5.9 ms on 4 Aug to −22.6, −16.1,
+  −20.8, −22.4 across every jam on 5 Aug. Stable, not an excursion, and unexplained. Bias is
+  not failure (§2) and the spread did not move with it.
 - **Clock is the looser half in every trustworthy split.** Do not pool across silence lengths:
   4-bar gives ~14.9 / 9.3 ms, 8-bar 40.7 / 20.9, 16-bar 22.1 / 6.8. Longer is a harder task.
-- **Unaccompanied tempo is converging on target.** Historically ~5% slow; the latest
-  continuation take produced 99 BPM (−1%). The controlled cold probe read −7.9% then −4.0%.
-- **Feel tracks the measurement** (r ≈ −0.63 over 13 rated takes) — but fatigue breaks it: two
-  jams with identical spread were rated 4 and 1 twenty minutes apart (§7.17).
-- **The recall drill's interference cost flipped sign** once he stopped playing through the
-  silent waits (§7.19). The current reading is that a distractor *helps*, plausibly because an
-  empty gap invites counting. Two takes per direction — do not state it as settled.
+- **"Runs ~5% slow unaccompanied" is dead.** The last two 16-bar continuation takes produced
+  99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% — monotonic
+  across three sittings, still fitted as flat because the series includes an uncontrolled proxy.
+- **Feel tracks the measurement** (r = −0.64 over 17 rated takes) and now reads "well
+  calibrated" — but fatigue broke it once: two jams with identical spread rated 4 and 1 twenty
+  minutes apart (§7.17). It has not recurred.
+- **The recall drill's interference cost is not established.** §7.19 read it as the distractor
+  *helping*; since the attrition rule landed (§7.20 finding 2), three of the four takes are
+  withheld as non-comparable and one remains. Treat it as unmeasured, not as a direction.
 - **M12's first data contradicts his hunch**: busier playing went with *looser* timing within a
   take, and the censoring bias runs against that result rather than producing it. His hunch is
   about the mode of playing across a take, which M12 cannot test and M13 can.
@@ -200,7 +229,9 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    a known answer and recovers it.
 3. **Write the message as you go.** `temp/current-git-commit-message.txt` (gitignored) holds
    the message for whatever is currently uncommitted, and is updated whenever the tree changes.
-   A change you cannot describe yet is usually two changes.
+   A change you cannot describe yet is usually two changes. The `post-commit` hook empties it
+   once that message lands, so a stale one never gets committed unread. If a change genuinely
+   needs two commits, add `-2.txt` alongside it — STANDARDS.md §8.2.1, and rarely.
 4. **Update the documentation — always a closing step.** Walk PLAN.md, AGENT.md, STANDARDS.md
    and README.md and correct anything the change made untrue. Re-derive any count or figure
    quoted in prose rather than trusting it; four separate accuracy passes have each found
@@ -208,6 +239,12 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
 5. **`./scripts/check.sh`** last. The pre-commit hook runs the fast half; run the whole thing
    after touching analysis or audio.
 6. **Hand over.** Andrew commits and pushes; leave the tree ready and give him the commands.
+
+**Run these to the end before starting the next change.** Every change updates PLAN.md and
+usually AGENT.md, so two uncommitted changes put both sets of edits in the same files — and
+`git add PLAN.md` cannot then stage one without the other. Splitting them afterwards means
+editing one change's documentation back out, committing, and putting it back. That has already
+cost two rounds of it in a single sitting (STANDARDS.md §8.2.2). Finish, hand over, then start.
 
 Adding a drill has its own seven-step checklist — STANDARDS.md §9.5.
 

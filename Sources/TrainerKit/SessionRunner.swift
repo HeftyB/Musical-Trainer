@@ -66,6 +66,12 @@ public final class SessionRunner {
                       let filled = o.report.filledMeanAbsErrorPercent else {
                     return "\(o.report.usableCount)/\(o.report.rounds.count) rounds scored"
                 }
+                // The debrief is the one place the session's numbers appear, so the withheld
+                // cost has to be withheld here too — not quietly shown as 0.
+                if o.report.attritionIsImbalanced {
+                    return String(format: "silent %.1f%% · filled %.1f%% · cost withheld, "
+                                + "unequal attrition", silent, filled)
+                }
                 return String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
                               silent, filled, o.report.interferenceCost ?? 0)
             case .unmeasured:
@@ -100,6 +106,24 @@ public final class SessionRunner {
 
     public var currentBlock: SessionBlock? {
         index < plan.blocks.count ? plan.blocks[index] : nil
+    }
+
+    /// What to show before the current block — generated from the block that will actually run,
+    /// including its experiment arm (R3.6).
+    ///
+    /// For an instruction-only experiment the arm *is* the condition, so showing the generic
+    /// text would not merely be vague: it would run neither arm.
+    public var currentInstructions: DrillInstructions? {
+        guard let block = currentBlock else { return nil }
+        switch block.plan {
+        case .jam:     return DrillInstructions.jam(arm: block.experiment?.arm)
+        case .groove:  return nil
+        case .form(let p):
+            return DrillInstructions.form(level: p.level)
+        case .dropout: return DrillInstructions.dropout
+        case .tempo:   return DrillInstructions.tempo
+        case .memory:  return DrillInstructions.memory
+        }
     }
 
     public var isFinished: Bool { index >= plan.blocks.count }
@@ -175,12 +199,25 @@ public final class SessionRunner {
         let placement = SessionPlacement(sessionId: sessionId, blockIndex: index,
                                          role: block.role.rawValue,
                                          elapsedSeconds: blockStartElapsed)
+        // The arm comes from the block, so a take is stamped with the condition the plan said
+        // it would run under rather than with one decided at save time.
+        let experiment = block.experiment
         switch outcome {
-        case .jam(let o):     try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .form(let o):    try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .dropout(let o): try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .tempo(let o):   try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
-        case .memory(let o):  try TrainerEngine.save(o, feelRating: feelRating, placement: placement)
+        case .jam(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .form(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .dropout(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .tempo(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
+        case .memory(let o):
+            try TrainerEngine.save(o, feelRating: feelRating, placement: placement,
+                                   experiment: experiment)
         case .unmeasured:     break
         }
         results.append(BlockResult(index: index, block: block, outcome: outcome,
@@ -235,7 +272,7 @@ public struct SessionSummary {
 /// The takes carry the placement that makes them analysable; this carries the intent — what
 /// the planner chose, why, and what was skipped. Without it, a session where two drills were
 /// abandoned looks identical to one that was planned short.
-struct TrainingSessionRecord: Codable {
+struct TrainingSessionRecord: Codable, StoredTake {
     struct Block: Codable {
         let index: Int
         let role: String

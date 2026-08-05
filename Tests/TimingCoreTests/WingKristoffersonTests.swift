@@ -1,4 +1,5 @@
 import XCTest
+import TestSupport
 @testable import TimingCore
 
 final class WingKristoffersonTests: XCTestCase {

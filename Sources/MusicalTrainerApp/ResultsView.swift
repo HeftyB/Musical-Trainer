@@ -458,6 +458,13 @@ private struct MemoryResults: View {
                + "\(outcome.config.retentionBars)-bar wait")
                 .font(.callout).foregroundStyle(.secondary)
 
+            // Per condition, because what each one *lost* is as much a part of the comparison
+            // as what it kept.
+            Text(report.attrition.map {
+                "\($0.condition == .silent ? "silent" : "filled") \($0.scored)/\($0.rounds)"
+            }.joined(separator: "   ·   "))
+                .font(.callout).monospacedDigit().foregroundStyle(.secondary)
+
             summary
             comparisonChart
             roundList
@@ -495,7 +502,13 @@ private struct MemoryResults: View {
                     Metric(label: "After interference", value: String(format: "%.1f%%", filled),
                            note: "distractor in the gap", emphasis: true)
                 }
-                if let cost = report.interferenceCost {
+                // Withheld rather than shown greyed out when the conditions lost different
+                // numbers of rounds: a number on screen is read, whatever sits beside it, and
+                // this is the number the drill has already had to retract once.
+                if report.attritionIsImbalanced {
+                    Metric(label: "Cost", value: "—",
+                           note: "conditions not comparable", emphasis: true)
+                } else if let cost = report.interferenceCost {
                     Metric(label: "Cost", value: String(format: "%+.1f", cost),
                            note: report.interferenceInterval.map {
                                $0.excludesZero ? "real" : "within noise" } ?? "too few rounds",

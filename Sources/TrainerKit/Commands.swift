@@ -240,7 +240,7 @@ public enum Commands {
             print("\(Console.dim)\(block.plan.settingsLabel)"
                 + String(format: " · %.0f min\(Console.reset)", block.estimatedSeconds / 60))
             print("\n\(block.reason)")
-            printInstructions(instructions(for: block.plan))
+            printInstructions(DrillInstructions.forBlock(block))
             Console.prompt("Ready?")
 
             let outcome: SessionRunner.BlockOutcome
@@ -297,16 +297,6 @@ public enum Commands {
             + "measurement and one taken twenty minutes in can be told apart.\(Console.reset)")
     }
 
-    private static func instructions(for plan: BlockPlan) -> DrillInstructions {
-        switch plan {
-        case .groove:  return .groove
-        case .jam:     return .jam
-        case .form(let p): return .form(level: p.level)
-        case .dropout: return .dropout
-        case .tempo:   return .tempo
-        case .memory:  return .memory
-        }
-    }
 
     // MARK: - M4 jam
 
@@ -426,6 +416,7 @@ public enum Commands {
         if args.first == "trend" { runTrend(); return }
         if args.first == "cold" { runCold(); return }
         if args.first == "content" { runContent(); return }
+        if args.first == "experiment" { runExperiments(); return }
         if args.first == "tempo" { runTempoHistory(); return }
 
         let sessions = SessionStore.loadAll()
@@ -443,6 +434,19 @@ public enum Commands {
                 print(String(format: "%2d. %@   %3.0f BPM  %2d bars   mean %@  SD %@",
                              i + 1, dateLabel(s.date), s.bpm, s.bars,
                              Console.ms(r.meanAsynchronyMs, 1), Console.ms(r.sdAsynchronyMs, 1)))
+            }
+            // STANDARDS.md §9.3 makes this the command that proves a storage change did not
+            // orphan history, and `check.sh` reads its exit status. Throwing is what gives that
+            // status any meaning: printing a note and exiting 0 is how the check passed for as
+            // long as it existed.
+            let unreadable = SessionStore.unreadableFiles()
+            guard unreadable.isEmpty else {
+                throw SpikeError("""
+                    \(unreadable.count) stored take(s) no longer decode. They are primary data \
+                    and must not be left unreadable — fix the schema rather than the files \
+                    (STANDARDS.md R6.1, R6.2):
+                    \(unreadable.map { "  " + $0.lastPathComponent }.joined(separator: "\n"))
+                    """)
             }
             return
         case "compare":
@@ -469,8 +473,9 @@ public enum Commands {
         }
 
         // A bare number reviews that take; otherwise the latest.
-        let session = args.first.flatMap(Int.init).map { sessions[max(0, min(sessions.count - 1, $0 - 1))] }
-            ?? sessions.last!
+        guard let latest = sessions.last else { return }
+        let session = args.first.flatMap(Int.init)
+            .map { sessions[max(0, min(sessions.count - 1, $0 - 1))] } ?? latest
         let (taps, grid) = session.reconstruct()
         let events = TapClustering.collapse(taps, windowSeconds: 0.035)
         let report = TimingAnalysis.analyze(taps: events, grid: grid, chordWindowMs: 0)
@@ -628,27 +633,39 @@ public enum Commands {
 
     /// Summary of every tagged condition, pooled across takes.
     private static func runTags(sessions: [JamSession]) {
-        let tagged = sessions.filter { $0.tag != nil }
+        // Paired with their tag as they are selected, so the tag is never re-unwrapped.
+        let tagged = sessions.compactMap { s in s.tag.map { (tag: $0, session: s) } }
         guard !tagged.isEmpty else {
             print("No tagged takes yet. Tag one with:  TimingSpike jam 100 32 relaxed")
             return
         }
-        let groups = Dictionary(grouping: tagged, by: { $0.tag! })
+        let groups = Dictionary(grouping: tagged, by: \.tag).mapValues { $0.map(\.session) }
 
         Console.heading("Conditions")
         print("\(pad("Tag", 14))\(pad("takes", 7))\(pad("events", 8))\(pad("mean", 20))\(pad("SD", 20))r₁")
+        var thin: [String] = []
         for (tag, takes) in groups.sorted(by: { $0.key < $1.key }) {
             let series = takes.map(asynchronies(of:))
             let events = series.reduce(0) { $0 + $1.count }
             let mean = Bootstrap.pooledInterval(series, statistic: Bootstrap.meanStat)
             let sd = Bootstrap.pooledInterval(series, statistic: Bootstrap.sdStat)
             let r1 = Bootstrap.pooledInterval(series, statistic: Bootstrap.lag1Stat)
+            if mean == nil { thin.append(tag) }
             func fmt(_ c: ConfidenceInterval?, _ digits: Int = 1) -> String {
                 guard let c else { return "—" }
                 return String(format: "%+.\(digits)f [%+.\(digits)f,%+.\(digits)f]", c.point, c.low, c.high)
             }
             print("\(pad(tag, 14))\(pad("\(takes.count)", 7))\(pad("\(events)", 8))"
                 + "\(pad(fmt(mean), 20))\(pad(fmt(sd), 20))\(fmt(r1, 2))")
+        }
+
+        // A condition with one usable take gets no interval at all. The only variation inside
+        // a single take is within-take variation, and offering that as the condition's
+        // uncertainty is precisely what §7.20 removed.
+        if !thin.isEmpty {
+            print("\n\(Console.yellow)No interval:\(Console.reset) \(thin.joined(separator: ", ")) "
+                + "— fewer than \(Bootstrap.minimumTakes) usable takes. Take-to-take variation "
+                + "is most of\nthe variation, so one take cannot put a bound on a condition.")
         }
 
         // Pooling takes recorded under different conditions hides the confound inside a
@@ -663,8 +680,9 @@ public enum Commands {
                     + "different \(mixed.joined(separator: " and ")) — the pooled figures blend them.")
             }
         }
-        print("\n\(Console.dim)Pooled across takes, 95% intervals. "
-            + "Compare two with:  review conditions <a> <b>\(Console.reset)")
+        print("\n\(Console.dim)Pooled across takes, 95% intervals covering both take-to-take "
+            + "and within-take variation.\nCompare two with:  review conditions <a> "
+            + "<b>\(Console.reset)")
     }
 
     /// Pooled comparison of two conditions — the experiment readout.
@@ -695,11 +713,19 @@ public enum Commands {
         row("Spread (SD)", Bootstrap.sdStat)
         row("r₁", Bootstrap.lag1Stat)
 
-        if min(a.count, b.count) < 3 {
-            print("\n\(Console.yellow)Note:\(Console.reset) only "
-                + "\(min(a.count, b.count)) take(s) in the smaller group. "
-                + "The intervals cover variation *within* takes but cannot see\nsession-to-session "
-                + "variation — 3+ takes per condition before trusting a null result.")
+        let smaller = min(a.count, b.count)
+        if smaller < Bootstrap.minimumTakes {
+            print("\n\(Console.yellow)No verdict:\(Console.reset) only \(smaller) take(s) in the "
+                + "smaller group. Take-to-take variation is most of the\nvariation here — the "
+                + "two benchmark jams a day apart sat 16.7 ms apart on mean asynchrony — so\n"
+                + "one take cannot bound a condition. \(Bootstrap.minimumTakes) per side before "
+                + "there is anything to compare.")
+        } else if smaller < Bootstrap.stableIntervalTakes {
+            print("\n\(Console.yellow)Note:\(Console.reset) \(smaller) take(s) in the smaller "
+                + "group. The intervals now cover take-to-take variation as well\nas variation "
+                + "inside a take, but they are estimated from that many takes, so they are wide "
+                + "and\nthemselves coarse. Read a null result as \"not measured yet\" rather "
+                + "than \"no difference\".")
         }
     }
 
@@ -708,7 +734,7 @@ public enum Commands {
     /// If feel and spread correlate, their instinct is a reliable instrument and can be
     /// trusted mid-practice. If they don't, that gap is itself the finding.
     private static func runFeel(sessions: [JamSession]) {
-        let rated = sessions.filter { $0.feelRating != nil }
+        let rated = sessions.compactMap { s in s.feelRating.map { (rating: $0, session: s) } }
         Console.heading("Feel vs measurement")
         guard rated.count >= 3 else {
             print("Only \(rated.count) rated take(s). Record a few more — you're asked "
@@ -717,15 +743,15 @@ public enum Commands {
         }
 
         print("\(pad("Take", 22))\(pad("tag", 12))\(pad("feel", 6))\(pad("SD", 9))mean")
-        for s in rated {
+        for (rating, s) in rated {
             let a = asynchronies(of: s)
             print("\(pad(dateLabel(s.date), 22))\(pad(s.tag ?? "—", 12))"
-                + "\(pad(String(repeating: "★", count: s.feelRating!), 6))"
+                + "\(pad(String(repeating: "★", count: rating), 6))"
                 + "\(pad(Console.ms(Stats.sd(a), 1), 9))\(Console.ms(Stats.mean(a), 1))")
         }
 
-        let feels = rated.map { Double($0.feelRating!) }
-        let spreads = rated.map { Stats.sd(asynchronies(of: $0)) }
+        let feels = rated.map { Double($0.rating) }
+        let spreads = rated.map { Stats.sd(asynchronies(of: $0.session)) }
         if let r = Stats.correlation(feels, spreads) {
             print(String(format: "\nfeel vs spread: r = %+.2f", r))
             if rated.count < 6 {
@@ -873,9 +899,18 @@ public enum Commands {
             }
         }
 
+        // Per condition, because what each one lost is as much a part of the comparison as
+        // what it kept. A single total hides differential attrition entirely.
+        print("\nScored: " + r.attrition.map {
+            "\($0.condition == .silent ? "silent" : "filled") \($0.scored)/\($0.rounds)"
+        }.joined(separator: "   "))
+
         if let silent = r.silentMeanAbsErrorPercent, let filled = r.filledMeanAbsErrorPercent {
-            print(String(format: "\nSilent wait: %.1f%% off   Filled wait: %.1f%% off", silent, filled))
-            if let interval = r.interferenceInterval {
+            print(String(format: "Silent wait: %.1f%% off   Filled wait: %.1f%% off", silent, filled))
+            if r.attritionIsImbalanced {
+                print("\(Console.yellow)Interference cost withheld\(Console.reset) — the two "
+                    + "conditions did not lose the same number of rounds.")
+            } else if let interval = r.interferenceInterval {
                 print(String(format: "Interference cost: %+.1f points [%+.1f, %+.1f]  %@",
                              interval.point, interval.low, interval.high,
                              interval.excludesZero ? "\(Console.bold)real\(Console.reset)"
@@ -983,13 +1018,58 @@ public enum Commands {
         }
     }
 
-    /// M7: is anything actually improving?
-    ///
-    /// Fits each metric against take number and reports the slope with a bootstrap interval,
-    /// so "my spread is coming down" is either supported or isn't. Confounded groups are
-    /// split rather than blended — a tempo change moves timing spread on its own, and a trend
-    /// computed across the change would be measuring the tempo, not the player.
+    /// M13: what the experiments have collected, and what they are allowed to say.
+    private static func runExperiments() {
+        Console.heading("Experiments")
+        print("\(Console.dim)Arms are assigned before you play and balanced against what has "
+            + "already run. Nothing is\ncompared until every arm reaches the number of takes "
+            + "declared up front — the app re-runs this\nafter every session, and that is "
+            + "optional stopping unless the finish line was fixed first.\(Console.reset)")
+
+        for result in TrainerEngine.experimentResults() {
+            let design = result.design
+            print("\n\(Console.bold)\(design.name)\(Console.reset)  "
+                + "\(Console.dim)\(design.metric.label) · \(design.takesPerArm) takes per "
+                + "arm\(Console.reset)")
+            print("  \(Console.dim)\(design.question)\(Console.reset)")
+
+            print("  " + pad("arm", 12) + pad("takes", 8) + pad("mean", 12) + "between takes")
+            for arm in result.arms {
+                let mean = arm.mean.map { String(format: "%+.2f", $0) } ?? "—"
+                let sd = arm.betweenTakeSD.map { String(format: "± %.2f", $0) } ?? "—"
+                print("  " + pad(arm.arm, 12)
+                    + pad("\(arm.scored)/\(design.takesPerArm)", 8)
+                    + pad(mean, 12) + sd)
+            }
+
+            switch result.verdict {
+            case .collecting:
+                break      // the headline below already says how many are left
+            case .unusable(let reason):
+                Console.warn(reason)
+            case .noDifferenceFound, .difference:
+                if let d = result.difference {
+                    print(String(format: "  Difference: %+.2f [%+.2f, %+.2f]  %@",
+                                 d.point, d.low, d.high,
+                                 d.excludesZero ? "\(Console.bold)real\(Console.reset)"
+                                                : "\(Console.dim)within noise\(Console.reset)"))
+                }
+            }
+            if let mde = result.minimumDetectableEffect {
+                print(String(format: "  \(Console.dim)Smallest difference %d takes per arm "
+                           + "could separate from zero: %.2f\(Console.reset)",
+                             design.takesPerArm, mde))
+            }
+            print("  \(result.headline)")
+            for note in result.notes { Console.warn(note) }
+        }
+    }
+
     /// M12: does what you play change how you time it?
+    ///
+    /// Correlates content against timing spread **within** each take, which holds the day, the
+    /// tempo, the backing and the fatigue fixed. What it cannot hold fixed is printed with the
+    /// result rather than assumed away.
     private static func runContent() {
         Console.heading("What you play")
         print("\(Console.dim)Within a take, does more interesting playing go with tighter "
@@ -1075,6 +1155,12 @@ public enum Commands {
         }
     }
 
+    /// M7: is anything actually improving?
+    ///
+    /// Fits each metric against take number and reports the slope with a bootstrap interval,
+    /// so "my spread is coming down" is either supported or isn't. Confounded groups are
+    /// split rather than blended — a tempo change moves timing spread on its own, and a trend
+    /// computed across the change would be measuring the tempo, not the player.
     private static func runTrend() {
         Console.heading("Trends")
 
@@ -1195,9 +1281,9 @@ public enum Commands {
         // The histogram is the clearest picture of *how* the form is missed.
         let keys = report.formErrorHistogram.keys.sorted()
         if keys.count > 1 || keys.first != 0 {
-            let bars = keys.map { k -> String in
+            let bars = report.formErrorHistogram.sorted { $0.key < $1.key }.map { k, count -> String in
                 let label = k == 0 ? "on" : (k > 0 ? "+\(k)" : "\(k)")
-                return "\(label): \(report.formErrorHistogram[k]!)"
+                return "\(label): \(count)"
             }.joined(separator: "   ")
             print("Bars off:         \(bars)")
         }

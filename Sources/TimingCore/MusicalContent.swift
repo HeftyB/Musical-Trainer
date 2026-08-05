@@ -101,9 +101,12 @@ public enum MusicalContentAnalysis {
     /// Below this many windows a correlation is not worth reporting.
     public static let minimumWindows = 5
 
+    /// - Parameter totalBars: the take's length from its configuration. Not inferred from the
+    ///   notes — see the window arithmetic below.
     public static func analyze(rawNotes: [PlayedNote],
                                events: [Tap],
                                grid: Grid,
+                               totalBars: Int,
                                windowBars: Int = 8,
                                beatsPerBar: Int = 4,
                                matchWindowFraction: Double = 0.4) -> ContentReport {
@@ -114,10 +117,29 @@ public enum MusicalContentAnalysis {
                                  headline: "Nothing was played in this take.", notes: [])
         }
 
-        let start = grid.startTime
-        let end = max(rawNotes.map(\.time).max() ?? start, events.map(\.time).max() ?? start)
-        let windowCount = max(1, Int(((end - start) / windowSeconds).rounded(.up)))
+        // Whole windows only, counted from the take's configured length. Both halves of that
+        // are load-bearing and each fixes a different way of getting it wrong.
+        //
+        // The count used to round *up*, so the final window of every take ran past the end of
+        // the take while `measures(of:overBeats:)` went on dividing by a full window's worth of
+        // beats. `eventsPerBeat` therefore read low in the last window of every take. Note
+        // density is trap 2 of §7.18 — the confound this entire report is written around and
+        // reported as its own row so a content effect can be told from a note-values effect —
+        // so a systematic thumb on that scale is not cosmetic.
+        //
+        // Inferring the length from the last note instead would repeat §7.12's first defect one
+        // layer up: a player who stopped a bar early would lose a window that really was
+        // complete. Take length comes from the config, never from the last thing that sounded.
+        let windowCount = totalBars / windowBars
+        guard windowCount > 0 else {
+            return ContentReport(
+                windows: [], correlations: [],
+                headline: "This take is \(totalBars) bars — shorter than one \(windowBars)-bar "
+                        + "window, so there is nothing to correlate across.",
+                notes: [])
+        }
 
+        let start = grid.startTime
         var windows: [ContentWindow] = []
         for index in 0..<windowCount {
             let from = start + Double(index) * windowSeconds

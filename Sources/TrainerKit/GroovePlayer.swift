@@ -10,7 +10,7 @@ import GrooveCore
 /// engine starts. Output only — no capture here.
 final class GroovePlayer {
     private let engine = AVAudioEngine()
-    private var sourceNode: AVAudioSourceNode!
+    private var sourceNode: AVAudioSourceNode?
     private let state: UnsafeMutablePointer<RenderState>
 
     private let voiceCount = DrumVoice.allCases.count
@@ -105,12 +105,16 @@ final class GroovePlayer {
         let format = engine.outputNode.inputFormat(forBus: 0)
         let s = state
         let inst = instrument
-        sourceNode = AVAudioSourceNode(format: format) { _, timestamp, frameCount, ablPtr in
+        // Built into a local and then retained: the property exists only to keep the node
+        // alive for the engine's lifetime, and going through it here would need an unwrap for
+        // a value that cannot be absent on this line.
+        let node = AVAudioSourceNode(format: format) { _, timestamp, frameCount, ablPtr in
             GroovePlayer.render(state: s, instrument: inst, timestamp: timestamp,
                                 frameCount: frameCount, ablPtr: ablPtr)
         }
-        engine.attach(sourceNode)
-        engine.connect(sourceNode, to: engine.outputNode, format: format)
+        sourceNode = node
+        engine.attach(node)
+        engine.connect(node, to: engine.outputNode, format: format)
     }
 
     /// Load the schedule. Must be called before `run`. Hits are sorted by sample.

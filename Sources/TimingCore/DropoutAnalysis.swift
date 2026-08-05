@@ -159,8 +159,9 @@ public enum DropoutAnalysis {
             // Without this, steady eighths at the right tempo would read as 200 BPM.
             let notesPerBeat = max(1, (beat * 1000 / meanPeriod).rounded())
             let beatPeriod = meanPeriod * notesPerBeat
-            playedBpm = 60_000 / beatPeriod
-            biasBpm = playedBpm! - grid.bpm
+            let bpm = 60_000 / beatPeriod
+            playedBpm = bpm
+            biasBpm = bpm - grid.bpm
             biasMs = beatPeriod - beat * 1000
         }
 
