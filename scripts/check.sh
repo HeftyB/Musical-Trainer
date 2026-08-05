@@ -126,21 +126,51 @@ head2 "Build and test"
 # Each command runs once and its output is captured. Piping straight into `grep -q` looks
 # tidier and is wrong: grep exits on the first match, the upstream process takes SIGPIPE, and
 # `pipefail` then reports a passing test run as a failure.
-BUILD_OUT=$(swift build 2>&1)
-if echo "$BUILD_OUT" | grep -qE 'warning:|error:'; then
-    fail "debug build is not warning-free"
-    echo "$BUILD_OUT" | grep -E 'warning:|error:' | sed 's/^/        /' | head -10
-else
+#
+# Every failure branch below prints *something*. An earlier version only echoed lines matching
+# `error:|XCTAssert`, so a run that died without either — SwiftPM losing the `.build` lock, a
+# test binary that never launched — reported "tests failed" and nothing else, which is a dead
+# end for whoever has to diagnose it.
+detail() {
+    local out="$1" pattern="$2"
+    local lines
+    lines=$(echo "$out" | grep -E "$pattern" | head -10)
+    [ -z "$lines" ] && lines=$(echo "$out" | tail -15)
+    [ -z "$(echo "$lines" | tr -d '[:space:]')" ] && lines="(the command produced no output)"
+    printf '%s%s%s\n' "$DIM" "$(echo "$lines" | sed 's/^/        /')" "$OFF"
+}
+
+BUILD_OUT=$(swift build 2>&1); BUILD_STATUS=$?
+if [ "$BUILD_STATUS" -eq 0 ] && ! echo "$BUILD_OUT" | grep -qE 'warning:|error:'; then
     pass "debug build is clean"
+else
+    fail "debug build failed or is not warning-free (exit $BUILD_STATUS)"
+    detail "$BUILD_OUT" 'warning:|error:'
 fi
 
-TEST_OUT=$(swift test 2>&1)
-if echo "$TEST_OUT" | grep -q 'with 0 failures'; then
-    COUNT=$(echo "$TEST_OUT" | grep -oE 'Executed [0-9]+ tests' | tail -1 | grep -oE '[0-9]+')
-    pass "all tests pass ($COUNT)"
+# Both conditions matter. A zero exit with no summary line means the suite never ran, which is
+# not the same thing as passing.
+TEST_OUT=$(swift test 2>&1); TEST_STATUS=$?
+TEST_SUMMARY=$(echo "$TEST_OUT" | grep -oE 'Executed [0-9]+ tests, with [0-9]+ failures?' | tail -1)
+if [ "$TEST_STATUS" -eq 0 ] && echo "$TEST_SUMMARY" | grep -q 'with 0 failures'; then
+    pass "all tests pass ($(echo "$TEST_SUMMARY" | grep -oE '[0-9]+' | head -1))"
+elif [ -n "$TEST_SUMMARY" ]; then
+    fail "tests failed — $TEST_SUMMARY"
+    detail "$TEST_OUT" 'error:|XCTAssert|failed \('
 else
-    fail "tests failed"
-    echo "$TEST_OUT" | grep -E 'error:|XCTAssert' | sed 's/^/        /' | head -10
+    # No summary at all: the run did not finish. Retry once before reporting, because the
+    # commonest cause is a transient SwiftPM lock rather than anything in the code — but say
+    # so either way rather than quietly passing on the second attempt.
+    warn "the test run produced no summary; retrying once"
+    TEST_OUT=$(swift test 2>&1); TEST_STATUS=$?
+    TEST_SUMMARY=$(echo "$TEST_OUT" | grep -oE 'Executed [0-9]+ tests, with [0-9]+ failures?' | tail -1)
+    if [ "$TEST_STATUS" -eq 0 ] && echo "$TEST_SUMMARY" | grep -q 'with 0 failures'; then
+        pass "all tests pass on retry ($(echo "$TEST_SUMMARY" | grep -oE '[0-9]+' | head -1))"
+        warn "the first attempt did not complete — if this repeats, it is not transient"
+    else
+        fail "the test run did not complete (exit $TEST_STATUS)"
+        detail "$TEST_OUT" 'error:|XCTAssert|Fatal|signal|lock'
+    fi
 fi
 
 if [ "$FAST" -eq 0 ]; then
@@ -168,6 +198,27 @@ if [ "$FAST" -eq 0 ]; then
     fi
 else
     printf '  %sSKIP%s  release build, selftest and decode check (--fast)\n' "$DIM" "$OFF"
+fi
+
+# ── 7. Workflow (STANDARDS §8.2.1) ───────────────────────────────────────────────
+head2 "Workflow"
+
+MSG="temp/current-git-commit-message.txt"
+DIRTY="$(git status --porcelain 2>/dev/null | grep -v '^??' || true)"
+if [ -z "$DIRTY" ]; then
+    pass "working tree is clean"
+elif [ ! -s "$MSG" ]; then
+    warn "$MSG is missing or empty — write the message for the change in progress"
+else
+    # A message older than the code it describes has been overtaken by events.
+    NEWEST="$(git status --porcelain | grep -v '^??' | awk '{print $NF}' \
+              | while IFS= read -r f; do [ -f "$f" ] && echo "$f"; done \
+              | xargs -I{} stat -f '%m {}' {} 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
+    if [ -n "$NEWEST" ] && [ "$NEWEST" -nt "$MSG" ]; then
+        warn "$MSG is older than $NEWEST — update it before committing"
+    else
+        pass "commit message describes the current tree"
+    fi
 fi
 
 # ── Verdict ──────────────────────────────────────────────────────────────────────

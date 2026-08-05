@@ -1,0 +1,60 @@
+# PARKED — Woodpecker only reads .yaml/.yml, so this file is inert.
+#
+# Enable it by renaming to `release.yaml`, but not before a macOS agent exists. With no agent
+# carrying the `platform: darwin/amd64` label, a tag queues this pipeline against a runner that
+# never appears: it hangs pending rather than failing, which is worse than not running at all.
+#
+# **Do not point this at the workstation.** Two reasons, in order of importance:
+#
+#   1. A release build pegs every core for about a minute. This project's premise is that the
+#      audio render thread is the only clock and nothing may perturb it (AGENT.md); a build
+#      firing mid-take could corrupt a measurement in a way that looks like the player's own
+#      timing. An unattended agent decides for itself when that happens.
+#   2. The `local` backend runs pipeline commands as the agent's user, so anyone who can push
+#      a branch can execute code on that host — which would be the machine holding the SSH
+#      signing key.
+#
+# Until then, releases are cut locally and deliberately: STANDARDS.md §9.4.1.
+#
+# Release pipeline — runs on a tag.
+#
+# **Needs a macOS agent running the `local` backend.** The app links AVFoundation, CoreMIDI
+# and AppKit, and `build-app.sh` calls `codesign`, so this cannot run in a Linux container
+# however the pipeline is written. The `local` backend runs the commands directly on the
+# agent host rather than in an image, which is why no `image:` is given below.
+#
+# Agent setup, once, on a Mac that has Xcode 14.2:
+#
+#   WOODPECKER_BACKEND=local \
+#   WOODPECKER_AGENT_SECRET=... \
+#   WOODPECKER_SERVER=<host>:9000 \
+#   WOODPECKER_FILTER_LABELS=platform=darwin/amd64 \
+#   woodpecker-agent
+#
+# Tag and push to trigger:  git tag -s v0.2.0 -m 'v0.2.0' && git push origin v0.2.0
+
+when:
+  - event: tag
+    ref: refs/tags/v*
+
+labels:
+  platform: darwin/amd64
+
+steps:
+  - name: package
+    commands:
+      - ./scripts/package-release.sh "${CI_COMMIT_TAG}"
+
+  - name: publish
+    # Uploads the artifacts to the Gitea release for this tag. Needs a Gitea API token with
+    # write:repository, stored as the `gitea_token` secret in Woodpecker — never in the repo.
+    image: woodpeckerci/plugin-gitea-release
+    settings:
+      base_url: https://git.heftyb.com
+      files:
+        - dist/*.zip
+        - dist/*.sha256
+        - dist/VERSION.txt
+      api_key:
+        from_secret: gitea_token
+      title: "${CI_COMMIT_TAG}"

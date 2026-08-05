@@ -230,7 +230,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M9** | Session builder | ✅ Done. The app proposes a 20/30/45 min session from recent data and runs it end to end. See §7.14. |
 | **M10** | Cold vs warm | ✅ Done. Within-sitting warm-up separated from between-sitting learning. See §7.15. |
 | **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
-| **M12** | What you play | Does musical content change your timing? Storage landed early — see §7.17. |
+| **M12** | What you play | ✅ Done. Content measured per window against timing, within-take. See §7.18. |
 | **M13** | Experiment runner | The app schedules its own A/B comparisons and says when they have power. |
 | **M14** | Subdivision ladder | Eighths, sixteenths, triplets. Everything so far is quarters. |
 | **M15** | The feels | Swing, jazz comping, ska/reggae offbeat, latin. Placement as style, not error. |
@@ -1332,6 +1332,53 @@ ones where stopping happened to be easy — and it is why one take scored only 5
 Worth fixing before the interference cost is trusted: either a clearer "stop now" cue at the
 top of the wait, or scoring the violation rate as a result in its own right, since *being
 unable to stop* is itself evidence about how the period is held.
+
+---
+
+## 7.18 M12 — what you play, as built
+
+`review content`. A take is cut into 8-bar windows; each window gets a set of content measures
+and the timing spread of the notes in it; the two are correlated **within the take**.
+
+Within-take is the design, not a convenience. It holds the day, the tempo, the backing and the
+fatigue fixed, so a relationship cannot be explained by any of them — which is exactly what a
+between-take comparison could not have ruled out.
+
+### The measures
+
+Note density, pitch-class entropy, mean melodic step, contour reversal rate, chord size, and
+velocity spread. Two decisions worth keeping:
+
+- **A chord is one rhythmic event, not three melodic steps.** Counting every note of a block
+  chord as a melodic move would report comping as wild melodic activity. Melody is read from
+  the *top line* — the highest note of each cluster.
+- **Contour separates a scale from a shaped line.** A run and a zigzag have identical mean
+  interval; only the reversal rate tells them apart, and without it "melodic" would just mean
+  "fast".
+
+There is also a crude 0–1 `interest` summary for ranking windows. It is deliberately named
+after a feeling rather than a quantity: findings must be stated against a named component,
+never against it.
+
+### The three traps, all reported rather than assumed away
+
+1. **Censoring.** Spread is computed only on events that matched the grid, so a window that
+   pushed more notes off the grid reports the spread of a self-selected subset. The report
+   correlates off-grid rate against content and says so when the two track each other — without
+   which "busy playing is tighter" could be pure survivorship.
+2. **Subdivision.** Spread scales with the note values being played, so note density is
+   reported as its own row and flagged when it correlates with spread.
+3. **Arousal.** Playing something interesting is both more melodic *and* more engaging. This
+   design cannot separate them, and the report says so on every run. A real effect here means
+   content matters; it does not say why.
+
+### Status
+
+The analysis and its eleven tests are in; the data is not. Pitch has only been recorded since
+4 August 2026, so `review content` currently reports that no take can be analysed — which is
+the correct answer and the reason §7.17 stored the field before this milestone existed. One
+jam fills it in. Turning a within-take correlation into a *result* needs M13's experiment
+runner: the same take length played as steady quarters, as a written melody, and free.
 
 ---
 
