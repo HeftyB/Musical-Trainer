@@ -637,18 +637,29 @@ public enum Commands {
 
         Console.heading("Conditions")
         print("\(pad("Tag", 14))\(pad("takes", 7))\(pad("events", 8))\(pad("mean", 20))\(pad("SD", 20))r₁")
+        var thin: [String] = []
         for (tag, takes) in groups.sorted(by: { $0.key < $1.key }) {
             let series = takes.map(asynchronies(of:))
             let events = series.reduce(0) { $0 + $1.count }
             let mean = Bootstrap.pooledInterval(series, statistic: Bootstrap.meanStat)
             let sd = Bootstrap.pooledInterval(series, statistic: Bootstrap.sdStat)
             let r1 = Bootstrap.pooledInterval(series, statistic: Bootstrap.lag1Stat)
+            if mean == nil { thin.append(tag) }
             func fmt(_ c: ConfidenceInterval?, _ digits: Int = 1) -> String {
                 guard let c else { return "—" }
                 return String(format: "%+.\(digits)f [%+.\(digits)f,%+.\(digits)f]", c.point, c.low, c.high)
             }
             print("\(pad(tag, 14))\(pad("\(takes.count)", 7))\(pad("\(events)", 8))"
                 + "\(pad(fmt(mean), 20))\(pad(fmt(sd), 20))\(fmt(r1, 2))")
+        }
+
+        // A condition with one usable take gets no interval at all. The only variation inside
+        // a single take is within-take variation, and offering that as the condition's
+        // uncertainty is precisely what §7.20 removed.
+        if !thin.isEmpty {
+            print("\n\(Console.yellow)No interval:\(Console.reset) \(thin.joined(separator: ", ")) "
+                + "— fewer than \(Bootstrap.minimumTakes) usable takes. Take-to-take variation "
+                + "is most of\nthe variation, so one take cannot put a bound on a condition.")
         }
 
         // Pooling takes recorded under different conditions hides the confound inside a
@@ -663,8 +674,9 @@ public enum Commands {
                     + "different \(mixed.joined(separator: " and ")) — the pooled figures blend them.")
             }
         }
-        print("\n\(Console.dim)Pooled across takes, 95% intervals. "
-            + "Compare two with:  review conditions <a> <b>\(Console.reset)")
+        print("\n\(Console.dim)Pooled across takes, 95% intervals covering both take-to-take "
+            + "and within-take variation.\nCompare two with:  review conditions <a> "
+            + "<b>\(Console.reset)")
     }
 
     /// Pooled comparison of two conditions — the experiment readout.
@@ -695,11 +707,19 @@ public enum Commands {
         row("Spread (SD)", Bootstrap.sdStat)
         row("r₁", Bootstrap.lag1Stat)
 
-        if min(a.count, b.count) < 3 {
-            print("\n\(Console.yellow)Note:\(Console.reset) only "
-                + "\(min(a.count, b.count)) take(s) in the smaller group. "
-                + "The intervals cover variation *within* takes but cannot see\nsession-to-session "
-                + "variation — 3+ takes per condition before trusting a null result.")
+        let smaller = min(a.count, b.count)
+        if smaller < Bootstrap.minimumTakes {
+            print("\n\(Console.yellow)No verdict:\(Console.reset) only \(smaller) take(s) in the "
+                + "smaller group. Take-to-take variation is most of the\nvariation here — the "
+                + "two benchmark jams a day apart sat 16.7 ms apart on mean asynchrony — so\n"
+                + "one take cannot bound a condition. \(Bootstrap.minimumTakes) per side before "
+                + "there is anything to compare.")
+        } else if smaller < Bootstrap.stableIntervalTakes {
+            print("\n\(Console.yellow)Note:\(Console.reset) \(smaller) take(s) in the smaller "
+                + "group. The intervals now cover take-to-take variation as well\nas variation "
+                + "inside a take, but they are estimated from that many takes, so they are wide "
+                + "and\nthemselves coarse. Read a null result as \"not measured yet\" rather "
+                + "than \"no difference\".")
         }
     }
 

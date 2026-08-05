@@ -104,8 +104,23 @@ to keep stored JSON legible. **Nothing reads them back.** Enforced by `check.sh`
 > of 16.7 ms against 18.3 ms recomputed — and fitted slopes through the difference.
 
 **R3.2 — Point estimates carry uncertainty.** Any reported comparison states an interval and
-says "real change" or "within noise". The bootstrap is moving-block for serially correlated
-series and plain for independent trials; using the wrong one is a defect, not a preference.
+says "real change" or "within noise". Using the wrong bootstrap is a defect, not a preference:
+
+| Data | Bootstrap |
+|---|---|
+| One serially correlated series (asynchronies within a take) | moving-block |
+| Independent trials (drill rounds, minutes apart) | plain |
+| Anything pooled across takes or sittings | **two-stage: resample takes, then blocks within each** |
+
+> The third row shipped wrong for three milestones. Resampling only within takes leaves each
+> take's mean frozen in every iteration, so the interval is blind to between-take variation —
+> which is most of the variation. Over the two benchmark jams, whose means sit 16.7 ms apart,
+> it produced an interval 6 ms wide and let `review conditions` call a difference real on that
+> basis. See PLAN.md §7.20.
+
+**R3.2.1 — A group of one take gets no interval.** The only variation inside a single take is
+within-take variation, and offering it as a condition's uncertainty is the same defect in a
+smaller form. Say why the number is missing.
 
 **R3.3 — When a measurement cannot be trusted, say so and say why.** `splitIsReliable`,
 `discardedTrials`, `unusableReason` and the comparability notes are the pattern. Silence is not
@@ -365,7 +380,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, all 175 tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, all 180 tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 The Linux leg is possible because `Package.swift` excludes the Apple-only targets off macOS.

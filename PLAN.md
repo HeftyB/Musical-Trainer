@@ -1468,9 +1468,10 @@ against a quarter-note take — which M12 cannot test. That needs M13.
 ## 7.20 Second codebase review — ten findings, and the order they get fixed
 
 A full pass over the tree before M13 starts, on the principle that an experiment runner
-inherits every weakness of the statistics underneath it. The gate is green and was green
-throughout: 175 tests, 36 selftest checks, a warning-free release build, every stored take
-decoding, the 46 takes on disk matching the counts quoted in `AGENT.md`.
+inherits every weakness of the statistics underneath it. The gate was green at the time of the
+review and stayed green throughout: 175 tests then, 36 selftest checks, a warning-free release
+build, every stored take decoding, the 46 takes on disk matching the counts quoted in
+`AGENT.md`.
 
 So none of this is a crash or a broken build. All ten are the other failure mode, the one
 §3 of `STANDARDS.md` exists for: **a number, a rule or a document saying more than it can
@@ -1507,6 +1508,38 @@ changing both at once would leave neither reviewable. It gets its own decision u
 *named* takes, and the within-take resample is the right tool for that: "did these two takes
 differ" is a different question from "does this condition differ", so §7.19's benchmark
 comparison stands as recorded.
+
+#### Fixed — step 0
+
+`resamplePool` now draws takes with replacement before block-resampling inside each drawn
+take. Five tests cover it; two fail if the outer draw is reverted, which was checked by
+reverting it.
+
+That reverted run is the clearest statement of what was wrong. Given four takes that agree
+with each other, and four sitting at −20, −6, +6 and +20 ms — identical within-take spread,
+only the agreement differing — the old bootstrap returned a *narrower* interval for the
+disagreeing set (margin 0.50 ms) than for the agreeing one (0.56 ms). It was not merely too
+narrow. It could not see the difference at all.
+
+On the real 46 takes:
+
+| | before | after |
+|---|---|---|
+| `benchmark` pooled mean | −14.2 [−17.1, −11.1] | −14.2 [−24.2, −3.9] |
+| benchmark vs closing, mean asynchrony | +4.26 [+1.19, +7.36] **real change** | +4.26 [−8.66, +19.45] **within noise** |
+| benchmark vs closing, r₁ | −0.25 [−0.32, −0.09] **real change** | −0.25 [−0.34, −0.04] **real change** |
+
+The first row is the whole finding in one line. The benchmark's two takes sit 16.7 ms apart on
+mean asynchrony, and the old interval over exactly those two takes was 6.0 ms wide. It is now
+20.3 ms wide — wider than the gap it spans, as it has to be.
+
+**The mean-asynchrony row was a false positive** and now reads "within noise". That is the
+correct answer for two takes against three, and it is the answer M13 needs the machinery to
+give before it starts drawing conclusions on its own.
+
+**r₁ survived**, which is the check that this did not simply widen everything into mush. r₁ is
+a within-take property and it was consistent from take to take, so the outer stage had little
+to add — exactly what a cluster bootstrap should do with a metric that genuinely replicates.
 
 ### 2. The recall drill's differential attrition is still invisible — blocks M13
 
@@ -1592,7 +1625,7 @@ because none of it is load-bearing for the milestone.
 
 | Step | Fixes | Where |
 |---|---|---|
-| 0 | 1 — cluster bootstrap; `review tags` / `review conditions` moved onto it | `TimingCore/Bootstrap.swift` |
+| 0 ✅ | 1 — cluster bootstrap; `review tags` / `review conditions` moved onto it | `TimingCore/Bootstrap.swift` |
 | 1 | 2 — per-condition attrition, reported and caveated | `TimingCore/TempoMemory.swift` |
 | 2 | 3, 4 — partial content window; trend take axis | `TimingCore` |
 | 3 | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
@@ -1632,7 +1665,7 @@ claims.
 
 | Step | Delivers |
 |---|---|
-| 0 | Cluster bootstrap (finding 1) |
+| 0 ✅ | Cluster bootstrap (finding 1) |
 | 1 | `ExperimentAssignment` storage, written and unread |
 | 2 | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
 | 3 | `ExperimentAnalysis.swift` — pooled arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |

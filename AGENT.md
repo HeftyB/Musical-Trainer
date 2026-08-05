@@ -50,7 +50,7 @@ tags | conditions | compare | form | dropout | tempo`.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is all 175 tests, because `Package.swift` excludes the Apple-only targets off macOS.
+  is all 180 tests, because `Package.swift` excludes the Apple-only targets off macOS.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
 - **Not installed:** `swiftlint`, `swift-format`, `gh`, `tea`, `jq`, `shellcheck`. `scripts/check.sh`
@@ -63,7 +63,7 @@ tags | conditions | compare | form | dropout | tempo`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 175 unit tests, no hardware needed
+swift test                              # 180 unit tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -142,9 +142,11 @@ Each of these came from a real bug. Breaking one silently corrupts data.
   keep the JSON readable but nothing reads them back. This is deliberate: analysis fixes reach
   takes recorded before the fix, which has already mattered twice.
 - Uncertainty is not optional. Point estimates get bootstrap confidence intervals
-  (`Bootstrap`), and comparisons say "real change" or "within noise". The bootstrap is
-  **moving-block** because asynchronies are serially correlated — that correlation is the r₁
-  the app reports.
+  (`Bootstrap`), and comparisons say "real change" or "within noise". Within one take the
+  bootstrap is **moving-block**, because asynchronies are serially correlated — that
+  correlation is the r₁ the app reports. **Anything pooled across takes is two-stage**: takes
+  resampled with replacement, then blocks within each. Picking the wrong one is a defect
+  (STANDARDS R3.2); the pooled path had it wrong for three milestones (§7.20).
 - When a measurement can't be trusted, say so and say why. `splitIsReliable`,
   `discardedTrials`, `unusableReason`, and the comparability notes all exist because a
   confident wrong number is worse than an honest gap.
