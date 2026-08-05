@@ -1168,9 +1168,10 @@ The verdict refuses to conclude below three sittings, and distinguishes warm-up 
 both / neither. Declining across an evening is named as fatigue rather than folded into "no
 warm-up effect".
 
-### What it says today
+### What it said when it shipped
 
-`review cold`, on the current history:
+`review cold` at M10, on the 13 jams and 2 controlled sittings then on disk. **A snapshot, not
+a live figure** — every number here has since moved, and the command is the authority:
 
 | drill | within a sitting | cold, per sitting | verdict |
 |---|---|---|---|
@@ -1183,6 +1184,14 @@ warm-up effect".
 remains uninterpretable — which is the correct answer and the reason the question was worth
 building for rather than arguing about. It becomes answerable after three sessions from the
 builder, where the cold probe is controlled rather than inferred.
+
+**One row has since changed verdict and is not yet written up as a finding.** Form's cold start
+now reads −0.109/sitting over 6 sittings with an interval of [−0.218, −0.023] — *worsening*,
+where M10 read flat. It is not a controlled probe: form is never the cold block, so every cold
+value in that row is the first-take proxy `WarmUpAnalysis` flags, and the drill's level and
+phrase length both moved across those sittings (§7.19). It needs a §9.6 decision — either the
+confounds disqualify it, or it is the first cold-start signal in the dataset — and until it gets
+one, nothing should cite it.
 
 ---
 

@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is in progress — steps 0 and 1 of 6, planned in §7.23.** The subdivision
+**M0–M13 are done. M14 is in progress — steps 0–3 of 6, planned in §7.23.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -39,11 +39,12 @@ different axis from product capability, and steps d–e of it are done.
 the arm text on screen matches the arm the debrief reports — the one defect step 4 found lived
 exactly in the gap between two tested pieces.
 
-The two *planned* sessions written up are §7.17 (4 Aug 2026) and §7.19/§7.21 (5 Aug). Read them
-before touching drills: between them they produced two instruction bugs, one reporting bug, and
-the project's only retracted finding — none of them maths. Takes recorded from the drill menu
-since then are in the data but not written up; 14 of the 21 jams carry no session placement, so
-they are invisible to `review cold`.
+The three *planned* sessions written up are §7.17 (4 Aug 2026), §7.19 (5 Aug morning) and §7.21
+(5 Aug afternoon) — one manifest each on disk. Read them before touching drills: between them
+they produced two instruction bugs, one reporting bug, and the project's only retracted finding
+— none of them maths. Takes recorded from the drill menu since then are in the data but not
+written up; 14 of the 21 jams carry no session placement, so they are invisible to
+`review cold`.
 
 ## Surfaces
 
@@ -247,8 +248,10 @@ Current as of 59 takes across 8 sittings — 21 jams, 12 form, 11 continuation, 
 
 - **r₁ is positive in all 21 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented
-  way to make this worse, and he already reports it feels worse. The lowest reading is the 5 Aug
-  benchmark (+0.20, §7.21), which is the direction §10 defines as success — one take.
+  way to make this worse, and he already reports it feels worse. The lowest reading in the whole
+  set is +0.13, an untracked `relaxed` take on 3 Aug; the lowest in the *locked benchmark slot* —
+  the only one a trend may be read from — is +0.20 on 5 Aug (§7.21), which is the direction §10
+  defines as success. One take, in one slot.
 - **The benchmark jam is bouncing, not trending**: 24.1 → 17.4 → 22.0 ms across three sittings
   at locked settings. §7.19 recorded the first step as a real tightening and it did not hold
   (§7.21). Each pairwise comparison was measured correctly; none of them is a trend. The 21-take
