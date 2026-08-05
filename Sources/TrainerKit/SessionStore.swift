@@ -161,6 +161,9 @@ struct FormSession: Codable, StoredTake {
     let feelRating: Int?
 
     let gridStartTime: Double
+    /// The grid the marks were scored against. Optional: takes recorded before the field
+    /// existed were all scored at 4, and `report()` falls back to that rather than guessing.
+    let subdivisions: Int?
     let markTimes: [Double]
 
     let phrasesAvailable: Int
@@ -185,7 +188,8 @@ struct FormSession: Codable, StoredTake {
     /// phrase length and take length. The summary above is a cache — this is the answer.
     func report() -> FormReport {
         FormAnalysis.analyze(markTimes: markTimes,
-                             grid: Grid(startTime: gridStartTime, bpm: bpm, subdivisions: 4),
+                             grid: Grid(startTime: gridStartTime, bpm: bpm,
+                                        subdivisions: subdivisions ?? 4),
                              beatsPerBar: 4, barsPerPhrase: phraseBars, totalBars: bars)
     }
 }
@@ -201,6 +205,9 @@ struct DropoutSession: Codable, StoredTake {
     let feelRating: Int?
 
     let gridStartTime: Double
+    /// The grid the silences were scored against. Optional for the reason in `FormSession`;
+    /// every take recorded before the field existed was quarter notes.
+    let subdivisions: Int?
     let tapTimes: [Double]
 
     // Cached summary, as above — `reconstruct()` is the source of truth.
@@ -234,7 +241,7 @@ struct DropoutSession: Codable, StoredTake {
     /// what lets an analysis fix (say, discarding silences that weren't one note per beat)
     /// apply retroactively to takes recorded before the fix existed.
     func reconstruct() -> (taps: [Tap], grid: Grid, sections: [DropoutSection]) {
-        let grid = Grid(startTime: gridStartTime, bpm: bpm, subdivisions: 1)
+        let grid = Grid(startTime: gridStartTime, bpm: bpm, subdivisions: subdivisions ?? 1)
         let barSeconds = grid.beatInterval * 4
         let cycleBars = pacedBars + silentBars
         let totalBars = cycles * cycleBars + pacedBars

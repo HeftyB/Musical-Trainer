@@ -29,8 +29,9 @@ enum TakeFactory {
     // shows up here rather than only in a live run.
 
     static func jam(_ p: Performance = .steady, bars: Int = 32, tag: String? = nil,
-                    experiment: ExperimentAssignment? = nil) -> JamSession {
-        let g = grid()
+                    experiment: ExperimentAssignment? = nil,
+                    grid customGrid: Grid? = nil) -> JamSession {
+        let g = customGrid ?? grid()
         let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
         let r = TimingAnalysis.analyze(taps: events, grid: g)
@@ -60,7 +61,7 @@ enum TakeFactory {
         return FormSession(
             date: Date(timeIntervalSince1970: 1_770_000_100), bpm: g.bpm, bars: 64,
             phraseBars: phraseBars, level: level, feelRating: 3, gridStartTime: g.startTime,
-            markTimes: markTimes, phrasesAvailable: r.phrasesAvailable,
+            subdivisions: g.subdivisions, markTimes: markTimes, phrasesAvailable: r.phrasesAvailable,
             marksPlaced: r.marksPlaced, onFormCount: r.onFormCount, tightCount: r.tightCount,
             meanAbsFormErrorBars: Stats.finite(r.meanAbsFormErrorBars),
             phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
@@ -75,7 +76,7 @@ enum TakeFactory {
         let session = DropoutSession(
             date: Date(timeIntervalSince1970: 1_770_000_200), bpm: g.bpm, pacedBars: 4,
             silentBars: 4, cycles: cycles, feelRating: 4, gridStartTime: g.startTime,
-            tapTimes: p.taps(grid: g).map(\.time),
+            subdivisions: g.subdivisions, tapTimes: p.taps(grid: g).map(\.time),
             pacedSDms: nil, unpacedIntervalSDms: nil, clockSDms: nil, motorSDms: nil,
             modelHolds: false, reentryErrorMeanMs: nil, reentryErrorSDms: nil,
             headline: "", tempoBiasBpm: nil, playedBpm: nil, splitIsReliable: nil,
@@ -87,7 +88,8 @@ enum TakeFactory {
         return DropoutSession(
             date: session.date, bpm: session.bpm, pacedBars: session.pacedBars,
             silentBars: session.silentBars, cycles: session.cycles, feelRating: session.feelRating,
-            gridStartTime: session.gridStartTime, tapTimes: session.tapTimes,
+            gridStartTime: session.gridStartTime, subdivisions: session.subdivisions,
+            tapTimes: session.tapTimes,
             pacedSDms: Stats.finite(r.pacedSDms),
             unpacedIntervalSDms: Stats.finite(r.unpacedIntervalSDms),
             clockSDms: Stats.finite(r.wingKristofferson?.clockSDms),

@@ -2408,13 +2408,44 @@ experiment would either break R3.5 or silently confound five evenings of collect
 
 | | Delivers |
 |---|---|
-| 0 | Store the grid's actual subdivision instead of a hardcoded 4. Prerequisite, and worth doing whether or not M14 proceeds. |
+| 0 ✅ | Store the grid's actual subdivision instead of a hardcoded 4. Prerequisite, and worth doing whether or not M14 proceeds. |
 | 1 | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
 | 2 | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
 | 3 | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
 | 4 | Drills gain a rung; instructions generated from it (R3.6); planner rotates tempo on training blocks only, with a test that it never touches the benchmark or an experiment block. |
 | 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
 | 6 | Both surfaces, and docs. |
+
+### Step 0, as built
+
+Each outcome now carries the grid it was **analysed** on, and storage writes that value rather
+than a literal. The two cannot disagree because they are the same property of the same object —
+the fix is structural, not a matter of keeping two constants in sync.
+
+`FormSession` and `DropoutSession` gained the field too. Neither was wrong today, because both
+hardcoded the same number in two files, but M14 step 4 varies both and the duplication is the
+defect rather than the mismatch. Optional, so every take on disk still decodes and still
+reconstructs on exactly what it was scored on — 4 for form, 1 for continuation.
+
+**The interesting part is what a wrong subdivision actually costs**, which is not what it looks
+like. For notes played *on the beat* it costs nothing: the beat is a grid point at every
+subdivision, so asynchrony and spread come out identical. The first test written here asserted
+that a coarser grid changes the numbers, and it failed — correctly.
+
+It bites on notes played *between* beats. An eighth-note offbeat sits 300 ms from the nearest
+quarter-note grid point at 100 BPM, well outside the ±240 ms window, so a coarse grid **discards
+it as off-grid instead of scoring it**. A take reconstructed one rung too coarse silently throws
+away half the performance and reports the survivors — which is §7.18's censoring trap again, this
+time reached by a storage bug rather than by playing.
+
+The test now plants straight eighths and asserts 64 matched at `subdivisions: 2` against 32
+matched and 32 extras at `subdivisions: 1`. That is the defect stated as a number.
+
+One process note. A stale incremental build produced a segfault mid-suite: struct layouts had
+changed while test objects were still compiled against the old ones. It reproduced twice, passed
+in isolation, and disappeared entirely under `swift package clean`. Recorded because a crash that
+vanishes is exactly the kind of thing that gets waved away, and the way to tell the two apart is
+a clean build rather than a re-run.
 
 ### What this cannot verify
 

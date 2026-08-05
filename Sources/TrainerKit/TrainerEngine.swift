@@ -89,6 +89,14 @@ public enum TrainerEngine {
         public let environment: Environment
         public let config: JamConfig
         fileprivate let gridStartTime: Double
+        /// The grid the take was *analysed* on.
+        ///
+        /// Carried on the outcome rather than re-derived at save time. The stored value used to
+        /// be a hardcoded 4 while the analysis used the backing's step count, which agreed only
+        /// because the default is 4 — and everything recomputes from stored data (R3.1), so the
+        /// moment a backing differed every number would have moved between the live report and
+        /// the review.
+        fileprivate let gridSubdivisions: Int
         fileprivate let taps: [Tap]
         /// Every note-on in the window, before chord clustering — pitch, velocity and time.
         /// Clustering collapses a chord to one rhythmic event, which is right for timing and
@@ -143,7 +151,8 @@ public enum TrainerEngine {
 
         return JamOutcome(report: report, notesCaptured: midi.events.count,
                           eventCount: events.count, environment: env, config: config,
-                          gridStartTime: reduced.grid.startTime, taps: events,
+                          gridStartTime: reduced.grid.startTime,
+                          gridSubdivisions: reduced.grid.subdivisions, taps: events,
                           rawTaps: reduced.taps)
     }
 
@@ -156,7 +165,8 @@ public enum TrainerEngine {
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
             calibrationConstantMs: outcome.environment.calibrationMs,
             calibrationSource: outcome.environment.calibrationSource,
-            grooveName: "jamBacking", bars: outcome.config.bars, subdivisions: 4,
+            grooveName: "jamBacking", bars: outcome.config.bars,
+            subdivisions: outcome.gridSubdivisions,
             tag: outcome.config.tag?.lowercased(), feelRating: feelRating,
             gridStartTime: outcome.gridStartTime,
             tapTimes: outcome.taps.map(\.time), tapVelocities: outcome.taps.map(\.velocity),
@@ -204,6 +214,8 @@ public enum TrainerEngine {
         public let environment: Environment
         public let config: FormConfig
         fileprivate let gridStartTime: Double
+        /// The grid the marks were scored against — see `JamOutcome.gridSubdivisions`.
+        fileprivate let gridSubdivisions: Int
         fileprivate let markTimes: [Double]
     }
 
@@ -260,7 +272,8 @@ public enum TrainerEngine {
         return FormOutcome(report: report,
                            notesPlayed: midi.events.filter { !$0.isPad }.count,
                            environment: env, config: config,
-                           gridStartTime: startSec, markTimes: markTimes)
+                           gridStartTime: startSec,
+                           gridSubdivisions: grid.subdivisions, markTimes: markTimes)
     }
 
     @discardableResult
@@ -272,6 +285,7 @@ public enum TrainerEngine {
             date: Date(), bpm: outcome.config.bpm, bars: outcome.config.bars,
             phraseBars: outcome.config.phraseBars, level: outcome.config.level.rawValue,
             feelRating: feelRating, gridStartTime: outcome.gridStartTime,
+            subdivisions: outcome.gridSubdivisions,
             markTimes: outcome.markTimes,
             phrasesAvailable: r.phrasesAvailable, marksPlaced: r.marksPlaced,
             onFormCount: r.onFormCount, tightCount: r.tightCount,
@@ -318,6 +332,8 @@ public enum TrainerEngine {
         /// What to try next, from the measured drift.
         public let suggestedSilentBars: Int
         fileprivate let gridStartTime: Double
+        /// The grid the silences were scored against — see `JamOutcome.gridSubdivisions`.
+        fileprivate let gridSubdivisions: Int
         fileprivate let tapTimes: [Double]
     }
 
@@ -392,7 +408,8 @@ public enum TrainerEngine {
             report: report, notesPlayed: taps.count, environment: env, config: config,
             suggestedSilentBars: DropoutDrill.suggestedSilentBars(
                 current: config.silentBars, driftMsPerBeat: report.tempoBiasMsPerBeat),
-            gridStartTime: startSec, tapTimes: taps.map(\.time))
+            gridStartTime: startSec, gridSubdivisions: grid.subdivisions,
+            tapTimes: taps.map(\.time))
     }
 
     @discardableResult
@@ -404,7 +421,8 @@ public enum TrainerEngine {
             date: Date(), bpm: outcome.config.bpm,
             pacedBars: outcome.config.pacedBars, silentBars: outcome.config.silentBars,
             cycles: outcome.config.cycles, feelRating: feelRating,
-            gridStartTime: outcome.gridStartTime, tapTimes: outcome.tapTimes,
+            gridStartTime: outcome.gridStartTime, subdivisions: outcome.gridSubdivisions,
+            tapTimes: outcome.tapTimes,
             pacedSDms: Stats.finite(r.pacedSDms), unpacedIntervalSDms: Stats.finite(r.unpacedIntervalSDms),
             clockSDms: Stats.finite(r.wingKristofferson?.clockSDms),
             motorSDms: Stats.finite(r.wingKristofferson?.motorSDms),

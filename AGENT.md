@@ -65,7 +65,7 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 230 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (50 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (55 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -79,7 +79,7 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 280 tests, no hardware needed
+swift test                              # 285 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
