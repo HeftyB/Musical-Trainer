@@ -122,7 +122,8 @@ struct JamSession: Codable {
     func contentReport() -> ContentReport {
         let (taps, grid) = reconstruct()
         let events = TapClustering.collapse(taps, windowSeconds: 0.035)
-        return MusicalContentAnalysis.analyze(rawNotes: playedNotes, events: events, grid: grid)
+        return MusicalContentAnalysis.analyze(rawNotes: playedNotes, events: events, grid: grid,
+                                              totalBars: bars)
     }
 }
 

@@ -133,7 +133,8 @@ final class MusicalContentTests: XCTestCase {
         // Alternating: interesting windows are tight, dull windows are loose.
         let specs = (0..<8).map { (interesting: $0 % 2 == 0, jitterMs: $0 % 2 == 0 ? 6.0 : 26.0) }
         let t = take(windowSpecs: specs)
-        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid)
+        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid,
+                                               totalBars: specs.count * 8)
 
         XCTAssertEqual(r.windows.count, 8)
         let interest = r.correlations.first { $0.measure == "overall interest" }
@@ -146,7 +147,8 @@ final class MusicalContentTests: XCTestCase {
         // Content varies, timing does not.
         let specs = (0..<8).map { (interesting: $0 % 2 == 0, jitterMs: 12.0) }
         let t = take(windowSpecs: specs)
-        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid)
+        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid,
+                                               totalBars: specs.count * 8)
 
         let interest = r.correlations.first { $0.measure == "overall interest" }!
         XCTAssertLessThan(abs(interest.r), 0.6)
@@ -155,7 +157,8 @@ final class MusicalContentTests: XCTestCase {
 
     func testTooFewWindowsRefusesToCorrelate() {
         let t = take(windowSpecs: [(true, 6), (false, 20)])
-        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid)
+        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid,
+                                               totalBars: 16)
 
         XCTAssertTrue(r.correlations.isEmpty)
         XCTAssertTrue(r.headline.contains("Not enough of this take"))
@@ -163,9 +166,60 @@ final class MusicalContentTests: XCTestCase {
 
     func testAnEmptyTakeSaysSo() {
         let r = MusicalContentAnalysis.analyze(rawNotes: [], events: [],
-                                               grid: Grid(startTime: 0, bpm: 100, subdivisions: 1))
+                                               grid: Grid(startTime: 0, bpm: 100, subdivisions: 1),
+                                               totalBars: 64)
         XCTAssertTrue(r.windows.isEmpty)
         XCTAssertTrue(r.headline.contains("Nothing was played"))
+    }
+
+    /// A tail shorter than a window is not a window (PLAN.md §7.20 finding 3).
+    ///
+    /// The count used to round up, so the last window of every take ran past the end of the
+    /// take and was still divided by a full window's worth of beats. Every take's final window
+    /// therefore reported a density lower than it played — and density is the confound the
+    /// whole report is written around.
+    func testATailShorterThanAWindowIsDroppedRatherThanScoredAsSparse() {
+        let specs = (0..<8).map { _ in (interesting: false, jitterMs: 6.0) }
+        let t = take(windowSpecs: specs)
+        var raw = t.raw, events = t.events
+        for b in 0..<16 {                      // four more bars of the same steady playing
+            let time = Double(8 * 32 + b) * beat
+            raw.append(PlayedNote(time: time, note: 60, velocity: 80))
+            events.append(Tap(time: time, velocity: 80, note: 60))
+        }
+
+        let r = MusicalContentAnalysis.analyze(rawNotes: raw, events: events, grid: t.grid,
+                                               totalBars: 68)
+
+        XCTAssertEqual(r.windows.count, 8, "a 4-bar tail is not a ninth window")
+        // One note per beat throughout. Rounding up produced a ninth window holding four bars
+        // of playing divided by eight bars of beats — half the density of the other eight, and
+        // it entered the correlation as though the player had thinned out at the end.
+        // (Not an exact equality: a note within jitter of a boundary lands either side of it.)
+        let densities = r.windows.map(\.content.eventsPerBeat)
+        XCTAssertGreaterThan(densities.min() ?? 0, 0.9)
+    }
+
+    /// Length comes from the configuration, not from the last note — the same invariant that
+    /// §7.12 had to establish for take duration, one layer up. A player who stops a bar early
+    /// must not lose a window that really was complete.
+    func testStoppingEarlyDoesNotCostAWholeWindow() {
+        let specs = (0..<8).map { _ in (interesting: false, jitterMs: 6.0) }
+        let t = take(windowSpecs: specs)
+        // Drop the last two beats: the player stopped just short of the end.
+        let raw = Array(t.raw.dropLast(2)), events = Array(t.events.dropLast(2))
+
+        let r = MusicalContentAnalysis.analyze(rawNotes: raw, events: events, grid: t.grid,
+                                               totalBars: 64)
+        XCTAssertEqual(r.windows.count, 8, "the eighth window was played and must be scored")
+    }
+
+    func testATakeShorterThanOneWindowSaysSo() {
+        let t = take(windowSpecs: [(false, 6.0)])
+        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid,
+                                               totalBars: 4)
+        XCTAssertTrue(r.windows.isEmpty)
+        XCTAssertTrue(r.headline.contains("shorter than one"), r.headline)
     }
 
     // MARK: - The traps
@@ -175,7 +229,8 @@ final class MusicalContentTests: XCTestCase {
     func testTheArousalConfoundIsAlwaysStated() {
         let specs = (0..<8).map { (interesting: $0 % 2 == 0, jitterMs: $0 % 2 == 0 ? 6.0 : 26.0) }
         let t = take(windowSpecs: specs)
-        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid)
+        let r = MusicalContentAnalysis.analyze(rawNotes: t.raw, events: t.events, grid: t.grid,
+                                               totalBars: specs.count * 8)
         XCTAssertTrue(r.notes.contains { $0.contains("more melodic *and* more engaging") })
     }
 
@@ -201,7 +256,8 @@ final class MusicalContentTests: XCTestCase {
                 events.append(Tap(time: t, velocity: velocity, note: note))
             }
         }
-        let r = MusicalContentAnalysis.analyze(rawNotes: raw, events: events, grid: grid)
+        let r = MusicalContentAnalysis.analyze(rawNotes: raw, events: events, grid: grid,
+                                               totalBars: 64)
 
         XCTAssertGreaterThan(r.windows.filter { $0.offGridRate > 0.2 }.count, 0)
         XCTAssertTrue(r.notes.contains { $0.contains("self-selected subset") }

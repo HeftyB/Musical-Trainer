@@ -1612,8 +1612,22 @@ end of the take, but `measures(of:overBeats:)` always divides by the *full* wind
 Note density is not an incidental measure here: it is trap 2 of the three §7.18 names, the
 confound the whole report is written around, and it is reported as its own row precisely so a
 content effect can be separated from a note-values effect. Biasing it in one window of every
-take puts a thumb on that scale. The fix is to drop a final window that covers less than most
-of its span, and to normalise by the span actually measured otherwise.
+take puts a thumb on that scale.
+
+#### Fixed — step 2
+
+`analyze` now takes `totalBars` and emits `totalBars / windowBars` whole windows; a tail shorter
+than a window is not a window. Three tests.
+
+Normalising the partial window by its measured span was the first idea and it is wrong, because
+the span would have to come from the last note — and a player who stopped a bar early would then
+lose a window that really was complete. That is §7.12's first defect exactly, one layer up:
+**take length comes from the configuration, never from the last thing that sounded.** The
+parameter is the fix; the arithmetic is a consequence of it.
+
+No published number moves. Both takes in §7.19 are 64 and 216 bars, exact multiples of the 8-bar
+window, so they had no ragged tail and their +0.40 and +0.57 stand as recorded. The fix bites on
+takes whose length is not a multiple of the window — the 56-bar closing jam is the first.
 
 ### 4. `review trend` renumbers the take axis when a take is unscorable
 
@@ -1623,8 +1637,23 @@ and every later take slides one place earlier. The slope is then per *usable* ta
 label, every unit string and the doc comment say per take.
 
 Small in this dataset and not small in principle: it is the same class as the stale-cache
-defect §7.12 found, where a plotted number was not the number the analysis produced. The fix
-is to carry the original index alongside the value.
+defect §7.12 found, where a plotted number was not the number the analysis produced.
+
+#### Fixed — step 2
+
+The fit now carries each value's original index, and `TrendAnalysis.row` hands the fit the
+*original* series rather than the filtered one — without that second half the fix would have
+been dead on arrival, since `row` is the entry point every caller uses. Two tests; over
+`[10, nan, 8, 7, 6]` the renumbered axis gives −1.30 against a true −1.00, and both tests fail
+if either half is reverted.
+
+**It changes nothing on today's data, and the reason is worth recording rather than glossing.**
+The only series carrying gaps is the continuation drill's clock SD, whose unusable takes sit at
+positions 1, 2 and 10 — all leading or trailing. A uniform translation of the x-axis leaves a
+slope unchanged, so only a gap in the *middle* of a series moves the number. The defect was
+real and latent, and it will produce a wrong slope the first time a take in the middle of a run
+is unscorable. Recorded here because "the fix changed no output" is the kind of result that
+looks like evidence the fix was unnecessary, and it is not.
 
 ### 5–8. Enforcement gaps and small stuff
 
@@ -1715,7 +1744,7 @@ because none of it is load-bearing for the milestone.
 |---|---|---|
 | 0 ✅ | 1 — cluster bootstrap; `review tags` / `review conditions` moved onto it | `TimingCore/Bootstrap.swift` |
 | 1 ✅ | 2 — per-condition attrition, reported and caveated | `TimingCore/TempoMemory.swift` |
-| 2 | 3, 4 — partial content window; trend take axis | `TimingCore` |
+| 2 ✅ | 3, 4 — partial content window; trend take axis | `TimingCore` |
 | 3 | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
 | 4 | 7, 8 — comment placement, parallel-array decode | mixed |
 | — ✅ | 11 — non-finite summaries destroying takes. Jumped the queue: found in a live session, and every further session was losing data until it landed. | `TimingCore/Statistics.swift`, `TrainerKit` |

@@ -72,9 +72,17 @@ public enum TrendAnalysis {
                            lowerIsBetter: Bool,
                            iterations: Int = 2000,
                            seed: UInt64 = 0xA11CE) -> TrendFit? {
-        let clean = values.filter { $0.isFinite }
-        guard clean.count >= minimumPoints else { return nil }
-        let x = (0..<clean.count).map(Double.init)
+        // The x-axis is each take's own position in the series, not its position among the
+        // takes that happened to be scorable.
+        //
+        // Filtering first and numbering afterwards does not leave a gap where an unusable take
+        // was — it closes it, sliding every later take one place earlier. The slope is then per
+        // *usable* take while the unit string, the labels and this doc comment all say per
+        // take. Over `[10, nan, 8, 7, 6]` that is −1.3 against a true −1.0.
+        let points = values.enumerated().filter { $0.element.isFinite }
+        guard points.count >= minimumPoints else { return nil }
+        let x = points.map { Double($0.offset) }
+        let clean = points.map(\.element)
         guard let observed = Stats.linearFit(x: x, y: clean) else { return nil }
 
         // A resample that happens to draw the same index every time has no x-variance and no
@@ -103,12 +111,15 @@ public enum TrendAnalysis {
                         verdict: !real ? .flat : improving ? .improving : .worsening)
     }
 
-    /// Convenience: a row ready to render, fitted from the same values it carries.
+    /// Convenience: a row ready to render.
+    ///
+    /// `values` carries only the usable points, because that is what a chart plots. The fit
+    /// gets the **original** series, gaps included — handing it the filtered one would restore
+    /// the renumbering defect at the call site every caller actually uses.
     public static func row(_ label: String, _ values: [Double], lowerIsBetter: Bool) -> TrendRow {
-        let clean = values.filter { $0.isFinite }
-        return TrendRow(label: label, values: clean,
-                        fit: fit(clean, lowerIsBetter: lowerIsBetter),
-                        lowerIsBetter: lowerIsBetter)
+        TrendRow(label: label, values: values.filter { $0.isFinite },
+                 fit: fit(values, lowerIsBetter: lowerIsBetter),
+                 lowerIsBetter: lowerIsBetter)
     }
 
     /// The distinct values an attribute takes across a group, sorted. More than one entry
