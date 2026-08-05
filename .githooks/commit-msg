@@ -10,6 +10,24 @@
 # Written for bash 3.2, which is what macOS ships — no mapfile, no associative arrays.
 set -uo pipefail
 
+# `${#string}` counts bytes unless the locale is multibyte-aware, and git runs hooks with
+# LC_CTYPE=C. So every em-dash cost three against a limit measured in characters, and a line of
+# 69 characters was rejected as 75. Two messages were reworded to satisfy a limit they already
+# met — which is the worst kind of rule, one that is wrong in the direction of looking strict.
+#
+# Only LC_CTYPE is set, because that is what governs character width; leaving LC_COLLATE alone
+# keeps `sort` and `grep` ranges behaving as they do everywhere else in this repo.
+#
+# The availability check captures first rather than piping into `grep -q`. Under `pipefail` that
+# pipeline reports failure whenever grep matches: grep exits at the first hit, `locale -a` takes
+# SIGPIPE, and the `if` silently takes the wrong branch. `check.sh` carries a comment about that
+# exact trap, and writing this the tidy way reintroduced it — the fix looked applied and did
+# nothing until the hook was instrumented.
+AVAILABLE_LOCALES="$(locale -a 2>/dev/null || true)"
+case "$AVAILABLE_LOCALES" in
+    *en_US.UTF-8*|*en_US.utf8*) export LC_CTYPE=en_US.UTF-8 ;;
+esac
+
 MSG_FILE="$1"
 RED=$'\033[31m'; DIM=$'\033[2m'; OFF=$'\033[0m'
 ERRORS=""
