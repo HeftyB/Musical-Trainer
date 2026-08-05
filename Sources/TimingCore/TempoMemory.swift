@@ -214,7 +214,7 @@ public enum TempoMemoryAnalysis {
         var interval: ConfidenceInterval?
         if cost != nil, silent.count >= minimumRoundsPerCondition,
            filled.count >= minimumRoundsPerCondition {
-            interval = differenceInterval(filled, silent, iterations: iterations, seed: seed)
+            interval = Bootstrap.plainDifference(filled, silent, iterations: iterations, seed: seed)
         } else if cost != nil {
             notes.append("Only \(silent.count) silent and \(filled.count) filled round(s) scored — "
                        + "\(minimumRoundsPerCondition) of each before the difference means "
@@ -254,29 +254,6 @@ public enum TempoMemoryAnalysis {
              + "their error is understated against \(lighter). That \(direction). This is the "
              + "artefact that produced this drill's first result and then reversed it, so the "
              + "two conditions are not comparable in this take."
-    }
-
-    /// Interval on the difference of means between two independent sets of rounds.
-    ///
-    /// A plain resample, not the moving-block one `Bootstrap` uses for asynchrony series:
-    /// rounds are separate trials minutes apart, not a serially-correlated stream, so there
-    /// is no short-range structure for blocks to preserve.
-    private static func differenceInterval(_ a: [Double], _ b: [Double],
-                                           iterations: Int, seed: UInt64) -> ConfidenceInterval? {
-        guard !a.isEmpty, !b.isEmpty else { return nil }
-        var rng = SplitMix64(seed: seed)
-        var deltas: [Double] = []
-        deltas.reserveCapacity(iterations)
-        for _ in 0..<iterations {
-            var sa = 0.0, sb = 0.0
-            for _ in a.indices { sa += a[Int(rng.next() % UInt64(a.count))] }
-            for _ in b.indices { sb += b[Int(rng.next() % UInt64(b.count))] }
-            deltas.append(sa / Double(a.count) - sb / Double(b.count))
-        }
-        return ConfidenceInterval(point: mean(a) - mean(b),
-                                  low: Stats.percentile(deltas, 0.025),
-                                  high: Stats.percentile(deltas, 0.975),
-                                  level: 0.95)
     }
 
     private static func headline(silent: [Double], filled: [Double],

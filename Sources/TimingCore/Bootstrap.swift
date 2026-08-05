@@ -187,6 +187,37 @@ public enum Bootstrap {
     /// take three times and another none is what carries the between-take variation into the
     /// interval. Replacing this loop with `for g in groups` restores the old defect exactly,
     /// and `testPooledDifferenceDoesNotCallOneOddEveningARealChange` fails if it is.
+    /// Percentile interval for the difference of means between two sets of **independent
+    /// values**, `mean(a) − mean(b)`.
+    ///
+    /// A plain resample, not the moving-block one above: these are one number per take or per
+    /// round, minutes or days apart, not a serially correlated stream. There is no short-range
+    /// structure for blocks to preserve, and using the block version would be the wrong
+    /// bootstrap for the data (R3.2).
+    ///
+    /// This is also the right tool for comparing conditions when the unit of analysis is the
+    /// take — see `ExperimentAnalysis`, which is what settled that question.
+    public static func plainDifference(_ a: [Double], _ b: [Double],
+                                       iterations: Int = defaultIterations,
+                                       level: Double = 0.95,
+                                       seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
+        guard !a.isEmpty, !b.isEmpty else { return nil }
+        var rng = SplitMix64(seed: seed)
+        var deltas: [Double] = []
+        deltas.reserveCapacity(iterations)
+        for _ in 0..<iterations {
+            var sa = 0.0, sb = 0.0
+            for _ in a.indices { sa += a[Int(rng.next() % UInt64(a.count))] }
+            for _ in b.indices { sb += b[Int(rng.next() % UInt64(b.count))] }
+            deltas.append(sa / Double(a.count) - sb / Double(b.count))
+        }
+        let alpha = (1 - level) / 2
+        return ConfidenceInterval(point: Stats.mean(a) - Stats.mean(b),
+                                  low: Stats.percentile(deltas, alpha),
+                                  high: Stats.percentile(deltas, 1 - alpha),
+                                  level: level)
+    }
+
     private static func resamplePool(_ groups: [[Double]], using rng: inout SplitMix64) -> [Double] {
         var sample: [Double] = []
         sample.reserveCapacity(groups.reduce(0) { $0 + $1.count })

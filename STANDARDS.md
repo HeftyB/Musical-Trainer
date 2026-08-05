@@ -111,6 +111,7 @@ says "real change" or "within noise". Using the wrong bootstrap is a defect, not
 | One serially correlated series (asynchronies within a take) | moving-block |
 | Independent trials (drill rounds, minutes apart) | plain |
 | Anything pooled across takes or sittings | **two-stage: resample takes, then blocks within each** |
+| One value per take, compared across conditions | plain, over the per-take values |
 
 > The third row shipped wrong for three milestones. Resampling only within takes leaves each
 > take's mean frozen in every iteration, so the interval is blind to between-take variation —
@@ -447,7 +448,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 207 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 220 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 **`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 39 tests

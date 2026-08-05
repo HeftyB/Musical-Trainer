@@ -1844,7 +1844,7 @@ claims.
 | 0 ✅ | Cluster bootstrap (finding 1) |
 | 1 ✅ | `ExperimentAssignment` storage, written and unread |
 | 2 ✅ | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
-| 3 | `ExperimentAnalysis.swift` — pooled arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |
+| 3 ✅ | `ExperimentAnalysis.swift` — arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |
 | 4 | Planner blocks at locked parameters (R3.5), arm-specific instructions (R3.6), engine wiring |
 | 5 | Console `experiment` + `review experiment`, and the app card (finding 9) |
 | 6 | `PLAN.md` as-built, `README.md` command table, `AGENT.md` state |
@@ -1916,6 +1916,55 @@ score on screen biases the takes still to come.
 
 **An unknown arm counts toward no arm.** A take stamped with an arm the design no longer lists
 still happened — `runIndex` counts it — but it is not quietly folded into a neighbour.
+
+### Step 3, as built, and the estimand settled
+
+**The unit of analysis is the take, not the event.** Each take contributes one number — its
+spread, its bias, its interference cost — and an arm's value is the mean of its takes' numbers.
+That is the question finding 1 deferred, and the answer turns out to be clear.
+
+Pooling events would have been wrong twice over. A longer take would carry more weight than a
+short one for no reason anybody chose. And a pooled SD across takes at different placements
+includes the *between-take bias spread* on top of the within-take spread — over the 5 August
+jams, sitting at −22.6 and −16.1 ms, it would report as "spread" something that is really a
+difference in where the player sat. Spread is a within-take property. Every headline figure this
+project has ever quoted (24.07, 17.37, 22.00) is per-take, so the analysis now matches how the
+results were always read.
+
+That also settles which bootstrap: per-take values are independent observations days apart, so
+the plain resample is right, not the moving-block one. `Bootstrap.plainDifference` is now public
+and `TempoMemoryAnalysis` uses it instead of its own private copy — the interference cost was
+already the same shape of comparison, and there is no reason for two implementations.
+
+**The stopping rule runs before the comparison exists.** Below the preregistered target the
+difference is not computed at all, rather than computed and withheld. Withholding would still be
+optional stopping: the number would be sitting there to be looked at, and this app recomputes
+after every session.
+
+**Three things make arms non-comparable regardless of count**, and each came from a defect
+already in this dataset:
+
+- *Unequal attrition.* An arm that lost more takes to unscorable drills is scored on a
+  self-selected set — the recall drill's retraction (finding 2) generalised.
+- *Position in the sitting.* Arms whose mean elapsed time differs by ten minutes or more are
+  confounded with fatigue. §7.17's two takes identical on every number, rated 4 and 1 twenty
+  minutes apart, is the calibration for that threshold.
+- *Concentration in one sitting.* An arm played only on one evening carries whatever else was
+  true of that evening.
+
+**Power is reported as a minimum detectable effect, not as power.** It is the half-width of the
+interval a difference of means would carry at the observed between-take spread — the size below
+which a real effect still comes back as "no difference found". Calling it 80% power would imply
+a design calculation nobody did, and the between-take SD it rests on is itself estimated from a
+handful of takes. `takesNeeded(forEffect:)` inverts it, and the cost is quadratic: chasing an
+effect half the size needs four times the evenings.
+
+**More than two arms gets no single verdict.** Three arms would be three comparisons reported as
+one, so the readout gives per-arm figures and says why it is stopping there.
+
+Thirteen tests, including the one that matters most: two arms drawn from the ±4 ms take-to-take
+wobble the benchmark jams actually show must come back as no difference. That is finding 1
+arriving as an experiment rather than as a bootstrap.
 
 The first three experiments, chosen by what they unblock: **steady vs melodic** (the
 mode-of-playing hypothesis §7.19 says M12 cannot test), **silent vs filled retention pooled
