@@ -232,7 +232,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
 | **M12** | What you play | ✅ Done. Content measured per window against timing, within-take. See §7.18. |
 | **M13** | Experiment runner | ✅ Done. Preregistered A/B experiments: arms assigned and counterbalanced before play, no verdict before the declared n. See §7.22. |
-| **M14** | Subdivision ladder | Eighths, sixteenths, triplets. Everything so far is quarters. |
+| **M14** | Subdivision ladder + tempo | Eighths, sixteenths, triplets, and tempo as a measured variable. Both move the same axis: the inter-onset interval. See §7.23. |
 | **M15** | The feels | Swing, jazz comping, ska/reggae offbeat, latin. Placement as style, not error. |
 | **M16** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
 | **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. |
@@ -961,11 +961,19 @@ crept into this dataset by hand — a changed backing, a changed tempo — and t
 opportunity. Promoted above the feel work because M12 and M14–M15 all need it to produce
 clean comparisons.
 
-### M14 — Subdivision ladder
-Every drill so far is quarter notes, straight. This adds eighths, sixteenths and triplets —
-both as backing and as what the player is asked to produce. `TimingReport` already computes
-subdivision-conditional spread and nothing currently exercises it. Straight time only; the
-grid stays where it is.
+### M14 — Subdivision ladder, and the tempo axis
+Every drill so far is quarter notes at 100 BPM, straight. This adds eighths, sixteenths and
+triplets — both as backing and as what the player is asked to produce — and makes **tempo a
+measured variable rather than only a confound to be split apart**.
+
+The two are one axis: subdivision and tempo both move the inter-onset interval, and eighths at
+100 BPM are the same 300 ms as quarters at 200. The player's own hypothesis — that faster is
+easier to a point, and that slow tempos make him rush — is the first question on it, and nothing
+in the app can currently ask it. Straight time only; the grid stays where it is. See §7.23.
+
+One correction to the note this entry used to carry: `TimingReport`'s subdivision statistics are
+**phase-conditional** — where within the beat a note landed — not a measure of the note values
+played. That machinery is live and already showing something (§7.23), and it is not the ladder.
 
 ### M15 — The feels
 **Stated goal, in the player's words:** to handle "anything from classical and straight time,
@@ -2298,6 +2306,122 @@ around it — skip, advance, remaining time, and the manifest — does not, and 
 where §7.20 finding 11 hid: a destroyed take and a declined one both read as "skipped". Seven
 tests cover the state machine and check that a plan's estimated length, the runner's remaining
 time, and the stored manifest all agree.
+
+---
+
+## 7.23 M14 — the interval ladder, and the tempo axis
+
+### The reframe: subdivision and tempo are one axis
+
+§7.13 describes M14 as eighths, sixteenths and triplets. That is half of it. **Both subdivision
+and tempo move the same underlying variable — the inter-onset interval.** Eighths at 100 BPM are
+a 300 ms IOI, and so are quarters at 200 BPM. The hand does not know which of the two produced
+the number.
+
+So M14 is an *interval* ladder with two ways of climbing it, and the analysis regresses against
+IOI rather than against tempo and subdivision as separate things. Getting this wrong would mean
+two rungs of the same difficulty reported as unrelated conditions.
+
+### The player's hypothesis, and why nothing can answer it yet
+
+> "A faster tempo is easier — to a point — to keep up with. At slower tempos I end up rushing."
+
+That is two claims, and they need different handling.
+
+**Rushing at slow tempos** is a claim about signed asynchrony growing more negative as the
+interval lengthens. It is a real claim, it is not mechanically forced by anything, and it is
+exactly the kind of thing this app exists to confirm or kill.
+
+**"Faster is easier"** is a claim about *precision*, and raw spread cannot test it. Timing
+scatter grows with the interval it is scattered within, so SD in milliseconds falls at faster
+tempos almost mechanically. Comparing raw SD across tempos would produce "faster is tighter" as
+an artefact of the arithmetic — the same class of mistake as §7.18's trap 2, where spread scales
+with the note values played. **Spread has to be normalised by the interval before any tempo
+comparison**, and the interesting shape is then whether that normalised figure has an optimum,
+which is what "easier to a point" actually asserts.
+
+#### What the 21 jams can say: almost nothing
+
+| Tempo | Takes | |
+|---|---|---|
+| 100 BPM | 16 | across every sitting |
+| 110 BPM | 4 | **all one evening, six minutes apart** |
+| 120 BPM | 1 | |
+
+Within the 2 August sitting, which at least holds the day fixed: 100 BPM gave mean −9.6 ms and
+SD 25.9; 110 BPM gave −4.4 ms and 24.5. Both move the way the hypothesis predicts. It is three
+takes against four inside one evening, with a warm-up gradient running through them, and it is
+worth nothing as evidence — recorded here so it is not rediscovered later and mistaken for a
+result.
+
+**What would answer it**: takes at spread-out tempos across *different* sittings. Four takes at
+one tempo in six minutes confounds tempo with fatigue and with that specific evening; one take
+at each of several tempos per sitting, rotated, does not.
+
+### Training across tempos, without destroying the trend
+
+The player also wants to *build* precision at the standard tempos, which is a training
+requirement rather than a measurement one, and the two pull in opposite directions. R3.5 exists
+because every confound in this dataset arrived by a parameter changing between takes.
+
+The separation: **the benchmark jam stays locked at 100 BPM forever**, and the *training* blocks
+rotate tempo. That way the trend line keeps its one comparable slot while the practice covers
+the range, and the tempo axis is measured through blocks that were designed to vary.
+
+### Four traps, with the numbers
+
+**1. A latent storage defect M14 trips on day one.** The jam is analysed on
+`Grid(subdivisions: backing.stepsPerBeat)` and *stored* with `subdivisions: 4` hardcoded, and
+`reconstruct()` rebuilds from the stored value. They agree today only because `Pattern` defaults
+to 4. The moment a backing uses a different step count, every take of that backing recomputes on
+a different grid than the one it was analysed on — and since everything recomputes from raw taps
+(R3.1), every number for those takes would change silently between the live report and the
+review. This is the hardcoded-constant-that-happens-to-match pattern, and it is step 0.
+
+**2. The matching window shrinks with the rung.** The window is ±40% of the grid interval. At
+100 BPM: quarters ±240 ms, eighths ±120 ms, triplet eighths ±80 ms, sixteenths ±60 ms. Against
+this player's ~20 ms spread that is 3.0 SD at sixteenths — acceptable. At 140 BPM it is 2.1 SD,
+and roughly 3.6% of correctly aimed notes are discarded as off-grid rather than 0.3%. **Off-grid
+rate becomes a property of the rung rather than of the player**, which is §7.18's censoring trap
+arriving through a new door. Each rung needs a tempo ceiling, or an honest flag when it is
+exceeded.
+
+**3. Nothing is comparable across rungs without normalising.** Spread scales with the interval,
+so the ladder cannot be one trend line. Subdivision and tempo join backing and level as confound
+axes (R3.4), and both the trend and the pooled comparisons must split on them — while the
+IOI-normalised figure is what makes rungs comparable at all.
+
+**4. Two isochrony gates assume quarters.** The continuation drill's Wing–Kristofferson needs an
+isochronous series, and the tempo drill rejects a round that is not one note per beat, though it
+already normalises consistent subdividing through `notesPerBeat`. Asking for eighths means the
+W-K series *is* eighths; the model still holds, but both gates have to accept the rung instead
+of the beat.
+
+### What must not move while M13 is collecting
+
+Both running experiments are jams at the benchmark's locked settings, and they need ten takes
+across roughly five sittings. **M14 must not touch the benchmark or the experiment block.** The
+ladder belongs to a training block; changing the jam backing's subdivision underneath a running
+experiment would either break R3.5 or silently confound five evenings of collection.
+
+### Steps
+
+| | Delivers |
+|---|---|
+| 0 | Store the grid's actual subdivision instead of a hardcoded 4. Prerequisite, and worth doing whether or not M14 proceeds. |
+| 1 | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
+| 2 | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
+| 3 | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
+| 4 | Drills gain a rung; instructions generated from it (R3.6); planner rotates tempo on training blocks only, with a test that it never touches the benchmark or an experiment block. |
+| 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
+| 6 | Both surfaces, and docs. |
+
+### What this cannot verify
+
+The clock bridge is untouched, so `selftest` remains the arbiter of the maths. But the ladder
+changes what the *backing* plays, and backings have no tests beyond pattern structure — whether
+a sixteenth-note groove is playable-along-to at all is a live-run question (R5.6). The first rung
+above eighths should not be promoted by the planner until one session has been played on it.
 
 ---
 

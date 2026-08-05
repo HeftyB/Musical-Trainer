@@ -13,8 +13,10 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done.** M14 (subdivision ladder) is next. PLAN.md §7 has the milestone table with
-a "as built" section for each; §7.13 is the roadmap through M22.
+**M0–M13 are done. M14 is next and is planned in §7.23** — the subdivision ladder, reframed to
+carry tempo with it, because both move the same variable: the inter-onset interval. Step 0 is a
+latent storage defect worth fixing whether or not M14 proceeds. PLAN.md §7 has the milestone
+table with an "as built" section for each; §7.13 is the roadmap through M22.
 
 | Done | |
 |---|---|
@@ -37,9 +39,11 @@ different axis from product capability, and steps d–e of it are done.
 the arm text on screen matches the arm the debrief reports — the one defect step 4 found lived
 exactly in the gap between two tested pieces.
 
-The two live sessions are §7.17 (4 Aug 2026) and §7.19 (5 Aug, the most recent). Read them
-before touching drills: between them they produced two instruction bugs, one reporting bug,
-and the project's only retracted finding — none of them maths.
+The two *planned* sessions written up are §7.17 (4 Aug 2026) and §7.19/§7.21 (5 Aug). Read them
+before touching drills: between them they produced two instruction bugs, one reporting bug, and
+the project's only retracted finding — none of them maths. Takes recorded from the drill menu
+since then are in the data but not written up; 14 of the 21 jams carry no session placement, so
+they are invisible to `review cold`.
 
 ## Surfaces
 
@@ -169,35 +173,47 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 ## What the data says about this player
 
-Current as of 51 takes across 6 sittings — 19 jams, 10 form, 10 continuation, 7 tempo, 5 recall,
+Current as of 59 takes across 8 sittings — 21 jams, 12 form, 11 continuation, 8 tempo, 7 recall,
 3 planned sessions. **Recompute rather than trusting any of this:** `review trend`,
 `review dropout`, `review feel`, `review cold`, `review content`.
 
-- **r₁ is positive in all 19 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
+- **r₁ is positive in all 21 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented
-  way to make this worse, and he already reports it feels worse. The lowest reading is the most
-  recent benchmark (+0.20, §7.21), which is the direction §10 defines as success — one take.
+  way to make this worse, and he already reports it feels worse. The lowest reading is the 5 Aug
+  benchmark (+0.20, §7.21), which is the direction §10 defines as success — one take.
 - **The benchmark jam is bouncing, not trending**: 24.1 → 17.4 → 22.0 ms across three sittings
   at locked settings. §7.19 recorded the first step as a real tightening and it did not hold
-  (§7.21). Each pairwise comparison was measured correctly; none of them is a trend. The 19-take
+  (§7.21). Each pairwise comparison was measured correctly; none of them is a trend. The 21-take
   jam trend remains flat on every metric.
-- **A large placement shift persisted all day.** Bias went −5.9 ms on 4 Aug to −22.6, −16.1,
-  −20.8, −22.4 across every jam on 5 Aug. Stable, not an excursion, and unexplained. Bias is
-  not failure (§2) and the spread did not move with it.
+- **A large placement shift held for one long sitting and then eased.** Bias went −5.9 ms on
+  4 Aug to −22.6, −16.1, −20.8, −22.4 through the 5 Aug 01:00–04:30 sittings, then −15.1 and
+  −13.5 that morning. Unexplained either way. Bias is not failure (§2) and spread did not move
+  with it.
 - **Clock is the looser half in every trustworthy split.** Do not pool across silence lengths:
-  4-bar gives ~14.9 / 9.3 ms, 8-bar 40.7 / 20.9, 16-bar 22.1 / 6.8. Longer is a harder task.
+  4-bar runs ~11–22 / 4–12 ms across five takes, 8-bar 40.7 / 20.9, 16-bar 22.1 / 6.8. Longer is
+  a harder task. The newest 4-bar take has the lowest motor figure recorded (4.2 ms).
 - **"Runs ~5% slow unaccompanied" is dead.** The last two 16-bar continuation takes produced
-  99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% — monotonic
-  across three sittings, still fitted as flat because the series includes an uncontrolled proxy.
-- **Feel tracks the measurement** (r = −0.64 over 17 rated takes) and now reads "well
-  calibrated" — but fatigue broke it once: two jams with identical spread rated 4 and 1 twenty
-  minutes apart (§7.17). It has not recurred.
+  99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% and are still
+  fitted flat; the −1.8% on 5 Aug was recorded *warm*, third in its sitting, and is not a fourth
+  cold point however much it looks like one.
+- **Feel tracks the measurement** (r = −0.66 over 19 rated takes) and reads "well calibrated" —
+  but fatigue broke it once: two jams with identical spread rated 4 and 1 twenty minutes apart
+  (§7.17). It has not recurred.
+- **Tempo is not analysed anywhere.** It is only ever *controlled for* — trends split mixed-tempo
+  groups and `review tags` warns about them. His stated hypothesis is that faster is easier to a
+  point and that slow tempos make him rush, and no readout can currently ask it. The data cannot
+  either: 16 jams at 100 BPM, 4 at 110 (all one evening, six minutes apart), 1 at 120. M14 is
+  where this gets built — see §7.23, including why raw spread cannot be compared across tempos.
 - **The recall drill's interference cost is not established.** §7.19 read it as the distractor
   *helping*; since the attrition rule landed (§7.20 finding 2), three of the four takes are
   withheld as non-comparable and one remains. Treat it as unmeasured, not as a direction.
 - **M12's first data contradicts his hunch**: busier playing went with *looser* timing within a
   take, and the censoring bias runs against that result rather than producing it. His hunch is
-  about the mode of playing across a take, which M12 cannot test and M13 can.
+  about the mode of playing across a take, which M12 cannot test and M13's `steady-vs-melodic`
+  experiment is now collecting for.
+- **Two tags now pool across tempos** — `focused` (100 and 110) and `relaxed` (100 and 120). Both
+  are flagged as mixed pools at the point of display, which is the only reason they are not
+  quietly wrong.
 - He thinks in feel and sound, not bar counts. He is a strong developer — pitch technical
   explanations high, but never explain music theory to him.
 
