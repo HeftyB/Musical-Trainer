@@ -298,11 +298,26 @@ public enum Commands {
     }
 
 
+    /// One rung parser for every command, so an unknown name is refused the same way whatever
+    /// it was typed after — and refused *before* any audio device is opened (R7.6).
+    static func parseRung(_ raw: String?) throws -> IntervalRung? {
+        guard let raw else { return nil }
+        guard let parsed = IntervalRung(rawValue: raw) else {
+            throw SpikeError("Unknown rung '\(raw)'. One of: "
+                           + IntervalRung.ladder.map(\.rawValue).joined(separator: ", "))
+        }
+        return parsed
+    }
+
     // MARK: - M4 jam
 
-    public static func runJam(bpm: Double, bars: Int, tag: String?) throws {
+    public static func runJam(bpm: Double, bars: Int, tag: String?, rung: String? = nil) throws {
         Console.heading("Jam — record a take")
-        let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased())
+
+        let prescribed = try parseRung(rung)
+
+        let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased(),
+                                             rung: prescribed)
         let env = try TrainerEngine.environment()
 
         print("Output: \(env.outputName)")
@@ -318,7 +333,26 @@ public enum Commands {
         print("\n\(bars) bars at \(Int(bpm)) BPM"
             + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
         if let tag = config.tag { print("Condition: \(Console.bold)\(tag)\(Console.reset)") }
-        printInstructions(DrillInstructions.jam)
+        if let prescribed {
+            print("Rung: \(Console.bold)\(prescribed.label)\(Console.reset)"
+                + "  \(Console.dim)(\(config.backing.name), scored on a "
+                + "\(config.gridSubdivisions)-per-beat grid)\(Console.reset)")
+            // Above its ceiling the rung discards notes the player aimed correctly, and the
+            // off-grid rate stops being a fact about them (§7.23 step 1). Said here rather than
+            // refused: the planner enforces, a hand-run take is the player's call.
+            let spreads = TrainerEngine.recentJamSpreadsMs()
+            let spreadMs = spreads.isEmpty ? SessionPlanner.assumedSpreadMs : Stats.median(spreads)
+            if !prescribed.isScorable(atBpm: bpm, spreadMs: spreadMs) {
+                Console.warn(String(format: "%@ at %d BPM is above its %.0f BPM ceiling for your "
+                                  + "%.1f ms spread. The matching window is narrower than three "
+                                  + "of your own spreads, so notes you aimed correctly will be "
+                                  + "discarded as off-grid and the off-grid rate becomes a fact "
+                                  + "about the rung rather than about you.",
+                                    prescribed.label, Int(bpm),
+                                    prescribed.maximumBpm(forSpreadMs: spreadMs), spreadMs))
+            }
+        }
+        printInstructions(DrillInstructions.jam(rung: prescribed))
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runJam(config)
@@ -417,6 +451,9 @@ public enum Commands {
         if args.first == "cold" { runCold(); return }
         if args.first == "content" { runContent(); return }
         if args.first == "experiment" { runExperiments(); return }
+        if args.first == "interval" || args.first == "tempo-response" {
+            runIntervalResponse(); return
+        }
         if args.first == "tempo" { runTempoHistory(); return }
 
         let sessions = SessionStore.loadAll()
@@ -521,6 +558,15 @@ public enum Commands {
         if backing.differs {
             notes.append("Backing differs (\(backing.text)). Spread and drift are not "
                        + "comparable across different music.")
+        }
+
+        // Rung and tempo are one axis — both move the gap between notes — so a rung difference
+        // is as disqualifying as a tempo one, and for the same reason (§7.23 trap 3).
+        let rung = describe({ $0.rung ?? "free" }, { $0 })
+        if rung.differs {
+            notes.append("Subdivision differs (\(rung.text)). The gap between notes is not the "
+                       + "same task, so spread and off-grid rate are not comparable — the "
+                       + "matching window scales with the rung.")
         }
 
         let tempo = describe({ $0.bpm }, { "\(Int($0)) BPM" })
@@ -774,16 +820,19 @@ public enum Commands {
 
     // MARK: - Tempo calibration
 
-    public static func runTempo(targets: [Double], leadBars: Int, holdBars: Int, rounds: Int) throws {
+    public static func runTempo(targets: [Double], leadBars: Int, holdBars: Int, rounds: Int,
+                                rung: String? = nil) throws {
         Console.heading("Tempo calibration — produce the tempo yourself")
+        let prescribed = try parseRung(rung) ?? .quarters
         let config = TrainerEngine.TempoConfig(targets: targets, leadBars: leadBars,
-                                               holdBars: holdBars, rounds: rounds)
+                                               holdBars: holdBars, rounds: rounds,
+                                               rung: prescribed)
         let env = try TrainerEngine.environment()
         print("Output: \(env.outputName)")
         let targetText = targets.map { String(Int($0)) }.joined(separator: " / ")
         print("Targets: \(targetText) BPM   ·   \(rounds) rounds   ·   "
             + String(format: "~%.1f min", config.durationSeconds / 60))
-        printInstructions(DrillInstructions.tempo)
+        printInstructions(DrillInstructions.tempo(rung: prescribed))
         Console.prompt("Ready?")
 
         print("")
@@ -850,7 +899,7 @@ public enum Commands {
         }
         print("\(pad("When", 22))\(pad("targets", 14))\(pad("bias", 10))\(pad("accuracy", 11))feel")
         for s in sessions {
-            let r = TempoCalibrationAnalysis.analyze(taps: s.taps, rounds: s.roundWindows)
+            let r = s.report()
             let targets = s.targets.map { String(Int($0)) }.joined(separator: "/")
             print("\(pad(dateLabel(s.date), 22))\(pad(targets, 14))"
                 + "\(pad(r.meanErrorPercent.map { String(format: "%+.1f%%", $0) } ?? "—", 10))"
@@ -926,19 +975,86 @@ public enum Commands {
         }
     }
 
+    // MARK: - Rendering a backing to a file
+
+    /// Render every ladder rung, plus the jam backing, to WAV files that can be listened to.
+    ///
+    /// Auditioning a groove used to mean a live run. A rung the player has never heard is a rung
+    /// the planner should not be promoting them onto, and PLAN §7.23 makes that a precondition
+    /// for the ladder — so hearing one has to be cheaper than booking a session.
+    public static func runRender(bpm: Double, bars: Int, into directory: URL) throws {
+        Console.heading("Rendering backings")
+        guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+        guard (1...64).contains(bars) else { throw SpikeError("Bars must be 1–64.") }
+
+        let fs = 44_100.0
+        let kit = DrumKit(sampleRate: fs)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        // The ceiling is a fact about *this* player, so it comes from their own takes rather
+        // than a constant. Falling back to a stated default is better than refusing to render.
+        let spreads = TrainerEngine.recentJamSpreadsMs()
+        let spreadMs = spreads.isEmpty ? SessionPlanner.assumedSpreadMs : Stats.median(spreads)
+
+        let subjects: [(name: String, rung: IntervalRung?, arrangement: Arrangement)] =
+            [("quarters", .quarters, LadderBackings.backing(notesPerBeat: 1)),
+             ("eighths", .eighths, LadderBackings.backing(notesPerBeat: 2)),
+             ("triplet-eighths", .tripletEighths, LadderBackings.backing(notesPerBeat: 3)),
+             ("sixteenths", .sixteenths, LadderBackings.backing(notesPerBeat: 4)),
+             ("jam-backing", nil, GrooveLibrary.jamBacking)]
+
+        print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
+                     Int(bpm), bars, spreadMs,
+                     spreads.isEmpty ? " (no takes yet — assumed)" : ""))
+        print("")
+        for (name, rung, arrangement) in subjects {
+            let sequencer = Sequencer(bpm: bpm, sampleRate: fs)
+            var hits: [ScheduledHit] = []
+            for bar in 0..<bars {
+                hits += sequencer.schedule(pattern: arrangement.pattern(atBar: bar), bar: bar)
+            }
+            // A beat of tail so the last hit is not cut off mid-decay.
+            let frames = Int((Double(bars) * 4 + 1) * 60 / bpm * fs)
+            let samples = GrooveOfflineRender.mix(hits: hits, kit: kit, frames: frames)
+
+            let url = directory.appendingPathComponent("\(name)-\(Int(bpm))bpm.wav")
+            let clipped = try WaveFile.write(samples, sampleRate: fs, to: url)
+            let peak = samples.map(abs).max() ?? 0
+            // Above its ceiling a rung starts discarding notes the player aimed correctly, so
+            // the render says so rather than letting it be judged only by ear.
+            var note = ""
+            if let rung, !rung.isScorable(atBpm: bpm, spreadMs: spreadMs) {
+                note = String(format: "  %@above its %.0f BPM ceiling%@", Console.yellow,
+                              rung.maximumBpm(forSpreadMs: spreadMs), Console.reset)
+            }
+            print("  \(pad(name, 18))\(pad(String(format: "peak %.2f", peak), 12))"
+                + "\(pad(url.lastPathComponent, 30))\(note)")
+            if clipped > 0 {
+                Console.warn("\(name) clipped on \(clipped) sample(s) — the mix is too hot, and "
+                           + "that would be heard as a bad groove rather than a bad gain.")
+            }
+        }
+        print("\n\(Console.dim)Listen before letting the planner promote you onto a rung. "
+            + "Whether a groove is\nplayable-along-to is not something its step list can "
+            + "say.\(Console.reset)")
+    }
+
     // MARK: - Dropout drill
 
-    public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int) throws {
+    public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int,
+                                  rung: String? = nil) throws {
         Console.heading("Dropout drill — hold the pulse alone")
+        let prescribed = try parseRung(rung) ?? .quarters
         let config = TrainerEngine.DropoutConfig(bpm: bpm, pacedBars: pacedBars,
-                                                 silentBars: silentBars, cycles: cycles)
+                                                 silentBars: silentBars, cycles: cycles,
+                                                 rung: prescribed)
         let env = try TrainerEngine.environment()
         print("Output: \(env.outputName)")
 
         print("\n\(Console.bold)\(cycles) cycles\(Console.reset): \(pacedBars) bars with the band, "
             + "\(silentBars) bars alone  ·  "
             + String(format: "~%.1f min", config.durationSeconds / 60))
-        printInstructions(DrillInstructions.dropout)
+        printInstructions(DrillInstructions.dropout(rung: prescribed))
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runDropout(config)
@@ -1018,6 +1134,104 @@ public enum Commands {
         }
     }
 
+    /// M14: does tempo change how you play?
+    private static func runIntervalResponse() {
+        Console.heading("Tempo and interval")
+        print("\(Console.dim)Subdivision and tempo are one axis — both move the gap between "
+            + "notes, and eighths at 100 BPM\nare the same 300 ms task as quarters at 200. "
+            + "Spread is shown relative to that gap, because\nscatter grows with the interval "
+            + "it sits inside.\(Console.reset)\n")
+
+        let report = IntervalResponseAnalysis.analyze(TrainerEngine.intervalObservations())
+        guard !report.buckets.isEmpty else {
+            print("No takes yet.")
+            return
+        }
+
+        print(pad("interval", 12) + pad("tempo", 10) + pad("takes", 7)
+            + pad("spread", 11) + pad("of interval", 13) + "placement")
+        for bucket in report.buckets {
+            let spread = bucket.meanSpreadMs.map { String(format: "%.1f ms", $0) } ?? "—"
+            let relative = bucket.relativeSpreadPercent.map { String(format: "%.1f%%", $0) } ?? "—"
+            let bias = bucket.meanBiasMs.map { String(format: "%+.1f ms", $0) } ?? "—"
+            let sittings = bucket.sittings <= 1 && bucket.takes > 1 ? "  one sitting" : ""
+            print(pad(String(format: "%.0f ms", bucket.intervalMs), 12)
+                + pad(String(format: "%.0f BPM", bucket.bpm), 10)
+                + pad("\(bucket.takes)", 7)
+                + pad(spread, 11) + pad(relative, 13) + pad(bias, 11)
+                + "\(Console.dim)\(sittings)\(Console.reset)")
+        }
+
+        func row(_ label: String, _ fit: TrendFit?, _ unit: String) {
+            guard let fit else {
+                print("  \(pad(label, 26))\(Console.dim)not enough range\(Console.reset)")
+                return
+            }
+            let verdict = fit.isReal ? "\(Console.bold)real\(Console.reset)"
+                                     : "\(Console.dim)within noise\(Console.reset)"
+            print("  \(pad(label, 26))"
+                + pad(String(format: "%+.2f%@ [%+.2f, %+.2f]", fit.slope * 100, unit,
+                             fit.low * 100, fit.high * 100), 34) + verdict)
+        }
+        print("\nPer 100 ms of extra interval:")
+        row("spread, milliseconds", report.absoluteSpreadVsInterval, " ms")
+        row("spread, % of interval", report.relativeSpreadVsInterval, " pts")
+        row("placement", report.biasVsInterval, " ms")
+
+        print("\n\(report.headline)")
+        for note in report.notes { Console.warn(note) }
+
+        printProducedIntervals()
+    }
+
+    /// The same question asked of notes instead of takes — and the one that can be answered.
+    ///
+    /// `review interval` above compares whole takes at the interval each was *asked* for, and on
+    /// today's history that is one interval per tempo and three tempos, so it refuses. Within a
+    /// take the player produces several intervals by choice, which is thousands of notes across
+    /// a real range, and the question of which description of spread survives a change of
+    /// interval is answerable there now. See PLAN.md §7.23.
+    private static func printProducedIntervals() {
+        let profile = TrainerEngine.producedIntervalProfile()
+        guard !profile.bins.isEmpty else { return }
+
+        Console.heading("The intervals you actually produce")
+        print("\(Console.dim)Each note keyed by the gap in grid points to the note before it, "
+            + "never by the measured\ngap — a note's own error sits inside its measured gap, and "
+            + "binning on that fabricates\na placement slope out of a player who has "
+            + "none.\(Console.reset)\n")
+
+        print(pad("interval", 12) + pad("notes", 9) + pad("share", 9)
+            + pad("spread", 11) + pad("of interval", 13) + "placement")
+        for bin in profile.bins {
+            print(pad(String(format: "%.0f ms", bin.intervalMs), 12)
+                + pad("\(bin.notes)", 9)
+                + pad(String(format: "%.1f%%", bin.shareOfNotes * 100), 9)
+                + pad(String(format: "%.1f ms", bin.sdMs), 11)
+                + pad(String(format: "%.1f%%", bin.relativeSpreadPercent), 13)
+                + String(format: "%+.1f ms", bin.meanMs))
+        }
+
+        func row(_ label: String, _ fit: TrendFit?, _ unit: String) {
+            guard let fit else {
+                print("  \(pad(label, 26))\(Console.dim)not enough range\(Console.reset)")
+                return
+            }
+            print("  \(pad(label, 26))"
+                + pad(String(format: "%+.2f%@ [%+.2f, %+.2f]", fit.slope * 100, unit,
+                             fit.low * 100, fit.high * 100), 34)
+                + (fit.isReal ? "\(Console.bold)real\(Console.reset)"
+                              : "\(Console.dim)within noise\(Console.reset)"))
+        }
+        print("\nPer 100 ms of extra interval:")
+        row("spread, milliseconds", profile.absoluteFit, " ms")
+        row("spread, % of interval", profile.relativeFit, " pts")
+        row("placement", profile.placementFit, " ms")
+
+        print("\n\(profile.headline)")
+        for note in profile.notes { Console.warn(note) }
+    }
+
     /// M13: what the experiments have collected, and what they are allowed to say.
     private static func runExperiments() {
         Console.heading("Experiments")
@@ -1033,13 +1247,19 @@ public enum Commands {
                 + "arm\(Console.reset)")
             print("  \(Console.dim)\(design.question)\(Console.reset)")
 
-            print("  " + pad("arm", 12) + pad("takes", 8) + pad("mean", 12) + "between takes")
+            print("  " + pad("arm", 12) + pad("takes", 8) + pad("mean", 12)
+                + pad("between takes", 12) + "density")
             for arm in result.arms {
                 let mean = arm.mean.map { String(format: "%+.2f", $0) } ?? "—"
                 let sd = arm.betweenTakeSD.map { String(format: "± %.2f", $0) } ?? "—"
+                // Density is a covariate, printed beside the metric and never scored against
+                // it. For an instruction-only experiment about what is played, the arms differ
+                // here by construction — see `ExperimentTake.notesPerBeat`.
+                let density = arm.meanNotesPerBeat
+                    .map { String(format: "%.2f/beat", $0) } ?? "—"
                 print("  " + pad(arm.arm, 12)
                     + pad("\(arm.scored)/\(design.takesPerArm)", 8)
-                    + pad(mean, 12) + sd)
+                    + pad(mean, 12) + pad(sd, 12) + "\(Console.dim)\(density)\(Console.reset)")
             }
 
             switch result.verdict {
@@ -1209,8 +1429,7 @@ public enum Commands {
             + "\(pad("motor", 10))\(pad("tempo alone", 14))feel")
         for s in sessions {
             // Recomputed from the raw taps so older takes get the current analysis.
-            let (taps, grid, sections) = s.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            let r = s.report()
             let clock = r.splitIsReliable ? Console.ms(r.wingKristofferson?.clockSDms ?? .nan, 1) : "—"
             let motor = r.splitIsReliable ? Console.ms(r.wingKristofferson?.motorSDms ?? .nan, 1) : "—"
             let tempo = r.playedBpm.map { String(format: "%.0f (%+.0f)", $0, r.tempoBiasBpm ?? 0) } ?? "—"

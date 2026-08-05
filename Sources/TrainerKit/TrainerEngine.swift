@@ -66,10 +66,39 @@ public enum TrainerEngine {
         public var bpm: Double
         public var bars: Int
         public var tag: String?
-        public init(bpm: Double = 100, bars: Int = 32, tag: String? = nil) {
-            self.bpm = bpm; self.bars = bars; self.tag = tag
+        /// The subdivision the player is asked to produce, or `nil` for free playing.
+        ///
+        /// See `JamPlan.rung`: `nil` is "no rung was prescribed", not "quarters".
+        public var rung: IntervalRung?
+
+        public init(bpm: Double = 100, bars: Int = 32, tag: String? = nil,
+                    rung: IntervalRung? = nil) {
+            self.bpm = bpm; self.bars = bars; self.tag = tag; self.rung = rung
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
+
+        /// The backing this take plays over, and the name it is stored under.
+        ///
+        /// A free jam keeps `jamBacking` exactly as every recorded take had it. A rung gets the
+        /// ladder groove that makes its division audible — asked for sixteenths over a backing
+        /// that only marks beats, the player is really being asked to subdivide from memory.
+        var backing: (name: String, arrangement: Arrangement) {
+            guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking) }
+            return ("ladder-\(rung.rawValue)",
+                    LadderBackings.backing(notesPerBeat: rung.subdivisions))
+        }
+
+        /// Grid points per beat for the **analysis**.
+        ///
+        /// The rung when there is one, and only otherwise the backing's step resolution. Those
+        /// are different quantities and this is the third place in M14 where confusing them was
+        /// the available mistake — `LadderBackings` returns a pattern whose `stepsPerBeat` is 4
+        /// for quarters, eighths *and* sixteenths, because all three are programmed on a
+        /// sixteenth step grid and differ only in which steps fire. Scoring a quarters rung on
+        /// that resolution would measure a task nobody was set, and it is what step 1's tempo
+        /// ceilings are derived against: the window is `0.4 × 60 / (bpm × subdivisions)`, so the
+        /// subdivision here *is* the thing the ceiling constrains.
+        var gridSubdivisions: Int { rung?.subdivisions ?? backing.arrangement.stepsPerBeat }
 
         /// R7.6: the boundary validates before anything is scheduled.
         ///
@@ -89,6 +118,14 @@ public enum TrainerEngine {
         public let environment: Environment
         public let config: JamConfig
         fileprivate let gridStartTime: Double
+        /// The grid the take was *analysed* on.
+        ///
+        /// Carried on the outcome rather than re-derived at save time. The stored value used to
+        /// be a hardcoded 4 while the analysis used the backing's step count, which agreed only
+        /// because the default is 4 — and everything recomputes from stored data (R3.1), so the
+        /// moment a backing differed every number would have moved between the live report and
+        /// the review.
+        fileprivate let gridSubdivisions: Int
         fileprivate let taps: [Tap]
         /// Every note-on in the window, before chord clustering — pitch, velocity and time.
         /// Clustering collapses a chord to one rhythmic event, which is right for timing and
@@ -104,7 +141,7 @@ public enum TrainerEngine {
 
         let player = try GroovePlayer()
         let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate)
-        let backing = GrooveLibrary.jamBacking
+        let backing = config.backing.arrangement
         let countInBars = 2
 
         var perBar: [Pattern] = []
@@ -114,6 +151,9 @@ public enum TrainerEngine {
         }
         for bar in 0..<config.bars { perBar.append(backing.pattern(atBar: bar)) }
 
+        // The count-in is on the 16-step grid and a triplet backing is on a 12-step one, which
+        // is safe only because every pattern here is four beats to the bar: bar 2 is eight beats
+        // in whichever resolution asks. `GroovePlayer.schedule` sorts, so the two interleave.
         var hits: [ScheduledHit] = []
         for (bar, pattern) in perBar.enumerated() { hits += seq.schedule(pattern: pattern, bar: bar) }
         player.schedule(hits)
@@ -134,7 +174,7 @@ public enum TrainerEngine {
             outputMap: player.outputMapPairs,
             midi: midi.events.map { ($0.hostTime, Int($0.velocity), Int($0.note)) },
             grooveStartSample: startSample, grooveEndSample: endSample,
-            bpm: config.bpm, subdivisions: backing.stepsPerBeat,
+            bpm: config.bpm, subdivisions: config.gridSubdivisions,
             calibrationConstantMs: env.calibrationMs ?? 0)
         else { throw SpikeError("Could not reconstruct the take — no audio timing map captured.") }
 
@@ -143,7 +183,8 @@ public enum TrainerEngine {
 
         return JamOutcome(report: report, notesCaptured: midi.events.count,
                           eventCount: events.count, environment: env, config: config,
-                          gridStartTime: reduced.grid.startTime, taps: events,
+                          gridStartTime: reduced.grid.startTime,
+                          gridSubdivisions: reduced.grid.subdivisions, taps: events,
                           rawTaps: reduced.taps)
     }
 
@@ -156,7 +197,12 @@ public enum TrainerEngine {
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
             calibrationConstantMs: outcome.environment.calibrationMs,
             calibrationSource: outcome.environment.calibrationSource,
-            grooveName: "jamBacking", bars: outcome.config.bars, subdivisions: 4,
+            // The backing that actually played, not a literal. Every confound check keyed on
+            // this — `comparabilityNotes`, the trend warnings — went blind the moment a jam
+            // could play over something other than `jamBacking` (R3.4).
+            grooveName: outcome.config.backing.name, bars: outcome.config.bars,
+            subdivisions: outcome.gridSubdivisions,
+            rung: outcome.config.rung?.rawValue,
             tag: outcome.config.tag?.lowercased(), feelRating: feelRating,
             gridStartTime: outcome.gridStartTime,
             tapTimes: outcome.taps.map(\.time), tapVelocities: outcome.taps.map(\.velocity),
@@ -204,6 +250,8 @@ public enum TrainerEngine {
         public let environment: Environment
         public let config: FormConfig
         fileprivate let gridStartTime: Double
+        /// The grid the marks were scored against — see `JamOutcome.gridSubdivisions`.
+        fileprivate let gridSubdivisions: Int
         fileprivate let markTimes: [Double]
     }
 
@@ -260,7 +308,8 @@ public enum TrainerEngine {
         return FormOutcome(report: report,
                            notesPlayed: midi.events.filter { !$0.isPad }.count,
                            environment: env, config: config,
-                           gridStartTime: startSec, markTimes: markTimes)
+                           gridStartTime: startSec,
+                           gridSubdivisions: grid.subdivisions, markTimes: markTimes)
     }
 
     @discardableResult
@@ -272,6 +321,7 @@ public enum TrainerEngine {
             date: Date(), bpm: outcome.config.bpm, bars: outcome.config.bars,
             phraseBars: outcome.config.phraseBars, level: outcome.config.level.rawValue,
             feelRating: feelRating, gridStartTime: outcome.gridStartTime,
+            subdivisions: outcome.gridSubdivisions,
             markTimes: outcome.markTimes,
             phrasesAvailable: r.phrasesAvailable, marksPlaced: r.marksPlaced,
             onFormCount: r.onFormCount, tightCount: r.tightCount,
@@ -290,8 +340,18 @@ public enum TrainerEngine {
         public var pacedBars: Int
         public var silentBars: Int
         public var cycles: Int
-        public init(bpm: Double = 100, pacedBars: Int = 4, silentBars: Int = 4, cycles: Int = 6) {
-            self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars; self.cycles = cycles
+        /// The note value asked for through the silences.
+        ///
+        /// This drill has always demanded one note per beat in words — "Play exactly ONE NOTE
+        /// PER BEAT" — while the analysis *inferred* the note value from what was played and
+        /// snapped it to the nearest whole number. Setting it makes the analysis know what the
+        /// instructions already said, which is what removes the snapping (§7.23 step 4e).
+        public var rung: IntervalRung?
+
+        public init(bpm: Double = 100, pacedBars: Int = 4, silentBars: Int = 4, cycles: Int = 6,
+                    rung: IntervalRung? = nil) {
+            self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars
+            self.cycles = cycles; self.rung = rung
         }
         public var cycle: DropoutDrill.Cycle {
             DropoutDrill.Cycle(pacedBars: pacedBars, silentBars: silentBars)
@@ -318,6 +378,8 @@ public enum TrainerEngine {
         /// What to try next, from the measured drift.
         public let suggestedSilentBars: Int
         fileprivate let gridStartTime: Double
+        /// The grid the silences were scored against — see `JamOutcome.gridSubdivisions`.
+        fileprivate let gridSubdivisions: Int
         fileprivate let tapTimes: [Double]
     }
 
@@ -370,7 +432,8 @@ public enum TrainerEngine {
             Tap(time: HostClock.interval(from: epoch, to: $0.hostTime) - constantSec,
                 velocity: Int($0.velocity))
         }
-        let grid = Grid(startTime: startSec, bpm: config.bpm, subdivisions: 1)
+        let grid = Grid(startTime: startSec, bpm: config.bpm,
+                        subdivisions: config.rung?.subdivisions ?? 1)
 
         // Build the section timeline from the same cycle the audio used, so analysis and
         // playback can never disagree about when the band was absent.
@@ -387,12 +450,14 @@ public enum TrainerEngine {
             bar = end
         }
 
-        let report = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+        let report = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections,
+                                             notesPerBeat: config.rung?.subdivisions)
         return DropoutOutcome(
             report: report, notesPlayed: taps.count, environment: env, config: config,
             suggestedSilentBars: DropoutDrill.suggestedSilentBars(
                 current: config.silentBars, driftMsPerBeat: report.tempoBiasMsPerBeat),
-            gridStartTime: startSec, tapTimes: taps.map(\.time))
+            gridStartTime: startSec, gridSubdivisions: grid.subdivisions,
+            tapTimes: taps.map(\.time))
     }
 
     @discardableResult
@@ -404,7 +469,8 @@ public enum TrainerEngine {
             date: Date(), bpm: outcome.config.bpm,
             pacedBars: outcome.config.pacedBars, silentBars: outcome.config.silentBars,
             cycles: outcome.config.cycles, feelRating: feelRating,
-            gridStartTime: outcome.gridStartTime, tapTimes: outcome.tapTimes,
+            gridStartTime: outcome.gridStartTime, subdivisions: outcome.gridSubdivisions,
+            tapTimes: outcome.tapTimes,
             pacedSDms: Stats.finite(r.pacedSDms), unpacedIntervalSDms: Stats.finite(r.unpacedIntervalSDms),
             clockSDms: Stats.finite(r.wingKristofferson?.clockSDms),
             motorSDms: Stats.finite(r.wingKristofferson?.motorSDms),
@@ -413,7 +479,8 @@ public enum TrainerEngine {
             headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: placement, experiment: experiment)
+            placement: placement, experiment: experiment,
+            rung: outcome.config.rung?.rawValue)
         return try SessionStore.save(session)
     }
 
@@ -426,10 +493,15 @@ public enum TrainerEngine {
         public var leadBars: Int
         public var holdBars: Int
         public var rounds: Int
+        /// The note value asked for during each hold. See `DropoutConfig.rung`: the drill has
+        /// always demanded one note per beat in words while the analysis inferred it.
+        public var rung: IntervalRung?
 
-        public init(targets: [Double] = [100], leadBars: Int = 4, holdBars: Int = 4, rounds: Int = 8) {
+        public init(targets: [Double] = [100], leadBars: Int = 4, holdBars: Int = 4,
+                    rounds: Int = 8, rung: IntervalRung? = nil) {
             self.targets = targets.isEmpty ? [100] : targets
             self.leadBars = leadBars; self.holdBars = holdBars; self.rounds = rounds
+            self.rung = rung
         }
 
         public func target(forRound index: Int) -> Double { targets[index % targets.count] }
@@ -539,7 +611,8 @@ public enum TrainerEngine {
             }
             let round = TempoRound(index: reported, targetBpm: window.target,
                                    holdStart: start, holdEnd: end)
-            let partial = TempoCalibrationAnalysis.analyze(taps: soFar, rounds: [round])
+            let partial = TempoCalibrationAnalysis.analyze(taps: soFar, rounds: [round],
+                                                          notesPerBeat: config.rung?.subdivisions)
             if let result = partial.rounds.first { roundFinished?(result) }
             reported += 1
         }
@@ -568,7 +641,8 @@ public enum TrainerEngine {
                                      holdStart: start, holdEnd: end))
         }
 
-        let report = TempoCalibrationAnalysis.analyze(taps: taps, rounds: rounds)
+        let report = TempoCalibrationAnalysis.analyze(taps: taps, rounds: rounds,
+                                                     notesPerBeat: config.rung?.subdivisions)
 
         return TempoOutcome(report: report, environment: env, config: config,
                             tapTimes: taps.map(\.time), rounds: rounds)
@@ -590,14 +664,15 @@ public enum TrainerEngine {
             usableCount: r.usableCount, meanErrorPercent: Stats.finite(r.meanErrorPercent),
             meanAbsErrorPercent: Stats.finite(r.meanAbsErrorPercent),
             improvementPerRound: Stats.finite(r.improvementPerRound), headline: r.headline,
-            placement: placement, experiment: experiment)
+            placement: placement, experiment: experiment,
+            rung: outcome.config.rung?.rawValue)
         return try SessionStore.save(session)
     }
 
     public static func tempoHistory() -> [HistoryEntry] {
         SessionStore.loadAllTempo().map { session in
             // Recomputed from raw taps, like the other drills, so analysis fixes apply back.
-            let r = TempoCalibrationAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            let r = session.report()
             let targets = session.targets.map { String(Int($0)) }.joined(separator: "/")
             return HistoryEntry(
                 date: session.date,
@@ -634,7 +709,13 @@ public enum TrainerEngine {
             let r = s.report()
             return HistoryEntry(
                 date: s.date,
-                title: "\(Int(s.bpm)) BPM · \(s.bars) bars" + (s.tag.map { " · \($0)" } ?? ""),
+                // The rung belongs in the title, not the detail: two takes at the same tempo
+                // and length are different tasks if one was asked for a subdivision, and the
+                // list is where they sit next to each other.
+                title: "\(Int(s.bpm)) BPM · \(s.bars) bars"
+                     + (s.rung.flatMap { IntervalRung(rawValue: $0)?.label }
+                            .map { " · \($0)" } ?? "")
+                     + (s.tag.map { " · \($0)" } ?? ""),
                 detail: String(format: "mean %+.1f ms · SD %.1f ms", r.meanAsynchronyMs, r.sdAsynchronyMs),
                 feelRating: s.feelRating, headline: r.headline,
                 metric: r.sdAsynchronyMs, metricLabel: "spread (ms)")
@@ -645,8 +726,7 @@ public enum TrainerEngine {
         SessionStore.loadAllDropout().map { session in
             // Re-analysed from the raw taps rather than read from the cached summary, so
             // improvements to the analysis reach takes recorded before them.
-            let (taps, grid, sections) = session.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            let r = session.report()
 
             var split = "split unreliable"
             if r.splitIsReliable, let wk = r.wingKristofferson {
@@ -656,7 +736,9 @@ public enum TrainerEngine {
             return HistoryEntry(
                 date: session.date,
                 title: "\(session.pacedBars)+\(session.silentBars) bars × "
-                     + "\(session.cycles) · \(Int(session.bpm)) BPM",
+                     + "\(session.cycles) · \(Int(session.bpm)) BPM"
+                     + (session.rung.flatMap { IntervalRung(rawValue: $0)?.label }
+                            .map { " · \($0)" } ?? ""),
                 detail: split + tempo,
                 feelRating: session.feelRating, headline: r.headline,
                 // Tempo bias is the metric worth trending: it is measured reliably every
@@ -830,8 +912,7 @@ public enum TrainerEngine {
         // Difficulty follows the *clock*, which is what this drill trains — so it reads the
         // continuation drill's most recent trustworthy split rather than its own accuracy.
         let clockSD = SessionStore.loadAllDropout().reversed().compactMap { session -> Double? in
-            let (t, g, s) = session.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: t, grid: g, sections: s)
+            let r = session.report()
             return r.splitIsReliable ? r.wingKristofferson?.clockSDms : nil
         }.first
 
@@ -924,23 +1005,80 @@ public enum TrainerEngine {
                 return ExperimentTake(
                     arm: assigned.arm, value: value,
                     elapsedMinutes: session.placement.map { $0.elapsedSeconds / 60 },
-                    sittingId: session.placement?.sessionId)
+                    sittingId: session.placement?.sessionId,
+                    notesPerBeat: session.notesPerBeat)
             }
             return ExperimentAnalysis.analyze(design: design, takes: takes)
         }
     }
 
+    /// Every jam reduced to the interval it was played at, for the tempo question.
+    ///
+    /// The subdivision comes from the take rather than a constant — which is the whole reason
+    /// M14 step 0 came first. Without it the interval cannot be recovered, and a take scored on
+    /// a sixteenth grid would be indistinguishable from one scored on quarters.
+    public static func intervalObservations() -> [IntervalObservation] {
+        SessionStore.loadAll().map { session in
+            let r = session.report()
+            // The rung, or the beat when no rung was prescribed — never the stored grid. A free
+            // jam asks for no subdivision; it was *scored* on a sixteenth grid, which is a
+            // property of the analysis rather than of the task, and calling that a 150 ms task
+            // would report an interval nobody performed. `taskSubdivisions` is that distinction.
+            return IntervalObservation(
+                bpm: session.bpm, subdivisions: session.taskSubdivisions,
+                spreadMs: Stats.finite(r.sdAsynchronyMs),
+                biasMs: Stats.finite(r.meanAsynchronyMs),
+                sittingId: session.placement?.sessionId)
+        }
+    }
+
+    /// The player's own recent jam spreads, newest last — what every tempo ceiling rests on.
+    ///
+    /// One implementation, because the ceiling has to mean the same thing wherever it is
+    /// computed: `render` marks a rung above it, the jam command warns before a take, and the
+    /// app's rung picker offers only what is under it. Three copies of "the median of the last
+    /// six" would be three chances for those three to disagree about what is scorable.
+    ///
+    /// Recomputed from raw taps like everything else (R3.1), so an analysis fix moves the
+    /// ceiling with it.
+    public static func recentJamSpreadsMs(_ count: Int = 6) -> [Double] {
+        SessionStore.loadAll().suffix(count).compactMap { Stats.finite($0.report().sdAsynchronyMs) }
+    }
+
+    /// Every jam's notes, keyed by the interval they were produced at.
+    ///
+    /// Pooled across takes on purpose. The question is about a property *within* playing — does
+    /// a note 300 ms after the last one scatter differently from one 600 ms after — and the unit
+    /// is therefore the note, not the take. That is the opposite of `ExperimentAnalysis`, where
+    /// the take is the unit because the comparison is between conditions days apart.
+    ///
+    /// Pooling across tempos is safe here because the key is the interval in milliseconds, not
+    /// the grid gap: a gap of four at 100 BPM is 600 ms and at 120 BPM is 500 ms, and they land
+    /// in different bins as they should.
+    public static func producedIntervalProfile() -> ProducedIntervalProfile {
+        ProducedIntervalAnalysis.analyze(SessionStore.loadAll().flatMap { $0.producedNotes() })
+    }
+
     public static func plannerInput() -> PlannerInput {
-        let jams = SessionStore.loadAll().map { session -> PlannerInput.Jam in
+        let allJams = SessionStore.loadAll()
+        let jams = allJams.map { session -> PlannerInput.Jam in
             let r = session.report()
             return PlannerInput.Jam(bpm: session.bpm, sdMs: r.sdAsynchronyMs,
                                     absBiasMs: abs(r.meanAsynchronyMs),
                                     lag1: r.lag1Autocorrelation)
         }
 
+        // Ladder takes are jams with a rung, and they are the only jams whose tempo the planner
+        // is allowed to move — so they are handed over separately from the free ones rather than
+        // filtered out of them downstream.
+        let ladders = allJams.compactMap { session -> PlannerInput.Ladder? in
+            guard let raw = session.rung, let rung = IntervalRung(rawValue: raw),
+                  let sd = Stats.finite(session.report().sdAsynchronyMs) else { return nil }
+            return PlannerInput.Ladder(bpm: session.bpm, rung: rung, sdMs: sd)
+        }
+
         let continuations = SessionStore.loadAllDropout().map { session -> PlannerInput.Continuation in
-            let (taps, grid, sections) = session.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            let r = session.report()
             return PlannerInput.Continuation(
                 silentBars: session.silentBars,
                 absTempoBiasPercent: r.tempoBiasBpm.map { abs($0) / session.bpm * 100 },
@@ -958,7 +1096,7 @@ public enum TrainerEngine {
         }
 
         let tempos = SessionStore.loadAllTempo().map { session -> PlannerInput.Tempo in
-            let r = TempoCalibrationAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            let r = session.report()
             return PlannerInput.Tempo(targetCount: Set(session.targets).count,
                                       meanAbsErrorPercent: r.meanAbsErrorPercent)
         }
@@ -983,7 +1121,8 @@ public enum TrainerEngine {
         }
 
         return PlannerInput(jams: jams, continuations: continuations, forms: forms,
-                            tempos: tempos, memories: memories, experiments: experiments)
+                            tempos: tempos, memories: memories, experiments: experiments,
+                            ladders: ladders)
     }
 
     public static func planSession(targetMinutes: Int) -> SessionPlan {
@@ -1058,8 +1197,7 @@ public enum TrainerEngine {
 
         case .dropout:
             let takes = SessionStore.loadAllDropout().map { session -> DatedTake in
-                let (taps, grid, sections) = session.reconstruct()
-                let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+                let r = session.report()
                 return DatedTake(date: session.date, placement: session.placement,
                                  value: r.tempoBiasBpm.map(abs) ?? .nan)
             }
@@ -1067,8 +1205,7 @@ public enum TrainerEngine {
 
         case .tempo:
             let takes = SessionStore.loadAllTempo().map { session -> DatedTake in
-                let r = TempoCalibrationAnalysis.analyze(taps: session.taps,
-                                                         rounds: session.roundWindows)
+                let r = session.report()
                 return DatedTake(date: session.date, placement: session.placement,
                                  value: r.meanAbsErrorPercent ?? .nan)
             }
@@ -1110,14 +1247,35 @@ public enum TrainerEngine {
         }
     }
 
+    /// A group of jams comparable enough to fit one line through: same tempo, same rung.
+    private struct GroupKey: Hashable, Comparable {
+        let bpm: Int
+        let rung: String?
+
+        var rungLabel: String {
+            guard let rung, let parsed = IntervalRung(rawValue: rung) else { return "" }
+            return ", \(parsed.label)"
+        }
+
+        static func < (a: GroupKey, b: GroupKey) -> Bool {
+            a.bpm != b.bpm ? a.bpm < b.bpm : (a.rung ?? "") < (b.rung ?? "")
+        }
+    }
+
     private static func jamTrends() -> [TrendSeries] {
         var series: [TrendSeries] = []
 
         // Jams are grouped by tempo: asynchrony spread scales with the beat interval, so a
         // trend across a tempo change would be measuring the tempo.
+        // Grouped by tempo **and rung**, because those are the same axis: both move the gap
+        // between notes, and a trend fitted across a rung change would be measuring the rung
+        // (§7.23 trap 3). Free playing is its own group rather than being folded into quarters —
+        // "play what you like" and "play one note per beat" are different tasks.
         let jams = SessionStore.loadAll()
-        for tempo in Set(jams.map { Int($0.bpm) }).sorted() {
-            let takes = jams.filter { Int($0.bpm) == tempo }
+        let groups = Set(jams.map { GroupKey(bpm: Int($0.bpm), rung: $0.rung) })
+        for key in groups.sorted() {
+            let takes = jams.filter { GroupKey(bpm: Int($0.bpm), rung: $0.rung) == key }
+            let tempo = key.bpm
             let reports = takes.map { $0.report() }
             var warnings: [String] = []
             let backings = TrendAnalysis.distinct(takes.map(\.grooveName))
@@ -1130,7 +1288,8 @@ public enum TrainerEngine {
                 warnings.append("mixed output devices — bias is not comparable; spread and r₁ are.")
             }
             series.append(TrendSeries(
-                title: "Jams at \(tempo) BPM", takeCount: takes.count, warnings: warnings,
+                title: "Jams at \(tempo) BPM\(key.rungLabel)", takeCount: takes.count,
+                warnings: warnings,
                 rows: [
                     TrendAnalysis.row("spread (SD)", reports.map(\.sdAsynchronyMs), lowerIsBetter: true),
                     TrendAnalysis.row("|bias|", reports.map { abs($0.meanAsynchronyMs) }, lowerIsBetter: true),
@@ -1146,8 +1305,7 @@ public enum TrainerEngine {
         let drops = SessionStore.loadAllDropout()
         if !drops.isEmpty {
             let reports = drops.map { session -> DropoutReport in
-                let (taps, grid, sections) = session.reconstruct()
-                return DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+                return session.report()
             }
             var warnings: [String] = []
             let silences = TrendAnalysis.distinct(drops.map(\.silentBars))
@@ -1216,7 +1374,7 @@ public enum TrainerEngine {
         let tempos = SessionStore.loadAllTempo()
         if !tempos.isEmpty {
             let reports = tempos.map {
-                TempoCalibrationAnalysis.analyze(taps: $0.taps, rounds: $0.roundWindows)
+                $0.report()
             }
             var warnings: [String] = []
             let targetSets = TrendAnalysis.distinct(tempos.map {

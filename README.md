@@ -15,7 +15,10 @@ the drills from what your last takes measured, tells you why it picked each one,
 in order. Nothing measured appears on screen until the debrief at the end.
 
 Or pick a mode (Jam / Form / Alone / Tempo / Recall / Play), set the options, hit Start. Each mode
-shows exactly what it expects of you before you begin. The take screen is
+shows exactly what it expects of you before you begin. Jam, Alone and Tempo can ask for a
+**subdivision** — quarters, eighths, triplet eighths or sixteenths — and score against it; the
+picker offers only the ones your chosen tempo can measure honestly, and the Jam defaults to free
+playing. The take screen is
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
 
@@ -43,7 +46,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 280 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 393 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -61,13 +64,13 @@ swift build -c release   # the console tool
 | `calibrate quick` | **M1.** Loopback only (~15 s), derives its constant from the reference. |
 | `calibrate reset` | Deletes all stored calibration. |
 | `groove [bpm]` | **M3.** Plays a synthesized groove: count-in, a two-section arrangement with fills, the dropout ladder, and a slam back. Default 100 BPM. |
-| `jam [bpm] [bars] [tag]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. |
+| `jam [bpm] [bars] [tag] [rung]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. **M14:** add a rung — `quarters`, `eighths`, `tripletEighths`, `sixteenths` — to be asked for that subdivision and scored against it, over a groove whose hi-hat marks it. Omit it and you play free, as every take before M14 did. |
 | `form [bpm] [bars] [phraseBars] [level]` | Phrase-mark drill: hit a pad at each phrase top, no counting. Levels 0–3 progressively remove the landmarks. Default 100, 64, 8, 0. |
 | `tempo [bpm ...]` | **M8.** Produce a tempo unaccompanied and be told what you actually played, round after round. Pass several tempos to rotate the target. |
 | `memory [bpm] [waitBars] [rounds]` | **M11.** Recall drill: hear a tempo, stop playing through the wait, then reproduce it. Half the waits are silent and half are filled with unrelated percussion — the gap between them says whether the period is stored or just being held. If you play through one condition's waits more than the other's, the comparison is withheld rather than reported: the two are no longer scored on the same task. Default 100, 4, 8. |
-| `session [minutes]` | **M9.** Run a whole planned session end to end — cold probe, warm-up, benchmark jam, drills chosen from your recent data, then playing. Default 30. |
+| `session [minutes]` | **M9.** Run a whole planned session end to end — cold probe, warm-up, benchmark jam, drills chosen from your recent data, then playing. Default 30. **M14** adds one interval-ladder take per session, at a tempo that rotates between sittings and the finest subdivision that tempo can still score honestly; everything else stays locked at 100 BPM. |
 | `session plan [minutes]` | **M9.** Print what it would do, and why, without running it. |
-| `dropout [bpm] [pacedBars] [silentBars] [cycles]` | Continuation drill: quarter notes straight through the silences. The only drill that separates clock from motor noise. Default 100, 4, 4, 6. |
+| `dropout [bpm] [pacedBars] [silentBars] [cycles] [rung]` | Continuation drill: a steady note value straight through the silences. The only drill that separates clock from motor noise. Default 100, 4, 4, 6, quarters. **M14:** a rung asks for that note value and scores against it, instead of the analysis inferring it from what you played. |
 | `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. |
 | `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
 | `review tags` | Pooled summary of every tagged condition. |
@@ -79,7 +82,9 @@ swift build -c release   # the console tool
 | `review trend` | Is anything actually improving? Fits each metric with a confidence interval, splitting confounded groups. |
 | `review content` | **M12.** Does what you play change how you time it? Correlates musical content against timing spread within each take. |
 | `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
-| `review experiment` | **M13.** What the A/B experiments have collected. Arms are assigned before you play and balanced against what has already run; nothing is compared until every arm reaches the number of takes declared up front. |
+| `review experiment` | **M13.** What the A/B experiments have collected. Arms are assigned before you play and balanced against what has already run; nothing is compared until every arm reaches the number of takes declared up front. Three are queued: two where the arms differ in what you are *told*, and **M14's** `slow-vs-fast` where they differ in tempo. |
+| `render [bpm] [bars]` | **M14.** Renders every ladder backing — quarters, eighths, triplet eighths, sixteenths — plus the jam backing to WAV files in `temp/renders`, so a groove can be judged by ear without a live run. Flags any rung above its tempo ceiling. Default 100, 8. |
+| `review interval` | **M14.** Does the gap between notes change how you play? Two readouts. Across takes, buckets them by the interval each was asked for and refuses to fit until tempo has actually been varied. Then, on the notes themselves, bins every note by how far it sat from the one before it and reports whether your spread is a fixed number of milliseconds or a fixed fraction of the gap — which decides what may be compared with what. |
 | `show` | Prints stored calibration and the constant for each device. |
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is
@@ -186,11 +191,13 @@ The report tells you when you've earned the next one. `review form` shows your h
 ## Continuation drill — clock or hands?
 
 ```sh
-./.build/release/TimingSpike dropout 100 4 4 6    # 4 bars with the band, 4 alone, ×6
+./.build/release/TimingSpike dropout 100 4 4 6            # 4 bars with the band, 4 alone, ×6
+./.build/release/TimingSpike dropout 100 4 4 6 eighths    # two notes per beat instead
 ```
 
 Play **one note per beat, steadily, the whole way through** — especially when the band drops
-out. The silences are the measurement, and they're the only thing in the app that can separate
+out. Pass a rung and it asks for that note value instead, and scores against it; without one it
+is quarter notes, as it always has been. The silences are the measurement, and they're the only thing in the app that can separate
 two faults which feel identical from the inside:
 
 - **Clock** — the pulse in your head is unstable

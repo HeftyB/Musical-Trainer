@@ -61,7 +61,17 @@ struct JamSession: Codable, StoredTake {
     let calibrationSource: String?
     let grooveName: String
     let bars: Int
+    /// The grid this take was **analysed** on, so the review rebuilds what it was scored on.
     let subdivisions: Int
+    /// The subdivision the player was **asked to produce**, when one was prescribed.
+    ///
+    /// Distinct from `subdivisions` even though they are equal whenever a rung was set: that one
+    /// is a property of the analysis and this is a property of the task. Free playing has a grid
+    /// and no rung, which is every take before M14 — so `nil` here means "no rung", never
+    /// "quarters", and `IntervalObservation.subdivisions` reads 1 for those because the task was
+    /// the beat. A raw string rather than the enum for the same reason as
+    /// `ExperimentAssignment.arm`: adding a rung must never orphan a recorded take.
+    let rung: String?
 
     /// Condition label for this take ("relaxed", "focused", "flow", …), lowercased. Optional
     /// so takes recorded before tagging existed still decode.
@@ -126,6 +136,33 @@ struct JamSession: Codable, StoredTake {
 
     var asynchroniesMs: [Double] { report().asynchroniesMs }
 
+    /// Matched notes per beat — how densely this take was actually played.
+    ///
+    /// Recomputed like everything else (R3.1), and matched notes rather than raw ones so it
+    /// counts rhythmic events: a chord is one note here, which is what "density" has to mean
+    /// for a keyboard player. `nil` when the take has no length to divide by.
+    var notesPerBeat: Double? {
+        let beats = Double(bars * 4)
+        guard beats > 0 else { return nil }
+        return Double(report().matchedCount) / beats
+    }
+
+    /// Notes per beat the player was **asked** to produce: the rung, or 1 for free playing.
+    ///
+    /// Free playing prescribes nothing, so the task is the beat — which is also what the notes
+    /// bear out, since 82.4% of every matched note on record sits a beat from the last (§7.23
+    /// step 3b). It is emphatically *not* `subdivisions`: those takes were scored on a
+    /// sixteenth grid, and calling that a 150 ms task would describe an interval nobody played.
+    var taskSubdivisions: Int { rung.flatMap { IntervalRung(rawValue: $0)?.subdivisions } ?? 1 }
+
+    /// This take's notes keyed by the interval they were produced at.
+    ///
+    /// Straight off the one report, so the clustering and matching that produced every other
+    /// number produced these too.
+    func producedNotes() -> [ProducedNote] {
+        ProducedIntervalAnalysis.notes(from: report().matched, grid: reconstruct().grid)
+    }
+
     /// Every note-on, for content analysis. Empty for takes recorded before pitch was stored;
     /// callers must say so rather than reporting an empty result as a finding.
     var playedNotes: [PlayedNote] {
@@ -161,6 +198,9 @@ struct FormSession: Codable, StoredTake {
     let feelRating: Int?
 
     let gridStartTime: Double
+    /// The grid the marks were scored against. Optional: takes recorded before the field
+    /// existed were all scored at 4, and `report()` falls back to that rather than guessing.
+    let subdivisions: Int?
     let markTimes: [Double]
 
     let phrasesAvailable: Int
@@ -185,7 +225,8 @@ struct FormSession: Codable, StoredTake {
     /// phrase length and take length. The summary above is a cache — this is the answer.
     func report() -> FormReport {
         FormAnalysis.analyze(markTimes: markTimes,
-                             grid: Grid(startTime: gridStartTime, bpm: bpm, subdivisions: 4),
+                             grid: Grid(startTime: gridStartTime, bpm: bpm,
+                                        subdivisions: subdivisions ?? 4),
                              beatsPerBar: 4, barsPerPhrase: phraseBars, totalBars: bars)
     }
 }
@@ -201,6 +242,9 @@ struct DropoutSession: Codable, StoredTake {
     let feelRating: Int?
 
     let gridStartTime: Double
+    /// The grid the silences were scored against. Optional for the reason in `FormSession`;
+    /// every take recorded before the field existed was quarter notes.
+    let subdivisions: Int?
     let tapTimes: [Double]
 
     // Cached summary, as above — `reconstruct()` is the source of truth.
@@ -226,6 +270,27 @@ struct DropoutSession: Codable, StoredTake {
     /// Which experiment and arm, when this take was played as part of one. Written since M13;
     /// nothing reads it yet. See `ExperimentAssignment`.
     let experiment: ExperimentAssignment?
+    /// The note value the player was **asked** to hold through the silences.
+    ///
+    /// `nil` on every take recorded before M14, where the analysis inferred it from what was
+    /// played. The inference is kept for those; it is the *snapping* inside it that changed.
+    let rung: String?
+
+    /// This take under the current analysis, with the note value it was asked for.
+    ///
+    /// Every caller goes through here rather than pairing `reconstruct()` with an `analyze`
+    /// call of its own. Seven call sites did the latter, which meant seven places to remember
+    /// to pass the rung — and the one that forgot would silently re-infer the note value and
+    /// disagree with the take's own report. That is R3.1's cached-summary defect wearing the
+    /// shape of a duplicated pipeline.
+    func report() -> DropoutReport {
+        let (taps, grid, sections) = reconstruct()
+        return DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections,
+                                       notesPerBeat: askedNotesPerBeat)
+    }
+
+    /// Notes per beat asked for, or `nil` when nothing was prescribed and the analysis infers.
+    var askedNotesPerBeat: Int? { rung.flatMap { IntervalRung(rawValue: $0)?.subdivisions } }
 
     /// Rebuild the inputs to the analysis, so a stored drill can be re-analysed with the
     /// current logic. The stored summary is only a cache; this is the source of truth.
@@ -234,7 +299,7 @@ struct DropoutSession: Codable, StoredTake {
     /// what lets an analysis fix (say, discarding silences that weren't one note per beat)
     /// apply retroactively to takes recorded before the fix existed.
     func reconstruct() -> (taps: [Tap], grid: Grid, sections: [DropoutSection]) {
-        let grid = Grid(startTime: gridStartTime, bpm: bpm, subdivisions: 1)
+        let grid = Grid(startTime: gridStartTime, bpm: bpm, subdivisions: subdivisions ?? 1)
         let barSeconds = grid.beatInterval * 4
         let cycleBars = pacedBars + silentBars
         let totalBars = cycles * cycleBars + pacedBars
@@ -283,8 +348,22 @@ struct TempoSession: Codable, StoredTake {
     /// Which experiment and arm, when this take was played as part of one. Written since M13;
     /// nothing reads it yet. See `ExperimentAssignment`.
     let experiment: ExperimentAssignment?
+    /// The note value asked for during each hold. `nil` on every take recorded before M14.
+    let rung: String?
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
+
+    /// This take under the current analysis, with the note value it was asked for.
+    ///
+    /// One place, for the reason `DropoutSession.report()` gives: five call sites recomputed
+    /// this by hand, and the rung has to reach every one of them or a take disagrees with its
+    /// own report depending on which readout asked.
+    func report() -> TempoCalibrationReport {
+        TempoCalibrationAnalysis.analyze(taps: taps, rounds: roundWindows,
+                                         notesPerBeat: askedNotesPerBeat)
+    }
+
+    var askedNotesPerBeat: Int? { rung.flatMap { IntervalRung(rawValue: $0)?.subdivisions } }
 
     /// Three arrays describe the same rounds. `roundWindows` uses `zip`, which does not trap
     /// on a mismatch — it silently truncates to the shortest, so a malformed file would report

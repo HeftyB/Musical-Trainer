@@ -109,7 +109,8 @@ public enum MusicalContentAnalysis {
                                totalBars: Int,
                                windowBars: Int = 8,
                                beatsPerBar: Int = 4,
-                               matchWindowFraction: Double = 0.4) -> ContentReport {
+                               matchWindowFraction: Double = Matching.defaultWindowFraction)
+                               -> ContentReport {
         let match = Matching.match(taps: events, to: grid, windowFraction: matchWindowFraction)
         let windowSeconds = Double(windowBars * beatsPerBar) * grid.beatInterval
         guard windowSeconds > 0, !rawNotes.isEmpty else {

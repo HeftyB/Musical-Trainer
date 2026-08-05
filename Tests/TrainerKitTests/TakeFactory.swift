@@ -29,15 +29,18 @@ enum TakeFactory {
     // shows up here rather than only in a live run.
 
     static func jam(_ p: Performance = .steady, bars: Int = 32, tag: String? = nil,
-                    experiment: ExperimentAssignment? = nil) -> JamSession {
-        let g = grid()
+                    experiment: ExperimentAssignment? = nil,
+                    grid customGrid: Grid? = nil,
+                    rung: IntervalRung? = nil) -> JamSession {
+        let g = customGrid ?? grid()
         let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
         let r = TimingAnalysis.analyze(taps: events, grid: g)
         return JamSession(
             date: Date(timeIntervalSince1970: 1_770_000_000), bpm: g.bpm, device: "test-device",
             calibrationConstantMs: 2.58, calibrationSource: "measured", grooveName: "jamBacking",
-            bars: bars, subdivisions: g.subdivisions, tag: tag, feelRating: 4,
+            bars: bars, subdivisions: g.subdivisions, rung: rung?.rawValue,
+            tag: tag, feelRating: 4,
             gridStartTime: g.startTime,
             tapTimes: events.map(\.time), tapVelocities: events.map(\.velocity),
             matchedCount: r.matchedCount, extraCount: r.extraCount, missedCount: r.missedCount,
@@ -60,7 +63,7 @@ enum TakeFactory {
         return FormSession(
             date: Date(timeIntervalSince1970: 1_770_000_100), bpm: g.bpm, bars: 64,
             phraseBars: phraseBars, level: level, feelRating: 3, gridStartTime: g.startTime,
-            markTimes: markTimes, phrasesAvailable: r.phrasesAvailable,
+            subdivisions: g.subdivisions, markTimes: markTimes, phrasesAvailable: r.phrasesAvailable,
             marksPlaced: r.marksPlaced, onFormCount: r.onFormCount, tightCount: r.tightCount,
             meanAbsFormErrorBars: Stats.finite(r.meanAbsFormErrorBars),
             phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
@@ -75,11 +78,12 @@ enum TakeFactory {
         let session = DropoutSession(
             date: Date(timeIntervalSince1970: 1_770_000_200), bpm: g.bpm, pacedBars: 4,
             silentBars: 4, cycles: cycles, feelRating: 4, gridStartTime: g.startTime,
-            tapTimes: p.taps(grid: g).map(\.time),
+            subdivisions: g.subdivisions, tapTimes: p.taps(grid: g).map(\.time),
             pacedSDms: nil, unpacedIntervalSDms: nil, clockSDms: nil, motorSDms: nil,
             modelHolds: false, reentryErrorMeanMs: nil, reentryErrorSDms: nil,
             headline: "", tempoBiasBpm: nil, playedBpm: nil, splitIsReliable: nil,
-            discardedTrials: nil, placement: placement(role: "training"), experiment: nil)
+            discardedTrials: nil, placement: placement(role: "training"), experiment: nil,
+            rung: nil)
         // Recompute through the same path the engine uses, so the stored summary is the one the
         // analysis actually produces rather than a hand-written guess.
         let (t, gr, sections) = session.reconstruct()
@@ -87,7 +91,8 @@ enum TakeFactory {
         return DropoutSession(
             date: session.date, bpm: session.bpm, pacedBars: session.pacedBars,
             silentBars: session.silentBars, cycles: session.cycles, feelRating: session.feelRating,
-            gridStartTime: session.gridStartTime, tapTimes: session.tapTimes,
+            gridStartTime: session.gridStartTime, subdivisions: session.subdivisions,
+            tapTimes: session.tapTimes,
             pacedSDms: Stats.finite(r.pacedSDms),
             unpacedIntervalSDms: Stats.finite(r.unpacedIntervalSDms),
             clockSDms: Stats.finite(r.wingKristofferson?.clockSDms),
@@ -97,7 +102,7 @@ enum TakeFactory {
             reentryErrorSDms: Stats.finite(r.reentryErrorSDms), headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: session.placement, experiment: nil)
+            placement: session.placement, experiment: nil, rung: nil)
     }
 
     static func tempo(rounds: Int = 4) -> TempoSession {
@@ -111,7 +116,7 @@ enum TakeFactory {
             roundHoldStarts: starts, roundHoldEnds: starts.map { $0 + holdSeconds },
             usableCount: rounds, meanErrorPercent: nil, meanAbsErrorPercent: nil,
             improvementPerRound: nil, headline: "", placement: placement(role: "cold"),
-            experiment: nil)
+            experiment: nil, rung: nil)
     }
 
     static func memory(rounds: Int = 4) -> MemorySession {

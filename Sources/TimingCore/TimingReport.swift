@@ -23,6 +23,14 @@ public struct TimingReport: Equatable {
     /// confidence intervals and so the M5 review can plot the series.
     public let asynchroniesMs: [Double]
 
+    /// The matched taps themselves, grid index included.
+    ///
+    /// Carried so nothing downstream has to re-run the matcher to ask a question the grid index
+    /// answers — `ProducedIntervalAnalysis` needs the gap between consecutive notes, and a
+    /// second matching pass with its own clustering window would be a second implementation of
+    /// the thing R1.1.2 says has exactly one.
+    public let matched: [MatchedTap]
+
     public let meanAsynchronyMs: Double     // + drag, − rush
     public let sdAsynchronyMs: Double
     public let medianAsynchronyMs: Double
@@ -54,7 +62,7 @@ public enum TimingAnalysis {
     ///   one rhythmic event before matching, so chords count once. 0 disables clustering
     ///   (e.g. when the caller has already clustered).
     public static func analyze(taps: [Tap], grid: Grid,
-                               windowFraction: Double = 0.4,
+                               windowFraction: Double = Matching.defaultWindowFraction,
                                chordWindowMs: Double = 35) -> TimingReport {
         let events = chordWindowMs > 0
             ? TapClustering.collapse(taps, windowSeconds: chordWindowMs / 1000)
@@ -96,6 +104,7 @@ public enum TimingAnalysis {
             extraCount: match.extraTaps.count,
             missedCount: match.missedIndices.count,
             asynchroniesMs: asynchronies,
+            matched: match.matched,
             meanAsynchronyMs: mean,
             sdAsynchronyMs: sd,
             medianAsynchronyMs: median,

@@ -48,7 +48,24 @@ public enum TempoCalibrationAnalysis {
     /// Minimum notes in a hold to score it. Fewer than this and the period estimate is noise.
     private static let minimumNotes = 5
 
-    public static func analyze(taps: [Tap], rounds: [TempoRound]) -> TempoCalibrationReport {
+    /// How far the observed notes-per-beat may sit from a whole number before the round is
+    /// unscorable rather than snapped to one.
+    ///
+    /// **Snapping was a sign inversion waiting to happen.** The produced tempo is
+    /// `60 / (median × notesPerBeat)`, and `notesPerBeat` used to be `(targetBeat / median)`
+    /// rounded with no check on how far the rounding moved. A player holding a period 1.4× the
+    /// target rounds to 1 and is reported as **14% slow** when they were 40% fast — a confident
+    /// number pointing the wrong way, which is the failure mode §3 of STANDARDS exists for.
+    /// Between whole numbers the analysis genuinely cannot tell "slow eighths" from "fast
+    /// quarters", so it says so instead of guessing (R3.3).
+    public static let ambiguousSubdivisionTolerance = 0.2
+
+    /// - Parameter notesPerBeat: what the player was **asked** to produce, when a rung was
+    ///   prescribed. Given, it replaces the inference entirely and a round that did not produce
+    ///   it is reported as such rather than rescored against what it happened to be. `nil` keeps
+    ///   the inference, which is what every take recorded before M14 needs.
+    public static func analyze(taps: [Tap], rounds: [TempoRound],
+                               notesPerBeat prescribed: Int? = nil) -> TempoCalibrationReport {
         let sorted = taps.sorted { $0.time < $1.time }
         var results: [TempoRoundResult] = []
 
@@ -84,7 +101,38 @@ public enum TempoCalibrationAnalysis {
             }
 
             // Normalise for steady subdivision so eighths at the right tempo don't read double.
-            let notesPerBeat = max(1, (targetBeat / median).rounded())
+            let observed = targetBeat / median
+            let notesPerBeat: Double
+            if let prescribed {
+                // The task is known, so the normaliser is not a question. What is worth
+                // checking is whether the player actually produced it: a round asked for
+                // eighths and played in quarters did not perform the task, and scoring it
+                // against quarters would report a tempo for a drill that was not run.
+                guard abs(observed - Double(prescribed)) <= ambiguousSubdivisionTolerance
+                        * Double(prescribed) else {
+                    results.append(TempoRoundResult(
+                        index: round.index, targetBpm: round.targetBpm, producedBpm: nil,
+                        errorBpm: nil, errorPercent: nil, noteCount: inHold.count,
+                        isUsable: false,
+                        unusableReason: String(format: "asked for %d notes per beat, played "
+                                             + "about %.1f", prescribed, observed)))
+                    continue
+                }
+                notesPerBeat = Double(prescribed)
+            } else {
+                let snapped = max(1, observed.rounded())
+                guard abs(observed - snapped) <= ambiguousSubdivisionTolerance else {
+                    results.append(TempoRoundResult(
+                        index: round.index, targetBpm: round.targetBpm, producedBpm: nil,
+                        errorBpm: nil, errorPercent: nil, noteCount: inHold.count,
+                        isUsable: false,
+                        unusableReason: String(format: "%.1f notes per beat — between note "
+                                             + "values, so the tempo could be read two ways",
+                                               observed)))
+                    continue
+                }
+                notesPerBeat = snapped
+            }
             let produced = 60.0 / (median * notesPerBeat)
             let error = produced - round.targetBpm
 

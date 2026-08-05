@@ -25,14 +25,17 @@ func usage() {
       calibrate quick   loopback-only calibration for another output device
       calibrate reset   delete all stored calibration
       groove [bpm]      M3: play a synthesized groove + dropout ladder (default 100)
-      jam [bpm] [bars] [tag]
-                        M4: record a take and analyze it (default 100, 32; tag e.g. relaxed)
+      jam [bpm] [bars] [tag] [rung]
+                        M4: record a take and analyze it (default 100, 32; tag e.g. relaxed).
+                        M14: a rung asks for a subdivision and scores against it --
+                        quarters, eighths, tripletEighths, sixteenths. Omit it to play free.
       form [bpm] [bars] [phraseBars] [level]
                         phrase-mark drill: hit a pad at each phrase top, no counting
                         (default 100, 64, 8, level 0; levels 0-3 remove the landmarks)
-      dropout [bpm] [pacedBars] [silentBars] [cycles]
-                        continuation drill: play quarter notes through the silences.
-                        The only drill that yields a clock/motor split. (100, 4, 4, 6)
+      dropout [bpm] [pacedBars] [silentBars] [cycles] [rung]
+                        continuation drill: play a steady note value through the silences.
+                        The only drill that yields a clock/motor split. (100, 4, 4, 6,
+                        quarters). A rung asks for that note value and scores against it.
       tempo [bpm ...]   M8: produce a tempo unaccompanied and be told what you produced.
                         Pass several to rotate the target (e.g. tempo 76 100 132).
       memory [bpm] [waitBars] [rounds]
@@ -54,6 +57,10 @@ func usage() {
       review cold               M10: is it warming up, or getting better?
       review content            M12: does what you play change your timing?
       review tempo              tempo-calibration history
+      review interval           M14: does tempo change how you play?
+      render [bpm] [bars]
+                        render each ladder backing to temp/renders as a WAV,
+                        so a groove can be judged by ear without a live run
       show              print stored calibration
     """)
 }
@@ -84,7 +91,8 @@ do {
     case "jam":
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
-        try Commands.runJam(bpm: bpm, bars: bars, tag: arguments.dropFirst(3).first)
+        try Commands.runJam(bpm: bpm, bars: bars, tag: arguments.dropFirst(3).first,
+                            rung: arguments.dropFirst(4).first)
 
     case "form":
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
@@ -98,7 +106,8 @@ do {
         let paced = arguments.dropFirst(2).first.flatMap(Int.init) ?? 4
         let silent = arguments.dropFirst(3).first.flatMap(Int.init) ?? 4
         let cycles = arguments.dropFirst(4).first.flatMap(Int.init) ?? 6
-        try Commands.runDropout(bpm: bpm, pacedBars: paced, silentBars: silent, cycles: cycles)
+        try Commands.runDropout(bpm: bpm, pacedBars: paced, silentBars: silent,
+                                cycles: cycles, rung: arguments.dropFirst(5).first)
 
     case "tempo":
         // Several tempos rotate the target: "tempo 76 100 132".
@@ -123,6 +132,12 @@ do {
 
     case "review":
         try Commands.runReview(Array(arguments.dropFirst()))
+
+    case "render":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 8
+        try Commands.runRender(bpm: bpm, bars: bars,
+                               into: URL(fileURLWithPath: "temp/renders"))
 
     case "show":
         try Commands.runShow()

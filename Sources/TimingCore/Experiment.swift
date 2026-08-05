@@ -95,14 +95,42 @@ public struct ExperimentDesign: Equatable {
     /// Takes required **in every arm** before any verdict is computed.
     public let takesPerArm: Int
 
+    /// The tempo each arm runs at, when **tempo is the independent variable**.
+    ///
+    /// `nil` for an instruction-only design, where every arm runs at the benchmark's locked
+    /// tempo and the text is the whole condition. When it is set the relationship inverts: the
+    /// tempo is the condition and the instruction text merely *describes* it, so text naming
+    /// the wrong arm would confuse the player rather than silently swapping the conditions.
+    /// That is a real difference from `steady-vs-melodic`, where the text **is** the experiment
+    /// (§7.20 step 4), and it is worth knowing which kind a design is before trusting its arms.
+    ///
+    /// Everything else still stays locked across arms (R3.5). One variable moves, and this says
+    /// which one.
+    public let bpmByArm: [String: Double]?
+
     /// Fails rather than silently repairing a design that cannot answer anything.
     public init?(id: UUID = UUID(), name: String, question: String,
-                 arms: [String], metric: ExperimentMetric, takesPerArm: Int) {
+                 arms: [String], metric: ExperimentMetric, takesPerArm: Int,
+                 bpmByArm: [String: Double]? = nil) {
         guard arms.count >= 2, Set(arms).count == arms.count, !arms.contains(where: \.isEmpty),
               takesPerArm >= 2, !name.isEmpty else { return nil }
+        // A per-arm tempo that misses an arm would silently run it at the reference and turn a
+        // two-tempo comparison into a one-tempo one while still reporting two conditions.
+        if let bpmByArm {
+            guard arms.allSatisfy({ bpmByArm[$0] != nil }),
+                  bpmByArm.values.allSatisfy({ (40...260).contains($0) }),
+                  Set(bpmByArm.values).count > 1 else { return nil }
+        }
         self.id = id; self.name = name; self.question = question
         self.arms = arms; self.metric = metric; self.takesPerArm = takesPerArm
+        self.bpmByArm = bpmByArm
     }
+
+    /// True when the arms differ in tempo rather than only in what the player is told.
+    public var variesTempo: Bool { bpmByArm != nil }
+
+    /// The tempo an arm runs at, or `nil` to mean "the planner's reference".
+    public func bpm(forArm arm: String) -> Double? { bpmByArm?[arm] }
 
     /// Takes needed in total before the question can be answered at all.
     public var totalTakesNeeded: Int { arms.count * takesPerArm }
@@ -242,7 +270,35 @@ public enum ExperimentLibrary {
         metric: .correctionGain,
         takesPerArm: 5)
 
-    public static var all: [ExperimentDesign] { [steadyVsMelodic, relaxedVsFocused].compactMap { $0 } }
+    /// M14's question, preregistered rather than fitted after the fact.
+    ///
+    /// The player's own account: *"A faster tempo is easier — to a point — to keep up with. At
+    /// slower tempos I end up rushing."* The rushing half is the one this asks, because it is a
+    /// claim about signed placement that nothing forces mechanically — §7.23 singles it out as
+    /// exactly the kind of thing the app exists to confirm or kill.
+    ///
+    /// **Free playing, not a rung**, so the take is directly comparable to the benchmark and to
+    /// every take on record. The ladder block varies tempo *and* subdivision together for the
+    /// observational readout; this isolates tempo as the only thing that moves.
+    ///
+    /// **Bias in milliseconds is the metric, and step 3b is what licenses it.** Comparing raw
+    /// milliseconds across tempos would have been arithmetic rather than skill if this player's
+    /// scatter scaled with the interval — it does not, measurably, across a 4.4× range. The
+    /// mechanical objection is gone; what is left is a real question. Bias also has no better
+    /// direction (§2), so the readout will report which way placement moved and refuse to call
+    /// either arm better, which is the correct shape for this claim.
+    public static let slowVsFast = ExperimentDesign(
+        id: UUID(uuidString: "E0000003-0000-4000-8000-000000000003") ?? UUID(),
+        name: "slow-vs-fast",
+        question: "Does a slower tempo pull you further ahead of the beat?",
+        arms: ["slow", "fast"],
+        metric: .bias,
+        takesPerArm: 6,
+        bpmByArm: ["slow": 80, "fast": 140])
+
+    public static var all: [ExperimentDesign] {
+        [steadyVsMelodic, relaxedVsFocused, slowVsFast].compactMap { $0 }
+    }
 
     /// The one to run, given what each has already collected: the first that is not finished.
     ///

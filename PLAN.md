@@ -232,7 +232,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
 | **M12** | What you play | ✅ Done. Content measured per window against timing, within-take. See §7.18. |
 | **M13** | Experiment runner | ✅ Done. Preregistered A/B experiments: arms assigned and counterbalanced before play, no verdict before the declared n. See §7.22. |
-| **M14** | Subdivision ladder | Eighths, sixteenths, triplets. Everything so far is quarters. |
+| **M14** | Subdivision ladder + tempo | ✅ Built, **never run live**. Rungs, tempo ceilings derived from the matching window, a tempo-rotating training block, and `slow-vs-fast`. See §7.23. |
 | **M15** | The feels | Swing, jazz comping, ska/reggae offbeat, latin. Placement as style, not error. |
 | **M16** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
 | **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. |
@@ -961,11 +961,19 @@ crept into this dataset by hand — a changed backing, a changed tempo — and t
 opportunity. Promoted above the feel work because M12 and M14–M15 all need it to produce
 clean comparisons.
 
-### M14 — Subdivision ladder
-Every drill so far is quarter notes, straight. This adds eighths, sixteenths and triplets —
-both as backing and as what the player is asked to produce. `TimingReport` already computes
-subdivision-conditional spread and nothing currently exercises it. Straight time only; the
-grid stays where it is.
+### M14 — Subdivision ladder, and the tempo axis
+Every drill so far is quarter notes at 100 BPM, straight. This adds eighths, sixteenths and
+triplets — both as backing and as what the player is asked to produce — and makes **tempo a
+measured variable rather than only a confound to be split apart**.
+
+The two are one axis: subdivision and tempo both move the inter-onset interval, and eighths at
+100 BPM are the same 300 ms as quarters at 200. The player's own hypothesis — that faster is
+easier to a point, and that slow tempos make him rush — is the first question on it, and nothing
+in the app can currently ask it. Straight time only; the grid stays where it is. See §7.23.
+
+One correction to the note this entry used to carry: `TimingReport`'s subdivision statistics are
+**phase-conditional** — where within the beat a note landed — not a measure of the note values
+played. That machinery is live and already showing something (§7.23), and it is not the ladder.
 
 ### M15 — The feels
 **Stated goal, in the player's words:** to handle "anything from classical and straight time,
@@ -1160,9 +1168,10 @@ The verdict refuses to conclude below three sittings, and distinguishes warm-up 
 both / neither. Declining across an evening is named as fatigue rather than folded into "no
 warm-up effect".
 
-### What it says today
+### What it said when it shipped
 
-`review cold`, on the current history:
+`review cold` at M10, on the 13 jams and 2 controlled sittings then on disk. **A snapshot, not
+a live figure** — every number here has since moved, and the command is the authority:
 
 | drill | within a sitting | cold, per sitting | verdict |
 |---|---|---|---|
@@ -1175,6 +1184,14 @@ warm-up effect".
 remains uninterpretable — which is the correct answer and the reason the question was worth
 building for rather than arguing about. It becomes answerable after three sessions from the
 builder, where the cold probe is controlled rather than inferred.
+
+**One row has since changed verdict and is not yet written up as a finding.** Form's cold start
+now reads −0.109/sitting over 6 sittings with an interval of [−0.218, −0.023] — *worsening*,
+where M10 read flat. It is not a controlled probe: form is never the cold block, so every cold
+value in that row is the first-take proxy `WarmUpAnalysis` flags, and the drill's level and
+phrase length both moved across those sittings (§7.19). It needs a §9.6 decision — either the
+confounds disqualify it, or it is the first cold-start signal in the dataset — and until it gets
+one, nothing should cite it.
 
 ---
 
@@ -2298,6 +2315,673 @@ around it — skip, advance, remaining time, and the manifest — does not, and 
 where §7.20 finding 11 hid: a destroyed take and a declined one both read as "skipped". Seven
 tests cover the state machine and check that a plan's estimated length, the runner's remaining
 time, and the stored manifest all agree.
+
+---
+
+## 7.23 M14 — the interval ladder, and the tempo axis
+
+### The reframe: subdivision and tempo are one axis
+
+§7.13 describes M14 as eighths, sixteenths and triplets. That is half of it. **Both subdivision
+and tempo move the same underlying variable — the inter-onset interval.** Eighths at 100 BPM are
+a 300 ms IOI, and so are quarters at 200 BPM. The hand does not know which of the two produced
+the number.
+
+So M14 is an *interval* ladder with two ways of climbing it, and the analysis regresses against
+IOI rather than against tempo and subdivision as separate things. Getting this wrong would mean
+two rungs of the same difficulty reported as unrelated conditions.
+
+### The player's hypothesis, and why nothing can answer it yet
+
+> "A faster tempo is easier — to a point — to keep up with. At slower tempos I end up rushing."
+
+That is two claims, and they need different handling.
+
+**Rushing at slow tempos** is a claim about signed asynchrony growing more negative as the
+interval lengthens. It is a real claim, it is not mechanically forced by anything, and it is
+exactly the kind of thing this app exists to confirm or kill.
+
+**"Faster is easier"** is a claim about *precision*, and raw spread cannot test it. Timing
+scatter grows with the interval it is scattered within, so SD in milliseconds falls at faster
+tempos almost mechanically. Comparing raw SD across tempos would produce "faster is tighter" as
+an artefact of the arithmetic — the same class of mistake as §7.18's trap 2, where spread scales
+with the note values played. **Spread has to be normalised by the interval before any tempo
+comparison**, and the interesting shape is then whether that normalised figure has an optimum,
+which is what "easier to a point" actually asserts.
+
+#### What the 21 jams can say: almost nothing
+
+| Tempo | Takes | |
+|---|---|---|
+| 100 BPM | 16 | across every sitting |
+| 110 BPM | 4 | **all one evening, six minutes apart** |
+| 120 BPM | 1 | |
+
+Within the 2 August sitting, which at least holds the day fixed: 100 BPM gave mean −9.6 ms and
+SD 25.9; 110 BPM gave −4.4 ms and 24.5. Both move the way the hypothesis predicts. It is three
+takes against four inside one evening, with a warm-up gradient running through them, and it is
+worth nothing as evidence — recorded here so it is not rediscovered later and mistaken for a
+result.
+
+**What would answer it**: takes at spread-out tempos across *different* sittings. Four takes at
+one tempo in six minutes confounds tempo with fatigue and with that specific evening; one take
+at each of several tempos per sitting, rotated, does not.
+
+### Training across tempos, without destroying the trend
+
+The player also wants to *build* precision at the standard tempos, which is a training
+requirement rather than a measurement one, and the two pull in opposite directions. R3.5 exists
+because every confound in this dataset arrived by a parameter changing between takes.
+
+The separation: **the benchmark jam stays locked at 100 BPM forever**, and the *training* blocks
+rotate tempo. That way the trend line keeps its one comparable slot while the practice covers
+the range, and the tempo axis is measured through blocks that were designed to vary.
+
+### Four traps, with the numbers
+
+**1. A latent storage defect M14 trips on day one.** The jam is analysed on
+`Grid(subdivisions: backing.stepsPerBeat)` and *stored* with `subdivisions: 4` hardcoded, and
+`reconstruct()` rebuilds from the stored value. They agree today only because `Pattern` defaults
+to 4. The moment a backing uses a different step count, every take of that backing recomputes on
+a different grid than the one it was analysed on — and since everything recomputes from raw taps
+(R3.1), every number for those takes would change silently between the live report and the
+review. This is the hardcoded-constant-that-happens-to-match pattern, and it is step 0.
+
+**2. The matching window shrinks with the rung.** The window is ±40% of the grid interval. At
+100 BPM: quarters ±240 ms, eighths ±120 ms, triplet eighths ±80 ms, sixteenths ±60 ms. Against
+this player's ~20 ms spread that is 3.0 SD at sixteenths — acceptable. At 140 BPM it is 2.1 SD,
+and roughly 3.6% of correctly aimed notes are discarded as off-grid rather than 0.3%. **Off-grid
+rate becomes a property of the rung rather than of the player**, which is §7.18's censoring trap
+arriving through a new door. Each rung needs a tempo ceiling, or an honest flag when it is
+exceeded.
+
+**3. Nothing is comparable across rungs without normalising.** Spread scales with the interval,
+so the ladder cannot be one trend line. Subdivision and tempo join backing and level as confound
+axes (R3.4), and both the trend and the pooled comparisons must split on them — while the
+IOI-normalised figure is what makes rungs comparable at all.
+
+**4. Two isochrony gates assume quarters.** The continuation drill's Wing–Kristofferson needs an
+isochronous series, and the tempo drill rejects a round that is not one note per beat, though it
+already normalises consistent subdividing through `notesPerBeat`. Asking for eighths means the
+W-K series *is* eighths; the model still holds, but both gates have to accept the rung instead
+of the beat.
+
+### What must not move while M13 is collecting
+
+Both running experiments are jams at the benchmark's locked settings, and they need ten takes
+across roughly five sittings. **M14 must not touch the benchmark or the experiment block.** The
+ladder belongs to a training block; changing the jam backing's subdivision underneath a running
+experiment would either break R3.5 or silently confound five evenings of collection.
+
+### Steps
+
+| | Delivers |
+|---|---|
+| 0 ✅ | Store the grid's actual subdivision instead of a hardcoded 4. Prerequisite, and worth doing whether or not M14 proceeds. |
+| 1 ✅ | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
+| 2 ✅ | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
+| 3 ✅ | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
+| 3b ✅ | The premise underneath step 3, measured instead of assumed: does spread actually scale with the interval? It does not. See below. |
+| 4a ✅ | Ground clearing found by the pre-step-4 review: one matching-window constant, one block-to-instructions mapping, one meaning for `LadderBackings`' parameter. |
+| 4b ✅ | The **jam** gains a rung, end to end: config, backing, analysis grid, storage, instructions (R3.6), the CLI, and the confound axes that consume it. |
+| 4d ✅ | Planner rotates tempo on a ladder training block only, picking the rung after the tempo, with tests that it never touches the benchmark, the cold probe or an experiment block. |
+| 4e ✅ | The continuation and tempo drills gain a rung, and the period estimate stops guessing the note value (trap 4). |
+| 5 ✅ | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
+| 6 ✅ | Both surfaces, and docs. |
+
+### Step 0, as built
+
+Each outcome now carries the grid it was **analysed** on, and storage writes that value rather
+than a literal. The two cannot disagree because they are the same property of the same object —
+the fix is structural, not a matter of keeping two constants in sync.
+
+`FormSession` and `DropoutSession` gained the field too. Neither was wrong today, because both
+hardcoded the same number in two files, but M14 step 4 varies both and the duplication is the
+defect rather than the mismatch. Optional, so every take on disk still decodes and still
+reconstructs on exactly what it was scored on — 4 for form, 1 for continuation.
+
+**The interesting part is what a wrong subdivision actually costs**, which is not what it looks
+like. For notes played *on the beat* it costs nothing: the beat is a grid point at every
+subdivision, so asynchrony and spread come out identical. The first test written here asserted
+that a coarser grid changes the numbers, and it failed — correctly.
+
+It bites on notes played *between* beats. An eighth-note offbeat sits 300 ms from the nearest
+quarter-note grid point at 100 BPM, well outside the ±240 ms window, so a coarse grid **discards
+it as off-grid instead of scoring it**. A take reconstructed one rung too coarse silently throws
+away half the performance and reports the survivors — which is §7.18's censoring trap again, this
+time reached by a storage bug rather than by playing.
+
+The test now plants straight eighths and asserts 64 matched at `subdivisions: 2` against 32
+matched and 32 extras at `subdivisions: 1`. That is the defect stated as a number.
+
+One process note. A stale incremental build produced a segfault mid-suite: struct layouts had
+changed while test objects were still compiled against the old ones. It reproduced twice, passed
+in isolation, and disappeared entirely under `swift package clean`. Recorded because a crash that
+vanishes is exactly the kind of thing that gets waved away, and the way to tell the two apart is
+a clean build rather than a re-run.
+
+### Step 1, as built, and the ceiling it exposes
+
+`IntervalRung` — quarters, eighths, triplet eighths, sixteenths — carrying its subdivision, the
+interval it implies at a tempo, and the tempo above which it can no longer be scored honestly.
+Eleven tests.
+
+**The ceiling is derived, not chosen.** The matching window is `0.4 × 60 / (bpm × subdivisions)`,
+and requiring it to be worth at least three of the player's own spreads rearranges to a maximum
+tempo. Three spreads because a note 3 SD from where it was aimed still scores and only ~0.3% fall
+outside; at two it is 4.6%, and the off-grid rate has become a property of the rung rather than
+of the player. That is §7.18's censoring trap arriving through the ladder.
+
+Because it is derived from the player's measured spread, the ceiling **moves as they change** —
+a fact about them and the arithmetic rather than a number somebody picked. At 10 ms it doubles;
+at 40 ms it halves. The window fraction now lives on `Matching` and is read from there, so the
+ladder and the matcher cannot disagree about what counts as on the grid.
+
+#### At this player's ~20 ms spread
+
+| Rung | Ceiling |
+|---|---|
+| Quarters | 400 BPM (the engine's own limit of 260 binds first) |
+| Eighths | 200 BPM |
+| Triplet eighths | 133 BPM |
+| **Sixteenths** | **100 BPM** |
+
+This rests on the player's spread being the same number of milliseconds whatever the interval,
+which was an assumption when it was written and is a measurement since step 3b below.
+
+**Sixteenths are already at their ceiling at the reference tempo**, and one BPM above it the top
+rung stops being honest. That is not a defect, and it is not a reason to loosen the rule — it is
+the ladder saying that at 20 ms spread, sixteenths at 100 BPM is the edge of what this app can
+measure about this player. The rung becomes available at higher tempos exactly when the spread
+comes down, which is the thing being trained.
+
+It also settles a question step 4 would otherwise have had to guess at: the tempo rotation and
+the rung cannot be chosen independently. A training block at sixteenths has to stay at or below
+100 BPM, so the planner picks the rung *after* the tempo, and the two together are one decision.
+
+### Step 2, as built
+
+`LadderBackings` — one groove per subdivision, with the hat carrying the division and everything
+else held constant: kick on 1 and 3, backbeat on 2 and 4, at every rung. Only the density
+changes, which is the point. Nine tests, and `jamBacking` is untouched, so the benchmark and both
+running experiments play over exactly what they always did.
+
+**Keyed by steps per beat, not by `IntervalRung`.** `GrooveCore` depends on nothing, not even
+`TimingCore` (R1.1.3), so the rung-to-backing pairing belongs in `TrainerKit` and lands in step
+4. The alternative — importing `TimingCore` for one enum — would trade a rule that has held since
+M3 for a convenience.
+
+**The pattern's step resolution is not the analysis grid**, and this is the distinction the whole
+step turns on. The step grid is how finely the drums can be programmed; the analysis grid is what
+the player is scored against. They coincide at 4 today, which is why every take so far has been
+scored on a sixteenth-note grid — and why, at this player's spread, every take so far has been
+scored at exactly the ceiling step 1 derived.
+
+I then made that very conflation in the code while documenting it: the fill builder passed the
+*rung's* subdivision where the *pattern's* resolution belonged, so a quarters fill came out
+claiming one step per beat. The test asserting that a fill keeps its groove's resolution caught
+it immediately. Worth recording because the header comment explaining the distinction was already
+written above the line that got it wrong.
+
+**Triplets carry their own step resolution** — twelve to the bar, three to the beat — rather than
+an approximation on sixteenths. No step grid carries both, which is exactly why a take is
+straight or triplet and never both.
+
+The strongest test is in seconds rather than step indices. Step numbers are easy to get right and
+prove nothing: the sequencer converts them at `60 / bpm / stepsPerBeat`, and a twelve-step bar is
+where that could quietly produce a bar of the wrong length. So the assertion is that the gap
+between hats equals the rung's own interval, and that a bar lasts four beats however it is
+divided.
+
+#### Heard, which is the only way to know
+
+All four rungs were rendered at 100 BPM and listened to: **they sound right at the reference
+tempo**, including the twelve-step triplet bar, whose maths had been verified in seconds but
+whose *feel* no test could speak to. The fills keep their pulse. That is the live-run-shaped
+check the ladder needed before step 4, done without booking a session.
+
+It needed a way to hear a groove at all, so `render` now writes each backing to a WAV. Before
+this, auditioning a backing meant a live run — which made "listen before promoting the player
+onto a rung" a precondition nobody would actually satisfy. It reports peak level and counts
+clipped samples, because a groove rendered too hot would be judged as a bad groove rather than a
+bad gain, and it marks any rung sitting above its ceiling at the requested tempo — computed from
+the median spread of the player's own recent takes (currently 20.1 ms, against the 20 assumed in
+step 1) rather than from a constant.
+
+Rendering at 132 BPM therefore prints exactly what step 1 predicted: sixteenths flagged, the
+other three clean. The ceiling stopped being arithmetic on a page at that point.
+
+#### What the existing takes already say about the ceiling
+
+Step 1 put sixteenths at a 100 BPM ceiling for this player. The 120 BPM take (#21) was scored on
+a sixteenth grid, so it ran above that ceiling, and its off-grid rate is 5.3% against 4.3–4.9%
+for the 100 BPM takes either side of it.
+
+The direction matches, the magnitude is about what the narrowed window predicts (roughly one
+point), and it is one take. What it mainly shows is that the window effect is **small next to the
+baseline**: 4–5% of notes are off-grid at the reference tempo, so most off-grid notes are
+genuinely off-grid playing rather than a scoring artefact. The ceiling is worth keeping, and it
+is not what is driving the off-grid rate.
+
+### Step 3, as built, and what it says today
+
+`IntervalResponseAnalysis` and `review interval`. Takes are bucketed by the interval they were
+played at, spread is reported **relative to that interval**, and two slopes are fitted against
+it: relative spread, and signed placement. Nine tests.
+
+**The two claims are tested apart because they need different handling.** Rushing at slow tempos
+is a claim about signed asynchrony and nothing forces it mechanically, so a slope there is a
+finding. "Faster is easier" is a claim about precision, and raw spread cannot carry it — scatter
+grows with the interval it sits inside, so milliseconds fall at faster tempos on their own. The
+test that pins this plants a player whose spread is exactly 3% of the interval at every tempo and
+requires the analysis to report *no* tempo effect, while the raw millisecond figures it was
+computed from differ by more than a factor of two.
+
+#### The mistake worth recording: what "the interval" means
+
+The first version used the grid the take was *scored* on. Every jam so far is free playing scored
+on a sixteenth-note grid, so it reported a 150 ms task at 100 BPM — **an interval nobody
+performed**. The scoring resolution is a property of the analysis; the task interval is a
+property of what the player was asked to do, and they are only the same once a rung is
+prescribed.
+
+`IntervalObservation.subdivisions` is now explicitly *notes per beat the player was asked to
+produce*, which is 1 for every take on record and becomes the rung from step 4. That turned 150
+ms into 600 ms and relative spread from a meaningless 14.9% into 3.7%.
+
+This is the same conflation as step 2's fill bug — pattern resolution against analysis grid —
+arriving a third time on a different axis. It is worth naming as a recurring shape rather than
+three separate slips: **in this codebase, "how finely we divide the beat" always has at least two
+meanings, and they are rarely the same one.**
+
+#### What it says on the 21 jams
+
+| Interval | Tempo | Takes | Spread | Of interval | Placement |
+|---|---|---|---|---|---|
+| 500 ms | 120 BPM | 1 | 19.3 ms | 3.9% | −13.5 ms |
+| 545 ms | 110 BPM | 4 (one sitting) | 24.5 ms | 4.5% | −4.4 ms |
+| 600 ms | 100 BPM | 16 | 22.4 ms | 3.7% | −14.1 ms |
+
+**No slope, and the refusal is the finding.** Three intervals with at least two takes each are
+needed; there are two. But the shape is informative in its own right: the 110 BPM evening is
+worst on *both* measures while the tempos either side of it resemble each other more than either
+resembles it. That is the signature of one different evening, not of a tempo response — and it is
+exactly what a slope fitted through three points would have hidden.
+
+It also sharpens what to record. Four takes at one tempo six minutes apart bought almost nothing;
+one take per tempo per sitting, rotated, is what turns this from a refusal into an answer.
+
+### Step 3b — the premise, measured, and it is false
+
+Everything above rests on one sentence, stated three times in this section as fact: **scatter
+grows with the interval it sits inside.** Step 3 divides spread by the interval on that basis.
+Step 1 derives tempo ceilings that only bind if the *opposite* is true — a window fixed at 40%
+of the interval is a constant number of spreads at every rung if spread scales, and no ceiling
+would ever bind. Both cannot be right, and neither had been checked.
+
+The takes on disk can check it. Bin every matched note by the gap **in grid steps** to the note
+before it, and compare spread across bins.
+
+| Notes apart | Share of all matched notes |
+|---|---|
+| a sixteenth | **0.5%** — 25 notes in 21 takes |
+| an eighth | 10.5% |
+| **a beat** | **82.4%** |
+| two beats | 2.7% |
+
+| Interval | Notes | Spread | Of interval |
+|---|---|---|---|
+| 273 ms | 220 | 25.6 ms | 9.4% |
+| 300 ms | 361 | 25.2 ms | 8.4% |
+| 500 ms | 292 | 19.1 ms | 3.8% |
+| 545 ms | 485 | 22.4 ms | 4.1% |
+| 600 ms | 3778 | 22.4 ms | 3.7% |
+| 1200 ms | 131 | 26.8 ms | 2.2% |
+
+**Absolute spread is flat and relative spread is not**: +0.02 ms of spread per 100 ms of
+interval, interval [−3.53, +0.79], against −0.72 points per 100 ms [−2.35, −0.40] for the
+percentage. Milliseconds are this player's invariant. Over a 4.4× range of interval his scatter
+is the same ~22–26 ms throughout, and within single takes the busier passages are if anything
+the *looser* ones — which is M12's within-take result (+0.40, +0.57) arriving on a second route.
+
+**The bin key has to be the grid gap and never the measured one**, and the reason is not
+fussiness. A measured inter-onset interval is `gap × interval + async − asyncOfPrevious`, so a
+note's own error sits inside its own bin key; conditioning on that difference pins each bin's
+mean at half its own offset. It leaves spread almost untouched and fabricates a *placement*
+slope of about +0.5 ms per ms out of a player whose placement never moved — which is precisely
+the "slow tempos make me rush" claim. A test plants a constant-placement player and requires the
+measured-IOI binning to invent that slope. Its first version asserted the artefact would show up
+in spread, and it failing is what found the real shape.
+
+Three limits, stated because they bound what this licenses:
+
+1. **Every spread here is a floor.** All bins are censored at the same ±40% window, so the
+   comparison across bins is fair, but the tails are cut off. Censoring compresses an ordering,
+   it cannot invert one — a scaling player would still read as scaling — so the flatness
+   survives it while the absolute figures do not.
+2. **It says nothing about sixteenths.** 25 notes in 21 takes is not a measurement, and
+   sixteenths are the rung the ceiling actually binds on. The ceiling's extrapolation from a
+   150 ms grid down to a 150 ms *task* is still an extrapolation.
+3. **It is free playing, at one tempo per bin.** The gaps are ones the player chose moment to
+   moment, not rungs he was set. Whether a prescribed rung behaves the same way is what step 4
+   collects.
+
+**Falsifier**: a prescribed-sixteenths take whose absolute spread comes back near 6 ms rather
+than near 22 kills this and restores step 3's premise.
+
+#### What it decides
+
+**The ceiling stands** (step 1). Its assumption is the measured one, not an unexamined one.
+Step 4d feeds each rung its *own* spread once that rung has takes, with a minimum count before
+the per-rung figure is trusted, so one bad evening cannot lock the player out of a tempo he can
+handle. The relative formulation is positively contradicted — at 3.7% it would have said no rung
+ever has a ceiling.
+
+**Step 3 stops asserting an answer.** `review interval` now fits absolute and relative side by
+side and names which came out flat, rather than dividing by the interval and reporting one
+number. Its headline test planted a player at "3% of the interval at every tempo" and required
+no tempo effect, which encoded the assumption into the suite; it now has a mirror twin planting
+constant milliseconds, and the analysis has to tell them apart.
+
+**`steady-vs-melodic` is left exactly as preregistered.** The confound raised against it before
+this was measured — that the melodic arm gets a mechanical advantage because shorter intervals
+scatter less in milliseconds — predicted ~11 ms against 22 ms. The measurement is 25.2 ms at
+300 ms against 22.4 ms at 600 ms. The prediction was wrong by a factor of two and in the wrong
+direction, and the options built on it (normalising the metric, blocking on density, narrowing
+the arms to pitch-only) were all solving a problem that does not exist.
+
+What remains is not a confound but the hypothesis. The arms differ in density by construction,
+density does track spread here, and "melodic playing is looser because it is busier" *is* an
+answer to "does what you play change how you time it". So density becomes a **reported
+covariate** on both surfaces — never a blocker, because blocking on the condition guarantees a
+refusal after five evenings, and never a normaliser, because dividing by the treatment would
+delete the effect it is meant to expose.
+
+#### The thing this recontextualises
+
+**82.4% of every matched note this project has ever recorded is a beat apart from the last one.**
+So 24.07, 17.37, 22.00, "his ~20 ms spread", the trend line, `review feel`, both experiments and
+the ceiling are all, to within a rounding error, *quarter-note placement in free playing*. The
+sixteenth-note grid those takes were scored on is doing almost no work.
+
+That reframes M14. §7.13 and this section describe the ladder as extending a measured skill onto
+new rungs. It is not: it is the first measurement of 90% of the space. Everything derived from
+quarters should carry less confidence into it than the prose above assumed, and the value of
+the milestone is correspondingly higher.
+
+### Step 4b, as built — the jam gains a rung
+
+`jam [bpm] [bars] [tag] [rung]`, and `JamPlan`/`JamConfig` carry an `IntervalRung?`. Fourteen
+tests.
+
+**`nil` is "no rung was prescribed", never "quarters".** They are different tasks — "play what
+you like" against "play one note per beat" — and a default would have silently converted the
+benchmark and both experiment blocks into drills, which is R3.5 broken in the least visible way
+available. A test asserts a rung-less config still picks `jamBacking`, still scores on a
+4-per-beat grid, and still produces the same settings label.
+
+**The analysis grid comes from the rung, and this is the whole step.** `runJam` derived it from
+`backing.stepsPerBeat` until now, and `LadderBackings` returns a pattern whose `stepsPerBeat` is
+**4 for quarters, eighths and sixteenths alike** — all three are programmed on a sixteenth step
+grid and differ only in which steps fire. So the backing cannot tell three of the four rungs
+apart, and a quarters take would have been scored against a 150 ms grid at 100 BPM: a task
+nobody was set. Reverting the one line fails five tests, which was checked rather than assumed.
+
+That also makes step 1's ceilings mean something. The window is `0.4 × 60 / (bpm ×
+subdivisions)`, so the subdivision here *is* the quantity the ceiling constrains. A consequence
+worth stating: at quarters the window is ±240 ms, twelve of this player's own spreads, so
+nothing is off-grid; at sixteenths it is ±60 ms, three of them. **Off-grid rate is not
+comparable across rungs**, which is §7.18's censoring trap arriving through the ladder exactly
+as trap 2 predicted — though in the opposite direction from the one that was expected.
+
+**`grooveName` stopped being a literal.** It was `"jamBacking"` hardcoded at save, so every
+confound check keyed on it — `comparabilityNotes`, the trend warnings — would have gone blind
+the moment a jam played over a ladder groove. It now records the backing that actually played.
+
+**Two subdivisions are stored, not one.** `subdivisions` is the grid the take was *analysed* on
+and `rung` is what the player was *asked* for. They are equal whenever a rung was set and
+different for every take on record, where the task was the beat and the scoring grid was
+sixteenths. `taskSubdivisions` is that distinction, and it is what `IntervalObservation` reads —
+the hardcoded `1` step 3 left behind. A test strips the key from the JSON entirely and requires
+the take to read as free playing; another plants a rung name this build does not know and
+requires it to be kept verbatim as the record of what ran while nothing is inferred from it.
+
+**Instructions are part of the step, not a follow-up.** A rung the player is not told about is a
+rung they will not play: the backing makes the division audible but does not *ask* for it, and a
+player who hears sixteenth hats and keeps playing quarters has produced a fine free jam scored
+against a grid four times finer than the one they aimed at. Each rung names its own division and
+warns that a coarser one is **discarded rather than scored late**, which is the mistake that
+invalidates the take rather than lowering it. An experiment arm still wins over a rung where
+both are somehow set — an instruction-only design loses its conditions if the arm text goes.
+
+**The trend groups on tempo and rung together**, because they are one axis. Free playing is its
+own group rather than folding into quarters. `comparabilityNotes` gains the same row.
+
+**Not in this step:** the app's single-take setup screen has no rung picker, so a hand-run rung
+take is CLI-only until step 6. Sessions are unaffected — the planner will hand rungs to the app
+through `SessionRunner` at step 4d.
+
+### Step 4d, as built — the planner varies one block, and only one
+
+A **ladder block** joins the evening: one jam at a rotated tempo and a prescribed rung, tagged
+`ladder` so it can never pool with free playing. Eighteen tests.
+
+**Tempo first, rung second.** Step 1 settled that these are one decision and this is where it
+lands: a rung chosen before the tempo can be illegal by the time the tempo arrives, since at
+140 BPM only quarters and eighths clear their ceiling at this player's spread. Choosing in this
+order means the ceiling constrains rather than contradicts, and a test asserts the same history
+that yields sixteenths at 80 BPM yields eighths at 140.
+
+**80 / 100 / 120 / 140, by min-count with a seeded tie-break.** Not a cycle: a strict rotation
+puts each tempo at a fixed position in the sequence, so anything varying with *where in a run* a
+take falls lands entirely on one tempo — the `ExperimentSchedule` argument (§7.20 step 2) on a
+different axis. The tempos stay within one of each other and the order still shuffles.
+
+**Promotion is one rung at a time**, from the highest already recorded. That gate is not about
+measurement, unlike the ceiling: no rung above eighths has ever been played and whether a groove
+is playable-along-to is not something its step list can answer (R5.6), so promoting two at once
+would put the player on a backing nobody has heard at a tempo nobody has tried.
+
+**The ceiling now prefers the rung's own spread** once that rung has two takes, falling back to
+the overall median otherwise. One take does not overrule it: a bad first evening would lower
+that rung's ceiling and lock the player out of tempos they can handle. Step 3b is what makes the
+fallback sound — absolute spread is interval-invariant for this player, so the overall figure is
+a fair estimate for a rung never played.
+
+**It takes a slot outright rather than competing**, exactly as form does and for a matching
+reason: it is on a third axis. Ranked against the clock drills on their evidence it would never
+be scheduled at all — the split is settled, the clock is the looser half, and the continuation
+and recall drills fill every slot they are offered. `maximumTrainingBlocks` goes to four with
+two reserved, so the clock drills still get the same two they had.
+
+#### It crowded form out of every short session, and the test for that missed it
+
+Two blocks that each take a slot outright are ordered by which is appended first, and in a
+session too short for both the second one goes. Adding the ladder ahead of form dropped form
+from **every 20-minute session** — §7.16's regression exactly, arriving on a new cause a
+milestone later.
+
+The test written to catch it did not, because it ran only at 45 minutes, where both fit and the
+ordering is invisible. The shortest session is the only place the ordering is observable, which
+makes it the only length worth testing; it now runs at 20, 30 and 45 across nine histories.
+
+Form goes first: it has the older claim and the explicit guard, and the ladder is the block that
+waits for a longer evening. When the ladder is the one that does not fit, the plan says so —
+a block silently missing is a session the player has no way to disagree with.
+
+#### The test that passed when it should not have
+
+`testTheBenchmarkNeverMoves` compared each plan's benchmark against a reference plan built by
+the same planner. Planting a benchmark at `referenceBpm + 5` did **not** fail it: the reference
+moved with the thing it was checking, so the test could see variation *between* histories and
+was blind to a constant that was simply wrong — which is the likelier mistake once a planner has
+a tempo rotation in it at all. It now asserts the values absolutely, and the planted violation
+fails 27 assertions. R5.7 is written about `check.sh` rules; it applies to any test whose whole
+job is that something did not change.
+
+### Step 4e, as built — the period estimate stops guessing
+
+Trap 4 named "two isochrony gates assume quarters". Reading them, the gates themselves do not:
+both accept a silence whose intervals sit within 0.6–1.6× of *its own* median, which is
+rung-agnostic already. What assumed quarters was the step after — turning a note period into a
+beat tempo — and it assumed it in a way that could invert a sign.
+
+**The defect.** Both drills computed `notesPerBeat` as the target beat divided by the median
+interval, **rounded, with no check on how far the rounding moved**. At 100 BPM a player holding
+1.45 notes per beat rounds to 1 and is reported at 145 BPM — 45% fast. Round the other way and
+the same playing reads 72.5 BPM, 27% slow. Same notes, same target, opposite directions, and the
+analysis picked one and printed it as a fact. Between whole numbers it genuinely cannot tell
+"slow eighths" from "fast quarters", so it now says so instead of choosing (R3.3).
+
+**Prescribing removes the question entirely.** `DropoutConfig` and `TempoConfig` carry a rung,
+the planner sets `.quarters` on both, and the analysis is told rather than inferring. That is
+**not a change of task**: the continuation drill's instructions have said "play exactly ONE NOTE
+PER BEAT" since M6 and the tempo drill's since M8. All that changed is that the analysis now
+knows what the words already said. A round asked for eighths and played in quarters is reported
+as not having performed the task, rather than quietly rescored against what it happened to be.
+
+**No stored number moved.** Every take on disk sits within 6% of a whole subdivision, so nothing
+trips the new refusal and `review dropout` and `review tempo` print exactly what they printed
+before. This is latent protection rather than a retroactive correction — worth stating, because
+"the fix changed no output" reads as evidence the fix was unnecessary and it is not. The 4-bar
+and 8-bar silences are the ones at risk: the more the pulse drifts inside a silence, the further
+the median can land from a whole subdivision.
+
+**Two more duplicated pipelines collapsed.** Seven call sites paired `DropoutSession.reconstruct()`
+with a `DropoutAnalysis.analyze` of their own, and five did the same for `TempoSession` — so the
+rung would have had to reach twelve places, and the one that forgot would silently re-infer and
+disagree with the take's own report depending on which readout asked. Both types now have a
+`report()`, like `JamSession` has had since M4, and every caller goes through it.
+
+**The form drill deliberately gains nothing.** An earlier version of this table said "the other
+four drills gain a rung", which was wrong: form marks phrase tops with pads while the keys are
+free playing, so there is no subdivision being scored and a rung would be a setting that changes
+nothing. The recall drill inherits the fix without its own field, because its per-round scoring
+*is* `TempoCalibrationAnalysis` (§7.16) rather than a parallel copy.
+
+**Not rotated by the planner.** These two drills feed the clock/motor trend and the tempo-error
+trend, and R3.5 locks drill parameters that feed a trend. The ladder block is where the interval
+varies; here the rung is set to what the drill already asked for and stays there. It is available
+by hand — `dropout 100 4 8 6 eighths` — for when the clock/motor question is settled.
+
+### Step 5, as built — the tempo question, preregistered
+
+`slow-vs-fast`, declared in `ExperimentLibrary` before a single take of it exists (§9.5.1).
+Nineteen tests.
+
+| | |
+|---|---|
+| Question | Does a slower tempo pull you further ahead of the beat? |
+| Arms | `slow` at 80 BPM, `fast` at 140 BPM |
+| Metric | **bias**, in milliseconds |
+| Takes per arm | 6 |
+| Falsified by | placement not differing between the arms by more than the interval |
+
+**Which half of the hypothesis this asks.** The player's account is two claims: faster is easier
+to a point, and slow tempos make him rush. This asks the rushing half, because §7.23 singles it
+out as a claim about signed placement that nothing forces mechanically — the kind of thing the
+app exists to confirm or kill. The precision half now has a cheaper route: the ladder block
+varies tempo every sitting and `review interval` fits it observationally.
+
+**Free playing, not a rung**, so the take is directly comparable to the benchmark and to every
+take on record. The ladder varies tempo *and* subdivision together; this isolates tempo.
+
+**Step 3b is what licenses the metric.** Comparing raw milliseconds across tempos would have
+been arithmetic rather than skill if this player's scatter scaled with the interval. It does not,
+measurably, across a 4.4× range — so the mechanical objection is gone and what remains is a real
+question. The readout carries that premise as a note, because a result whose validity rests on
+another finding should not be readable without it.
+
+**Bias has no better direction and that is the right shape here.** The existing machinery
+reports which way placement moved and refuses to call either arm better (§2). An experiment that
+could score placement down would be a machine for teaching that playing ahead of the beat is a
+fault.
+
+#### The first design where the text is not the condition
+
+For `steady-vs-melodic` the instruction text **is** the independent variable, so text describing
+the wrong arm swaps the conditions silently (§7.20 step 4). Here the tempo differs whatever the
+text says, so wrong text would confuse rather than invert. `ExperimentDesign.bpmByArm` makes the
+difference explicit rather than leaving it to be inferred, and `variesTempo` is what the planner
+and the readout branch on.
+
+A per-arm tempo missing an arm would run that arm at the reference and turn a two-tempo
+comparison into a one-tempo one while still reporting two conditions, so `init?` refuses it —
+along with two arms sharing a tempo, and any tempo outside the engine's range. Everything except
+the tempo stays locked (R3.5), with a test asserting the experiment block matches the benchmark
+on length and on carrying no rung.
+
+#### What it can and cannot detect, stated before any data
+
+The between-take spread on placement is large: the three benchmark takes sit at −5.9, −22.6 and
+−20.8 ms at **one** tempo, an SD of 9.2 ms. At six takes per arm the minimum detectable effect
+is about **10 ms**.
+
+That is roughly the size of the largest persistent placement change this dataset has recorded —
+the ~15 ms shift that held all day on 5 August and is still unexplained (§7.21). So the design
+can separate a tempo effect of that magnitude from zero and nothing smaller. A null result would
+be genuinely informative rather than a shrug: the player describes rushing at slow tempos as
+something he *notices*, and an effect he notices being under 10 ms would itself be a finding.
+
+**It is a long way off.** One experiment take per session, three designs queued, ten takes for
+each of the first two and twelve for this one — so `slow-vs-fast` starts after roughly twenty
+sittings and finishes after thirty-two. That is the stopping rule working rather than a delay to
+engineer around (§7.20), and it is the reason the ladder's observational readout matters in the
+meantime: it answers the same question sooner and less cleanly, which is the right trade while
+the preregistered one collects.
+
+### Step 6, as built — the app can ask for a rung too
+
+Until now a rung could only be set from the console, which is the shape of §7.20 finding 9: not
+a presentation gap but a **capability** one, where the app cannot do something the CLI can. Jam,
+Alone and Tempo gain a subdivision picker; Form deliberately does not, for the reason step 4e
+gives.
+
+**The picker offers only what the tempo can score.** Rather than listing four rungs and
+explaining afterwards that some would throw away notes, it lists the scorable ones and says why
+the others are missing — and moving the tempo slider drops a rung that has just gone above its
+ceiling, so the picker and the take can never disagree about what is legal.
+
+**A hidden rung has to name the way in**, which the first version did not. It said "finer
+divisions are hidden at 100 BPM" — plural for what is usually one rung, without naming it and
+without the tempo that reveals it. Sixteenths sit at a 99 BPM ceiling at this player's current
+spread, so they are unreachable from the 100 BPM default, and a picker that hides them silently
+looks like the rung does not exist rather than like it is one BPM out of reach. It now reads
+*"sixteenths at 99 BPM or below … they open up as your spread comes down"*, which is step 1's
+prediction arriving on screen: the ceiling is a fact about the player, and the top rung becomes
+available exactly when the thing being trained improves.
+
+**Free is the jam's default and is not quarters.** The other two default to quarters, because
+their instructions have asked for one note per beat since M6 and M8.
+
+**The take screen still shows nothing**, and the results screen now says what the take was
+scored against: the rung, the grid, and the window in milliseconds. That last number is why it
+is there — the window is ±40% of the division, so it is four times narrower at sixteenths than
+at quarters and the off-grid count is not comparable between them. Jam and continuation history
+rows carry the rung in their title, since two takes at one tempo and length are different tasks
+if one was asked for a subdivision.
+
+**One more constant collapsed.** `render`, the `jam` command and now the app all need the
+player's recent spread to place a ceiling, and all three were computing "the median of the last
+six" separately — three chances to disagree about which rungs exist.
+`TrainerEngine.recentJamSpreadsMs()` is the one implementation, with four tests including the
+one that matters: a tighter history raises the ceiling it feeds, which is the property that
+makes the ceiling a fact about the player rather than a number somebody picked.
+
+**Not tested, and worth saying plainly.** The picker itself is SwiftUI in `MusicalTrainerApp`,
+which has no test target — the logic under it (`IntervalRung.scorable`, `recentJamSpreadsMs`) is
+covered, the view is not. It needs eyes on it, like every other screen in this app.
+
+### What this cannot verify
+
+The clock bridge is untouched, so `selftest` remains the arbiter of the maths. But the ladder
+changes what the *backing* plays, and backings have no tests beyond pattern structure — whether
+a sixteenth-note groove is playable-along-to at all is a live-run question (R5.6). The first rung
+above eighths should not be promoted by the planner until one session has been played on it.
+
+Step 3b is measured from free playing only. It cannot say what a *prescribed* rung does, and the
+tempo half of the axis remains unmeasured — one tempo is well sampled, one evening covers 110,
+and one take covers 120.
 
 ---
 

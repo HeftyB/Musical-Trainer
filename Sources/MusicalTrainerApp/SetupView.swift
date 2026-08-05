@@ -1,5 +1,6 @@
 import GrooveCore
 import SwiftUI
+import TimingCore
 import TrainerKit
 
 struct SetupView: View {
@@ -60,7 +61,13 @@ struct SetupView: View {
                     LabeledContent("Tempo") {
                     HStack(spacing: 12) {
                         Slider(value: Binding(get: { model.bpm },
-                                              set: { model.bpm = $0.rounded() }),
+                                              set: {
+                                                  model.bpm = $0.rounded()
+                                                  // A tempo change can put the chosen rung above
+                                                  // its ceiling, and a picker offering something
+                                                  // the take would refuse is worse than no picker.
+                                                  model.clampRungToTempo()
+                                              }),
                                in: 60...180)
                         Text("\(Int(model.bpm)) BPM")
                             .monospacedDigit().frame(width: 74, alignment: .trailing)
@@ -79,6 +86,27 @@ struct SetupView: View {
                                 .monospacedDigit().frame(width: 74, alignment: .trailing)
                         }
                     }
+                }
+
+                // Jam, Alone and Tempo are the three drills scored against a note value.
+                if model.mode == .jam || model.mode == .dropout || model.mode == .tempo {
+                    Divider()
+                    LabeledContent(model.mode == .jam ? "Subdivision" : "Note value") {
+                        Picker("", selection: $model.rung) {
+                            // Free playing for the jam; the other two have always asked for one
+                            // note per beat, so "free" is not on offer there.
+                            if model.mode == .jam {
+                                Text("Free — play what you like").tag(IntervalRung?.none)
+                            }
+                            ForEach(model.scorableRungs, id: \.self) { rung in
+                                Text(rung.label.capitalized).tag(IntervalRung?.some(rung))
+                            }
+                        }
+                        .labelsHidden().frame(width: 220)
+                    }
+                    Text(model.rungAdvice)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if model.mode == .form {
