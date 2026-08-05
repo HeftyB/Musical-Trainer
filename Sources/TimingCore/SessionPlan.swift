@@ -355,6 +355,26 @@ public enum SessionPlanner {
     /// Locked, like the benchmark's, so a ladder take is comparable to the last one at its rung.
     public static let ladderBars = 32
 
+    /// The rung the planner starts the ladder on, and never goes below.
+    ///
+    /// **Eighths, not quarters**, and the first live session is what settled it. Five of that
+    /// session's nine blocks asked for one note per beat — the cold probe, the continuation
+    /// drill, the recall drill's reproduction, the experiment's `steady` arm and the ladder at
+    /// quarters — and three of its four jams played over the same backing. The player lost
+    /// track of which drill he was in, which is the correct response to a session that asks for
+    /// the same physical action five times and distinguishes the asks by metadata nobody can
+    /// hear.
+    ///
+    /// Quarters is also the wrong rung to *start* on. `LadderBackings.eighths` is the same
+    /// skeleton as `basicRock`, which every take on record has played over, so it is the least
+    /// novel backing in the set — while quarters is the sparsest and the one that duplicates
+    /// those five blocks. The one-step promotion rule exists to keep the player off a backing
+    /// nobody has heard (R5.6), and eighths satisfies it outright.
+    ///
+    /// Quarters is still reachable by hand from either surface. It is only the *planner* that
+    /// will not choose it.
+    public static let ladderFloorRung: IntervalRung = .eighths
+
     /// Ladder takes at a rung before that rung's own spread is trusted over the overall figure.
     ///
     /// The ceiling is derived from the player's spread, and §7.23 step 3b measured that spread
@@ -663,8 +683,12 @@ public enum SessionPlanner {
     /// list can answer (R5.6). Promoting two rungs at once would put the player on a backing
     /// nobody has heard at a tempo nobody has tried.
     static func nextRung(atBpm bpm: Double, from input: PlannerInput) -> IntervalRung {
-        let highest = highestRungPlayed(input.ladders)
-        let reachable = highest?.harder ?? highest ?? .quarters
+        // One step up from the highest played, but never below the floor.
+        let order = IntervalRung.ladder
+        let climbed = highestRungPlayed(input.ladders).map { $0.harder ?? $0 }
+        let reachable = (order.firstIndex(of: climbed ?? ladderFloorRung) ?? 0)
+                      >= (order.firstIndex(of: ladderFloorRung) ?? 0)
+            ? (climbed ?? ladderFloorRung) : ladderFloorRung
 
         // Walk down from the reachable rung to the first that this tempo can score.
         for rung in IntervalRung.ladder.reversed()
@@ -674,6 +698,9 @@ public enum SessionPlanner {
                 return rung
             }
         }
+        // Nothing at or below the reachable rung can be scored at this tempo, which only
+        // happens for a very loose player at a fast one. Quarters has the highest ceiling of
+        // all, so it is the honest floor here even though the planner never *starts* there.
         return .quarters
     }
 

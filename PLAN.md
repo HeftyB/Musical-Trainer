@@ -2972,6 +2972,67 @@ makes the ceiling a fact about the player rather than a number somebody picked.
 which has no test target — the logic under it (`IntervalRung.scorable`, `recentJamSpreadsMs`) is
 covered, the view is not. It needs eyes on it, like every other screen in this app.
 
+### The first live run — 5 August, and what it found
+
+A 30-minute session, 35.2 minutes actual, eight of nine blocks completed. **The chain held**:
+the ladder take stored `rung=quarters`, `groove=ladder-quarters`, `subdivisions=1`, `tag=ladder`,
+and the experiment take was stamped `steady-vs-melodic`. Rung → backing → analysis grid →
+storage, and the arm, all survived their first contact with a real session.
+
+**The timing data from this sitting is not usable and is not being read.** The player was
+exhausted and dozing through several takes. Recorded here so it is not rediscovered later and
+mistaken for a result — the same note §7.23 makes about the four 110 BPM takes.
+
+What the session did produce is a usability report, and those have been the most reliable
+signal this project gets: §6.1's form instructions, §7.17's absent cue and §7.19's unwarned
+silence all arrived this way. The player lost track of which drill he was in, more than once,
+and said the exercises had started to sound the same.
+
+#### That is structural, not a mood
+
+| Block | Asks for |
+|---|---|
+| Tempo (cold) | one note per beat |
+| Jam (experiment, `steady` arm) | one note per beat |
+| Alone | one note per beat |
+| Recall (reproduction) | one note per beat |
+| Jam (ladder, quarters) | one note per beat |
+
+**Five of nine blocks asked for the identical physical action**, and three of the four jams
+played over the same backing. Telling those blocks apart required metadata nobody can hear.
+Losing the thread is the correct response to that session rather than a lapse in it, and no
+amount of clearer instruction text fixes a session that genuinely is five variations of one
+action.
+
+#### Two fixes
+
+**The count-in now states the rung.** It was `hatsEveryBeat` on `basicRock` regardless of rung,
+so a sixteenths take announced quarters and then switched — the drill contradicting itself
+before a note was played, which is §7.17's defect in the audio domain. A rung now counts in on
+its own division: hats only, no backbeat, so the boundary into the groove stays audible. A free
+jam keeps exactly what every recorded take has had (R3.5).
+
+It lives on `JamConfig` rather than inside `runJam`, and that placement is the point. Reverting
+it inside `runJam` compiled cleanly and broke no test, because `runJam` needs an audio device
+and nothing there can be reached from a suite. Moved onto the config beside `backing` and
+`gridSubdivisions`, the same revert fails nine assertions. Third instance on this branch of the
+path under test not being the path that ships.
+
+**The ladder starts at eighths.** Quarters is both the rung that duplicates those five blocks
+and the one whose backing is least familiar; `LadderBackings.eighths` shares its skeleton with
+`basicRock`, which every take on record has played over, so it is the *least* novel rung in the
+set. The one-step promotion rule exists to keep the player off a backing nobody has heard
+(R5.6) and eighths satisfies it outright. Quarters remains reachable by hand from either
+surface — it is only the planner that will not choose it.
+
+#### What it says about the roadmap
+
+§7.23 step 2 held everything but the density constant on purpose, so rungs stay comparable.
+That is exactly what makes them hard to tell apart, and the tension is now a live report rather
+than a prediction. **M19 (musical depth) has earned a move up the roadmap**, and M15 is part of
+the answer: straight, swing and reggae are unmistakably different in a way that quarters against
+eighths over one skeleton is not.
+
 ### What this cannot verify
 
 The clock bridge is untouched, so `selftest` remains the arbiter of the maths. But the ladder

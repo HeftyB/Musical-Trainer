@@ -100,6 +100,24 @@ public enum TrainerEngine {
         /// subdivision here *is* the thing the ceiling constrains.
         var gridSubdivisions: Int { rung?.subdivisions ?? backing.arrangement.stepsPerBeat }
 
+        /// The bar the count-in plays, twice, before the backing starts.
+        ///
+        /// A property rather than a literal inside `runJam` for the same reason `backing` and
+        /// `gridSubdivisions` are: `runJam` needs an audio device, so anything decided inline
+        /// there can only be verified by playing it. Reverting this to the fixed hats-on-the-beat
+        /// count-in compiled cleanly and broke no test until it moved out here.
+        ///
+        /// A free jam keeps exactly the count-in every recorded take has had. A rung counts in
+        /// on its own division, because the count-in is where the drill tells a player with
+        /// their eyes shut what it is asking for — see `LadderBackings.countIn`.
+        var countInBar: Pattern {
+            guard let rung else {
+                return DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0,
+                                             groove: GrooveLibrary.basicRock)
+            }
+            return LadderBackings.countIn(notesPerBeat: rung.subdivisions)
+        }
+
         /// R7.6: the boundary validates before anything is scheduled.
         ///
         /// Lives on the config rather than inside `runJam` so it can be tested without opening
@@ -144,11 +162,7 @@ public enum TrainerEngine {
         let backing = config.backing.arrangement
         let countInBars = 2
 
-        var perBar: [Pattern] = []
-        for _ in 0..<countInBars {
-            perBar.append(DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0,
-                                                groove: GrooveLibrary.basicRock))
-        }
+        var perBar = [Pattern](repeating: config.countInBar, count: countInBars)
         for bar in 0..<config.bars { perBar.append(backing.pattern(atBar: bar)) }
 
         // The count-in is on the 16-step grid and a triplet backing is on a 12-step one, which

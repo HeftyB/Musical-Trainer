@@ -94,6 +94,24 @@ public enum LadderBackings {
         }
     }
 
+    /// A count-in bar that **states the rung**: the hat line alone, no kick and no backbeat.
+    ///
+    /// The count-in is where the drill says what it is asking for, in the only language that
+    /// reaches a player with their eyes shut. Every jam counted in with hats on the beat
+    /// regardless of rung until M15 step 0b, so a sixteenths take announced quarters and then
+    /// switched — the drill contradicting itself before a note was played, which is §7.17's
+    /// form-instruction defect in the audio domain.
+    ///
+    /// Sparse on purpose. A count-in carrying the backbeat would be indistinguishable from the
+    /// groove that follows, and the boundary is the information.
+    ///
+    /// - Parameter notesPerBeat: the **rung's** subdivision. See `pattern(notesPerBeat:)`.
+    public static func countIn(notesPerBeat: Int) -> Pattern {
+        let groove = pattern(notesPerBeat: notesPerBeat)
+        return Pattern(stepsPerBar: groove.stepsPerBar, stepsPerBeat: groove.stepsPerBeat,
+                       hits: groove.hits.filter { $0.voice == .closedHat })
+    }
+
     /// A full backing for a rung: two eight-bar sections capped with a fill, so a long take has
     /// landmarks and does not go hypnotic (PLAN §6).
     ///

@@ -120,6 +120,37 @@ final class LadderBackingTests: XCTestCase {
         XCTAssertEqual(LadderBackings.pattern(notesPerBeat: 0), LadderBackings.eighths)
     }
 
+    /// The count-in is where a drill tells an eyes-shut player what it is asking for, so it has
+    /// to carry the division rather than a generic pulse. Every jam counted in on the beat
+    /// whatever the rung until M15 step 0b: a sixteenths take announced quarters, then switched.
+    func testTheCountInCarriesTheRungsOwnDivision() {
+        for notesPerBeat in [1, 2, 3, 4] {
+            let countIn = LadderBackings.countIn(notesPerBeat: notesPerBeat)
+            let hats = countIn.hits.filter { $0.voice == .closedHat }
+
+            XCTAssertEqual(hats.count, 4 * notesPerBeat,
+                           "\(notesPerBeat) per beat: the count-in must state the division")
+            XCTAssertEqual(countIn.hits.count, hats.count,
+                           "hats only — a count-in carrying the backbeat is just the groove")
+            XCTAssertEqual(countIn.stepsPerBar,
+                           LadderBackings.pattern(notesPerBeat: notesPerBeat).stepsPerBar,
+                           "same bar length as what follows, or the take starts in the wrong place")
+        }
+    }
+
+    /// Two rungs whose count-ins sounded alike would leave the boundary unmarked, which is the
+    /// whole failure this fixes.
+    func testEveryRungsCountInIsAudiblyDifferentFromTheOthers() {
+        let lines = [1, 2, 3, 4].map { n in
+            LadderBackings.countIn(notesPerBeat: n).hits.map(\.step).sorted()
+        }
+        for (i, a) in lines.enumerated() {
+            for (j, b) in lines.enumerated() where i < j {
+                XCTAssertNotEqual(a, b, "count-ins \(i + 1) and \(j + 1) per beat are identical")
+            }
+        }
+    }
+
     /// The ladder must not have moved the backing every recorded take was played over.
     func testTheExistingJamBackingIsUntouched() {
         XCTAssertEqual(GrooveLibrary.jamBacking.stepsPerBeat, 4)

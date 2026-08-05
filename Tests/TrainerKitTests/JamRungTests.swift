@@ -46,6 +46,39 @@ final class JamRungTests: XCTestCase {
         XCTAssertEqual(grid.interval, 0.6, accuracy: 1e-9, "a beat, not a sixteenth")
     }
 
+    // MARK: - The count-in states the rung
+
+    /// Where the drill tells an eyes-shut player what it is asking for. Until M15 step 0b every
+    /// jam counted in with hats on the beat whatever the rung, so a sixteenths take announced
+    /// quarters and then switched.
+    func testTheCountInCarriesTheRungRatherThanAFixedPulse() {
+        for rung in IntervalRung.ladder {
+            let bar = TrainerEngine.JamConfig(rung: rung).countInBar
+            XCTAssertEqual(bar.hits.count, 4 * rung.subdivisions, "\(rung.label)")
+            XCTAssertTrue(bar.hits.allSatisfy { $0.voice == .closedHat }, "\(rung.label)")
+        }
+    }
+
+    /// A free jam keeps the count-in every recorded take has had, so the benchmark and both
+    /// experiment arms start exactly as they always have (R3.5).
+    func testAFreeJamKeepsTheCountInEveryRecordedTakeHad() {
+        let free = TrainerEngine.JamConfig(bpm: 100, bars: 64, tag: "benchmark").countInBar
+        let asBefore = DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0,
+                                             groove: GrooveLibrary.basicRock)
+        XCTAssertEqual(free, asBefore)
+    }
+
+    /// Two rungs whose count-ins matched would leave the boundary unmarked, which is the whole
+    /// failure this fixes — and it has to hold through the config, not just the pattern builder.
+    func testEveryRungCountsInDifferently() {
+        let bars = IntervalRung.ladder.map { TrainerEngine.JamConfig(rung: $0).countInBar }
+        for (i, a) in bars.enumerated() {
+            for (j, b) in bars.enumerated() where i < j {
+                XCTAssertNotEqual(a, b, "\(IntervalRung.ladder[i]) and \(IntervalRung.ladder[j])")
+            }
+        }
+    }
+
     // MARK: - Free playing is untouched
 
     /// The benchmark and both experiment blocks carry no rung and must behave exactly as every

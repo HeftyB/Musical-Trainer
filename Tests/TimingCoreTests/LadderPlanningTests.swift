@@ -151,8 +151,28 @@ final class LadderPlanningTests: XCTestCase {
         }
     }
 
-    func testTheLadderStartsAtQuartersWithNoHistory() {
-        XCTAssertEqual(SessionPlanner.nextRung(atBpm: 100, from: PlannerInput()), .quarters)
+    /// **Eighths, not quarters.** The first live session asked for one note per beat in five of
+    /// its nine blocks and the player lost track of which drill he was in. Quarters is both the
+    /// rung that duplicates those blocks and the one whose backing is least familiar; eighths
+    /// shares its skeleton with `basicRock`, which every take on record has played over, so
+    /// starting there satisfies the one-step rule outright.
+    func testTheLadderStartsAtEighthsRatherThanQuarters() {
+        XCTAssertEqual(SessionPlanner.nextRung(atBpm: 100, from: PlannerInput()), .eighths)
+        XCTAssertEqual(SessionPlanner.ladderFloorRung, .eighths)
+    }
+
+    /// The floor holds even for a player whose only ladder take is below it — the planner does
+    /// not follow the history back down.
+    func testTheFloorHoldsWhenTheOnlyHistoryIsBelowIt() {
+        let input = PlannerInput(jams: jams(20), ladders: [ladder(100, .quarters)])
+        XCTAssertEqual(SessionPlanner.nextRung(atBpm: 100, from: input), .eighths)
+    }
+
+    /// And a hand-run take at quarters is still possible — it is only the planner that will not
+    /// choose it, which is a scheduling decision rather than a claim that the rung is invalid.
+    func testQuartersIsStillAScorableRungEvenThoughThePlannerSkipsIt() {
+        XCTAssertTrue(IntervalRung.quarters.isScorable(atBpm: 100, spreadMs: 20))
+        XCTAssertTrue(IntervalRung.scorable(atBpm: 100, spreadMs: 20).contains(.quarters))
     }
 
     // MARK: Tempo rotation
@@ -278,7 +298,7 @@ final class LadderPlanningTests: XCTestCase {
             return false
         }) else { return XCTFail("no ladder block") }
 
-        XCTAssertTrue(ladderBlock.plan.settingsLabel.contains("quarter notes"),
+        XCTAssertTrue(ladderBlock.plan.settingsLabel.contains("eighths"),
                       ladderBlock.plan.settingsLabel)
         XCTAssertTrue(ladderBlock.reason.contains("gap between notes"), ladderBlock.reason)
     }
