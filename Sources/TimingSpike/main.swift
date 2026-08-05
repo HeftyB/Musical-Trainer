@@ -51,6 +51,7 @@ func usage() {
       review dropout            clock/motor split over time
       review trend              is anything actually improving?
       review cold               M10: is it warming up, or getting better?
+      review content            M12: does what you play change your timing?
       review tempo              tempo-calibration history
       show              print stored calibration
     """)
