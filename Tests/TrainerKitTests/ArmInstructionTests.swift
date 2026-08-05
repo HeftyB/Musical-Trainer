@@ -34,6 +34,29 @@ final class ArmInstructionTests: XCTestCase {
         }
     }
 
+    /// `slow-vs-fast` is the first design where the text is **not** the condition — the tempo
+    /// is, and it differs whatever this says. The text's job is only to stop the player treating
+    /// an unfamiliar tempo as a cue to play differently, which would make the take measure two
+    /// things at once.
+    func testTheTempoArmsHaveTextAndNeitherIsThePlainJam() {
+        for arm in ["slow", "fast"] {
+            XCTAssertNotEqual(DrillInstructions.jam(arm: arm).steps,
+                              DrillInstructions.jam.steps, arm)
+        }
+        XCTAssertNotEqual(DrillInstructions.jam(arm: "slow").steps,
+                          DrillInstructions.jam(arm: "fast").steps)
+    }
+
+    /// Note density is `steady-vs-melodic`'s variable. A player who plays busier because the
+    /// tempo changed would make the tempo design measure density too, so the text says not to.
+    func testBothTempoArmsWarnAgainstChangingHowBusilyTheyPlay() {
+        for arm in ["slow", "fast"] {
+            XCTAssertTrue(DrillInstructions.jam(arm: arm).pitfalls
+                            .contains { $0.contains("busier") },
+                          "\(arm): \(DrillInstructions.jam(arm: arm).pitfalls)")
+        }
+    }
+
     /// An unknown arm degrades to an ordinary take rather than a mislabelled one.
     func testAnUnknownArmFallsBackToThePlainJam() {
         XCTAssertEqual(DrillInstructions.jam(arm: "retired-arm").steps, DrillInstructions.jam.steps)

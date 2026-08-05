@@ -124,6 +124,33 @@ public struct DrillInstructions {
                 ],
                 measures: "The same numbers as any jam. The comparison is against the steady "
                         + "takes, and only once both arms have enough.")
+        case "slow", "fast":
+            // **The text is not the condition here — the tempo is.** For `steady-vs-melodic`
+            // the instruction *is* the independent variable, so wrong text would swap the arms
+            // silently. Here the tempo differs whatever this says, and the text's job is only
+            // to stop the player treating an unfamiliar tempo as a cue to do something else.
+            // The take has to stay ordinary free playing or it is measuring two things.
+            let faster = arm == "fast"
+            return DrillInstructions(
+                goal: "An ordinary jam at \(faster ? "a faster" : "a slower") tempo than usual. "
+                    + "Half of an experiment on whether tempo changes where you sit against the "
+                    + "beat — your own account is that slow tempos make you rush.",
+                steps: [
+                    "A two-bar count-in plays, then the usual groove, at \(faster ? "a quicker" : "a slower") tempo.",
+                    "Play exactly as you would at any tempo — chords, a line, whatever you like.",
+                    "Aim every note at a beat or an off-beat, as always.",
+                    "Keep going to the end. Nothing to read on screen while you play.",
+                ],
+                pitfalls: [
+                    "Don't play busier or sparser because of the tempo. Note density is the "
+                    + "other arm's business, not this one's — the tempo is meant to be the only "
+                    + "difference.",
+                    "Don't correct toward the click if it feels off. Where you naturally sit is "
+                    + "the measurement.",
+                ],
+                measures: "Where you sit against the beat, in milliseconds. Placement is "
+                        + "reported and never scored — sitting ahead of the beat is normal, and "
+                        + "the question is whether the tempo moves it.")
         case "relaxed":
             return DrillInstructions(
                 goal: "Play without trying. Half of an experiment on what focusing does to your "

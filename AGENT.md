@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is in progress — steps 0–3, 3b, 4a, 4b, 4d and 4e, planned in §7.23.** The subdivision
+**M0–M13 are done. M14 is in progress — steps 0–5 done, step 6 to go, planned in §7.23.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -178,6 +178,10 @@ Types worth knowing before changing anything:
   the beat a note landed), not a measure of note values played.
 - **`SessionPlacement`** — where a take sat in a planned evening. Optional; 14 of 21 jams have none.
 - **`ExperimentAssignment`** — which experiment and arm a take belongs to. Optional.
+- **`ExperimentDesign.bpmByArm`** — set only when **tempo is the condition** (`slow-vs-fast`).
+  For the other two designs the instruction text *is* the independent variable, so wrong text
+  swaps the arms silently; with a tempo map the tempo differs whatever the text says. Check
+  `variesTempo` before assuming which kind a design is.
 - **`DrillInstructions.forBlock(_:)`** — the one mapping from a planned block to its instructions,
   arm included. Both surfaces call it; do not add a second.
 - **`Stats.finite(_:)`** — every stored summary goes through it. `JSONEncoder` refuses a

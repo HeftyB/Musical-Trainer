@@ -255,7 +255,17 @@ public enum ExperimentAnalysis {
                                 hi.0, hi.1, lo.0, lo.1))
         }
 
-        // 4. The metric has no better direction.
+        // 4. Tempo as the condition rests on a measured premise, not an obvious one.
+        if design.variesTempo {
+            notes.append("The arms differ in tempo, so this compares \(design.metric.label) "
+                       + "across tempos — which is only sound because this player's scatter was "
+                       + "measured to be a fixed number of milliseconds rather than a fixed "
+                       + "fraction of the interval (§7.23 step 3b). If that stops holding, the "
+                       + "comparison becomes arithmetic rather than skill and this design has "
+                       + "to be read again.")
+        }
+
+        // 5. The metric has no better direction.
         if design.metric.lowerIsBetter == nil {
             notes.append("\(design.metric.label) has no better direction — it is reported, not "
                        + "scored. Bias is not failure; variance is the skill.")

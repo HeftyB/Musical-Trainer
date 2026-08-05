@@ -2426,7 +2426,7 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | 4b ✅ | The **jam** gains a rung, end to end: config, backing, analysis grid, storage, instructions (R3.6), the CLI, and the confound axes that consume it. |
 | 4d ✅ | Planner rotates tempo on a ladder training block only, picking the rung after the tempo, with tests that it never touches the benchmark, the cold probe or an experiment block. |
 | 4e ✅ | The continuation and tempo drills gain a rung, and the period estimate stops guessing the note value (trap 4). |
-| 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
+| 5 ✅ | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
 | 6 | Both surfaces, and docs. |
 
 ### Step 0, as built
@@ -2863,6 +2863,72 @@ nothing. The recall drill inherits the fix without its own field, because its pe
 trend, and R3.5 locks drill parameters that feed a trend. The ladder block is where the interval
 varies; here the rung is set to what the drill already asked for and stays there. It is available
 by hand — `dropout 100 4 8 6 eighths` — for when the clock/motor question is settled.
+
+### Step 5, as built — the tempo question, preregistered
+
+`slow-vs-fast`, declared in `ExperimentLibrary` before a single take of it exists (§9.5.1).
+Nineteen tests.
+
+| | |
+|---|---|
+| Question | Does a slower tempo pull you further ahead of the beat? |
+| Arms | `slow` at 80 BPM, `fast` at 140 BPM |
+| Metric | **bias**, in milliseconds |
+| Takes per arm | 6 |
+| Falsified by | placement not differing between the arms by more than the interval |
+
+**Which half of the hypothesis this asks.** The player's account is two claims: faster is easier
+to a point, and slow tempos make him rush. This asks the rushing half, because §7.23 singles it
+out as a claim about signed placement that nothing forces mechanically — the kind of thing the
+app exists to confirm or kill. The precision half now has a cheaper route: the ladder block
+varies tempo every sitting and `review interval` fits it observationally.
+
+**Free playing, not a rung**, so the take is directly comparable to the benchmark and to every
+take on record. The ladder varies tempo *and* subdivision together; this isolates tempo.
+
+**Step 3b is what licenses the metric.** Comparing raw milliseconds across tempos would have
+been arithmetic rather than skill if this player's scatter scaled with the interval. It does not,
+measurably, across a 4.4× range — so the mechanical objection is gone and what remains is a real
+question. The readout carries that premise as a note, because a result whose validity rests on
+another finding should not be readable without it.
+
+**Bias has no better direction and that is the right shape here.** The existing machinery
+reports which way placement moved and refuses to call either arm better (§2). An experiment that
+could score placement down would be a machine for teaching that playing ahead of the beat is a
+fault.
+
+#### The first design where the text is not the condition
+
+For `steady-vs-melodic` the instruction text **is** the independent variable, so text describing
+the wrong arm swaps the conditions silently (§7.20 step 4). Here the tempo differs whatever the
+text says, so wrong text would confuse rather than invert. `ExperimentDesign.bpmByArm` makes the
+difference explicit rather than leaving it to be inferred, and `variesTempo` is what the planner
+and the readout branch on.
+
+A per-arm tempo missing an arm would run that arm at the reference and turn a two-tempo
+comparison into a one-tempo one while still reporting two conditions, so `init?` refuses it —
+along with two arms sharing a tempo, and any tempo outside the engine's range. Everything except
+the tempo stays locked (R3.5), with a test asserting the experiment block matches the benchmark
+on length and on carrying no rung.
+
+#### What it can and cannot detect, stated before any data
+
+The between-take spread on placement is large: the three benchmark takes sit at −5.9, −22.6 and
+−20.8 ms at **one** tempo, an SD of 9.2 ms. At six takes per arm the minimum detectable effect
+is about **10 ms**.
+
+That is roughly the size of the largest persistent placement change this dataset has recorded —
+the ~15 ms shift that held all day on 5 August and is still unexplained (§7.21). So the design
+can separate a tempo effect of that magnitude from zero and nothing smaller. A null result would
+be genuinely informative rather than a shrug: the player describes rushing at slow tempos as
+something he *notices*, and an effect he notices being under 10 ms would itself be a finding.
+
+**It is a long way off.** One experiment take per session, three designs queued, ten takes for
+each of the first two and twelve for this one — so `slow-vs-fast` starts after roughly twenty
+sittings and finishes after thirty-two. That is the stopping rule working rather than a delay to
+engineer around (§7.20), and it is the reason the ladder's observational readout matters in the
+meantime: it answers the same question sooner and less cleanly, which is the right trade while
+the preregistered one collects.
 
 ### What this cannot verify
 

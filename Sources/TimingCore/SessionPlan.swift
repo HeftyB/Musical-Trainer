@@ -574,13 +574,22 @@ public enum SessionPlanner {
         let assignment = ExperimentSchedule.assignment(design: design, completed: completed)
         let progress = ExperimentSchedule.progress(design: design, completed: completed)
 
+        // The arm's own tempo when tempo is the condition, the benchmark's otherwise. Everything
+        // else stays locked either way: exactly one thing may differ between arms (R3.5).
+        let bpm = design.bpm(forArm: assignment.arm) ?? referenceBpm
+        let held = design.variesTempo
+            ? "Same length, same backing and the same free playing as the benchmark — the tempo "
+            + "is the one thing that changes between arms."
+            : "Same tempo, same length and same backing as the benchmark — the only thing that "
+            + "changes between arms is what you are asked to play."
+
         return SessionBlock(
             role: .experiment,
-            plan: .jam(JamPlan(bpm: referenceBpm, bars: benchmarkBars, tag: design.name)),
-            reason: "\(design.question) Today's take is the **\(assignment.arm)** arm. Same "
-                  + "tempo, same length and same backing as the benchmark — the only thing that "
-                  + "changes between arms is what you are asked to play. "
-                  + "\(progress.takesRemaining) take(s) to go before anything is compared.",
+            plan: .jam(JamPlan(bpm: bpm, bars: benchmarkBars, tag: design.name)),
+            reason: "\(design.question) Today's take is the **\(assignment.arm)** arm"
+                  + (design.variesTempo ? ", at \(Int(bpm)) BPM. " : ". ")
+                  + held + " \(progress.takesRemaining) take(s) to go before anything is "
+                  + "compared.",
             experiment: assignment)
     }
 
