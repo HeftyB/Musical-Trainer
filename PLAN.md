@@ -1845,7 +1845,7 @@ claims.
 | 1 ✅ | `ExperimentAssignment` storage, written and unread |
 | 2 ✅ | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
 | 3 ✅ | `ExperimentAnalysis.swift` — arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |
-| 4 | Planner blocks at locked parameters (R3.5), arm-specific instructions (R3.6), engine wiring |
+| 4 ✅ | Planner blocks at locked parameters (R3.5), arm-specific instructions (R3.6), engine wiring |
 | 5 | Console `experiment` + `review experiment`, and the app card (finding 9) |
 | 6 | `PLAN.md` as-built, `README.md` command table, `AGENT.md` state |
 
@@ -1965,6 +1965,51 @@ one, so the readout gives per-arm figures and says why it is stopping there.
 Thirteen tests, including the one that matters most: two arms drawn from the ±4 ms take-to-take
 wobble the benchmark jams actually show must come back as no difference. That is finding 1
 arriving as an experiment rather than as a bootstrap.
+
+### Step 4, as built
+
+`ExperimentLibrary` declares the experiments with **fixed ids**, because the schedule is seeded
+from the id — a fresh UUID each launch would reshuffle the arms of an experiment already half
+collected. One runs at a time; two at once would put two instruction-only conditions on the same
+evening, and a take cannot be both steady and melodic.
+
+The planner gains a `.experiment` role and puts one take **immediately after the benchmark, at
+the benchmark's own locked settings**. Both halves are R3.5. Locked parameters, because an
+experiment whose tempo or length moved between arms would be comparing those. And a *fixed
+slot*, because a block landing wherever it fits would let the arm correlate with how far into
+the evening it ran — §7.17's two takes rated 4 and 1 twenty minutes apart is exactly that
+effect. With the slot fixed the arm alternates across sittings instead, and step 3's confound
+check verifies it worked.
+
+Arms come from `ExperimentSchedule`, and the history comes from the takes themselves rather than
+a separate ledger: the assignment on the take is the record of what actually ran, and a ledger
+could disagree with it.
+
+#### The instruction-only condition, and the bug it nearly caused
+
+For `steady-vs-melodic` both arms play the same backing at the same tempo for the same length,
+so **the instruction text is the entire independent variable**. Text describing the wrong arm
+would not confuse the player — it would swap the conditions, and the experiment would measure
+nothing while appearing to work.
+
+Which is what was about to happen. Both surfaces called a helper `instructions(for: block.plan)`
+— and a *plan* knows the drill and its settings and nothing about the arm. Every experiment take
+would have shown the generic jam text and run neither arm while being recorded as one. The
+tests were written first, passed against a `SessionRunner` accessor nothing called, and the
+defect was two lines away in code neither test touched.
+
+Worse, that helper existed **twice**, once per surface — the exact duplication §7.11 warns
+about, where a drill silently means two different things depending on where it was started.
+There is now one `DrillInstructions.forBlock(_:)` in `TrainerKit`, taking the block rather than
+the plan, and both surfaces call it.
+
+R3.6 says instructions are generated from the configuration that will actually run. For an
+experiment the arm *is* part of that configuration, and it took a third instance of this same
+defect to make that concrete.
+
+Sixteen tests across the two modules, including one that every arm the library declares has
+instructions of its own — an arm added to a design without text would run as a plain jam and be
+recorded as a condition it never was.
 
 The first three experiments, chosen by what they unblock: **steady vs melodic** (the
 mode-of-playing hypothesis §7.19 says M12 cannot test), **silent vs filled retention pooled

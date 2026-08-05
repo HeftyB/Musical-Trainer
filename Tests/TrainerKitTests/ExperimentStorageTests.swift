@@ -74,14 +74,25 @@ final class ExperimentStorageTests: StoreBackedTestCase {
         XCTAssertEqual(runner.currentBlock?.experiment, assigned)
     }
 
-    /// Nothing the planner produces is assigned to an experiment yet, and saying so is the
-    /// point: step 1 is storage, written and unread. This fails the moment step 4 starts
-    /// assigning arms, which is when the analysis has to exist to receive them.
-    func testThePlannerAssignsNoArmsYet() {
+    /// The planner now assigns arms, and everything downstream of that exists.
+    ///
+    /// This test was written in step 1 asserting the *opposite* — that no block carried an arm —
+    /// as a tripwire that would fail the moment step 4 started assigning them, which is when the
+    /// analysis had to exist to receive them. It fired on schedule. What it guards now is the
+    /// whole chain: the planner assigns, the block carries, the runner would stamp, and step 3's
+    /// readout is there to read it.
+    func testThePlannerAssignsAnArmAndTheChainCarriesIt() throws {
         for minutes in [20, 30, 45] {
             let plan = SessionPlanner.plan(targetMinutes: minutes, from: PlannerInput())
-            XCTAssertTrue(plan.blocks.allSatisfy { $0.experiment == nil },
-                          "M13 step 1 stores the arm; step 4 is what assigns one")
+            let assigned = plan.blocks.compactMap(\.experiment)
+            XCTAssertEqual(assigned.count, 1, "\(minutes) min: exactly one arm per session")
+
+            let runner = SessionRunner(plan: plan)
+            let block = try XCTUnwrap(plan.blocks.first { $0.experiment != nil })
+            XCTAssertEqual(DrillInstructions.forBlock(block).steps,
+                           DrillInstructions.jam(arm: block.experiment?.arm).steps,
+                           "the arm's own instructions, not the generic jam text")
+            XCTAssertFalse(runner.isFinished)
         }
     }
 }

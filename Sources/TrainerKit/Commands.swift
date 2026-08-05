@@ -240,7 +240,7 @@ public enum Commands {
             print("\(Console.dim)\(block.plan.settingsLabel)"
                 + String(format: " · %.0f min\(Console.reset)", block.estimatedSeconds / 60))
             print("\n\(block.reason)")
-            printInstructions(instructions(for: block.plan))
+            printInstructions(DrillInstructions.forBlock(block))
             Console.prompt("Ready?")
 
             let outcome: SessionRunner.BlockOutcome
@@ -297,16 +297,6 @@ public enum Commands {
             + "measurement and one taken twenty minutes in can be told apart.\(Console.reset)")
     }
 
-    private static func instructions(for plan: BlockPlan) -> DrillInstructions {
-        switch plan {
-        case .groove:  return .groove
-        case .jam:     return .jam
-        case .form(let p): return .form(level: p.level)
-        case .dropout: return .dropout
-        case .tempo:   return .tempo
-        case .memory:  return .memory
-        }
-    }
 
     // MARK: - M4 jam
 

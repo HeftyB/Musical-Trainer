@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M12 are done. M13 (experiment runner) is in progress — steps 1–3 of 6 landed.** PLAN.md §7 has the milestone table with
+**M0–M12 are done. M13 (experiment runner) is in progress — steps 1–4 of 6 landed.** PLAN.md §7 has the milestone table with
 a "as built" section for each; §7.13 is the roadmap through M22.
 
 | Done | |
@@ -54,8 +54,8 @@ tags | conditions | compare | form | dropout | tempo`.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 220 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (39 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 230 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (45 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -69,7 +69,7 @@ tags | conditions | compare | form | dropout | tempo`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 259 tests, no hardware needed
+swift test                              # 275 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

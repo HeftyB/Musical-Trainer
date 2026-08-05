@@ -936,8 +936,20 @@ public enum TrainerEngine {
             return PlannerInput.Memory(retentionBars: session.retentionBars,
                                        interferenceCost: r.interferenceCost)
         }
+        // Which arms each experiment has already collected, oldest-first. Read from the takes
+        // themselves rather than from a separate ledger: the assignment on the take is the
+        // record of what actually ran, and a ledger could disagree with it.
+        var armsByExperiment: [String: [String]] = [:]
+        for session in SessionStore.loadAll() {
+            guard let assigned = session.experiment else { continue }
+            armsByExperiment[assigned.name, default: []].append(assigned.arm)
+        }
+        let experiments = ExperimentLibrary.all.map {
+            PlannerInput.Experiment(name: $0.name, completedArms: armsByExperiment[$0.name] ?? [])
+        }
+
         return PlannerInput(jams: jams, continuations: continuations, forms: forms,
-                            tempos: tempos, memories: memories)
+                            tempos: tempos, memories: memories, experiments: experiments)
     }
 
     public static func planSession(targetMinutes: Int) -> SessionPlan {

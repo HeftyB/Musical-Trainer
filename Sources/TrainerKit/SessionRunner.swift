@@ -108,6 +108,24 @@ public final class SessionRunner {
         index < plan.blocks.count ? plan.blocks[index] : nil
     }
 
+    /// What to show before the current block — generated from the block that will actually run,
+    /// including its experiment arm (R3.6).
+    ///
+    /// For an instruction-only experiment the arm *is* the condition, so showing the generic
+    /// text would not merely be vague: it would run neither arm.
+    public var currentInstructions: DrillInstructions? {
+        guard let block = currentBlock else { return nil }
+        switch block.plan {
+        case .jam:     return DrillInstructions.jam(arm: block.experiment?.arm)
+        case .groove:  return nil
+        case .form(let p):
+            return DrillInstructions.form(level: p.level)
+        case .dropout: return DrillInstructions.dropout
+        case .tempo:   return DrillInstructions.tempo
+        case .memory:  return DrillInstructions.memory
+        }
+    }
+
     public var isFinished: Bool { index >= plan.blocks.count }
 
     /// Blocks remaining, including the current one.

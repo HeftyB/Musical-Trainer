@@ -16,6 +16,8 @@ public enum BlockRole: String, Codable, Equatable, CaseIterable {
     case training
     /// The musical payoff, and the longest stretch of playing in the session.
     case closing
+    /// A take assigned to an experiment arm. Locked parameters, fixed slot — only the arm moves.
+    case experiment
 }
 
 // MARK: - Block parameters
@@ -163,6 +165,8 @@ public struct SessionBlock: Codable, Equatable {
     }
 
     public var estimatedSeconds: Double { plan.estimatedSeconds }
+    /// The experiment this block belongs to, if any — for messages that name it.
+    public var experimentName: String? { experiment?.name }
 }
 
 public struct SessionPlan: Codable, Equatable {
@@ -247,17 +251,31 @@ public struct PlannerInput: Equatable {
         }
     }
 
+    /// What each experiment has collected so far, oldest-first: the arm of every take already
+    /// assigned to it. That is all the scheduler needs — balance and counterbalancing are both
+    /// functions of the arms already run.
+    public struct Experiment: Equatable {
+        public let name: String
+        public let completedArms: [String]
+        public init(name: String, completedArms: [String]) {
+            self.name = name; self.completedArms = completedArms
+        }
+    }
+
     /// All oldest-first, matching `SessionStore`.
     public let jams: [Jam]
     public let continuations: [Continuation]
     public let forms: [Form]
     public let tempos: [Tempo]
     public let memories: [Memory]
+    public let experiments: [Experiment]
 
     public init(jams: [Jam] = [], continuations: [Continuation] = [],
-                forms: [Form] = [], tempos: [Tempo] = [], memories: [Memory] = []) {
+                forms: [Form] = [], tempos: [Tempo] = [], memories: [Memory] = [],
+                experiments: [Experiment] = []) {
         self.jams = jams; self.continuations = continuations
         self.forms = forms; self.tempos = tempos; self.memories = memories
+        self.experiments = experiments
     }
 }
 
@@ -351,6 +369,24 @@ public enum SessionPlanner {
             spent(blocks + [candidate]) + betweenBlockSeconds + closingFloor <= budget
         }
 
+        // The experiment take goes immediately after the benchmark, in a fixed slot, at the
+        // benchmark's own locked settings. Both halves are R3.5.
+        //
+        // Locked parameters, because an experiment whose tempo or length moved between arms
+        // would be comparing those instead. And a *fixed slot*, because the alternative — the
+        // block landing wherever it fits — would let the arm correlate with how far into the
+        // evening it ran, and §7.17 has two takes identical on every number rated 4 and 1
+        // twenty minutes apart. With the slot fixed, the arm alternates across sittings and
+        // position is held constant; `ExperimentAnalysis` checks that it worked.
+        if let block = experimentBlock(from: input) {
+            if fits(block) { blocks.append(block) } else {
+                notes.append("No room for the \(block.experimentName ?? "experiment") take in "
+                           + "\(targetMinutes) minutes. It runs at the benchmark's locked "
+                           + "settings and cannot be shortened to fit, so a longer session is "
+                           + "what it needs.")
+            }
+        }
+
         // Timing candidates compete with each other for all but one slot.
         for candidate in timingCandidates(from: input, sizes: sizes, notes: &notes) {
             guard blocks.filter({ $0.role == .training }).count < maximumTrainingBlocks - 1 else { break }
@@ -430,6 +466,33 @@ public enum SessionPlanner {
             reason: "Locked at \(Int(referenceBpm)) BPM and \(benchmarkBars) bars, in the same slot "
                   + "every session — warm but not yet tired. This is the take the trend is "
                   + "fitted to, so nothing about it is allowed to vary.")
+    }
+
+    /// The active experiment's next take, or nothing when every experiment is finished.
+    ///
+    /// The arm comes from `ExperimentSchedule`, so it is balanced and counterbalanced against
+    /// what has already been run rather than chosen here.
+    private static func experimentBlock(from input: PlannerInput) -> SessionBlock? {
+        var finished: [String: Bool] = [:]
+        for e in input.experiments {
+            guard let design = ExperimentLibrary.all.first(where: { $0.name == e.name }) else { continue }
+            finished[e.name] = ExperimentSchedule.progress(design: design,
+                                                           completed: e.completedArms).hasPower
+        }
+        guard let design = ExperimentLibrary.active(progressByName: finished) else { return nil }
+
+        let completed = input.experiments.first { $0.name == design.name }?.completedArms ?? []
+        let assignment = ExperimentSchedule.assignment(design: design, completed: completed)
+        let progress = ExperimentSchedule.progress(design: design, completed: completed)
+
+        return SessionBlock(
+            role: .experiment,
+            plan: .jam(JamPlan(bpm: referenceBpm, bars: benchmarkBars, tag: design.name)),
+            reason: "\(design.question) Today's take is the **\(assignment.arm)** arm. Same "
+                  + "tempo, same length and same backing as the benchmark — the only thing that "
+                  + "changes between arms is what you are asked to play. "
+                  + "\(progress.takesRemaining) take(s) to go before anything is compared.",
+            experiment: assignment)
     }
 
     // MARK: Training selection

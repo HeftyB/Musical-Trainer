@@ -209,3 +209,46 @@ public enum ExperimentSchedule {
                              runIndex: completed.count)
     }
 }
+
+/// The experiments this project actually runs.
+///
+/// Declared here with **fixed ids**, because the schedule is seeded from the id: a fresh UUID
+/// each launch would reshuffle the arms of an experiment already half collected.
+///
+/// One is active at a time. Running two at once would put two instruction-only conditions on the
+/// same evening, and the player cannot play a take steady *and* melodic — arms of different
+/// experiments would silently become arms of one.
+public enum ExperimentLibrary {
+
+    /// §7.19's open question: M12 found busier playing went with looser timing *within* a take,
+    /// but the hunch is about the **mode** of a whole take, which within-take correlation cannot
+    /// test. Two takes at the locked benchmark settings, differing only in what the player is
+    /// asked to play.
+    public static let steadyVsMelodic = ExperimentDesign(
+        id: UUID(uuidString: "E0000001-0000-4000-8000-000000000001") ?? UUID(),
+        name: "steady-vs-melodic",
+        question: "Does playing a melody change how tightly you play it?",
+        arms: ["steady", "melodic"],
+        metric: .spread,
+        takesPerArm: 5)
+
+    /// §5.1's founding prediction — that trying to focus drives r₁ sharply negative — has never
+    /// been tested, and it is the claim the whole project rests on.
+    public static let relaxedVsFocused = ExperimentDesign(
+        id: UUID(uuidString: "E0000002-0000-4000-8000-000000000002") ?? UUID(),
+        name: "relaxed-vs-focused",
+        question: "What does trying to focus do to your correction gain?",
+        arms: ["relaxed", "focused"],
+        metric: .correctionGain,
+        takesPerArm: 5)
+
+    public static var all: [ExperimentDesign] { [steadyVsMelodic, relaxedVsFocused].compactMap { $0 } }
+
+    /// The one to run, given what each has already collected: the first that is not finished.
+    ///
+    /// Order is priority. `steady-vs-melodic` goes first because M12 is blocked on it and the
+    /// data to interpret is already half gathered.
+    public static func active(progressByName: [String: Bool]) -> ExperimentDesign? {
+        all.first { progressByName[$0.name] != true }
+    }
+}
