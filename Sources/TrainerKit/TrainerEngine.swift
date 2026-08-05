@@ -340,8 +340,18 @@ public enum TrainerEngine {
         public var pacedBars: Int
         public var silentBars: Int
         public var cycles: Int
-        public init(bpm: Double = 100, pacedBars: Int = 4, silentBars: Int = 4, cycles: Int = 6) {
-            self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars; self.cycles = cycles
+        /// The note value asked for through the silences.
+        ///
+        /// This drill has always demanded one note per beat in words — "Play exactly ONE NOTE
+        /// PER BEAT" — while the analysis *inferred* the note value from what was played and
+        /// snapped it to the nearest whole number. Setting it makes the analysis know what the
+        /// instructions already said, which is what removes the snapping (§7.23 step 4e).
+        public var rung: IntervalRung?
+
+        public init(bpm: Double = 100, pacedBars: Int = 4, silentBars: Int = 4, cycles: Int = 6,
+                    rung: IntervalRung? = nil) {
+            self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars
+            self.cycles = cycles; self.rung = rung
         }
         public var cycle: DropoutDrill.Cycle {
             DropoutDrill.Cycle(pacedBars: pacedBars, silentBars: silentBars)
@@ -422,7 +432,8 @@ public enum TrainerEngine {
             Tap(time: HostClock.interval(from: epoch, to: $0.hostTime) - constantSec,
                 velocity: Int($0.velocity))
         }
-        let grid = Grid(startTime: startSec, bpm: config.bpm, subdivisions: 1)
+        let grid = Grid(startTime: startSec, bpm: config.bpm,
+                        subdivisions: config.rung?.subdivisions ?? 1)
 
         // Build the section timeline from the same cycle the audio used, so analysis and
         // playback can never disagree about when the band was absent.
@@ -439,7 +450,8 @@ public enum TrainerEngine {
             bar = end
         }
 
-        let report = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+        let report = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections,
+                                             notesPerBeat: config.rung?.subdivisions)
         return DropoutOutcome(
             report: report, notesPlayed: taps.count, environment: env, config: config,
             suggestedSilentBars: DropoutDrill.suggestedSilentBars(
@@ -467,7 +479,8 @@ public enum TrainerEngine {
             headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: placement, experiment: experiment)
+            placement: placement, experiment: experiment,
+            rung: outcome.config.rung?.rawValue)
         return try SessionStore.save(session)
     }
 
@@ -480,10 +493,15 @@ public enum TrainerEngine {
         public var leadBars: Int
         public var holdBars: Int
         public var rounds: Int
+        /// The note value asked for during each hold. See `DropoutConfig.rung`: the drill has
+        /// always demanded one note per beat in words while the analysis inferred it.
+        public var rung: IntervalRung?
 
-        public init(targets: [Double] = [100], leadBars: Int = 4, holdBars: Int = 4, rounds: Int = 8) {
+        public init(targets: [Double] = [100], leadBars: Int = 4, holdBars: Int = 4,
+                    rounds: Int = 8, rung: IntervalRung? = nil) {
             self.targets = targets.isEmpty ? [100] : targets
             self.leadBars = leadBars; self.holdBars = holdBars; self.rounds = rounds
+            self.rung = rung
         }
 
         public func target(forRound index: Int) -> Double { targets[index % targets.count] }
@@ -593,7 +611,8 @@ public enum TrainerEngine {
             }
             let round = TempoRound(index: reported, targetBpm: window.target,
                                    holdStart: start, holdEnd: end)
-            let partial = TempoCalibrationAnalysis.analyze(taps: soFar, rounds: [round])
+            let partial = TempoCalibrationAnalysis.analyze(taps: soFar, rounds: [round],
+                                                          notesPerBeat: config.rung?.subdivisions)
             if let result = partial.rounds.first { roundFinished?(result) }
             reported += 1
         }
@@ -622,7 +641,8 @@ public enum TrainerEngine {
                                      holdStart: start, holdEnd: end))
         }
 
-        let report = TempoCalibrationAnalysis.analyze(taps: taps, rounds: rounds)
+        let report = TempoCalibrationAnalysis.analyze(taps: taps, rounds: rounds,
+                                                     notesPerBeat: config.rung?.subdivisions)
 
         return TempoOutcome(report: report, environment: env, config: config,
                             tapTimes: taps.map(\.time), rounds: rounds)
@@ -644,14 +664,15 @@ public enum TrainerEngine {
             usableCount: r.usableCount, meanErrorPercent: Stats.finite(r.meanErrorPercent),
             meanAbsErrorPercent: Stats.finite(r.meanAbsErrorPercent),
             improvementPerRound: Stats.finite(r.improvementPerRound), headline: r.headline,
-            placement: placement, experiment: experiment)
+            placement: placement, experiment: experiment,
+            rung: outcome.config.rung?.rawValue)
         return try SessionStore.save(session)
     }
 
     public static func tempoHistory() -> [HistoryEntry] {
         SessionStore.loadAllTempo().map { session in
             // Recomputed from raw taps, like the other drills, so analysis fixes apply back.
-            let r = TempoCalibrationAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            let r = session.report()
             let targets = session.targets.map { String(Int($0)) }.joined(separator: "/")
             return HistoryEntry(
                 date: session.date,
@@ -699,8 +720,7 @@ public enum TrainerEngine {
         SessionStore.loadAllDropout().map { session in
             // Re-analysed from the raw taps rather than read from the cached summary, so
             // improvements to the analysis reach takes recorded before them.
-            let (taps, grid, sections) = session.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            let r = session.report()
 
             var split = "split unreliable"
             if r.splitIsReliable, let wk = r.wingKristofferson {
@@ -884,8 +904,7 @@ public enum TrainerEngine {
         // Difficulty follows the *clock*, which is what this drill trains — so it reads the
         // continuation drill's most recent trustworthy split rather than its own accuracy.
         let clockSD = SessionStore.loadAllDropout().reversed().compactMap { session -> Double? in
-            let (t, g, s) = session.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: t, grid: g, sections: s)
+            let r = session.report()
             return r.splitIsReliable ? r.wingKristofferson?.clockSDms : nil
         }.first
 
@@ -1038,8 +1057,7 @@ public enum TrainerEngine {
         }
 
         let continuations = SessionStore.loadAllDropout().map { session -> PlannerInput.Continuation in
-            let (taps, grid, sections) = session.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            let r = session.report()
             return PlannerInput.Continuation(
                 silentBars: session.silentBars,
                 absTempoBiasPercent: r.tempoBiasBpm.map { abs($0) / session.bpm * 100 },
@@ -1057,7 +1075,7 @@ public enum TrainerEngine {
         }
 
         let tempos = SessionStore.loadAllTempo().map { session -> PlannerInput.Tempo in
-            let r = TempoCalibrationAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            let r = session.report()
             return PlannerInput.Tempo(targetCount: Set(session.targets).count,
                                       meanAbsErrorPercent: r.meanAbsErrorPercent)
         }
@@ -1158,8 +1176,7 @@ public enum TrainerEngine {
 
         case .dropout:
             let takes = SessionStore.loadAllDropout().map { session -> DatedTake in
-                let (taps, grid, sections) = session.reconstruct()
-                let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+                let r = session.report()
                 return DatedTake(date: session.date, placement: session.placement,
                                  value: r.tempoBiasBpm.map(abs) ?? .nan)
             }
@@ -1167,8 +1184,7 @@ public enum TrainerEngine {
 
         case .tempo:
             let takes = SessionStore.loadAllTempo().map { session -> DatedTake in
-                let r = TempoCalibrationAnalysis.analyze(taps: session.taps,
-                                                         rounds: session.roundWindows)
+                let r = session.report()
                 return DatedTake(date: session.date, placement: session.placement,
                                  value: r.meanAbsErrorPercent ?? .nan)
             }
@@ -1268,8 +1284,7 @@ public enum TrainerEngine {
         let drops = SessionStore.loadAllDropout()
         if !drops.isEmpty {
             let reports = drops.map { session -> DropoutReport in
-                let (taps, grid, sections) = session.reconstruct()
-                return DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+                return session.report()
             }
             var warnings: [String] = []
             let silences = TrendAnalysis.distinct(drops.map(\.silentBars))
@@ -1338,7 +1353,7 @@ public enum TrainerEngine {
         let tempos = SessionStore.loadAllTempo()
         if !tempos.isEmpty {
             let reports = tempos.map {
-                TempoCalibrationAnalysis.analyze(taps: $0.taps, rounds: $0.roundWindows)
+                $0.report()
             }
             var warnings: [String] = []
             let targetSets = TrendAnalysis.distinct(tempos.map {

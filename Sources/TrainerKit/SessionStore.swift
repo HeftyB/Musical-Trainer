@@ -270,6 +270,27 @@ struct DropoutSession: Codable, StoredTake {
     /// Which experiment and arm, when this take was played as part of one. Written since M13;
     /// nothing reads it yet. See `ExperimentAssignment`.
     let experiment: ExperimentAssignment?
+    /// The note value the player was **asked** to hold through the silences.
+    ///
+    /// `nil` on every take recorded before M14, where the analysis inferred it from what was
+    /// played. The inference is kept for those; it is the *snapping* inside it that changed.
+    let rung: String?
+
+    /// This take under the current analysis, with the note value it was asked for.
+    ///
+    /// Every caller goes through here rather than pairing `reconstruct()` with an `analyze`
+    /// call of its own. Seven call sites did the latter, which meant seven places to remember
+    /// to pass the rung — and the one that forgot would silently re-infer the note value and
+    /// disagree with the take's own report. That is R3.1's cached-summary defect wearing the
+    /// shape of a duplicated pipeline.
+    func report() -> DropoutReport {
+        let (taps, grid, sections) = reconstruct()
+        return DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections,
+                                       notesPerBeat: askedNotesPerBeat)
+    }
+
+    /// Notes per beat asked for, or `nil` when nothing was prescribed and the analysis infers.
+    var askedNotesPerBeat: Int? { rung.flatMap { IntervalRung(rawValue: $0)?.subdivisions } }
 
     /// Rebuild the inputs to the analysis, so a stored drill can be re-analysed with the
     /// current logic. The stored summary is only a cache; this is the source of truth.
@@ -327,8 +348,22 @@ struct TempoSession: Codable, StoredTake {
     /// Which experiment and arm, when this take was played as part of one. Written since M13;
     /// nothing reads it yet. See `ExperimentAssignment`.
     let experiment: ExperimentAssignment?
+    /// The note value asked for during each hold. `nil` on every take recorded before M14.
+    let rung: String?
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
+
+    /// This take under the current analysis, with the note value it was asked for.
+    ///
+    /// One place, for the reason `DropoutSession.report()` gives: five call sites recomputed
+    /// this by hand, and the rung has to reach every one of them or a take disagrees with its
+    /// own report depending on which readout asked.
+    func report() -> TempoCalibrationReport {
+        TempoCalibrationAnalysis.analyze(taps: taps, rounds: roundWindows,
+                                         notesPerBeat: askedNotesPerBeat)
+    }
+
+    var askedNotesPerBeat: Int? { rung.flatMap { IntervalRung(rawValue: $0)?.subdivisions } }
 
     /// Three arrays describe the same rounds. `roundWindows` uses `zip`, which does not trap
     /// on a mismatch — it silently truncates to the shortest, so a malformed file would report

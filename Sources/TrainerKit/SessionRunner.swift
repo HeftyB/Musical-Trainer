@@ -166,7 +166,8 @@ public final class SessionRunner {
         case .dropout(let p):
             return .dropout(try TrainerEngine.runDropout(
                 TrainerEngine.DropoutConfig(bpm: p.bpm, pacedBars: p.pacedBars,
-                                            silentBars: p.silentBars, cycles: p.cycles),
+                                            silentBars: p.silentBars, cycles: p.cycles,
+                                            rung: p.rung),
                 progress: progress, cancellation: cancellation))
 
         case .memory(let p):
@@ -179,7 +180,8 @@ public final class SessionRunner {
         case .tempo(let p):
             return .tempo(try TrainerEngine.runTempo(
                 TrainerEngine.TempoConfig(targets: p.targets, leadBars: p.leadBars,
-                                          holdBars: p.holdBars, rounds: p.rounds),
+                                          holdBars: p.holdBars, rounds: p.rounds,
+                                          rung: p.rung),
                 progress: progress, cancellation: cancellation, roundFinished: roundFinished))
         }
     }

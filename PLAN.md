@@ -2425,7 +2425,7 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | 4a ✅ | Ground clearing found by the pre-step-4 review: one matching-window constant, one block-to-instructions mapping, one meaning for `LadderBackings`' parameter. |
 | 4b ✅ | The **jam** gains a rung, end to end: config, backing, analysis grid, storage, instructions (R3.6), the CLI, and the confound axes that consume it. |
 | 4d ✅ | Planner rotates tempo on a ladder training block only, picking the rung after the tempo, with tests that it never touches the benchmark, the cold probe or an experiment block. |
-| 4e | The other four drills gain a rung, and the two isochrony gates stop assuming quarters (trap 4). |
+| 4e ✅ | The continuation and tempo drills gain a rung, and the period estimate stops guessing the note value (trap 4). |
 | 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
 | 6 | Both surfaces, and docs. |
 
@@ -2818,6 +2818,51 @@ was blind to a constant that was simply wrong — which is the likelier mistake 
 a tempo rotation in it at all. It now asserts the values absolutely, and the planted violation
 fails 27 assertions. R5.7 is written about `check.sh` rules; it applies to any test whose whole
 job is that something did not change.
+
+### Step 4e, as built — the period estimate stops guessing
+
+Trap 4 named "two isochrony gates assume quarters". Reading them, the gates themselves do not:
+both accept a silence whose intervals sit within 0.6–1.6× of *its own* median, which is
+rung-agnostic already. What assumed quarters was the step after — turning a note period into a
+beat tempo — and it assumed it in a way that could invert a sign.
+
+**The defect.** Both drills computed `notesPerBeat` as the target beat divided by the median
+interval, **rounded, with no check on how far the rounding moved**. At 100 BPM a player holding
+1.45 notes per beat rounds to 1 and is reported at 145 BPM — 45% fast. Round the other way and
+the same playing reads 72.5 BPM, 27% slow. Same notes, same target, opposite directions, and the
+analysis picked one and printed it as a fact. Between whole numbers it genuinely cannot tell
+"slow eighths" from "fast quarters", so it now says so instead of choosing (R3.3).
+
+**Prescribing removes the question entirely.** `DropoutConfig` and `TempoConfig` carry a rung,
+the planner sets `.quarters` on both, and the analysis is told rather than inferring. That is
+**not a change of task**: the continuation drill's instructions have said "play exactly ONE NOTE
+PER BEAT" since M6 and the tempo drill's since M8. All that changed is that the analysis now
+knows what the words already said. A round asked for eighths and played in quarters is reported
+as not having performed the task, rather than quietly rescored against what it happened to be.
+
+**No stored number moved.** Every take on disk sits within 6% of a whole subdivision, so nothing
+trips the new refusal and `review dropout` and `review tempo` print exactly what they printed
+before. This is latent protection rather than a retroactive correction — worth stating, because
+"the fix changed no output" reads as evidence the fix was unnecessary and it is not. The 4-bar
+and 8-bar silences are the ones at risk: the more the pulse drifts inside a silence, the further
+the median can land from a whole subdivision.
+
+**Two more duplicated pipelines collapsed.** Seven call sites paired `DropoutSession.reconstruct()`
+with a `DropoutAnalysis.analyze` of their own, and five did the same for `TempoSession` — so the
+rung would have had to reach twelve places, and the one that forgot would silently re-infer and
+disagree with the take's own report depending on which readout asked. Both types now have a
+`report()`, like `JamSession` has had since M4, and every caller goes through it.
+
+**The form drill deliberately gains nothing.** An earlier version of this table said "the other
+four drills gain a rung", which was wrong: form marks phrase tops with pads while the keys are
+free playing, so there is no subdivision being scored and a rung would be a setting that changes
+nothing. The recall drill inherits the fix without its own field, because its per-round scoring
+*is* `TempoCalibrationAnalysis` (§7.16) rather than a parallel copy.
+
+**Not rotated by the planner.** These two drills feed the clock/motor trend and the tempo-error
+trend, and R3.5 locks drill parameters that feed a trend. The ladder block is where the interval
+varies; here the rung is set to what the drill already asked for and stays there. It is available
+by hand — `dropout 100 4 8 6 eighths` — for when the clock/motor question is settled.
 
 ### What this cannot verify
 

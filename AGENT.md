@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is in progress — steps 0–3, 3b, 4a, 4b and 4d, planned in §7.23.** The subdivision
+**M0–M13 are done. M14 is in progress — steps 0–3, 3b, 4a, 4b, 4d and 4e, planned in §7.23.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -69,8 +69,8 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 259 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (59 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 299 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (74 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -84,7 +84,7 @@ that precondition is met without booking a live run.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 318 tests, no hardware needed
+swift test                              # 373 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -148,7 +148,7 @@ reaches takes recorded before it.
 | Bridge the clocks | `TrainerKit/HostClock` (`SampleHostMap`), `JamAnalysis.reduce` | Least-squares fit of (hostTime, sample); calibration applied here, sign and all |
 | Collapse chords | `TimingCore/TapClustering` | Near-simultaneous note-ons are one rhythmic event |
 | Match to the grid | `TimingCore/Grid`, `Matching` | ±40% window (`Matching.defaultWindowFraction`); outside it is an *extra*, never a late note |
-| Analyse | `TimingCore/TimingReport`, `WingKristofferson`, `DropoutAnalysis`, `FormAnalysis`, `TempoCalibration`, `TempoMemory`, `MusicalContent` | One analysis per drill, all pure |
+| Analyse | `TimingCore/TimingReport`, `WingKristofferson`, `DropoutAnalysis`, `FormAnalysis`, `TempoCalibration`, `TempoMemory`, `MusicalContent` | One analysis per drill, all pure. Every stored type has a `report()` — **never pair `reconstruct()` with an `analyze` call of your own**, or the take's own parameters stop reaching the analysis |
 | Quantify uncertainty | `TimingCore/Bootstrap`, `Statistics` | Three bootstraps, and picking the wrong one is a defect (R3.2) |
 | Store | `TrainerKit/SessionStore` | One JSON per take; raw taps plus a summary nothing reads back |
 | Aggregate | `TimingCore/TrendAnalysis`, `WarmUpAnalysis`, `ExperimentAnalysis`, `IntervalResponse`, `ProducedInterval` | Trends, cold-vs-warm, the A/B readout, and the interval axis. The last two are the only pair where the unit differs on purpose — takes for the first, **notes** for the second |
@@ -164,6 +164,9 @@ Types worth knowing before changing anything:
   The ceiling assumes absolute spread does not move with the interval, which §7.23 step 3b
   measured rather than assumed.
 - **`JamConfig.rung` / `JamSession.rung`** — the subdivision the player was **asked to produce**.
+  Also on `DropoutConfig`/`TempoConfig`, where it stops the period estimate guessing the note
+  value: rounding an observed 1.45 notes-per-beat to 1 reports 45% fast as a fact when the same
+  playing also reads 27% slow. Every stored take is near a whole subdivision, so nothing moved.
   `nil` means no rung was prescribed, **never quarters**: the benchmark and both experiment
   blocks must stay rung-less (R3.5). Distinct from `subdivisions`, which is the grid the take
   was *analysed* on; `taskSubdivisions` is the one the interval readout wants.

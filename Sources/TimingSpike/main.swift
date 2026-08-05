@@ -32,9 +32,10 @@ func usage() {
       form [bpm] [bars] [phraseBars] [level]
                         phrase-mark drill: hit a pad at each phrase top, no counting
                         (default 100, 64, 8, level 0; levels 0-3 remove the landmarks)
-      dropout [bpm] [pacedBars] [silentBars] [cycles]
-                        continuation drill: play quarter notes through the silences.
-                        The only drill that yields a clock/motor split. (100, 4, 4, 6)
+      dropout [bpm] [pacedBars] [silentBars] [cycles] [rung]
+                        continuation drill: play a steady note value through the silences.
+                        The only drill that yields a clock/motor split. (100, 4, 4, 6,
+                        quarters). A rung asks for that note value and scores against it.
       tempo [bpm ...]   M8: produce a tempo unaccompanied and be told what you produced.
                         Pass several to rotate the target (e.g. tempo 76 100 132).
       memory [bpm] [waitBars] [rounds]
@@ -105,7 +106,8 @@ do {
         let paced = arguments.dropFirst(2).first.flatMap(Int.init) ?? 4
         let silent = arguments.dropFirst(3).first.flatMap(Int.init) ?? 4
         let cycles = arguments.dropFirst(4).first.flatMap(Int.init) ?? 6
-        try Commands.runDropout(bpm: bpm, pacedBars: paced, silentBars: silent, cycles: cycles)
+        try Commands.runDropout(bpm: bpm, pacedBars: paced, silentBars: silent,
+                                cycles: cycles, rung: arguments.dropFirst(5).first)
 
     case "tempo":
         // Several tempos rotate the target: "tempo 76 100 132".

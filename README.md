@@ -43,7 +43,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 318 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 373 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -67,7 +67,7 @@ swift build -c release   # the console tool
 | `memory [bpm] [waitBars] [rounds]` | **M11.** Recall drill: hear a tempo, stop playing through the wait, then reproduce it. Half the waits are silent and half are filled with unrelated percussion — the gap between them says whether the period is stored or just being held. If you play through one condition's waits more than the other's, the comparison is withheld rather than reported: the two are no longer scored on the same task. Default 100, 4, 8. |
 | `session [minutes]` | **M9.** Run a whole planned session end to end — cold probe, warm-up, benchmark jam, drills chosen from your recent data, then playing. Default 30. **M14** adds one interval-ladder take per session, at a tempo that rotates between sittings and the finest subdivision that tempo can still score honestly; everything else stays locked at 100 BPM. |
 | `session plan [minutes]` | **M9.** Print what it would do, and why, without running it. |
-| `dropout [bpm] [pacedBars] [silentBars] [cycles]` | Continuation drill: quarter notes straight through the silences. The only drill that separates clock from motor noise. Default 100, 4, 4, 6. |
+| `dropout [bpm] [pacedBars] [silentBars] [cycles] [rung]` | Continuation drill: a steady note value straight through the silences. The only drill that separates clock from motor noise. Default 100, 4, 4, 6, quarters. **M14:** a rung asks for that note value and scores against it, instead of the analysis inferring it from what you played. |
 | `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. |
 | `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
 | `review tags` | Pooled summary of every tagged condition. |
@@ -188,11 +188,13 @@ The report tells you when you've earned the next one. `review form` shows your h
 ## Continuation drill — clock or hands?
 
 ```sh
-./.build/release/TimingSpike dropout 100 4 4 6    # 4 bars with the band, 4 alone, ×6
+./.build/release/TimingSpike dropout 100 4 4 6            # 4 bars with the band, 4 alone, ×6
+./.build/release/TimingSpike dropout 100 4 4 6 eighths    # two notes per beat instead
 ```
 
 Play **one note per beat, steadily, the whole way through** — especially when the band drops
-out. The silences are the measurement, and they're the only thing in the app that can separate
+out. Pass a rung and it asks for that note value instead, and scores against it; without one it
+is quarter notes, as it always has been. The silences are the measurement, and they're the only thing in the app that can separate
 two faults which feel identical from the inside:
 
 - **Clock** — the pulse in your head is unstable

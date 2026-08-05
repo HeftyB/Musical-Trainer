@@ -298,19 +298,23 @@ public enum Commands {
     }
 
 
+    /// One rung parser for every command, so an unknown name is refused the same way whatever
+    /// it was typed after — and refused *before* any audio device is opened (R7.6).
+    static func parseRung(_ raw: String?) throws -> IntervalRung? {
+        guard let raw else { return nil }
+        guard let parsed = IntervalRung(rawValue: raw) else {
+            throw SpikeError("Unknown rung '\(raw)'. One of: "
+                           + IntervalRung.ladder.map(\.rawValue).joined(separator: ", "))
+        }
+        return parsed
+    }
+
     // MARK: - M4 jam
 
     public static func runJam(bpm: Double, bars: Int, tag: String?, rung: String? = nil) throws {
         Console.heading("Jam — record a take")
 
-        var prescribed: IntervalRung?
-        if let rung {
-            guard let parsed = IntervalRung(rawValue: rung) else {
-                throw SpikeError("Unknown rung '\(rung)'. One of: "
-                               + IntervalRung.ladder.map(\.rawValue).joined(separator: ", "))
-            }
-            prescribed = parsed
-        }
+        let prescribed = try parseRung(rung)
 
         let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased(),
                                              rung: prescribed)
@@ -817,16 +821,19 @@ public enum Commands {
 
     // MARK: - Tempo calibration
 
-    public static func runTempo(targets: [Double], leadBars: Int, holdBars: Int, rounds: Int) throws {
+    public static func runTempo(targets: [Double], leadBars: Int, holdBars: Int, rounds: Int,
+                                rung: String? = nil) throws {
         Console.heading("Tempo calibration — produce the tempo yourself")
+        let prescribed = try parseRung(rung) ?? .quarters
         let config = TrainerEngine.TempoConfig(targets: targets, leadBars: leadBars,
-                                               holdBars: holdBars, rounds: rounds)
+                                               holdBars: holdBars, rounds: rounds,
+                                               rung: prescribed)
         let env = try TrainerEngine.environment()
         print("Output: \(env.outputName)")
         let targetText = targets.map { String(Int($0)) }.joined(separator: " / ")
         print("Targets: \(targetText) BPM   ·   \(rounds) rounds   ·   "
             + String(format: "~%.1f min", config.durationSeconds / 60))
-        printInstructions(DrillInstructions.tempo)
+        printInstructions(DrillInstructions.tempo(rung: prescribed))
         Console.prompt("Ready?")
 
         print("")
@@ -893,7 +900,7 @@ public enum Commands {
         }
         print("\(pad("When", 22))\(pad("targets", 14))\(pad("bias", 10))\(pad("accuracy", 11))feel")
         for s in sessions {
-            let r = TempoCalibrationAnalysis.analyze(taps: s.taps, rounds: s.roundWindows)
+            let r = s.report()
             let targets = s.targets.map { String(Int($0)) }.joined(separator: "/")
             print("\(pad(dateLabel(s.date), 22))\(pad(targets, 14))"
                 + "\(pad(r.meanErrorPercent.map { String(format: "%+.1f%%", $0) } ?? "—", 10))"
@@ -1035,17 +1042,20 @@ public enum Commands {
 
     // MARK: - Dropout drill
 
-    public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int) throws {
+    public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int,
+                                  rung: String? = nil) throws {
         Console.heading("Dropout drill — hold the pulse alone")
+        let prescribed = try parseRung(rung) ?? .quarters
         let config = TrainerEngine.DropoutConfig(bpm: bpm, pacedBars: pacedBars,
-                                                 silentBars: silentBars, cycles: cycles)
+                                                 silentBars: silentBars, cycles: cycles,
+                                                 rung: prescribed)
         let env = try TrainerEngine.environment()
         print("Output: \(env.outputName)")
 
         print("\n\(Console.bold)\(cycles) cycles\(Console.reset): \(pacedBars) bars with the band, "
             + "\(silentBars) bars alone  ·  "
             + String(format: "~%.1f min", config.durationSeconds / 60))
-        printInstructions(DrillInstructions.dropout)
+        printInstructions(DrillInstructions.dropout(rung: prescribed))
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runDropout(config)
@@ -1420,8 +1430,7 @@ public enum Commands {
             + "\(pad("motor", 10))\(pad("tempo alone", 14))feel")
         for s in sessions {
             // Recomputed from the raw taps so older takes get the current analysis.
-            let (taps, grid, sections) = s.reconstruct()
-            let r = DropoutAnalysis.analyze(taps: taps, grid: grid, sections: sections)
+            let r = s.report()
             let clock = r.splitIsReliable ? Console.ms(r.wingKristofferson?.clockSDms ?? .nan, 1) : "—"
             let motor = r.splitIsReliable ? Console.ms(r.wingKristofferson?.motorSDms ?? .nan, 1) : "—"
             let tempo = r.playedBpm.map { String(format: "%.0f (%+.0f)", $0, r.tempoBiasBpm ?? 0) } ?? "—"

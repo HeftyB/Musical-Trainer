@@ -49,7 +49,12 @@ public struct DropoutReport: Equatable {
     public let splitIsReliable: Bool
 
     /// The tempo actually produced while unaccompanied.
+    ///
+    /// `nil` when the note values played sit between whole subdivisions of the beat, because
+    /// then no single tempo describes them — see `ambiguousSubdivisionTolerance`.
     public let playedBpm: Double?
+    /// Why the tempo could not be read, when it could not. `nil` when it could.
+    public let tempoUnreadableReason: String?
     /// Played tempo minus target. Negative = you play slower than the click when alone.
     public let tempoBiasBpm: Double?
     /// The same bias as accumulated lateness: ms of slippage per beat.
@@ -85,8 +90,17 @@ public enum DropoutAnalysis {
     /// drifting out of sync — the two differ on purpose.
     public static let pacedWindowFraction = 0.45
 
+    /// How far the observed notes-per-beat may sit from a whole number before the tempo is
+    /// withheld rather than snapped to one. See `TempoCalibrationAnalysis` for the sign
+    /// inversion this prevents; the arithmetic here is the same and so is the failure.
+    public static let ambiguousSubdivisionTolerance = 0.2
+
+    /// - Parameter notesPerBeat: what the player was **asked** to produce, when a rung was
+    ///   prescribed. Given, it replaces the inference; `nil` keeps it, which is what every take
+    ///   recorded before M14 needs.
     public static func analyze(taps: [Tap], grid: Grid, sections: [DropoutSection],
-                               matchWindowFraction: Double = pacedWindowFraction) -> DropoutReport {
+                               matchWindowFraction: Double = pacedWindowFraction,
+                               notesPerBeat prescribed: Int? = nil) -> DropoutReport {
         let sorted = taps.sorted { $0.time < $1.time }
         let beat = grid.beatInterval
 
@@ -163,17 +177,42 @@ public enum DropoutAnalysis {
         var playedBpm: Double?
         var biasBpm: Double?
         var biasMs: Double?
+        var unreadable: String?
         if !periods.isEmpty {
             let meanPeriod = Stats.mean(periods)
             // A player subdividing consistently — eighths all the way through — is still a
             // valid continuation sequence, but their note period is not their beat period.
             // Without this, steady eighths at the right tempo would read as 200 BPM.
-            let notesPerBeat = max(1, (beat * 1000 / meanPeriod).rounded())
-            let beatPeriod = meanPeriod * notesPerBeat
-            let bpm = 60_000 / beatPeriod
-            playedBpm = bpm
-            biasBpm = bpm - grid.bpm
-            biasMs = beatPeriod - beat * 1000
+            let observed = beat * 1000 / meanPeriod
+            var notesPerBeat: Double?
+            if let prescribed {
+                if abs(observed - Double(prescribed)) <= ambiguousSubdivisionTolerance
+                    * Double(prescribed) {
+                    notesPerBeat = Double(prescribed)
+                } else {
+                    unreadable = String(format: "asked for %d notes per beat and played about "
+                                      + "%.1f, so this is not the drill that was set",
+                                        prescribed, observed)
+                }
+            } else {
+                let snapped = max(1, observed.rounded())
+                // Snapping a ratio that is nowhere near a whole number inverts the sign: a
+                // period 1.4× the beat rounds to one note per beat and reports 40% fast as 14%
+                // slow. Between note values the tempo genuinely cannot be read (R3.3).
+                if abs(observed - snapped) <= ambiguousSubdivisionTolerance {
+                    notesPerBeat = snapped
+                } else {
+                    unreadable = String(format: "%.1f notes per beat — between note values, so "
+                                      + "the tempo could be read two ways", observed)
+                }
+            }
+            if let notesPerBeat {
+                let beatPeriod = meanPeriod * notesPerBeat
+                let bpm = 60_000 / beatPeriod
+                playedBpm = bpm
+                biasBpm = bpm - grid.bpm
+                biasMs = beatPeriod - beat * 1000
+            }
         }
 
         let withinDrifts = usable.compactMap(\.withinTrialDriftMsPerBeat)
@@ -188,6 +227,7 @@ public enum DropoutAnalysis {
             wingKristofferson: wk,
             splitIsReliable: reliable,
             playedBpm: playedBpm,
+            tempoUnreadableReason: unreadable,
             tempoBiasBpm: biasBpm,
             tempoBiasMsPerBeat: biasMs,
             meanWithinTrialDriftMsPerBeat: withinDrifts.isEmpty ? nil : Stats.mean(withinDrifts),
@@ -197,20 +237,28 @@ public enum DropoutAnalysis {
             unpacedNoteCount: unpacedCount,
             headline: Self.headline(wk: wk, reliable: reliable, biasBpm: biasBpm,
                                     playedBpm: playedBpm, targetBpm: grid.bpm,
-                                    usable: usable.count, unpacedNotes: unpacedCount))
+                                    usable: usable.count, unpacedNotes: unpacedCount,
+                                    unreadable: unreadable))
     }
 
     /// Say the most useful true thing. A systematic tempo bias outranks the clock/motor split
     /// when the split is not trustworthy — and it is the more actionable finding anyway.
     private static func headline(wk: WingKristoffersonResult?, reliable: Bool, biasBpm: Double?,
                                  playedBpm: Double?, targetBpm: Double,
-                                 usable: Int, unpacedNotes: Int) -> String {
+                                 usable: Int, unpacedNotes: Int,
+                                 unreadable: String?) -> String {
         guard unpacedNotes >= 12 else {
             return "Not enough playing through the silences — keep one note per beat going when the band drops out."
         }
         if usable == 0 {
-            return "None of the silences held one note per beat, so nothing here is measurable. "
-                 + "Play steady quarter notes straight through, without subdividing."
+            return "None of the silences held a steady note value, so nothing here is "
+                 + "measurable. Play evenly straight through, at one note value."
+        }
+        // A withheld tempo outranks the split: the split may still be sound, but leading with it
+        // while the most actionable number is missing would bury the reason it is missing.
+        if let unreadable {
+            return "Your tempo through the silences can't be read — \(unreadable). The clock and "
+                 + "motor figures below still stand if the split is reliable."
         }
         // A systematic tempo bias outranks the split: it is both more reliably measured and
         // more directly actionable than a variance decomposition.

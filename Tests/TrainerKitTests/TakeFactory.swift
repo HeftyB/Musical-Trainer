@@ -82,7 +82,8 @@ enum TakeFactory {
             pacedSDms: nil, unpacedIntervalSDms: nil, clockSDms: nil, motorSDms: nil,
             modelHolds: false, reentryErrorMeanMs: nil, reentryErrorSDms: nil,
             headline: "", tempoBiasBpm: nil, playedBpm: nil, splitIsReliable: nil,
-            discardedTrials: nil, placement: placement(role: "training"), experiment: nil)
+            discardedTrials: nil, placement: placement(role: "training"), experiment: nil,
+            rung: nil)
         // Recompute through the same path the engine uses, so the stored summary is the one the
         // analysis actually produces rather than a hand-written guess.
         let (t, gr, sections) = session.reconstruct()
@@ -101,7 +102,7 @@ enum TakeFactory {
             reentryErrorSDms: Stats.finite(r.reentryErrorSDms), headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: session.placement, experiment: nil)
+            placement: session.placement, experiment: nil, rung: nil)
     }
 
     static func tempo(rounds: Int = 4) -> TempoSession {
@@ -115,7 +116,7 @@ enum TakeFactory {
             roundHoldStarts: starts, roundHoldEnds: starts.map { $0 + holdSeconds },
             usableCount: rounds, meanErrorPercent: nil, meanAbsErrorPercent: nil,
             improvementPerRound: nil, headline: "", placement: placement(role: "cold"),
-            experiment: nil)
+            experiment: nil, rung: nil)
     }
 
     static func memory(rounds: Int = 4) -> MemorySession {

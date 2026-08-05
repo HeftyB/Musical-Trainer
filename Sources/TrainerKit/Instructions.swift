@@ -208,6 +208,42 @@ public struct DrillInstructions {
                     + "downbeat you landed.")
     }
 
+    /// The continuation drill's instructions **for the note value being asked for**.
+    ///
+    /// The text has said "ONE NOTE PER BEAT" since M6 while the analysis inferred the note value
+    /// from what was played. Now that the drill can ask for something else, the words and the
+    /// analysis are driven by the same parameter — which is R3.6, and the reason `nil` still
+    /// yields the quarter-note text unchanged rather than something vaguer.
+    public static func dropout(rung: IntervalRung?) -> DrillInstructions {
+        guard let rung, rung != .quarters else { return dropout }
+        let each: String
+        switch rung {
+        case .eighths:        each = "TWO NOTES PER BEAT"
+        case .tripletEighths: each = "THREE NOTES PER BEAT"
+        case .sixteenths:     each = "FOUR NOTES PER BEAT"
+        case .quarters:       each = "ONE NOTE PER BEAT"
+        }
+        return DrillInstructions(
+            goal: "Measures whether your unsteadiness comes from your sense of time or from "
+                + "your hands — at \(rung.label) rather than at the beat.",
+            steps: [
+                "The drums play for a few bars, then stop completely, then come back with a crash.",
+                "Play exactly \(each) — steady \(rung.label) — from start to finish.",
+                "Keep going through the silence at the same speed. The silence is the measurement.",
+                "Any note works. Pitch is irrelevant; only when you play matters.",
+            ],
+            pitfalls: [
+                "Don't drop back to a coarser note value when it gets hard. The drill was set at "
+                + "\(rung.label), and a silence at a different one cannot be scored against it.",
+                "Don't stop or pause during the silence — that is the only part being measured.",
+                "Don't speed up to 'catch' the band when it returns. Hold your pulse and let it "
+                + "land where it lands.",
+            ],
+            measures: "The tempo you hold unaccompanied at this note value, and — when the "
+                    + "playing is steady enough — whether the wobble comes from your internal "
+                    + "pulse or your hands.")
+    }
+
     public static let dropout = DrillInstructions(
         goal: "Measures whether your unsteadiness comes from your sense of time or from your hands.",
         steps: [
@@ -223,6 +259,35 @@ public struct DrillInstructions {
         ],
         measures: "The tempo you hold unaccompanied, and — when the playing is steady enough — "
                 + "whether the wobble comes from your internal pulse or your hands.")
+
+    /// The tempo drill's instructions for the note value being asked for. See `dropout(rung:)`.
+    public static func tempo(rung: IntervalRung?) -> DrillInstructions {
+        guard let rung, rung != .quarters else { return tempo }
+        let each: String
+        switch rung {
+        case .eighths:        each = "TWO NOTES PER BEAT"
+        case .tripletEighths: each = "THREE NOTES PER BEAT"
+        case .sixteenths:     each = "FOUR NOTES PER BEAT"
+        case .quarters:       each = "ONE NOTE PER BEAT"
+        }
+        return DrillInstructions(
+            goal: "Trains your sense of a specific tempo by telling you what you actually "
+                + "produced — held in \(rung.label).",
+            steps: [
+                "The click counts a few bars at the target tempo.",
+                "When it stops, keep playing \(each) at that same tempo.",
+                "After each round you are told the tempo you produced and how far off it was.",
+                "The click returns at the correct tempo — use it to correct, then go again.",
+            ],
+            pitfalls: [
+                "Don't change note value mid-round. The round was set at \(rung.label), and one "
+                + "played at another cannot be scored against it.",
+                "Don't try to count seconds. Feel the tempo and let your hands keep it.",
+                "Don't stop early in the silence; the round needs several notes to measure.",
+            ],
+            measures: "The tempo you produce unaccompanied each round, and whether your accuracy "
+                    + "improves across the session.")
+    }
 
     public static let tempo = DrillInstructions(
         goal: "Trains your sense of a specific tempo by telling you what you actually produced.",
@@ -308,8 +373,8 @@ public extension DrillInstructions {
             if let arm = block.experiment?.arm { return .jam(arm: arm) }
             return .jam(rung: p.rung)
         case .form(let p): return .form(level: p.level)
-        case .dropout:     return .dropout
-        case .tempo:       return .tempo
+        case .dropout(let p): return .dropout(rung: p.rung)
+        case .tempo(let p):   return .tempo(rung: p.rung)
         case .memory:      return .memory
         }
     }

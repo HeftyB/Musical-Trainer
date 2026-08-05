@@ -65,8 +65,19 @@ public struct DropoutPlan: Codable, Equatable {
     public let pacedBars: Int
     public let silentBars: Int
     public let cycles: Int
-    public init(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int) {
-        self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars; self.cycles = cycles
+    /// The note value asked for through the silences.
+    ///
+    /// Set to `.quarters` by the planner rather than left `nil`, and that is not a change of
+    /// task: the drill's instructions have demanded one note per beat since M6. What changes is
+    /// that the analysis is now *told* rather than inferring it from what was played and
+    /// snapping to the nearest whole number — a snap that inverts the sign of the tempo error
+    /// when the player lands between note values (§7.23 step 4e).
+    public let rung: IntervalRung?
+
+    public init(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int,
+                rung: IntervalRung? = nil) {
+        self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars
+        self.cycles = cycles; self.rung = rung
     }
 }
 
@@ -75,8 +86,13 @@ public struct TempoPlan: Codable, Equatable {
     public let leadBars: Int
     public let holdBars: Int
     public let rounds: Int
-    public init(targets: [Double], leadBars: Int, holdBars: Int, rounds: Int) {
-        self.targets = targets; self.leadBars = leadBars; self.holdBars = holdBars; self.rounds = rounds
+    /// The note value asked for during each hold. See `DropoutPlan.rung`.
+    public let rung: IntervalRung?
+
+    public init(targets: [Double], leadBars: Int, holdBars: Int, rounds: Int,
+                rung: IntervalRung? = nil) {
+        self.targets = targets; self.leadBars = leadBars; self.holdBars = holdBars
+        self.rounds = rounds; self.rung = rung
     }
 }
 
@@ -518,7 +534,8 @@ public enum SessionPlanner {
         SessionBlock(
             role: .cold,
             plan: .tempo(TempoPlan(targets: [referenceBpm], leadBars: 4,
-                                   holdBars: coldHoldBars, rounds: coldRounds)),
+                                   holdBars: coldHoldBars, rounds: coldRounds,
+                                   rung: .quarters)),
             reason: "Cold, before anything warms up. Identical every session — \(coldRounds) rounds "
                   + "at \(Int(referenceBpm)) BPM — so today's cold start can be compared with "
                   + "the last one. Nothing here adapts.")
@@ -712,7 +729,8 @@ public enum SessionPlanner {
             return SessionBlock(
                 role: .training,
                 plan: .dropout(DropoutPlan(bpm: referenceBpm, pacedBars: 4,
-                                           silentBars: current, cycles: sizes.dropoutCycles)),
+                                           silentBars: current, cycles: sizes.dropoutCycles,
+                                           rung: .quarters)),
                 reason: "Only \(reliable.count) of the last \(recent.count) continuation takes gave a "
                       + "trustworthy clock/motor split. Steady quarters, no subdividing — that is "
                       + "what makes a silence usable.")
@@ -728,7 +746,8 @@ public enum SessionPlanner {
             return SessionBlock(
                 role: .training,
                 plan: .dropout(DropoutPlan(bpm: referenceBpm, pacedBars: 4,
-                                           silentBars: harder, cycles: sizes.dropoutCycles)),
+                                           silentBars: harder, cycles: sizes.dropoutCycles,
+                                           rung: .quarters)),
                 reason: String(format: "Your clock is the looser half (%.1f ms against %.1f ms motor), "
                              + "so the silences go to %d bars. Longer alone is the way to load it.",
                                clock, motor, harder))
@@ -798,7 +817,7 @@ public enum SessionPlanner {
             return SessionBlock(
                 role: .training,
                 plan: .tempo(TempoPlan(targets: [referenceBpm], leadBars: 4, holdBars: 4,
-                                       rounds: sizes.tempoRounds)),
+                                       rounds: sizes.tempoRounds, rung: .quarters)),
                 reason: "No tempo-calibration data yet. One target, eight rounds, to establish "
                       + "how far off the produced period is.")
         }
@@ -807,7 +826,7 @@ public enum SessionPlanner {
             return SessionBlock(
                 role: .training,
                 plan: .tempo(TempoPlan(targets: [referenceBpm], leadBars: 4, holdBars: 4,
-                                       rounds: sizes.tempoRounds)),
+                                       rounds: sizes.tempoRounds, rung: .quarters)),
                 reason: String(format: "Last session you were %.1f%% off at a single target. Stay on "
                              + "one tempo until that comes under 2%%.", error))
         }
@@ -818,7 +837,7 @@ public enum SessionPlanner {
             return SessionBlock(
                 role: .training,
                 plan: .tempo(TempoPlan(targets: [76, referenceBpm, 132], leadBars: 4, holdBars: 4,
-                                       rounds: (sizes.tempoRounds / 3) * 3)),
+                                       rounds: (sizes.tempoRounds / 3) * 3, rung: .quarters)),
                 reason: String(format: "You are within %.1f%% at %d BPM, so the target starts "
                              + "rotating — 76/100/132. A clock calibrated at one tempo is a lookup "
                              + "table; the mapping is the skill. Expect the error to rise at first.",
