@@ -58,6 +58,127 @@ final class TempoMemoryTests: XCTestCase {
         return TempoMemoryAnalysis.analyze(taps: allTaps, rounds: plan)
     }
 
+    /// Same as `report`, but each round carries its own count of notes played during the wait,
+    /// so the two conditions can be made to lose different numbers of rounds.
+    private func reportWithAttrition(
+        _ specs: [(silent: Bool, bpm: Double, retentionNotes: Int)]) -> TempoMemoryReport {
+        var plan: [MemoryRound] = []
+        var cursor = 0.0
+        for (i, spec) in specs.enumerated() {
+            let retentionStart = cursor + 9.6
+            let retentionEnd = retentionStart + 9.6
+            let reproduceEnd = retentionEnd + 9.6
+            plan.append(MemoryRound(index: i, targetBpm: 100,
+                                    condition: spec.silent ? .silent : .filled,
+                                    retentionStart: retentionStart, retentionEnd: retentionEnd,
+                                    reproduceStart: retentionEnd, reproduceEnd: reproduceEnd))
+            cursor = reproduceEnd
+        }
+        let allTaps = zip(plan, specs).flatMap {
+            taps(for: $0.0, producedBpm: $0.1.bpm, retentionNotes: $0.1.retentionNotes)
+        }
+        return TempoMemoryAnalysis.analyze(taps: allTaps, rounds: plan)
+    }
+
+    /// The §7.17 shape: three of four silent waits played through, one of four filled. This is
+    /// the take that produced a +1.30 interference cost, which §7.19 then had to retract.
+    private var theRetractedShape: [(silent: Bool, bpm: Double, retentionNotes: Int)] {
+        [(true, 100, 3), (false, 90, 0), (true, 100, 3), (false, 89, 3),
+         (true, 100, 3), (false, 91, 0), (true, 100, 0), (false, 90, 0)]
+    }
+
+    // MARK: - Differential attrition (PLAN.md §7.20 finding 2)
+
+    func testAttritionIsCountedPerConditionRatherThanAsOneTotal() {
+        let r = reportWithAttrition(theRetractedShape)
+        let silent = r.attrition.first { $0.condition == .silent }
+        let filled = r.attrition.first { $0.condition == .filled }
+
+        XCTAssertEqual(silent?.playedThrough, 3)
+        XCTAssertEqual(filled?.playedThrough, 1)
+        // A single total would read "4 rounds" and hide the whole problem.
+        XCTAssertNotEqual(silent?.playedThrough, filled?.playedThrough)
+    }
+
+    func testUnequalAttritionMakesTheTwoConditionsIncomparable() {
+        let r = reportWithAttrition(theRetractedShape)
+        XCTAssertTrue(r.attritionIsImbalanced)
+        // The headline must not quote a cost from sets that are not describing the same task.
+        XCTAssertTrue(r.headline.contains("not scored on comparable sets"), r.headline)
+        XCTAssertFalse(r.headline.contains("Interference costs you"), r.headline)
+        // Withheld at source, not merely flagged: the chart, the planner and the debrief all
+        // derive from this and none of them should need to remember a precondition.
+        XCTAssertNil(r.interferenceCost)
+        XCTAssertNil(r.interferenceInterval)
+        // The per-condition means still stand — each describes its own condition honestly.
+        XCTAssertNotNil(r.silentMeanAbsErrorPercent)
+        XCTAssertNotNil(r.filledMeanAbsErrorPercent)
+    }
+
+    /// The shape of the *stored* takes whose cost §7.19 retracted: a single silent round lost
+    /// and no filled one, four rounds each.
+    ///
+    /// This is the case a count-based threshold gets wrong. §7.17's "3 silent against 1
+    /// filled" is that evening's two takes pooled; within one take the gap is one round, so a
+    /// rule of "two rounds apart" passes exactly the takes that caused the retraction. At four
+    /// rounds per condition, one round is 25 points of attrition.
+    func testOneLostRoundOutOfFourIsAlreadyImbalanced() {
+        let r = reportWithAttrition([(true, 100, 3), (false, 90, 0), (true, 100, 0), (false, 89, 0),
+                                     (true, 100, 0), (false, 91, 0), (true, 100, 0), (false, 90, 0)])
+        XCTAssertEqual(r.attrition.first { $0.condition == .silent }?.playedThrough, 1)
+        XCTAssertEqual(r.attrition.first { $0.condition == .filled }?.playedThrough, 0)
+        XCTAssertTrue(r.attritionIsImbalanced,
+                      "one lost round in four is a quarter of the condition, not a rounding error")
+    }
+
+    /// The same absolute gap over more rounds is proportionately small and must not trip it,
+    /// or a long take could never produce a cost at all.
+    func testOneLostRoundOutOfTenIsNotImbalanced() {
+        var specs: [(silent: Bool, bpm: Double, retentionNotes: Int)] = []
+        for i in 0..<20 {
+            specs.append((i % 2 == 0, i % 2 == 0 ? 100 : 90, i == 0 ? 3 : 0))
+        }
+        let r = reportWithAttrition(specs)
+        XCTAssertEqual(r.attrition.first { $0.condition == .silent }?.playedThrough, 1)
+        XCTAssertFalse(r.attritionIsImbalanced)
+    }
+
+    func testEqualAttritionStillAllowsTheCostToBeStated() {
+        // One lost round per condition is attrition, but not *differential* attrition.
+        let r = reportWithAttrition([(true, 100, 3), (false, 88, 3), (true, 101, 0), (false, 90, 0),
+                                     (true, 99, 0), (false, 89, 0), (true, 100, 0), (false, 91, 0)])
+        XCTAssertFalse(r.attritionIsImbalanced)
+        XCTAssertFalse(r.headline.contains("not scored on comparable sets"), r.headline)
+        XCTAssertNotNil(r.interferenceCost)
+    }
+
+    /// A caveat that does not say which way it cuts is not a finding — §7.19's lesson from the
+    /// content analysis, applied here.
+    func testTheAttritionNoteStatesWhichWayItPushesTheCost() {
+        let silentHeavy = reportWithAttrition(theRetractedShape)
+        XCTAssertTrue(silentHeavy.notes.contains { $0.contains("overstates the cost") },
+                      "losing more silent rounds inflates filled − silent")
+
+        // Mirror image: the distractor is what gets played through.
+        let filledHeavy = reportWithAttrition(
+            [(true, 100, 0), (false, 90, 3), (true, 100, 0), (false, 89, 3),
+             (true, 100, 0), (false, 91, 3), (true, 100, 0), (false, 90, 0)])
+        XCTAssertTrue(filledHeavy.attritionIsImbalanced)
+        XCTAssertTrue(filledHeavy.notes.contains { $0.contains("understates the cost") },
+                      "losing more filled rounds deflates filled − silent")
+    }
+
+    func testEveryRoundIsAccountedForExactlyOnce() {
+        // A round that was both played through and otherwise unscorable must not be counted
+        // twice, or the bookkeeping stops adding up and the imbalance test drifts with it.
+        let r = reportWithAttrition(theRetractedShape)
+        for entry in r.attrition {
+            XCTAssertEqual(entry.scored + entry.playedThrough + entry.otherwiseUnusable,
+                           entry.rounds, "\(entry.condition) does not account for its rounds")
+        }
+        XCTAssertEqual(r.attrition.reduce(0) { $0 + $1.rounds }, r.rounds.count)
+    }
+
     // MARK: - The contrast the drill exists for
 
     /// Accurate after silence, badly off after the distractor: the period was being held by

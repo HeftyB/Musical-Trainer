@@ -66,6 +66,12 @@ public final class SessionRunner {
                       let filled = o.report.filledMeanAbsErrorPercent else {
                     return "\(o.report.usableCount)/\(o.report.rounds.count) rounds scored"
                 }
+                // The debrief is the one place the session's numbers appear, so the withheld
+                // cost has to be withheld here too — not quietly shown as 0.
+                if o.report.attritionIsImbalanced {
+                    return String(format: "silent %.1f%% · filled %.1f%% · cost withheld, "
+                                + "unequal attrition", silent, filled)
+                }
                 return String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
                               silent, filled, o.report.interferenceCost ?? 0)
             case .unmeasured:

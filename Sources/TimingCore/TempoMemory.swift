@@ -46,6 +46,30 @@ public struct MemoryRoundResult: Equatable {
     public let unusableReason: String?
 }
 
+/// How many rounds a condition kept, and how many it lost to the failure mode that differs
+/// *between* conditions.
+///
+/// Attrition that is not equal across the two conditions is the artefact that produced this
+/// drill's first finding and then forced its retraction (PLAN.md §7.17, §7.19). Three of eight
+/// silent waits were played through against one of eight filled, so the silent rounds that
+/// survived were a self-selected subset, and the "interference hurts" result was measuring the
+/// selection. Counting the losses into a single total, as this used to, hides exactly that.
+public struct RetentionAttrition: Equatable {
+    public let condition: RetentionCondition
+    public let rounds: Int
+    public let scored: Int
+    /// Rounds lost to playing through the wait — the condition-dependent one. An empty gap
+    /// invites you to carry on; a distractor interrupts.
+    public let playedThrough: Int
+    /// Rounds lost for any other reason: too few notes, mixed note values. Not obviously
+    /// condition-dependent, so it does not feed the imbalance test.
+    public let otherwiseUnusable: Int
+
+    public var playedThroughRate: Double {
+        rounds > 0 ? Double(playedThrough) / Double(rounds) : 0
+    }
+}
+
 public struct TempoMemoryReport: Equatable {
     public let rounds: [MemoryRoundResult]
     public let usableCount: Int
@@ -53,10 +77,22 @@ public struct TempoMemoryReport: Equatable {
     public let silentMeanAbsErrorPercent: Double?
     public let filledMeanAbsErrorPercent: Double?
     /// filled − silent, in percentage points. Positive means the distractor cost you accuracy.
+    ///
+    /// **nil when `attritionIsImbalanced`**, not merely flagged. Withholding it here rather
+    /// than asking each caller to check the flag is deliberate: three separate places derive
+    /// this — the report, the history chart, and the planner's input — and a value that is
+    /// only safe when every one of them remembers a precondition is a value that gets plotted
+    /// wrong eventually. That is the same failure as the cached summary fields in §7.12.
     public let interferenceCost: Double?
     /// Bootstrap interval on that cost. nil when there are too few scored rounds per
     /// condition to say anything, which is most of the time early on.
     public let interferenceInterval: ConfidenceInterval?
+
+    /// Per condition, so differential loss is visible rather than summed away.
+    public let attrition: [RetentionAttrition]
+    /// True when the two conditions lost materially different numbers of rounds to playing
+    /// through the wait, which makes them non-comparable.
+    public let attritionIsImbalanced: Bool
 
     public let headline: String
     public let notes: [String]
@@ -81,6 +117,17 @@ public enum TempoMemoryAnalysis {
     public static let retentionNoteAllowance = 2
     /// Below this many scored rounds in a condition, the comparison is not worth an interval.
     public static let minimumRoundsPerCondition = 3
+
+    /// A gap this large between the conditions' played-through *rates* makes them
+    /// non-comparable. One round in five.
+    ///
+    /// A rate and not a count, which is not the obvious choice and the stored takes are the
+    /// reason. §7.17 reports 3 silent against 1 filled — but that is the two takes of that
+    /// evening pooled, and within each take the gap is a single round (1 against 0, then 2
+    /// against 1). A count threshold of 2 would have passed both of the takes whose cost
+    /// §7.19 had to retract, while flagging a later one. At four rounds per condition a single
+    /// lost round is 25 points of attrition, and that is what has to trip it.
+    public static let imbalancedAttritionRate = 0.2
 
     /// Next retention length, from the measured clock SD.
     ///
@@ -137,17 +184,36 @@ public enum TempoMemoryAnalysis {
         let filled = results.filter { $0.condition == .filled && $0.isUsable }
             .compactMap { $0.errorPercent.map(abs) }
 
-        var notes: [String] = []
-        let keptPlayingCount = results.filter { ($0.unusableReason ?? "").contains("never let go") }.count
-        if keptPlayingCount > 0 {
-            notes.append("\(keptPlayingCount) round(s) had playing during the wait. Stop completely "
-                       + "when the groove stops — holding the tempo by playing it is the "
-                       + "continuation drill, not this one.")
+        let attrition = [RetentionCondition.silent, .filled].map { condition -> RetentionAttrition in
+            let inCondition = results.filter { $0.condition == condition }
+            // Counted from `notesDuringRetention`, not by matching the reason string: prose is
+            // one rewording away from silently reporting no attrition at all.
+            let playedThrough = inCondition.filter {
+                $0.notesDuringRetention > retentionNoteAllowance
+            }.count
+            let scored = inCondition.filter(\.isUsable).count
+            return RetentionAttrition(condition: condition, rounds: inCondition.count,
+                                      scored: scored, playedThrough: playedThrough,
+                                      otherwiseUnusable: inCondition.count - scored - playedThrough)
         }
+        let silentLost = attrition[0].playedThrough, filledLost = attrition[1].playedThrough
+        let imbalanced = abs(attrition[0].playedThroughRate - attrition[1].playedThroughRate)
+            >= imbalancedAttritionRate
 
-        let cost = (silent.isEmpty || filled.isEmpty) ? nil : mean(filled) - mean(silent)
+        var notes: [String] = []
+        if silentLost + filledLost > 0 {
+            notes.append("\(silentLost + filledLost) round(s) had playing during the wait — "
+                       + "\(silentLost) silent, \(filledLost) filled. Stop completely when the "
+                       + "groove stops; holding the tempo by playing it is the continuation "
+                       + "drill, not this one.")
+        }
+        if imbalanced { notes.append(attritionNote(silentLost: silentLost, filledLost: filledLost)) }
+
+        let cost = (silent.isEmpty || filled.isEmpty || imbalanced)
+            ? nil : mean(filled) - mean(silent)
         var interval: ConfidenceInterval?
-        if silent.count >= minimumRoundsPerCondition, filled.count >= minimumRoundsPerCondition {
+        if cost != nil, silent.count >= minimumRoundsPerCondition,
+           filled.count >= minimumRoundsPerCondition {
             interval = differenceInterval(filled, silent, iterations: iterations, seed: seed)
         } else if cost != nil {
             notes.append("Only \(silent.count) silent and \(filled.count) filled round(s) scored — "
@@ -160,8 +226,34 @@ public enum TempoMemoryAnalysis {
             silentMeanAbsErrorPercent: silent.isEmpty ? nil : mean(silent),
             filledMeanAbsErrorPercent: filled.isEmpty ? nil : mean(filled),
             interferenceCost: cost, interferenceInterval: interval,
-            headline: headline(silent: silent, filled: filled, interval: interval),
+            attrition: attrition, attritionIsImbalanced: imbalanced,
+            headline: headline(silent: silent, filled: filled, interval: interval,
+                               attritionIsImbalanced: imbalanced),
             notes: notes)
+    }
+
+    /// Names the imbalance *and which way it pushes the cost*.
+    ///
+    /// A caveat that does not state its direction is not a finding — the lesson of the content
+    /// analysis's censoring warning (§7.19), which was corrected for exactly this reason.
+    ///
+    /// The direction argument: a round survives when the player managed to stop, and stopping
+    /// is easiest when the period is already sitting securely. The surviving rounds of
+    /// whichever condition lost more are therefore its easier ones, and its error is
+    /// understated. Cost is `filled − silent`, so understating silent pushes the cost up and
+    /// understating filled pushes it down.
+    private static func attritionNote(silentLost: Int, filledLost: Int) -> String {
+        let silentHeavier = silentLost > filledLost
+        let heavier = silentHeavier ? "silent" : "filled"
+        let lighter = silentHeavier ? "filled" : "silent"
+        let direction = silentHeavier ? "overstates the cost" : "understates the cost"
+        return "The conditions did not lose the same number of rounds: \(silentLost) silent "
+             + "against \(filledLost) filled, played through rather than held. A round survives "
+             + "when you managed to stop, and stopping is easiest when the period is already "
+             + "sitting securely — so the \(heavier) rounds that scored are the easier ones and "
+             + "their error is understated against \(lighter). That \(direction). This is the "
+             + "artefact that produced this drill's first result and then reversed it, so the "
+             + "two conditions are not comparable in this take."
     }
 
     /// Interval on the difference of means between two independent sets of rounds.
@@ -188,10 +280,20 @@ public enum TempoMemoryAnalysis {
     }
 
     private static func headline(silent: [Double], filled: [Double],
-                                 interval: ConfidenceInterval?) -> String {
+                                 interval: ConfidenceInterval?,
+                                 attritionIsImbalanced: Bool) -> String {
         guard !silent.isEmpty || !filled.isEmpty else {
             return "No round could be scored — stop playing through the wait, then give one "
                  + "steady note per beat after the cue."
+        }
+        // Before any cost is quoted. The two sets are not describing the same task when one
+        // condition kept its easy rounds and the other did not, and a cost stated here is the
+        // one this drill has already had to retract.
+        if attritionIsImbalanced, !silent.isEmpty, !filled.isEmpty {
+            return String(format: "Silent gap %.1f%% off, filled gap %.1f%% off — but the two "
+                        + "conditions lost different numbers of rounds to playing through the "
+                        + "wait, so they are not scored on comparable sets. No interference "
+                        + "cost can be read from this take.", mean(silent), mean(filled))
         }
         guard let interval else {
             if silent.isEmpty || filled.isEmpty {

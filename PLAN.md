@@ -1560,6 +1560,45 @@ the interference cost. §7.17 also suggested scoring the violation rate as a res
 right — *being unable to stop* is evidence about how the period is held — and that stands, but
 it is a second question and follows the caveat rather than replacing it.
 
+#### Fixed — step 1
+
+`RetentionAttrition` per condition — rounds, scored, played through, otherwise unusable — and
+`attritionIsImbalanced` when the two played-through *rates* differ by 0.2 or more. Seven tests.
+Both surfaces show the per-condition split; neither states a cost when the conditions are not
+comparable.
+
+**The threshold had to be a rate, and the stored takes are what said so.** The first attempt
+used a count: two rounds apart, on the reasoning that §7.17 measured 3 silent against 1 filled.
+Checking it against the four recorded takes showed that figure is *the evening's two takes
+pooled*, and that within a take the gap is one round:
+
+| take | wait | silent played through | filled | flagged? |
+|---|---|---|---|---|
+| 4 Aug #1 | 4 bars | 1 of 4 | 0 of 4 | yes |
+| 4 Aug #2 | 4 bars | 2 of 4 | 1 of 4 | yes |
+| 5 Aug #1 | 2 bars | 2 of 4 | 0 of 4 | yes |
+| 5 Aug #2 | 4 bars | 0 of 4 | 0 of 4 | **no** |
+
+A count threshold of two would have passed both of the takes whose cost §7.19 retracted while
+flagging a later one — precisely inverted. At four rounds per condition a single lost round is
+25 points of attrition, and that has to trip it. The take that survives is 5 Aug #2, the 8/8
+take, which is exactly the one §7.19 identified as the trustworthy reading.
+
+**Withheld at source, not flagged for callers.** `interferenceCost` and its interval are `nil`
+when the conditions are not comparable. This started as a flag with each caller checking it,
+and building it that way surfaced the actual risk: the cost is derived in *three* independent
+places — the report, the history chart, and the planner's input — and the third was found only
+by noticing that `review cold` had not moved. A value that is safe only when every caller
+remembers a precondition is the cached-summary defect of §7.12 in a new costume. The
+per-condition means are still reported, because each describes its own condition honestly; it
+is only their difference that is not a measurement.
+
+**What it does to the data.** Three of the four recall takes are imbalanced, so the recall
+trend goes from four takes to one and `review cold` now reads "not enough data" where it
+previously fitted a within-sitting slope of −0.136/min. That slope was being fitted through
+the attrition. Losing it is the point: §7.19 already said the recall result needed M13 to
+become a result, and this says the same thing in the readout instead of in a footnote.
+
 ### 3. The last content window's density is understated
 
 `MusicalContentAnalysis.analyze` rounds the window count up, so the final window runs past the
@@ -1626,7 +1665,7 @@ because none of it is load-bearing for the milestone.
 | Step | Fixes | Where |
 |---|---|---|
 | 0 ✅ | 1 — cluster bootstrap; `review tags` / `review conditions` moved onto it | `TimingCore/Bootstrap.swift` |
-| 1 | 2 — per-condition attrition, reported and caveated | `TimingCore/TempoMemory.swift` |
+| 1 ✅ | 2 — per-condition attrition, reported and caveated | `TimingCore/TempoMemory.swift` |
 | 2 | 3, 4 — partial content window; trend take axis | `TimingCore` |
 | 3 | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
 | 4 | 7, 8 — comment placement, parallel-array decode | mixed |

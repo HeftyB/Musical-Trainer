@@ -126,6 +126,16 @@ smaller form. Say why the number is missing.
 `discardedTrials`, `unusableReason` and the comparability notes are the pattern. Silence is not
 an acceptable way to express low confidence.
 
+**R3.3.1 — A value that is untrustworthy under a condition is withheld at source, not flagged
+for callers.** Return `nil` from the analysis; do not return the number beside a boolean and
+expect every reader to check it.
+
+> The recall drill's interference cost is derived in three independent places — the report, the
+> history chart, and the planner's input. Built as a flag, two of the three were gated and the
+> third was found only because a trend that should have moved did not. A value that is safe
+> only when every caller remembers a precondition is R3.1's cached-summary defect in a new
+> costume. See PLAN.md §7.20 finding 2.
+
 **R3.4 — Confounds are named, never blended.** A group that mixes backings, tempos, devices,
 difficulty levels or drill parameters says so at the point of display. Both surfaces must warn
 identically.
@@ -414,7 +424,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, all 180 tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, all 187 tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 The Linux leg is possible because `Package.swift` excludes the Apple-only targets off macOS.

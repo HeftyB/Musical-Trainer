@@ -826,8 +826,11 @@ public enum TrainerEngine {
             let r = TempoMemoryAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
             let detail: String
             if let silent = r.silentMeanAbsErrorPercent, let filled = r.filledMeanAbsErrorPercent {
-                detail = String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
-                                silent, filled, r.interferenceCost ?? 0)
+                detail = r.attritionIsImbalanced
+                    ? String(format: "silent %.1f%% · filled %.1f%% · cost withheld, "
+                           + "unequal attrition", silent, filled)
+                    : String(format: "silent %.1f%% · filled %.1f%% · cost %+.1f",
+                             silent, filled, r.interferenceCost ?? 0)
             } else {
                 detail = "\(r.usableCount)/\(session.rounds) rounds scored"
             }
@@ -835,7 +838,8 @@ public enum TrainerEngine {
                 date: session.date,
                 title: "\(Int(session.bpm)) BPM · \(session.retentionBars)-bar wait × \(session.rounds)",
                 detail: detail, feelRating: session.feelRating, headline: r.headline,
-                // The interference cost is the number this drill exists to move.
+                // The number this drill exists to move — already withheld by the analysis when
+                // the conditions are not comparable, so an artefact never reaches the chart.
                 metric: r.interferenceCost ?? .nan, metricLabel: "interference cost (points)")
         }
     }
@@ -881,6 +885,8 @@ public enum TrainerEngine {
 
         let memories = SessionStore.loadAllMemory().map { session -> PlannerInput.Memory in
             let r = TempoMemoryAnalysis.analyze(taps: session.taps, rounds: session.roundWindows)
+            // Already nil when the two conditions lost different numbers of rounds — the
+            // analysis withholds it rather than trusting every caller to check.
             return PlannerInput.Memory(retentionBars: session.retentionBars,
                                        interferenceCost: r.interferenceCost)
         }

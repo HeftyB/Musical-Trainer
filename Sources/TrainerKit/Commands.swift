@@ -893,9 +893,18 @@ public enum Commands {
             }
         }
 
+        // Per condition, because what each one lost is as much a part of the comparison as
+        // what it kept. A single total hides differential attrition entirely.
+        print("\nScored: " + r.attrition.map {
+            "\($0.condition == .silent ? "silent" : "filled") \($0.scored)/\($0.rounds)"
+        }.joined(separator: "   "))
+
         if let silent = r.silentMeanAbsErrorPercent, let filled = r.filledMeanAbsErrorPercent {
-            print(String(format: "\nSilent wait: %.1f%% off   Filled wait: %.1f%% off", silent, filled))
-            if let interval = r.interferenceInterval {
+            print(String(format: "Silent wait: %.1f%% off   Filled wait: %.1f%% off", silent, filled))
+            if r.attritionIsImbalanced {
+                print("\(Console.yellow)Interference cost withheld\(Console.reset) — the two "
+                    + "conditions did not lose the same number of rounds.")
+            } else if let interval = r.interferenceInterval {
                 print(String(format: "Interference cost: %+.1f points [%+.1f, %+.1f]  %@",
                              interval.point, interval.low, interval.high,
                              interval.excludesZero ? "\(Console.bold)real\(Console.reset)"
