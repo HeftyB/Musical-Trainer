@@ -57,6 +57,10 @@ and the M0 diagnostics. `TimingSpike` with no argument prints the full command l
 has the annotated table. The analysis readouts are `review trend | cold | content | feel |
 tags | conditions | compare | form | dropout | tempo | experiment`.
 
+`render [bpm] [bars]` writes every ladder backing to `temp/renders` as a WAV. **A rung the
+player has not heard is a rung the planner must not promote them onto** (§7.23), and this is how
+that precondition is met without booking a live run.
+
 ## Environment constraints — check these before proposing a solution
 
 - **No Docker on this workstation.** Andrew runs containers on his Proxmox nodes. Do not start
@@ -65,7 +69,7 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 250 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (55 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (59 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -79,7 +83,7 @@ tags | conditions | compare | form | dropout | tempo | experiment`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 305 tests, no hardware needed
+swift test                              # 309 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

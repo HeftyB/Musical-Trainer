@@ -54,6 +54,9 @@ func usage() {
       review cold               M10: is it warming up, or getting better?
       review content            M12: does what you play change your timing?
       review tempo              tempo-calibration history
+      render [bpm] [bars]
+                        render each ladder backing to temp/renders as a WAV,
+                        so a groove can be judged by ear without a live run
       show              print stored calibration
     """)
 }
@@ -123,6 +126,12 @@ do {
 
     case "review":
         try Commands.runReview(Array(arguments.dropFirst()))
+
+    case "render":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 8
+        try Commands.runRender(bpm: bpm, bars: bars,
+                               into: URL(fileURLWithPath: "temp/renders"))
 
     case "show":
         try Commands.runShow()

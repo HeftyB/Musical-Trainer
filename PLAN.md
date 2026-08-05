@@ -2517,6 +2517,24 @@ where that could quietly produce a bar of the wrong length. So the assertion is 
 between hats equals the rung's own interval, and that a bar lasts four beats however it is
 divided.
 
+#### Heard, which is the only way to know
+
+All four rungs were rendered at 100 BPM and listened to: **they sound right at the reference
+tempo**, including the twelve-step triplet bar, whose maths had been verified in seconds but
+whose *feel* no test could speak to. The fills keep their pulse. That is the live-run-shaped
+check the ladder needed before step 4, done without booking a session.
+
+It needed a way to hear a groove at all, so `render` now writes each backing to a WAV. Before
+this, auditioning a backing meant a live run — which made "listen before promoting the player
+onto a rung" a precondition nobody would actually satisfy. It reports peak level and counts
+clipped samples, because a groove rendered too hot would be judged as a bad groove rather than a
+bad gain, and it marks any rung sitting above its ceiling at the requested tempo — computed from
+the median spread of the player's own recent takes (currently 20.1 ms, against the 20 assumed in
+step 1) rather than from a constant.
+
+Rendering at 132 BPM therefore prints exactly what step 1 predicted: sixteenths flagged, the
+other three clean. The ceiling stopped being arithmetic on a page at that point.
+
 #### What the existing takes already say about the ceiling
 
 Step 1 put sixteenths at a 100 BPM ceiling for this player. The 120 BPM take (#21) was scored on

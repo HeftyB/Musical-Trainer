@@ -926,6 +926,70 @@ public enum Commands {
         }
     }
 
+    // MARK: - Rendering a backing to a file
+
+    /// Render every ladder rung, plus the jam backing, to WAV files that can be listened to.
+    ///
+    /// Auditioning a groove used to mean a live run. A rung the player has never heard is a rung
+    /// the planner should not be promoting them onto, and PLAN §7.23 makes that a precondition
+    /// for the ladder — so hearing one has to be cheaper than booking a session.
+    public static func runRender(bpm: Double, bars: Int, into directory: URL) throws {
+        Console.heading("Rendering backings")
+        guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+        guard (1...64).contains(bars) else { throw SpikeError("Bars must be 1–64.") }
+
+        let fs = 44_100.0
+        let kit = DrumKit(sampleRate: fs)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        // The ceiling is a fact about *this* player, so it comes from their own takes rather
+        // than a constant. Falling back to a stated default is better than refusing to render.
+        let spreads = SessionStore.loadAll().suffix(6).compactMap { Stats.finite($0.report().sdAsynchronyMs) }
+        let spreadMs = spreads.isEmpty ? 20 : Stats.median(spreads)
+
+        let subjects: [(name: String, rung: IntervalRung?, arrangement: Arrangement)] =
+            [("quarters", .quarters, LadderBackings.backing(stepsPerBeat: 1)),
+             ("eighths", .eighths, LadderBackings.backing(stepsPerBeat: 2)),
+             ("triplet-eighths", .tripletEighths, LadderBackings.backing(stepsPerBeat: 3)),
+             ("sixteenths", .sixteenths, LadderBackings.backing(stepsPerBeat: 4)),
+             ("jam-backing", nil, GrooveLibrary.jamBacking)]
+
+        print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
+                     Int(bpm), bars, spreadMs,
+                     spreads.isEmpty ? " (no takes yet — assumed)" : ""))
+        print("")
+        for (name, rung, arrangement) in subjects {
+            let sequencer = Sequencer(bpm: bpm, sampleRate: fs)
+            var hits: [ScheduledHit] = []
+            for bar in 0..<bars {
+                hits += sequencer.schedule(pattern: arrangement.pattern(atBar: bar), bar: bar)
+            }
+            // A beat of tail so the last hit is not cut off mid-decay.
+            let frames = Int((Double(bars) * 4 + 1) * 60 / bpm * fs)
+            let samples = GrooveOfflineRender.mix(hits: hits, kit: kit, frames: frames)
+
+            let url = directory.appendingPathComponent("\(name)-\(Int(bpm))bpm.wav")
+            let clipped = try WaveFile.write(samples, sampleRate: fs, to: url)
+            let peak = samples.map(abs).max() ?? 0
+            // Above its ceiling a rung starts discarding notes the player aimed correctly, so
+            // the render says so rather than letting it be judged only by ear.
+            var note = ""
+            if let rung, !rung.isScorable(atBpm: bpm, spreadMs: spreadMs) {
+                note = String(format: "  %@above its %.0f BPM ceiling%@", Console.yellow,
+                              rung.maximumBpm(forSpreadMs: spreadMs), Console.reset)
+            }
+            print("  \(pad(name, 18))\(pad(String(format: "peak %.2f", peak), 12))"
+                + "\(pad(url.lastPathComponent, 30))\(note)")
+            if clipped > 0 {
+                Console.warn("\(name) clipped on \(clipped) sample(s) — the mix is too hot, and "
+                           + "that would be heard as a bad groove rather than a bad gain.")
+            }
+        }
+        print("\n\(Console.dim)Listen before letting the planner promote you onto a rung. "
+            + "Whether a groove is\nplayable-along-to is not something its step list can "
+            + "say.\(Console.reset)")
+    }
+
     // MARK: - Dropout drill
 
     public static func runDropout(bpm: Double, pacedBars: Int, silentBars: Int, cycles: Int) throws {
