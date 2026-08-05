@@ -300,9 +300,20 @@ public enum Commands {
 
     // MARK: - M4 jam
 
-    public static func runJam(bpm: Double, bars: Int, tag: String?) throws {
+    public static func runJam(bpm: Double, bars: Int, tag: String?, rung: String? = nil) throws {
         Console.heading("Jam — record a take")
-        let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased())
+
+        var prescribed: IntervalRung?
+        if let rung {
+            guard let parsed = IntervalRung(rawValue: rung) else {
+                throw SpikeError("Unknown rung '\(rung)'. One of: "
+                               + IntervalRung.ladder.map(\.rawValue).joined(separator: ", "))
+            }
+            prescribed = parsed
+        }
+
+        let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased(),
+                                             rung: prescribed)
         let env = try TrainerEngine.environment()
 
         print("Output: \(env.outputName)")
@@ -318,7 +329,27 @@ public enum Commands {
         print("\n\(bars) bars at \(Int(bpm)) BPM"
             + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
         if let tag = config.tag { print("Condition: \(Console.bold)\(tag)\(Console.reset)") }
-        printInstructions(DrillInstructions.jam)
+        if let prescribed {
+            print("Rung: \(Console.bold)\(prescribed.label)\(Console.reset)"
+                + "  \(Console.dim)(\(config.backing.name), scored on a "
+                + "\(config.gridSubdivisions)-per-beat grid)\(Console.reset)")
+            // Above its ceiling the rung discards notes the player aimed correctly, and the
+            // off-grid rate stops being a fact about them (§7.23 step 1). Said here rather than
+            // refused: the planner enforces, a hand-run take is the player's call.
+            let spreads = SessionStore.loadAll().suffix(6)
+                .compactMap { Stats.finite($0.report().sdAsynchronyMs) }
+            let spreadMs = spreads.isEmpty ? 20 : Stats.median(spreads)
+            if !prescribed.isScorable(atBpm: bpm, spreadMs: spreadMs) {
+                Console.warn(String(format: "%@ at %d BPM is above its %.0f BPM ceiling for your "
+                                  + "%.1f ms spread. The matching window is narrower than three "
+                                  + "of your own spreads, so notes you aimed correctly will be "
+                                  + "discarded as off-grid and the off-grid rate becomes a fact "
+                                  + "about the rung rather than about you.",
+                                    prescribed.label, Int(bpm),
+                                    prescribed.maximumBpm(forSpreadMs: spreadMs), spreadMs))
+            }
+        }
+        printInstructions(DrillInstructions.jam(rung: prescribed))
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runJam(config)
@@ -524,6 +555,15 @@ public enum Commands {
         if backing.differs {
             notes.append("Backing differs (\(backing.text)). Spread and drift are not "
                        + "comparable across different music.")
+        }
+
+        // Rung and tempo are one axis — both move the gap between notes — so a rung difference
+        // is as disqualifying as a tempo one, and for the same reason (§7.23 trap 3).
+        let rung = describe({ $0.rung ?? "free" }, { $0 })
+        if rung.differs {
+            notes.append("Subdivision differs (\(rung.text)). The gap between notes is not the "
+                       + "same task, so spread and off-grid rate are not comparable — the "
+                       + "matching window scales with the rung.")
         }
 
         let tempo = describe({ $0.bpm }, { "\(Int($0)) BPM" })

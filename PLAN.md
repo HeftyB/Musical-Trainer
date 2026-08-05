@@ -2423,7 +2423,8 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | 3 ✅ | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
 | 3b ✅ | The premise underneath step 3, measured instead of assumed: does spread actually scale with the interval? It does not. See below. |
 | 4a ✅ | Ground clearing found by the pre-step-4 review: one matching-window constant, one block-to-instructions mapping, one meaning for `LadderBackings`' parameter. |
-| 4 | Drills gain a rung; instructions generated from it (R3.6); planner rotates tempo on training blocks only, with a test that it never touches the benchmark or an experiment block. |
+| 4b ✅ | The **jam** gains a rung, end to end: config, backing, analysis grid, storage, instructions (R3.6), the CLI, and the confound axes that consume it. |
+| 4d | Planner rotates tempo on training blocks only, picking the rung after the tempo, with a test that it never touches the benchmark or an experiment block. The other four drills gain a rung with it. |
 | 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
 | 6 | Both surfaces, and docs. |
 
@@ -2706,6 +2707,58 @@ That reframes M14. §7.13 and this section describe the ladder as extending a me
 new rungs. It is not: it is the first measurement of 90% of the space. Everything derived from
 quarters should carry less confidence into it than the prose above assumed, and the value of
 the milestone is correspondingly higher.
+
+### Step 4b, as built — the jam gains a rung
+
+`jam [bpm] [bars] [tag] [rung]`, and `JamPlan`/`JamConfig` carry an `IntervalRung?`. Fourteen
+tests.
+
+**`nil` is "no rung was prescribed", never "quarters".** They are different tasks — "play what
+you like" against "play one note per beat" — and a default would have silently converted the
+benchmark and both experiment blocks into drills, which is R3.5 broken in the least visible way
+available. A test asserts a rung-less config still picks `jamBacking`, still scores on a
+4-per-beat grid, and still produces the same settings label.
+
+**The analysis grid comes from the rung, and this is the whole step.** `runJam` derived it from
+`backing.stepsPerBeat` until now, and `LadderBackings` returns a pattern whose `stepsPerBeat` is
+**4 for quarters, eighths and sixteenths alike** — all three are programmed on a sixteenth step
+grid and differ only in which steps fire. So the backing cannot tell three of the four rungs
+apart, and a quarters take would have been scored against a 150 ms grid at 100 BPM: a task
+nobody was set. Reverting the one line fails five tests, which was checked rather than assumed.
+
+That also makes step 1's ceilings mean something. The window is `0.4 × 60 / (bpm ×
+subdivisions)`, so the subdivision here *is* the quantity the ceiling constrains. A consequence
+worth stating: at quarters the window is ±240 ms, twelve of this player's own spreads, so
+nothing is off-grid; at sixteenths it is ±60 ms, three of them. **Off-grid rate is not
+comparable across rungs**, which is §7.18's censoring trap arriving through the ladder exactly
+as trap 2 predicted — though in the opposite direction from the one that was expected.
+
+**`grooveName` stopped being a literal.** It was `"jamBacking"` hardcoded at save, so every
+confound check keyed on it — `comparabilityNotes`, the trend warnings — would have gone blind
+the moment a jam played over a ladder groove. It now records the backing that actually played.
+
+**Two subdivisions are stored, not one.** `subdivisions` is the grid the take was *analysed* on
+and `rung` is what the player was *asked* for. They are equal whenever a rung was set and
+different for every take on record, where the task was the beat and the scoring grid was
+sixteenths. `taskSubdivisions` is that distinction, and it is what `IntervalObservation` reads —
+the hardcoded `1` step 3 left behind. A test strips the key from the JSON entirely and requires
+the take to read as free playing; another plants a rung name this build does not know and
+requires it to be kept verbatim as the record of what ran while nothing is inferred from it.
+
+**Instructions are part of the step, not a follow-up.** A rung the player is not told about is a
+rung they will not play: the backing makes the division audible but does not *ask* for it, and a
+player who hears sixteenth hats and keeps playing quarters has produced a fine free jam scored
+against a grid four times finer than the one they aimed at. Each rung names its own division and
+warns that a coarser one is **discarded rather than scored late**, which is the mistake that
+invalidates the take rather than lowering it. An experiment arm still wins over a rung where
+both are somehow set — an instruction-only design loses its conditions if the arm text goes.
+
+**The trend groups on tempo and rung together**, because they are one axis. Free playing is its
+own group rather than folding into quarters. `comparabilityNotes` gains the same row.
+
+**Not in this step:** the app's single-take setup screen has no rung picker, so a hand-run rung
+take is CLI-only until step 6. Sessions are unaffected — the planner will hand rungs to the app
+through `SessionRunner` at step 4d.
 
 ### What this cannot verify
 

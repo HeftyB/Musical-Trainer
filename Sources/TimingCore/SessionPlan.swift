@@ -36,7 +36,18 @@ public struct JamPlan: Codable, Equatable {
     public let bpm: Double
     public let bars: Int
     public let tag: String?
-    public init(bpm: Double, bars: Int, tag: String?) { self.bpm = bpm; self.bars = bars; self.tag = tag }
+    /// The subdivision the player is asked to produce, or `nil` for free playing.
+    ///
+    /// **`nil` is not "quarters".** It means no rung was prescribed at all — play whatever you
+    /// like — which is what every take on record is and what the benchmark and the experiment
+    /// blocks must stay, because a prescribed rung is a different task and R3.5 locks those
+    /// slots. Optional rather than defaulted for exactly that reason: a default would silently
+    /// convert the trend's own slot into a drill.
+    public let rung: IntervalRung?
+
+    public init(bpm: Double, bars: Int, tag: String?, rung: IntervalRung? = nil) {
+        self.bpm = bpm; self.bars = bars; self.tag = tag; self.rung = rung
+    }
 }
 
 public struct FormPlan: Codable, Equatable {
@@ -107,7 +118,9 @@ public enum BlockPlan: Codable, Equatable {
     public var settingsLabel: String {
         switch self {
         case .groove(let p):  return "\(Int(p.bpm)) BPM · \(p.bars) bars"
-        case .jam(let p):     return "\(Int(p.bpm)) BPM · \(p.bars) bars"
+        case .jam(let p):
+            let rung = p.rung.map { " · \($0.label)" } ?? ""
+            return "\(Int(p.bpm)) BPM · \(p.bars) bars\(rung)"
         case .form(let p):    return "level \(p.level) · \(p.phraseBars)-bar phrases · \(p.bars) bars"
         case .dropout(let p): return "\(p.pacedBars)+\(p.silentBars) bars × \(p.cycles)"
         case .tempo(let p):

@@ -61,7 +61,17 @@ struct JamSession: Codable, StoredTake {
     let calibrationSource: String?
     let grooveName: String
     let bars: Int
+    /// The grid this take was **analysed** on, so the review rebuilds what it was scored on.
     let subdivisions: Int
+    /// The subdivision the player was **asked to produce**, when one was prescribed.
+    ///
+    /// Distinct from `subdivisions` even though they are equal whenever a rung was set: that one
+    /// is a property of the analysis and this is a property of the task. Free playing has a grid
+    /// and no rung, which is every take before M14 — so `nil` here means "no rung", never
+    /// "quarters", and `IntervalObservation.subdivisions` reads 1 for those because the task was
+    /// the beat. A raw string rather than the enum for the same reason as
+    /// `ExperimentAssignment.arm`: adding a rung must never orphan a recorded take.
+    let rung: String?
 
     /// Condition label for this take ("relaxed", "focused", "flow", …), lowercased. Optional
     /// so takes recorded before tagging existed still decode.
@@ -136,6 +146,14 @@ struct JamSession: Codable, StoredTake {
         guard beats > 0 else { return nil }
         return Double(report().matchedCount) / beats
     }
+
+    /// Notes per beat the player was **asked** to produce: the rung, or 1 for free playing.
+    ///
+    /// Free playing prescribes nothing, so the task is the beat — which is also what the notes
+    /// bear out, since 82.4% of every matched note on record sits a beat from the last (§7.23
+    /// step 3b). It is emphatically *not* `subdivisions`: those takes were scored on a
+    /// sixteenth grid, and calling that a 150 ms task would describe an interval nobody played.
+    var taskSubdivisions: Int { rung.flatMap { IntervalRung(rawValue: $0)?.subdivisions } ?? 1 }
 
     /// This take's notes keyed by the interval they were produced at.
     ///

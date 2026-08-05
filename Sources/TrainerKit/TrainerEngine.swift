@@ -66,10 +66,39 @@ public enum TrainerEngine {
         public var bpm: Double
         public var bars: Int
         public var tag: String?
-        public init(bpm: Double = 100, bars: Int = 32, tag: String? = nil) {
-            self.bpm = bpm; self.bars = bars; self.tag = tag
+        /// The subdivision the player is asked to produce, or `nil` for free playing.
+        ///
+        /// See `JamPlan.rung`: `nil` is "no rung was prescribed", not "quarters".
+        public var rung: IntervalRung?
+
+        public init(bpm: Double = 100, bars: Int = 32, tag: String? = nil,
+                    rung: IntervalRung? = nil) {
+            self.bpm = bpm; self.bars = bars; self.tag = tag; self.rung = rung
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
+
+        /// The backing this take plays over, and the name it is stored under.
+        ///
+        /// A free jam keeps `jamBacking` exactly as every recorded take had it. A rung gets the
+        /// ladder groove that makes its division audible — asked for sixteenths over a backing
+        /// that only marks beats, the player is really being asked to subdivide from memory.
+        var backing: (name: String, arrangement: Arrangement) {
+            guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking) }
+            return ("ladder-\(rung.rawValue)",
+                    LadderBackings.backing(notesPerBeat: rung.subdivisions))
+        }
+
+        /// Grid points per beat for the **analysis**.
+        ///
+        /// The rung when there is one, and only otherwise the backing's step resolution. Those
+        /// are different quantities and this is the third place in M14 where confusing them was
+        /// the available mistake — `LadderBackings` returns a pattern whose `stepsPerBeat` is 4
+        /// for quarters, eighths *and* sixteenths, because all three are programmed on a
+        /// sixteenth step grid and differ only in which steps fire. Scoring a quarters rung on
+        /// that resolution would measure a task nobody was set, and it is what step 1's tempo
+        /// ceilings are derived against: the window is `0.4 × 60 / (bpm × subdivisions)`, so the
+        /// subdivision here *is* the thing the ceiling constrains.
+        var gridSubdivisions: Int { rung?.subdivisions ?? backing.arrangement.stepsPerBeat }
 
         /// R7.6: the boundary validates before anything is scheduled.
         ///
@@ -112,7 +141,7 @@ public enum TrainerEngine {
 
         let player = try GroovePlayer()
         let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate)
-        let backing = GrooveLibrary.jamBacking
+        let backing = config.backing.arrangement
         let countInBars = 2
 
         var perBar: [Pattern] = []
@@ -122,6 +151,9 @@ public enum TrainerEngine {
         }
         for bar in 0..<config.bars { perBar.append(backing.pattern(atBar: bar)) }
 
+        // The count-in is on the 16-step grid and a triplet backing is on a 12-step one, which
+        // is safe only because every pattern here is four beats to the bar: bar 2 is eight beats
+        // in whichever resolution asks. `GroovePlayer.schedule` sorts, so the two interleave.
         var hits: [ScheduledHit] = []
         for (bar, pattern) in perBar.enumerated() { hits += seq.schedule(pattern: pattern, bar: bar) }
         player.schedule(hits)
@@ -142,7 +174,7 @@ public enum TrainerEngine {
             outputMap: player.outputMapPairs,
             midi: midi.events.map { ($0.hostTime, Int($0.velocity), Int($0.note)) },
             grooveStartSample: startSample, grooveEndSample: endSample,
-            bpm: config.bpm, subdivisions: backing.stepsPerBeat,
+            bpm: config.bpm, subdivisions: config.gridSubdivisions,
             calibrationConstantMs: env.calibrationMs ?? 0)
         else { throw SpikeError("Could not reconstruct the take — no audio timing map captured.") }
 
@@ -165,8 +197,12 @@ public enum TrainerEngine {
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
             calibrationConstantMs: outcome.environment.calibrationMs,
             calibrationSource: outcome.environment.calibrationSource,
-            grooveName: "jamBacking", bars: outcome.config.bars,
+            // The backing that actually played, not a literal. Every confound check keyed on
+            // this — `comparabilityNotes`, the trend warnings — went blind the moment a jam
+            // could play over something other than `jamBacking` (R3.4).
+            grooveName: outcome.config.backing.name, bars: outcome.config.bars,
             subdivisions: outcome.gridSubdivisions,
+            rung: outcome.config.rung?.rawValue,
             tag: outcome.config.tag?.lowercased(), feelRating: feelRating,
             gridStartTime: outcome.gridStartTime,
             tapTimes: outcome.taps.map(\.time), tapVelocities: outcome.taps.map(\.velocity),
@@ -957,11 +993,12 @@ public enum TrainerEngine {
     public static func intervalObservations() -> [IntervalObservation] {
         SessionStore.loadAll().map { session in
             let r = session.report()
-            // The beat, not the stored grid. A free jam asks for no subdivision — it was
-            // *scored* on a sixteenth grid, which is a property of the analysis rather than of
-            // the task. When step 4 starts prescribing a rung, that rung goes here instead.
+            // The rung, or the beat when no rung was prescribed — never the stored grid. A free
+            // jam asks for no subdivision; it was *scored* on a sixteenth grid, which is a
+            // property of the analysis rather than of the task, and calling that a 150 ms task
+            // would report an interval nobody performed. `taskSubdivisions` is that distinction.
             return IntervalObservation(
-                bpm: session.bpm, subdivisions: 1,
+                bpm: session.bpm, subdivisions: session.taskSubdivisions,
                 spreadMs: Stats.finite(r.sdAsynchronyMs),
                 biasMs: Stats.finite(r.meanAsynchronyMs),
                 sittingId: session.placement?.sessionId)
@@ -1162,14 +1199,35 @@ public enum TrainerEngine {
         }
     }
 
+    /// A group of jams comparable enough to fit one line through: same tempo, same rung.
+    private struct GroupKey: Hashable, Comparable {
+        let bpm: Int
+        let rung: String?
+
+        var rungLabel: String {
+            guard let rung, let parsed = IntervalRung(rawValue: rung) else { return "" }
+            return ", \(parsed.label)"
+        }
+
+        static func < (a: GroupKey, b: GroupKey) -> Bool {
+            a.bpm != b.bpm ? a.bpm < b.bpm : (a.rung ?? "") < (b.rung ?? "")
+        }
+    }
+
     private static func jamTrends() -> [TrendSeries] {
         var series: [TrendSeries] = []
 
         // Jams are grouped by tempo: asynchrony spread scales with the beat interval, so a
         // trend across a tempo change would be measuring the tempo.
+        // Grouped by tempo **and rung**, because those are the same axis: both move the gap
+        // between notes, and a trend fitted across a rung change would be measuring the rung
+        // (§7.23 trap 3). Free playing is its own group rather than being folded into quarters —
+        // "play what you like" and "play one note per beat" are different tasks.
         let jams = SessionStore.loadAll()
-        for tempo in Set(jams.map { Int($0.bpm) }).sorted() {
-            let takes = jams.filter { Int($0.bpm) == tempo }
+        let groups = Set(jams.map { GroupKey(bpm: Int($0.bpm), rung: $0.rung) })
+        for key in groups.sorted() {
+            let takes = jams.filter { GroupKey(bpm: Int($0.bpm), rung: $0.rung) == key }
+            let tempo = key.bpm
             let reports = takes.map { $0.report() }
             var warnings: [String] = []
             let backings = TrendAnalysis.distinct(takes.map(\.grooveName))
@@ -1182,7 +1240,8 @@ public enum TrainerEngine {
                 warnings.append("mixed output devices — bias is not comparable; spread and r₁ are.")
             }
             series.append(TrendSeries(
-                title: "Jams at \(tempo) BPM", takeCount: takes.count, warnings: warnings,
+                title: "Jams at \(tempo) BPM\(key.rungLabel)", takeCount: takes.count,
+                warnings: warnings,
                 rows: [
                     TrendAnalysis.row("spread (SD)", reports.map(\.sdAsynchronyMs), lowerIsBetter: true),
                     TrendAnalysis.row("|bias|", reports.map { abs($0.meanAsynchronyMs) }, lowerIsBetter: true),

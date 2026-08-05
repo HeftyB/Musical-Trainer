@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is in progress — steps 0–3 plus 3b and 4a, planned in §7.23.** The subdivision
+**M0–M13 are done. M14 is in progress — steps 0–3, 3b, 4a and 4b, planned in §7.23.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -142,7 +142,7 @@ reaches takes recorded before it.
 
 | Stage | Where | What it is |
 |---|---|---|
-| Schedule the backing | `GrooveCore/Sequencer`, `Pattern`, `Library`, `LadderBackings` | Patterns in steps-per-bar; `Library` holds the named backings (`jamBacking`, `basicRock`), `LadderBackings` one groove per subdivision. **A pattern's step resolution is not the analysis grid** |
+| Schedule the backing | `GrooveCore/Sequencer`, `Pattern`, `Library`, `LadderBackings` | Patterns in steps-per-bar; `Library` holds the named backings (`jamBacking`, `basicRock`), `LadderBackings` one groove per subdivision, keyed by `notesPerBeat`. **A pattern's step resolution is not the analysis grid** — three of the four ladder backings report `stepsPerBeat` 4, so the backing cannot tell the rungs apart and the grid must come from the rung |
 | Play it | `TrainerKit/GroovePlayer`, `DrumSynth`, `LiveInstrument` | Render callback owns the sample clock; synthesis is in-app, no samples |
 | Capture keys | `TrainerKit/MIDIInput` | One CoreMIDI client per process, never disposed |
 | Bridge the clocks | `TrainerKit/HostClock` (`SampleHostMap`), `JamAnalysis.reduce` | Least-squares fit of (hostTime, sample); calibration applied here, sign and all |
@@ -163,6 +163,10 @@ Types worth knowing before changing anything:
 - **`IntervalRung`** — a rung of M14's ladder, and the tempo ceiling its matching window implies.
   The ceiling assumes absolute spread does not move with the interval, which §7.23 step 3b
   measured rather than assumed.
+- **`JamConfig.rung` / `JamSession.rung`** — the subdivision the player was **asked to produce**.
+  `nil` means no rung was prescribed, **never quarters**: the benchmark and both experiment
+  blocks must stay rung-less (R3.5). Distinct from `subdivisions`, which is the grid the take
+  was *analysed* on; `taskSubdivisions` is the one the interval readout wants.
 - **`ProducedNote`** — one matched note keyed by the gap **in grid steps** to the note before it.
   Never key this on a *measured* inter-onset interval: a note's own error is inside its measured
   gap, and binning on it fabricates a placement slope out of a player who has none. There is a

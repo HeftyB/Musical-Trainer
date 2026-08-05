@@ -33,6 +33,47 @@ public struct DrillInstructions {
         measures: "Whether you sit ahead of or behind the beat, how much you scatter around it, "
                 + "and whether you correct each error or let it drift.")
 
+    /// The jam's instructions **for a prescribed rung**.
+    ///
+    /// A rung changes the task, so it has to change the text (R3.6). Nothing else in the drill
+    /// tells the player they are being asked for eighths — the backing makes the division
+    /// audible but does not *ask* for it, and a player who hears sixteenth hats and keeps
+    /// playing quarters has produced a perfectly good free jam scored against a grid four times
+    /// finer than the one they were aiming at.
+    ///
+    /// `nil` returns the plain jam text unchanged, which is what the benchmark and both
+    /// experiment blocks must keep getting (R3.5).
+    public static func jam(rung: IntervalRung?) -> DrillInstructions {
+        guard let rung else { return jam }
+        let each: String
+        switch rung {
+        case .quarters:       each = "one note on every beat"
+        case .eighths:        each = "two notes to the beat, evenly"
+        case .tripletEighths: each = "three notes to the beat, evenly — a triplet feel"
+        case .sixteenths:     each = "four notes to the beat, evenly"
+        }
+        return DrillInstructions(
+            goal: "Measures how accurately you place \(rung.label) against a beat you can hear. "
+                + "The rung is the task: the gap between your notes is what is being trained.",
+            steps: [
+                "A two-bar count-in plays, then a groove whose hi-hat marks \(rung.label).",
+                "Play \(each), continuously, for the whole take.",
+                "Lock to the hat. It is playing the division you are being asked for.",
+                "Any pitch. Only when you play is measured, and there is nothing to read.",
+            ],
+            pitfalls: [
+                "Don't drop back to a sparser division when it gets hard — the take is scored "
+                + "against \(rung.label), so notes at a coarser division land off-grid and are "
+                + "discarded rather than counted as late.",
+                "Don't switch between divisions mid-take. Two note values in one take means no "
+                + "single interval describes what was played.",
+                "Don't play free or rubato. Notes that aren't aiming at the grid are discarded.",
+            ],
+            measures: "Where you sit against the beat and how much you scatter around it, at "
+                    + "this rung — and the scatter is in milliseconds, which is what compares "
+                    + "across rungs for you.")
+    }
+
     /// The jam's instructions **for a given experiment arm**.
     ///
     /// This is the sharpest case of R3.6 in the project so far. For `steady-vs-melodic` the two
@@ -259,7 +300,13 @@ public extension DrillInstructions {
     static func forBlock(_ block: SessionBlock) -> DrillInstructions {
         switch block.plan {
         case .groove:      return .groove
-        case .jam:         return .jam(arm: block.experiment?.arm)
+        case .jam(let p):
+            // The arm wins when there is one. An experiment take runs at the benchmark's locked
+            // settings and never carries a rung (R3.5), so the two cannot both be set — and if
+            // a future design ever does both, the arm is the independent variable and losing it
+            // would swap the conditions, which is the worse failure of the two.
+            if let arm = block.experiment?.arm { return .jam(arm: arm) }
+            return .jam(rung: p.rung)
         case .form(let p): return .form(level: p.level)
         case .dropout:     return .dropout
         case .tempo:       return .tempo
