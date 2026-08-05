@@ -128,6 +128,8 @@ public enum BlockPlan: Codable, Equatable {
             let total = p.cycles * (p.pacedBars + p.silentBars) + p.pacedBars
             return Double(total + 2) * 4 * 60 / p.bpm
         case .tempo(let p):
+            // No targets means no rounds to estimate, and `% 0` would trap rather than say so.
+            guard !p.targets.isEmpty else { return 0 }
             return (0..<p.rounds).reduce(0.5) { total, i in
                 total + Double(p.leadBars + p.holdBars) * 4 * 60 / p.targets[i % p.targets.count]
             }

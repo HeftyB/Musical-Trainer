@@ -1,66 +1,16 @@
 import Foundation
 import XCTest
 @testable import TimingCore
+import TestSupport
 @testable import TrainerKit
 
-/// Synthetic takes with known properties, for exercising storage without hardware.
+/// Builders for *stored* takes, on top of the shared `Performance` generator.
 ///
-/// Every test file used to roll its own tap builder — `BootstrapTests` has `gaussianSeries`,
-/// `TempoMemoryTests` has a round layout, `SelfTest` had a third. One generator means one place
-/// to add a pathology, and every drill inherits it. See PLAN.md §7.22.
+/// The generator itself lives in `TestSupport` so every suite shares it. These builders cannot:
+/// the session types are `internal` to `TrainerKit`, and making them public to share a test
+/// helper would be an API commitment bought for a convenience. The boundary is forced by
+/// visibility rather than chosen, which is the only reason it is here.
 enum TakeFactory {
-
-    /// Deterministic Gaussian noise. Seeded, so a failing case is reproducible (R1.2.1).
-    struct Noise {
-        private var rng: SplitMix64
-        init(seed: UInt64) { rng = SplitMix64(seed: seed) }
-        mutating func uniform() -> Double { Double(rng.next() >> 11) / Double(1 << 53) }
-        mutating func gaussian(sd: Double) -> Double {
-            guard sd > 0 else { return 0 }
-            let u1 = Swift.max(uniform(), 1e-12), u2 = uniform()
-            return sd * (-2 * Foundation.log(u1)).squareRoot() * Foundation.cos(2 * .pi * u2)
-        }
-    }
-
-    /// What kind of player to simulate. Every field is a quantity the analysis reports back, so
-    /// a test can plant a value and check the pipeline recovers it.
-    struct Performance {
-        var beats: Int = 128
-        /// Negative is ahead of the beat, which is the normal direction for this player.
-        var biasMs: Double = -12
-        var spreadMs: Double = 14
-        /// Tempo drift while playing, in ms per beat.
-        var driftMsPerBeat: Double = 0
-        /// Fraction of notes pushed outside the matching window entirely.
-        var offGridRate: Double = 0
-        /// Notes per event: 1 is a single line, 3 is chordal.
-        var chordSize: Int = 1
-        var seed: UInt64 = 0xBEEF
-
-        static let steady = Performance()
-        /// Nothing played at all — the case that destroyed a take in a live session.
-        static let silent = Performance(beats: 0, biasMs: 0, spreadMs: 0)
-        static let oneNote = Performance(beats: 1, biasMs: 0, spreadMs: 0)
-    }
-
-    /// Note-on times against a grid, with the planted bias, spread and drift applied.
-    static func taps(_ p: Performance, grid: Grid) -> [Tap] {
-        guard p.beats > 0 else { return [] }
-        var noise = Noise(seed: p.seed)
-        var out: [Tap] = []
-        for beat in 0..<p.beats {
-            let target = grid.time(ofIndex: beat * grid.subdivisions)
-            var offset = (p.biasMs + p.driftMsPerBeat * Double(beat)) / 1000
-            offset += noise.gaussian(sd: p.spreadMs) / 1000
-            // An off-grid note lands beyond the matching window and is counted as an extra.
-            if noise.uniform() < p.offGridRate { offset += grid.interval * 0.45 }
-            for voice in 0..<Swift.max(1, p.chordSize) {
-                out.append(Tap(time: target + offset + Double(voice) * 0.004,
-                               velocity: 80, note: 60 + voice * 4))
-            }
-        }
-        return out.sorted { $0.time < $1.time }
-    }
 
     static func grid(bpm: Double = 100, subdivisions: Int = 4) -> Grid {
         Grid(startTime: 1_000, bpm: bpm, subdivisions: subdivisions)
@@ -73,7 +23,7 @@ enum TakeFactory {
 
     static func jam(_ p: Performance = .steady, bars: Int = 32, tag: String? = nil) -> JamSession {
         let g = grid()
-        let raw = taps(p, grid: g)
+        let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
         let r = TimingAnalysis.analyze(taps: events, grid: g)
         return JamSession(
@@ -116,7 +66,7 @@ enum TakeFactory {
         let session = DropoutSession(
             date: Date(timeIntervalSince1970: 1_770_000_200), bpm: g.bpm, pacedBars: 4,
             silentBars: 4, cycles: cycles, feelRating: 4, gridStartTime: g.startTime,
-            tapTimes: taps(p, grid: g).map(\.time),
+            tapTimes: p.taps(grid: g).map(\.time),
             pacedSDms: nil, unpacedIntervalSDms: nil, clockSDms: nil, motorSDms: nil,
             modelHolds: false, reentryErrorMeanMs: nil, reentryErrorSDms: nil,
             headline: "", tempoBiasBpm: nil, playedBpm: nil, splitIsReliable: nil,

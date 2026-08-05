@@ -31,7 +31,7 @@ let applePlatformTargets: [Target] = [
     // whole class of defect lived in the gap: a take was destroyed in a live session because
     // nothing here had ever written one. See PLAN.md §7.22.
     .testTarget(name: "TrainerKitTests",
-                dependencies: ["TrainerKit", "TimingCore", "GrooveCore"],
+                dependencies: ["TrainerKit", "TimingCore", "GrooveCore", "TestSupport"],
                 path: "Tests/TrainerKitTests"),
 ]
 let applePlatformProducts: [Product] = [
@@ -57,8 +57,14 @@ let package = Package(
         // Pure groove generation: patterns, sequencer, dropout and form backings.
         // Depends on nothing, deliberately — not even TimingCore.
         .target(name: "GrooveCore", path: "Sources/GrooveCore"),
+        // Shared test generators. A plain target, not a test target, so every test suite can
+        // import it — one generator instead of one per file. Depends only on TimingCore, so it
+        // builds on Linux with the pure modules. See PLAN.md §7.22.
+        .target(name: "TestSupport",
+                dependencies: ["TimingCore"],
+                path: "Tests/TestSupport"),
         .testTarget(name: "TimingCoreTests",
-                    dependencies: ["TimingCore"],
+                    dependencies: ["TimingCore", "TestSupport"],
                     path: "Tests/TimingCoreTests"),
         .testTarget(name: "GrooveCoreTests",
                     dependencies: ["GrooveCore"],

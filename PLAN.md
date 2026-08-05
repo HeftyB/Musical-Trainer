@@ -2001,14 +2001,13 @@ to be mistaken for complete.
 | | Delivers |
 |---|---|
 | a ✅ | `TrainerKitTests` target, macOS-only, wired into `check.sh`; the round-trip property for all five stored types |
-| b ◐ | The performance generator, and the existing ad-hoc builders migrated onto it |
-| c ✅ | The degenerate corpus as a matrix, replacing the three `selftest` encode checks |
-| d | The `TakeSource` seam; `TrainerEngine`'s analyse-and-save half under test |
-| e | `SessionRunner` sequencing, placement and skip behaviour under test |
+| b ✅ | The performance generator in a shared `TestSupport` target, with the ad-hoc builders migrated onto it |
+| c ✅ | The degenerate corpus as a matrix, replacing the `selftest` encode checks |
+| d ✅ | The clock-bridge reduction and the config boundary under test |
+| e ✅ | `SessionRunner` sequencing, placement and skip behaviour under test |
 
-Steps a–c need no architectural change and would have caught finding 11. Step d is the
-expensive one and the one to review carefully, because it moves a boundary that currently
-guarantees something valuable. Doing a–c before M13 and d–e after is a defensible split.
+Steps a–c needed no architectural change and would have caught finding 11. Step d turned out
+not to need the `TakeSource` seam at all — see below.
 
 ### a and c, as built
 
@@ -2035,10 +2034,63 @@ suite is. `uniqueURL` now suffixes a collision rather than replacing the file.
 That is the argument for T1 in miniature: not that the storage layer was badly written, but that
 nothing had ever exercised it, so a rule the project states outright had no way to be enforced.
 
-**b is partial.** The generator exists and `TrainerKitTests` uses it. Migrating the builders in
-`TimingCoreTests` and `GrooveCoreTests` onto it needs a target both can import, which means
-either a shared test-support target that ships in the package or duplicating the file. That is a
-packaging decision rather than a test one, and it is not worth making in passing.
+### b, d and e, as built
+
+**One generator, in a `TestSupport` target.** `Tests/TestSupport` is a plain target rather than
+a test target, so every suite can import it, and it depends only on `TimingCore` so it builds on
+Linux beside the pure modules. `SeededRNG`, the Wing–Kristofferson generator, the grid tap
+builder and `Performance` all live there; `BootstrapTests` lost its private Gaussian, and the
+`SelfTest` LCG went with the checks it served.
+
+**One boundary is deliberately not shared, and it is worth stating as a decision rather than
+leaving it to look like an oversight.** The builders for *stored* takes stay in
+`TrainerKitTests`, because `JamSession` and its siblings are `internal` to `TrainerKit`. Sharing
+them would mean making the storage types `public` — a permanent API commitment, bought to save a
+test helper. The boundary is forced by visibility, not chosen for convenience, and no code is
+duplicated across it: the generator has one home and the builders have one home.
+
+**Moving the generator immediately broke a test, and the break was the finding.**
+`testPooledDifferenceCallsNoiseNoise` builds three takes per condition from the same
+distribution and asserts the pooled difference is *not* called real. With new seeds it came out
+real — a false positive. That is not the generator's fault: at three takes the cluster
+bootstrap's outer stage has three distinct clusters to draw from, so its interval is a few steps
+rather than a curve. The test had been passing on the seeds it happened to use. It now uses
+`Bootstrap.stableIntervalTakes + 2`, which is the same threshold `review conditions` already
+warns below — the console note and the test now rest on one constant.
+
+**d needed no `TakeSource` seam.** The plan assumed the analysis had to be prised out of the
+runners. It did not: `JamAnalysis.reduce` was already a pure function of a `(hostTime, sample)`
+map and a list of MIDI host times, so the clock bridge's *arithmetic* is now tested directly
+against maps whose answer is arithmetic — a note on the beat reads zero, the calibration
+constant shifts taps earlier rather than later, the guard band drops count-in notes, an
+off-nominal sample rate is absorbed by the fitted slope, and a planted −18 ms bias comes back
+as −18 ms. M0's rig validates the bridge against physical reality and needs hardware. Nothing
+had ever checked the maths, and a sign error there would have biased every take ever recorded
+while looking entirely plausible.
+
+Not building the seam is the result, not a shortfall. It would have moved a boundary that
+currently guarantees one implementation of everything measured (R1.1.2), and it turned out to
+buy nothing that mattered.
+
+**The config boundary moved, because testing it the obvious way was dangerous.** Written as
+"assert `runTempo` throws", the first version of `DrillConfigTests` **played a full
+two-and-a-half-minute drill through the speakers** — a config it expected to be rejected was
+legal, so the test fell through into `environment()` and ran the drill. The range checks now
+live on each config as `validate()`, which every `run*` calls first, and the tests call
+`validate()` directly. They cannot reach an audio device at all, and the suite went from 156
+seconds to 0.3.
+
+The empty-target case that started it is a smaller story than it first looked: `allSatisfy` is
+vacuously true for an empty array, so the guard accepted a config with no targets, and
+`target(forRound:)` traps on `% 0`. But `TempoConfig.init` substitutes a default, so it is only
+reachable by mutating the property afterwards. `TempoPlan` in `TimingCore` has no such
+substitution and its `estimatedSeconds` would have trapped; both are guarded now.
+
+**e is the session record.** `runCurrent` needs audio and stays live-run-only, but everything
+around it — skip, advance, remaining time, and the manifest — does not, and that manifest is
+where §7.20 finding 11 hid: a destroyed take and a declined one both read as "skipped". Seven
+tests cover the state machine and check that a plan's estimated length, the runner's remaining
+time, and the stored manifest all agree.
 
 ---
 

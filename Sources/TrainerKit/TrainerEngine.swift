@@ -70,6 +70,16 @@ public enum TrainerEngine {
             self.bpm = bpm; self.bars = bars; self.tag = tag
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
+
+        /// R7.6: the boundary validates before anything is scheduled.
+        ///
+        /// Lives on the config rather than inside `runJam` so it can be tested without opening
+        /// an audio device. A test that reaches the engine to check a range check is one
+        /// regression away from playing a full take through the speakers.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (4...512).contains(bars) else { throw SpikeError("Bars must be 4–512.") }
+        }
     }
 
     public struct JamOutcome {
@@ -89,8 +99,7 @@ public enum TrainerEngine {
     public static func runJam(_ config: JamConfig,
                               progress: ((Double) -> Void)? = nil,
                               cancellation: CancellationFlag? = nil) throws -> JamOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (4...512).contains(config.bars) else { throw SpikeError("Bars must be 4–512.") }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -175,6 +184,17 @@ public enum TrainerEngine {
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
         public var phrases: Int { bars / phraseBars }
+
+        /// R7.6 — see `JamConfig.validate`.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (2...32).contains(phraseBars) else {
+                throw SpikeError("Phrase length must be 2–32 bars.")
+            }
+            guard bars >= phraseBars, bars <= 512 else {
+                throw SpikeError("Bars must be between the phrase length and 512.")
+            }
+        }
     }
 
     public struct FormOutcome {
@@ -189,11 +209,7 @@ public enum TrainerEngine {
     public static func runForm(_ config: FormConfig,
                                progress: ((Double) -> Void)? = nil,
                                cancellation: CancellationFlag? = nil) throws -> FormOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (2...32).contains(config.phraseBars) else { throw SpikeError("Phrase length must be 2–32 bars.") }
-        guard config.bars >= config.phraseBars, config.bars <= 512 else {
-            throw SpikeError("Bars must be between the phrase length and 512.")
-        }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -281,6 +297,15 @@ public enum TrainerEngine {
         /// One extra paced stretch on the end so the final silence has a re-entry to measure.
         public var totalBars: Int { cycles * cycle.totalBars + pacedBars }
         public var durationSeconds: Double { Double(totalBars + 2) * 4 * 60 / bpm }
+
+        /// R7.6 — see `JamConfig.validate`.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (1...16).contains(pacedBars), (1...32).contains(silentBars) else {
+                throw SpikeError("Paced bars must be 1–16 and silent bars 1–32.")
+            }
+            guard (1...32).contains(cycles) else { throw SpikeError("Cycles must be 1–32.") }
+        }
     }
 
     public struct DropoutOutcome {
@@ -297,11 +322,7 @@ public enum TrainerEngine {
     public static func runDropout(_ config: DropoutConfig,
                                   progress: ((Double) -> Void)? = nil,
                                   cancellation: CancellationFlag? = nil) throws -> DropoutOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (1...16).contains(config.pacedBars), (1...32).contains(config.silentBars) else {
-            throw SpikeError("Paced bars must be 1–16 and silent bars 1–32.")
-        }
-        guard (1...32).contains(config.cycles) else { throw SpikeError("Cycles must be 1–32.") }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -414,6 +435,24 @@ public enum TrainerEngine {
                 total + Double(leadBars + holdBars) * 4 * 60 / target(forRound: i)
             } + 0.5      // matches the lead-in the scheduler inserts
         }
+
+        /// R7.6 — see `JamConfig.validate`.
+        ///
+        /// The empty case cannot arrive through `init`, which substitutes a default, but
+        /// `targets` is a `var` and `target(forRound:)` traps on `% 0`. A guard that reads as
+        /// a range check on every element accepts a list with no elements at all.
+        public func validate() throws {
+            guard !targets.isEmpty else {
+                throw SpikeError("The tempo drill needs at least one target tempo.")
+            }
+            guard targets.allSatisfy({ (40...260).contains($0) }) else {
+                throw SpikeError("Every target tempo must be 40–260 BPM.")
+            }
+            guard (1...16).contains(leadBars), (1...16).contains(holdBars) else {
+                throw SpikeError("Lead and hold must each be 1–16 bars.")
+            }
+            guard (1...32).contains(rounds) else { throw SpikeError("Rounds must be 1–32.") }
+        }
     }
 
     public struct TempoOutcome {
@@ -428,13 +467,7 @@ public enum TrainerEngine {
                                 progress: ((Double) -> Void)? = nil,
                                 cancellation: CancellationFlag? = nil,
                                 roundFinished: ((TempoRoundResult) -> Void)? = nil) throws -> TempoOutcome {
-        guard config.targets.allSatisfy({ (40...260).contains($0) }) else {
-            throw SpikeError("Every target tempo must be 40–260 BPM.")
-        }
-        guard (1...16).contains(config.leadBars), (1...16).contains(config.holdBars) else {
-            throw SpikeError("Lead and hold must each be 1–16 bars.")
-        }
-        guard (1...32).contains(config.rounds) else { throw SpikeError("Rounds must be 1–32.") }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()
@@ -658,6 +691,18 @@ public enum TrainerEngine {
 
         public var roundBars: Int { referenceBars + retentionBars + reproduceBars }
         public var durationSeconds: Double { Double(rounds * roundBars) * 4 * 60 / bpm + 0.5 }
+
+        /// R7.6 — see `JamConfig.validate`.
+        public func validate() throws {
+            guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
+            guard (1...16).contains(referenceBars), (1...32).contains(retentionBars),
+                  (1...16).contains(reproduceBars) else {
+                throw SpikeError("Reference and reproduce must be 1–16 bars, the wait 1–32.")
+            }
+            guard (2...32).contains(rounds) else {
+                throw SpikeError("Rounds must be 2–32 — the drill needs both conditions.")
+            }
+        }
     }
 
     public struct MemoryOutcome {
@@ -684,14 +729,7 @@ public enum TrainerEngine {
     public static func runMemory(_ config: MemoryConfig,
                                  progress: ((Double) -> Void)? = nil,
                                  cancellation: CancellationFlag? = nil) throws -> MemoryOutcome {
-        guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-        guard (1...16).contains(config.referenceBars), (1...32).contains(config.retentionBars),
-              (1...16).contains(config.reproduceBars) else {
-            throw SpikeError("Reference and reproduce must be 1–16 bars, the wait 1–32.")
-        }
-        guard (2...32).contains(config.rounds) else {
-            throw SpikeError("Rounds must be 2–32 — the drill needs both conditions.")
-        }
+        try config.validate()
         let env = try environment()
 
         let player = try GroovePlayer()

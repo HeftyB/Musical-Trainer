@@ -43,7 +43,8 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 207 cases against synthetic ground truth.
+- `Tests/` — 226 cases against synthetic ground truth. `Tests/TestSupport` holds the
+  shared generators; storage tests are macOS-only.
 
 ```sh
 swift test               # unit tests: pure modules, plus TrainerKit storage on macOS

@@ -1,14 +1,12 @@
 import XCTest
+import TestSupport
 @testable import TimingCore
 
 final class BootstrapTests: XCTestCase {
+    /// The shared generator, so a change to how synthetic players are built reaches every
+    /// suite rather than this file alone.
     private func gaussianSeries(n: Int, mean: Double, sd: Double, seed: UInt64) -> [Double] {
-        var rng = SplitMix64(seed: seed)
-        func u() -> Double { Double(rng.next() >> 11) / Double(1 << 53) }
-        return (0..<n).map { _ in
-            let u1 = Swift.max(u(), 1e-12), u2 = u()
-            return mean + sd * (-2 * Foundation.log(u1)).squareRoot() * Foundation.cos(2 * .pi * u2)
-        }
+        Generators.series(n: n, mean: mean, sd: sd, seed: seed)
     }
 
     func testIntervalBracketsThePointEstimate() {
@@ -53,9 +51,18 @@ final class BootstrapTests: XCTestCase {
         XCTAssertGreaterThan(diff.point, 0)
     }
 
+    /// Six takes per condition, not three, and the reason is the finding.
+    ///
+    /// At three the outer stage has three distinct clusters to draw from, so its interval is a
+    /// handful of steps rather than a curve and a chance difference between the two triples can
+    /// come out "real". This test asserted that at three takes and passed only on the seeds it
+    /// happened to use; the shared generator changed them and it failed. That is what
+    /// `Bootstrap.stableIntervalTakes` is for, and why `review conditions` says a group below it
+    /// is coarsely estimated.
     func testPooledDifferenceCallsNoiseNoise() {
-        let a = (0..<3).map { gaussianSeries(n: 120, mean: 0, sd: 14, seed: UInt64(30 + $0)) }
-        let b = (0..<3).map { gaussianSeries(n: 120, mean: 0, sd: 14, seed: UInt64(40 + $0)) }
+        let takes = Bootstrap.stableIntervalTakes + 2
+        let a = (0..<takes).map { gaussianSeries(n: 120, mean: 0, sd: 14, seed: UInt64(30 + $0)) }
+        let b = (0..<takes).map { gaussianSeries(n: 120, mean: 0, sd: 14, seed: UInt64(40 + $0)) }
         let diff = Bootstrap.pooledDifference(a, b, statistic: Bootstrap.sdStat)!
         XCTAssertFalse(diff.excludesZero)
     }

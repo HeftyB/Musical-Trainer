@@ -1,5 +1,6 @@
 import XCTest
 @testable import TimingCore
+import TestSupport
 @testable import TrainerKit
 
 /// The worst take of the evening must still be storable.
@@ -13,14 +14,8 @@ import XCTest
 /// compute a summary. The takes being discarded were the most diagnostic ones in the set.
 final class DegenerateTakeTests: StoreBackedTestCase {
 
-    /// Every pathology worth generating, named so a failure says which one broke.
-    private var pathologies: [(name: String, performance: TakeFactory.Performance)] {
-        [("nothing played", .silent),
-         ("a single note", .oneNote),
-         ("everything off the grid", .init(beats: 64, biasMs: 0, spreadMs: 2, offGridRate: 1)),
-         ("wild spread", .init(beats: 64, biasMs: 0, spreadMs: 400)),
-         ("block chords only", .init(beats: 64, spreadMs: 8, chordSize: 4)),
-         ("running away", .init(beats: 64, biasMs: 0, spreadMs: 6, driftMsPerBeat: 8))]
+    private var pathologies: [(name: String, performance: Performance)] {
+        Performance.pathologies
     }
 
     func testEveryDegenerateJamCanBeSavedAndReloaded() throws {
