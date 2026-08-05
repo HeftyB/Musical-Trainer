@@ -17,7 +17,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 159 unit tests, no hardware needed
+swift test                              # 170 unit tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -90,8 +90,8 @@ Each of these came from a real bug. Breaking one silently corrupts data.
   seconds elapsed into the sitting. That is what lets a cold take and a take twenty minutes in
   be told apart, and it is why M9 changed storage before it changed anything else.
 - **Jam takes also store the raw note-ons** (`rawTimes` / `rawNotes` / `rawVelocities`) beside
-  the clustered timing series, so *what* was played is recoverable and not just *when*. Nothing
-  reads them yet; M12 does.
+  the clustered timing series, so *what* was played is recoverable and not just *when*.
+  `review content` (M12) reads them; takes before 4 Aug 2026 have none and are skipped.
 - **Raw taps are stored and everything recomputes from them.** Cached summary fields exist to
   keep the JSON readable but nothing reads them back. This is deliberate: analysis fixes reach
   takes recorded before the fix, which has already mattered twice.

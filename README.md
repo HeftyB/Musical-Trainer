@@ -43,7 +43,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 159 cases against synthetic ground truth.
+- `Tests/` — 170 cases against synthetic ground truth.
 
 ```sh
 swift test               # TimingCore unit tests
@@ -76,6 +76,7 @@ swift build -c release   # the console tool
 | `review dropout` | Continuation-drill history: the clock/motor split over time. |
 | `review tempo` | Tempo-calibration history. |
 | `review trend` | Is anything actually improving? Fits each metric with a confidence interval, splitting confounded groups. |
+| `review content` | **M12.** Does what you play change how you time it? Correlates musical content against timing spread within each take. |
 | `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
 | `show` | Prints stored calibration and the constant for each device. |
 
