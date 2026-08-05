@@ -346,8 +346,16 @@ struct MemorySession: Codable, StoredTake {
 }
 
 enum SessionStore {
+    /// Redirects storage somewhere else. **Tests only, and nil in every other context.**
+    ///
+    /// The real directory holds primary data that R6.2 says must never be deleted or rewritten,
+    /// and a test suite that saves takes has to save them somewhere else — a suite that could
+    /// scribble on the player's practice history would be a worse defect than any it caught.
+    /// `check.sh` fails if anything outside `Tests/` assigns this.
+    static var directoryOverride: URL?
+
     static var directory: URL {
-        let base = FileManager.default
+        let base = directoryOverride ?? FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MusicalTrainer/sessions", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -356,8 +364,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: JamSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("jam-\(stamp).json")
+        let url = uniqueURL(prefix: "jam-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -371,8 +378,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: FormSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("form-\(stamp).json")
+        let url = uniqueURL(prefix: "form-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -386,8 +392,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: DropoutSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("dropout-\(stamp).json")
+        let url = uniqueURL(prefix: "dropout-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -401,8 +406,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: TempoSession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("tempo-\(stamp).json")
+        let url = uniqueURL(prefix: "tempo-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -416,8 +420,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ session: MemorySession) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: session.date)
-        let url = directory.appendingPathComponent("memory-\(stamp).json")
+        let url = uniqueURL(prefix: "memory-", date: session.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -431,8 +434,7 @@ enum SessionStore {
 
     @discardableResult
     static func save(_ record: TrainingSessionRecord) throws -> URL {
-        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: record.date)
-        let url = directory.appendingPathComponent("session-\(stamp).json")
+        let url = uniqueURL(prefix: "session-", date: record.date)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -442,6 +444,24 @@ enum SessionStore {
 
     static func loadAllSessions() -> [TrainingSessionRecord] {
         load(prefix: "session-", as: TrainingSessionRecord.self).sorted { $0.date < $1.date }
+    }
+
+    /// A path for this take, made unique if one with the same timestamp already exists.
+    ///
+    /// The name is derived from the take's own date, so two takes finishing in the same second
+    /// resolved to the same file and the second silently overwrote the first. R6.2 says a
+    /// stored take is never rewritten, and "two drills cannot finish in the same second" is the
+    /// kind of assumption that turns out to be wrong once. The test suite hit it on its first
+    /// run, saving several synthetic takes that shared a date.
+    private static func uniqueURL(prefix: String, date: Date) -> URL {
+        let stamp = ISO8601DateFormatter.filenameFormatter.string(from: date)
+        var url = directory.appendingPathComponent("\(prefix)\(stamp).json")
+        var attempt = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = directory.appendingPathComponent("\(prefix)\(stamp)-\(attempt).json")
+            attempt += 1
+        }
+        return url
     }
 
     /// Every stored file that no longer decodes, across **every** take type.

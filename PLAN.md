@@ -2000,15 +2000,45 @@ to be mistaken for complete.
 
 | | Delivers |
 |---|---|
-| a | `TrainerKitTests` target, macOS-only, wired into `check.sh`; the round-trip property for all five stored types |
-| b | The performance generator, and the existing ad-hoc builders migrated onto it |
-| c | The degenerate corpus as a matrix, replacing the three `selftest` encode checks |
+| a ✅ | `TrainerKitTests` target, macOS-only, wired into `check.sh`; the round-trip property for all five stored types |
+| b ◐ | The performance generator, and the existing ad-hoc builders migrated onto it |
+| c ✅ | The degenerate corpus as a matrix, replacing the three `selftest` encode checks |
 | d | The `TakeSource` seam; `TrainerEngine`'s analyse-and-save half under test |
 | e | `SessionRunner` sequencing, placement and skip behaviour under test |
 
 Steps a–c need no architectural change and would have caught finding 11. Step d is the
 expensive one and the one to review carefully, because it moves a boundary that currently
 guarantees something valuable. Doing a–c before M13 and d–e after is a defensible split.
+
+### a and c, as built
+
+15 tests in a new macOS-only `TrainerKitTests`, and the suite went from 192 to 207.
+`TakeFactory` builds a take of any type from a `Performance` — beats, bias, spread, drift,
+off-grid rate, chord size, seed — and each stored type is round-tripped: save, reload, recompute,
+and the report must not move. The three `selftest` encode checks and the three structural-validity
+checks are gone, since the corpus covers both properly; `selftest` is back to 36 and is once
+again only about analysis against ground truth.
+
+**Tests must not be able to touch the real practice history.** `SessionStore.directoryOverride`
+redirects storage into a temporary directory per test, `StoreBackedTestCase` sets and clears it,
+and every writing test asserts the redirect is live before its first save. `check.sh` fails if
+anything outside `Tests/` assigns it — verified by planting an assignment. A suite that could
+scribble on primary data would be a worse defect than any it caught.
+
+**It found a real one on its first run.** Six synthetic takes were saved and one came back.
+`SessionStore.save` derives the filename from the take's own date at second resolution, so two
+takes finishing in the same second resolved to one path and the second **overwrote the first** —
+a stored take rewritten, which R6.2 forbids outright. Unreachable in normal practice, since a
+drill runs for minutes; entirely reachable by anything that saves faster, which is what the test
+suite is. `uniqueURL` now suffixes a collision rather than replacing the file.
+
+That is the argument for T1 in miniature: not that the storage layer was badly written, but that
+nothing had ever exercised it, so a rule the project states outright had no way to be enforced.
+
+**b is partial.** The generator exists and `TrainerKitTests` uses it. Migrating the builders in
+`TimingCoreTests` and `GrooveCoreTests` onto it needs a target both can import, which means
+either a shared test-support target that ships in the package or duplicating the file. That is a
+packaging decision rather than a test one, and it is not worth making in passing.
 
 ---
 

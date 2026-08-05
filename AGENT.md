@@ -54,7 +54,9 @@ tags | conditions | compare | form | dropout | tempo`.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is all 192 tests, because `Package.swift` excludes the Apple-only targets off macOS.
+  is the 192 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (15 storage tests) is macOS-only and runs in `check.sh` alone, so a
+  green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
 - **Not installed:** `swiftlint`, `swift-format`, `gh`, `tea`, `jq`, `shellcheck`. `scripts/check.sh`
@@ -67,7 +69,7 @@ tags | conditions | compare | form | dropout | tempo`.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 192 unit tests, no hardware needed
+swift test                              # 207 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -88,6 +90,7 @@ reach for newer language features.
 TimingCore    pure analysis. NO AVFoundation, CoreMIDI, CoreAudio, or UI.
 GrooveCore    pure pattern/sequencer/backing logic. Same purity rule.
 TrainerKit    audio, MIDI, synthesis, calibration, sessions, drill runners, console layer.
+              Storage is tested by TrainerKitTests; audio and MIDI still are not.
 TimingSpike   CLI front end (main.swift only).
 MusicalTrainerApp  SwiftUI front end.
 ```

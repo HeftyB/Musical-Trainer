@@ -78,6 +78,13 @@ head2 "Measurement integrity"
 expect_empty "no cached summary field is read outside SessionStore" \
     bash -c "grep -rnE '\\b(s|session|take|entry)\\.(sdAsynchronyMs|meanAsynchronyMs|lag1Autocorrelation|driftMsPerBeat|onFormCount|marksPlaced|tightCount|meanAbsFormErrorBars|phaseErrorMeanMs|slipBarsPerPhrase|clockSDms|motorSDms|pacedSDms|unpacedIntervalSDms|reentryErrorMeanMs|tempoBiasBpm|playedBpm|usableCount|meanErrorPercent|meanAbsErrorPercent|improvementPerRound|interferenceCost|silentMeanAbsErrorPercent|filledMeanAbsErrorPercent)\\b' Sources --include='*.swift' | grep -v 'SessionStore.swift'"
 
+# The test suite writes takes, so it needs somewhere to write them that is not the player's
+# practice history. That redirect must never be armed by shipping code: R6.2 says stored takes
+# are primary data, and the one thing worse than an untested storage layer is a tested one that
+# overwrites the data it exists to protect.
+expect_empty "only tests redirect the session store" \
+    grep -rn 'directoryOverride *=' Sources --include='*.swift'
+
 # ── 4. Privacy and supply chain (STANDARDS §7) ───────────────────────────────────
 head2 "Privacy and supply chain"
 

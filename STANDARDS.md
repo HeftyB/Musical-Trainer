@@ -212,6 +212,15 @@ verification.
 Audio, MIDI and the drill runners cannot be unit tested; pretending otherwise is worse than
 admitting the gap.
 
+**R5.8 — Every stored type has a round-trip test**: save it, load it back, recompute, and require
+the report not to move. Add one with the type, not after the first take is lost.
+
+> A whole class of defect lived where nothing had ever written a take. The encoder refusing a
+> non-finite `Double` destroyed a form take live; a self-contradictory file trapped on read; two
+> takes sharing a timestamp overwrote each other. One property catches all three. Tests write
+> through `SessionStore.directoryOverride` into a temporary directory — never the player's
+> history, which `check.sh` enforces. See PLAN.md §7.22.
+
 ---
 
 ## 6. Data and schema
@@ -438,8 +447,13 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, all 192 tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 192 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
+
+**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 15 storage tests
+run only in `./scripts/check.sh`, which the pre-commit hook enforces. A green pipeline therefore
+covers less than a green `check.sh`, and saying so is the point: the gap that destroyed a take
+existed because the split between tested and untested had stopped being visible.
 
 The Linux leg is possible because `Package.swift` excludes the Apple-only targets off macOS.
 That is the strictest available check of §1.1: an accidental `import AVFoundation` in a pure

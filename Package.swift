@@ -21,6 +21,18 @@ let applePlatformTargets: [Target] = [
     .executableTarget(name: "MusicalTrainerApp",
                       dependencies: ["TrainerKit", "TimingCore", "GrooveCore"],
                       path: "Sources/MusicalTrainerApp"),
+    // Storage, session types and everything else in TrainerKit that is not audio or MIDI.
+    //
+    // macOS-only, because TrainerKit is — so this target cannot run on the Linux CI leg and is
+    // gated by `./scripts/check.sh` instead. STANDARDS.md §9.4.2 states that asymmetry; a CI
+    // badge that appears to cover it would be worse than the gap.
+    //
+    // It exists because the pure/impure split had become a proxy for tested/untested, and a
+    // whole class of defect lived in the gap: a take was destroyed in a live session because
+    // nothing here had ever written one. See PLAN.md §7.22.
+    .testTarget(name: "TrainerKitTests",
+                dependencies: ["TrainerKit", "TimingCore", "GrooveCore"],
+                path: "Tests/TrainerKitTests"),
 ]
 let applePlatformProducts: [Product] = [
     .library(name: "TrainerKit", targets: ["TrainerKit"]),
