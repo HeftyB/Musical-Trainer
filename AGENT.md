@@ -11,6 +11,47 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 - **AGENT.md** (this file) — the operating manual.
 - **[README.md](README.md)** — what the app is and how to use it.
 
+## Where the project is
+
+**M0–M12 are done. M13 (experiment runner) is next.** PLAN.md §7 has the milestone table with
+a "as built" section for each; §7.13 is the roadmap through M22.
+
+| Done | |
+|---|---|
+| M0–M1 | Clock bridge validated, calibration |
+| M2–M4 | `TimingCore`, groove engine, jam capture |
+| M5–M8 | SwiftUI app, continuation drill, trends, tempo calibration |
+| M9–M12 | Session builder, cold-vs-warm, recall drill, musical content |
+
+The last live session (4 Aug 2026) is written up in §7.17 — read it before touching drills,
+because two of the three defects it found were instruction and reporting bugs, not maths.
+
+## Surfaces
+
+Both front ends drive `TrainerEngine`; neither contains measurement logic.
+
+**App** (`./build-app.sh`): Session (a planned evening), six single-take modes — Jam, Form,
+Alone, Tempo, Recall, Play — and History.
+
+**CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
+and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
+has the annotated table. The analysis readouts are `review trend | cold | content | feel |
+tags | conditions | compare | form | dropout | tempo`.
+
+## Environment constraints — check these before proposing a solution
+
+- **No Docker on this workstation.** Andrew runs containers on his Proxmox nodes. Do not start
+  a local daemon; write pipeline config and hand it over.
+- **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
+  browser step. CI is **Woodpecker**.
+- **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
+  is all 170 tests, because `Package.swift` excludes the Apple-only targets off macOS.
+  `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
+  pointed at this machine (a build during a take can perturb the render thread).
+- **Not installed:** `swiftlint`, `swift-format`, `gh`, `tea`, `jq`, `shellcheck`. `scripts/check.sh`
+  does the linting with grep, because the rules that matter here are project-specific anyway.
+- **bash is 3.2** (macOS). No `mapfile`, no associative arrays, in hooks and scripts.
+
 ## Build, test, run
 
 ```sh
@@ -142,3 +183,28 @@ Recompute rather than trusting these; every figure comes from `review trend`, `r
   themselves every time.
 - When results look surprising, **check the raw data before reporting them**. Two "findings"
   so far were measurement artefacts, and both were visible in the taps within a minute.
+- **Say what you could not verify.** Hardware paths (audio, MIDI, the drill runners) have no
+  unit tests and neither pipeline has ever been executed. Naming the gap is part of the work;
+  implying coverage that does not exist is worse than the gap itself.
+
+## Procedure
+
+Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
+
+1. **Branch.** `<type>/<short-description>`, same types as the commit format.
+2. **Work.** Anything analysable goes in `TimingCore` or `GrooveCore` with a test that plants
+   a known answer and recovers it.
+3. **Write the message as you go.** `temp/current-git-commit-message.txt` (gitignored) holds
+   the message for whatever is currently uncommitted, and is updated whenever the tree changes.
+   A change you cannot describe yet is usually two changes.
+4. **Update the documentation — always a closing step.** Walk PLAN.md, AGENT.md, STANDARDS.md
+   and README.md and correct anything the change made untrue. Re-derive any count or figure
+   quoted in prose rather than trusting it; four separate accuracy passes have each found
+   numbers copied forward unchecked.
+5. **`./scripts/check.sh`** last. The pre-commit hook runs the fast half; run the whole thing
+   after touching analysis or audio.
+6. **Hand over.** Andrew commits and pushes; leave the tree ready and give him the commands.
+
+Adding a drill has its own seven-step checklist — STANDARDS.md §9.5.
+
+`./scripts/install-hooks.sh` once per clone, or none of the above is enforced.

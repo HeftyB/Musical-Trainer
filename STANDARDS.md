@@ -265,16 +265,45 @@ Refs: PLAN.md §<n>
 
 Enforced by `.githooks/commit-msg`.
 
+### 8.2.1 The rolling commit message
+
+`temp/current-git-commit-message.txt` always holds the message for whatever is currently
+uncommitted. It is gitignored: it describes a change in progress, and once the change lands the
+commit itself is the record.
+
+- **Write it as soon as there is something to commit**, not at the end. A message you cannot
+  write yet is a change you cannot yet describe, which usually means it is really two changes.
+- **Update it whenever the working tree changes.** A stale message is worse than none, because
+  it will be used.
+- **Clear it once committed.** `: > temp/current-git-commit-message.txt`, or replace it with
+  the message for the next change.
+- Commit with `git commit -F temp/current-git-commit-message.txt` so the file that was reviewed
+  is the message that lands.
+
+If the change needs more than one commit, the file holds all of them in order, separated by a
+line of `---`, each with the `git add` that precedes it.
+
+`check.sh` warns when the tree is dirty and this file is missing or older than the most
+recently changed file. It is a warning, not a failure: the standard is a discipline, not a
+gate, and a gate here would only teach people to write the file badly.
+
 ### 8.3 Definition of done
 
 A change is done when all of the following are true:
 
 1. `./scripts/check.sh` passes.
 2. New analysable behaviour has tests that would fail without it.
-3. `PLAN.md` records any design decision, finding, or measured result.
-4. `AGENT.md` is accurate if the operating procedure changed.
-5. `README.md` is accurate if a user-facing surface changed.
-6. Any hardware path is exercised by a live run, or the gap is stated explicitly.
+3. Any hardware path is exercised by a live run, or the gap is stated explicitly.
+4. **Documentation is brought level with the code — this is a closing step, every time.**
+   Walk all four documents and correct anything the change made untrue:
+   - `PLAN.md` — design decisions, findings, measured results, milestone status
+   - `AGENT.md` — operating procedure, environment constraints, project state
+   - `STANDARDS.md` — a rule that changed, or a new procedure
+   - `README.md` — any user-facing surface, and the command table
+   Counts and figures quoted in prose are claims like any other: re-derive them from the code
+   rather than trusting the previous value. Four separate doc-accuracy passes have each found
+   stale numbers that had been copied forward unchecked.
+5. `temp/current-git-commit-message.txt` describes exactly what is about to be committed.
 
 ---
 

@@ -15,6 +15,11 @@ Musical Trainer.app/
 # Release artifacts — produced by ./scripts/package-release.sh
 dist/
 
+# Working scratch. Holds current-git-commit-message.txt, the rolling message for whatever is
+# currently uncommitted — see STANDARDS.md §8.2.1. Never committed: it describes the change
+# being made, and once the change lands the commit itself is the record.
+temp/
+
 # Scratch work. Probes and one-off experiments are useful but disposable; keep them out of
 # the repo so the source tree only ever contains code that ships or tests.
 Scratch/
