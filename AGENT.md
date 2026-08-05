@@ -23,8 +23,13 @@ a "as built" section for each; §7.13 is the roadmap through M22.
 | M5–M8 | SwiftUI app, continuation drill, trends, tempo calibration |
 | M9–M12 | Session builder, cold-vs-warm, recall drill, musical content |
 
-The last live session (4 Aug 2026) is written up in §7.17 — read it before touching drills,
-because two of the three defects it found were instruction and reporting bugs, not maths.
+**§7.20 is the current work queue** — a review before M13 that found ten places where a number
+or a rule says more than it can support, with the fix order and the M13 build order. Read it
+before starting either.
+
+The two live sessions are §7.17 (4 Aug 2026) and §7.19 (5 Aug, the most recent). Read them
+before touching drills: between them they produced two instruction bugs, one reporting bug,
+and the project's only retracted finding — none of them maths.
 
 ## Surfaces
 

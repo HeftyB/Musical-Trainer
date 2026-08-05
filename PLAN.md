@@ -1465,6 +1465,193 @@ against a quarter-note take — which M12 cannot test. That needs M13.
 
 ---
 
+## 7.20 Second codebase review — ten findings, and the order they get fixed
+
+A full pass over the tree before M13 starts, on the principle that an experiment runner
+inherits every weakness of the statistics underneath it. The gate is green and was green
+throughout: 175 tests, 36 selftest checks, a warning-free release build, every stored take
+decoding, the 46 takes on disk matching the counts quoted in `AGENT.md`.
+
+So none of this is a crash or a broken build. All ten are the other failure mode, the one
+§3 of `STANDARDS.md` exists for: **a number, a rule or a document saying more than it can
+support.** Ordered by what they block rather than by size.
+
+### 1. The pooled bootstrap cannot see between-take variance — blocks M13
+
+`Bootstrap.pooledInterval` and `pooledDifference` resample blocks *within* each take and
+concatenate the results. The takes themselves are never resampled, so the interval describes
+variation inside takes and nothing else — while the quantity being compared varies mostly
+*between* them. Everything this project has measured says so: two benchmark jams one day apart
+moved 24.1 → 17.4 ms (§7.19), and two jams twenty minutes apart in one evening were rated 4
+and 1 (§7.17).
+
+`review conditions` is therefore able to call a difference "real change" on variance it
+structurally cannot observe, and that is the readout M13 is built on top of. R3.2 is explicit
+that using the wrong bootstrap is a defect and not a preference.
+
+The fix is a **two-stage cluster bootstrap**: draw takes with replacement, then moving-block
+resample within each drawn take. The codebase already knows this pattern —
+`WarmUpAnalysis.withinSessionFit` resamples whole sittings, for exactly this reason, and says
+so in its own doc comment. The pooled path simply never got the same treatment.
+
+A group of one take gets no interval at all after the fix, rather than a narrow one. One take
+cannot support a statement about takes, and a plausible number here is worse than a gap.
+
+**Related, and deliberately left alone.** The pooled *estimand* is a statistic over
+concatenated events, so a longer take carries more weight, and a pooled SD across takes with
+different biases includes the between-take bias spread on top of the within-take spread. That
+is a question about what "spread across a condition" should mean, not about uncertainty, and
+changing both at once would leave neither reviewable. It gets its own decision under M13 step 3.
+
+`review compare` is not affected either way. It puts an interval on the difference between two
+*named* takes, and the within-take resample is the right tool for that: "did these two takes
+differ" is a different question from "does this condition differ", so §7.19's benchmark
+comparison stands as recorded.
+
+### 2. The recall drill's differential attrition is still invisible — blocks M13
+
+§7.17 measured it: 3 of 8 silent waits were played through, against 1 of 8 filled, because an
+empty gap invites you to carry on while a distractor interrupts. §7.19 concluded that the
+original "interference hurts" reading *was* that bias, and that the sign flipped once the
+player reached 8/8 usable. This is the only finding in the project so far that has been
+retracted, and the mechanism was differential attrition.
+
+The cue half of the fix landed in §7.19 — the snare fill before the silence. The measurement
+half did not. `TempoMemoryAnalysis` still counts violated rounds into a single total, so the
+report can say "3 rounds had playing during the wait" without saying that all three were
+silent, and no note tells the reader that the surviving control rounds are a self-selected
+subset. R3.3 requires the opposite: when a measurement cannot be trusted, say so and say why.
+
+The fix reports the violation rate **per condition**, and treats an imbalance as a caveat on
+the interference cost. §7.17 also suggested scoring the violation rate as a result in its own
+right — *being unable to stop* is evidence about how the period is held — and that stands, but
+it is a second question and follows the caveat rather than replacing it.
+
+### 3. The last content window's density is understated
+
+`MusicalContentAnalysis.analyze` rounds the window count up, so the final window runs past the
+end of the take, but `measures(of:overBeats:)` always divides by the *full* window length.
+`eventsPerBeat` in that window is scaled by however much of it was real playing.
+
+Note density is not an incidental measure here: it is trap 2 of the three §7.18 names, the
+confound the whole report is written around, and it is reported as its own row precisely so a
+content effect can be separated from a note-values effect. Biasing it in one window of every
+take puts a thumb on that scale. The fix is to drop a final window that covers less than most
+of its span, and to normalise by the span actually measured otherwise.
+
+### 4. `review trend` renumbers the take axis when a take is unscorable
+
+`TrendAnalysis.fit` filters non-finite values and then builds its x-axis as `0..<clean.count`.
+A take whose metric could not be computed does not leave a gap in the axis — it compresses it,
+and every later take slides one place earlier. The slope is then per *usable* take while every
+label, every unit string and the doc comment say per take.
+
+Small in this dataset and not small in principle: it is the same class as the stale-cache
+defect §7.12 found, where a plotted number was not the number the analysis produced. The fix
+is to carry the original index alongside the value.
+
+### 5–8. Enforcement gaps and small stuff
+
+| # | Finding | Why it matters |
+|---|---|---|
+| 5 | `check.sh`'s force-unwrap rule only matches `!` followed by `.`, so bare force-unwraps pass. Six live in `Sources/`: `DropoutAnalysis.swift:163`, `WarmUpAnalysis.swift:119`, `Commands.swift:636`, `:723`, `:727`, `:1200`. | Every one is guarded by a preceding filter, so none can trap today. The defect is that the gate reports a rule as held when it is not — R4.7 is unenforced, and the next one may not be guarded. |
+| 6 | The decode gate cannot fail. `check.sh` runs `review list` and tests the exit status, but `SessionStore.load` writes its "could not be read" note to stderr and returns whatever decoded; the CLI exits 0. | R6.1 says every take ever recorded must continue to decode, "verified by running `review list`". A schema change that orphaned the entire history would still print `PASS`. The check must read the note, not the exit code. |
+| 7 | The M7 trend doc comment sits above `runContent` (`Commands.swift:986`); `runTrend` at `:1078` has none. | Left behind when M12's command was inserted. §0 of `STANDARDS.md` treats misplaced content as a defect; a comment describing the function above it is worse than none. |
+| 8 | `MemorySession.roundWindows` indexes four parallel arrays by `roundConditions.indices`. | A length mismatch traps instead of reporting, which is the failure mode R6.4 exists to prevent — a storage inconsistency should be legible, not a crash on load. |
+
+### 9. Neither the content nor the condition readout exists in the app
+
+The app's History carries trends and the warm-up card. `review content`, `review tags`,
+`review conditions` and `review feel` are console-only.
+
+That was tolerable while the console was where analysis happened. M13 makes it a real problem:
+the experiment readout — which arm is ahead, how many takes remain, whether the app will
+conclude anything — *is* the milestone's output, and the app is where sessions actually get
+run. A milestone whose result the player never sees where they practise has not shipped.
+
+This is not the `R1.1.2` violation it might look like; no measurement moves. It is a surface
+gap, and M13 step 5 closes it for the experiment readout at minimum.
+
+### 10. `AGENT.md` pointed at the wrong live session — fixed in this pass
+
+It called 4 August (§7.17) "the last live session". The last one is 5 August (§7.19), which
+retracted a finding and forced three fixes. An operating manual that sends a reader to the
+second-most-recent findings is exactly the failure the closing documentation step in §8.3 of
+`STANDARDS.md` exists to catch — and it was introduced *by* a pass that updated the milestone
+table and not the sentence under it.
+
+Corrected here rather than queued: a wrong pointer in the operating manual misleads every
+reader who arrives before the queue drains, and the fix is one sentence.
+
+### Fix order
+
+Findings 1 and 2 are M13 prerequisites: the first because every conclusion the experiment
+runner draws goes through it, the second because the recall comparison is one of the first
+three experiments and would re-inherit the bias. Everything else is sequenced after them
+because none of it is load-bearing for the milestone.
+
+| Step | Fixes | Where |
+|---|---|---|
+| 0 | 1 — cluster bootstrap; `review tags` / `review conditions` moved onto it | `TimingCore/Bootstrap.swift` |
+| 1 | 2 — per-condition attrition, reported and caveated | `TimingCore/TempoMemory.swift` |
+| 2 | 3, 4 — partial content window; trend take axis | `TimingCore` |
+| 3 | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
+| 4 | 7, 8 — comment placement, parallel-array decode | mixed |
+| 5 | 9 — folded into M13 step 5, since it is the same view | `MusicalTrainerApp` |
+
+### What this sequences into — the M13 build order
+
+Three things about this codebase shape the milestone.
+
+**Storage goes first, again.** `ExperimentAssignment` — experiment id, name, arm, run index —
+optional on all five take types, written by `SessionRunner`, read by nothing. Same reasoning as
+`SessionPlacement` before M10 and pitch before M12, and the same rule: R6.3. A take recorded
+without its arm is lost to the comparison for good.
+
+**Preregistration is the mechanism, not a flourish.** The app re-runs its analysis after every
+session, which is optional stopping, and optional stopping plus a bootstrap eventually
+manufactures a "real change". So an experiment declares its metric, direction, arms, target n
+and stopping rule up front; below target n the readout is "collecting, k takes to go" and no
+verdict is computed at all. That is the literal reading of "refuses to draw a conclusion before
+it has power" (§7.13), and it doubles as protection for the player: a running tally on screen
+would bias the takes still to come, in a project whose first principle is that watching the
+number changes the playing.
+
+**Counterbalancing against block position is mandatory.** §7.17 has two takes identical on
+every number rated 4 and 1, twenty minutes apart. An arm that correlates with elapsed minutes
+measures fatigue. Arm order alternates across sessions under a seeded RNG (R1.2.1), and the
+analysis reports arm-against-elapsed as a confound check rather than assuming the balancing
+worked.
+
+One consequence worth naming: steady-vs-melodic is an **instruction-only** condition. Same
+backing, same tempo, same everything — the independent variable is the text the player is
+shown. That makes `DrillInstructions` the experimental apparatus, in a project where static
+instructions have already cost two takes and one live session (§6.1, §7.17). Arm text is
+generated from the arm that will run, with a test, or the experiment is not measuring what it
+claims.
+
+| Step | Delivers |
+|---|---|
+| 0 | Cluster bootstrap (finding 1) |
+| 1 | `ExperimentAssignment` storage, written and unread |
+| 2 | `Experiment.swift` — design, arms, seeded balanced assignment, stopping rule |
+| 3 | `ExperimentAnalysis.swift` — pooled arm comparison, minimum detectable effect, takes-needed, confound and attrition checks. Settles the pooled-estimand question from finding 1. |
+| 4 | Planner blocks at locked parameters (R3.5), arm-specific instructions (R3.6), engine wiring |
+| 5 | Console `experiment` + `review experiment`, and the app card (finding 9) |
+| 6 | `PLAN.md` as-built, `README.md` command table, `AGENT.md` state |
+
+The first three experiments, chosen by what they unblock: **steady vs melodic** (the
+mode-of-playing hypothesis §7.19 says M12 cannot test), **silent vs filled retention pooled
+across takes** (n = 2 per direction with no interval, and finding 2 must land first), and
+**relaxed vs focused** (§5.1's founding prediction — that focusing drives r₁ sharply negative
+— has never once been tested).
+
+Steps 4 and 5 touch the runner and the instruction path, which have no unit tests and will not
+get them. Per R5.6 they need a live session and the result goes here. Two of the three defects
+the first live session found were instruction and reporting bugs; expect the same class again.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what
