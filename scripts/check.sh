@@ -117,8 +117,24 @@ MISSING_EOL=$(for f in $SWIFT_FILES; do [ -n "$(tail -c1 "$f")" ] && echo "$f"; 
 if [ -z "$MISSING_EOL" ]; then pass "every file ends with a newline"
 else fail "files missing a trailing newline"; printf '%s%s%s\n' "$DIM" "$(echo "$MISSING_EOL" | sed 's/^/        /')" "$OFF"; fi
 
-expect_empty "no force-unwrap or try! in Sources" \
-    grep_sources '(\btry!|\)!\.|\]!\.|[a-zA-Z0-9_]!\.[a-zA-Z])' --exclude-dir=MusicalTrainerApp
+# The old pattern only matched a `!` followed by `.`, so it saw `x!.foo` and missed `x!` used
+# as a value — which is most of them. Six lived in Sources while this reported PASS, including
+# two implicitly-unwrapped node declarations. It now matches a postfix `!` after any identifier,
+# `)` or `]`, which also catches `Type!` declarations.
+#
+# `!=` is excluded because that is not an unwrap. Prefix negation (`!ok`, `!$0.isEmpty`) never
+# matches, since the character before the `!` is a space or a delimiter. A `!` inside a string
+# literal would be a false positive; there are none today, and the honest fix if one appears is
+# to reword the string rather than to loosen the rule back to uselessness.
+#
+# `]!` is its own alternative rather than a `\]` inside the bracket expression. Inside brackets
+# a backslash is literal, so `[...\]]` closes the set at the first `]` and silently means
+# something else entirely — a rule that looks right, matches nothing, and reports PASS. That is
+# the same failure being fixed here, so it is worth not reintroducing while fixing it.
+force_unwraps() {
+    grep -rnE '(\btry!|[A-Za-z0-9_)]!|\]!)' Sources --include='*.swift' | grep -vE '!='
+}
+expect_empty "no force-unwrap or try! in Sources" force_unwraps
 
 # ── 6. Build and test (STANDARDS §5) ─────────────────────────────────────────────
 head2 "Build and test"

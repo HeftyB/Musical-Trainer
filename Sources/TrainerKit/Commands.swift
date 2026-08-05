@@ -444,6 +444,19 @@ public enum Commands {
                              i + 1, dateLabel(s.date), s.bpm, s.bars,
                              Console.ms(r.meanAsynchronyMs, 1), Console.ms(r.sdAsynchronyMs, 1)))
             }
+            // STANDARDS.md §9.3 makes this the command that proves a storage change did not
+            // orphan history, and `check.sh` reads its exit status. Throwing is what gives that
+            // status any meaning: printing a note and exiting 0 is how the check passed for as
+            // long as it existed.
+            let unreadable = SessionStore.unreadableFiles()
+            guard unreadable.isEmpty else {
+                throw SpikeError("""
+                    \(unreadable.count) stored take(s) no longer decode. They are primary data \
+                    and must not be left unreadable — fix the schema rather than the files \
+                    (STANDARDS.md R6.1, R6.2):
+                    \(unreadable.map { "  " + $0.lastPathComponent }.joined(separator: "\n"))
+                    """)
+            }
             return
         case "compare":
             let a = args.count > 1 ? Int(args[1]) : nil
@@ -469,8 +482,9 @@ public enum Commands {
         }
 
         // A bare number reviews that take; otherwise the latest.
-        let session = args.first.flatMap(Int.init).map { sessions[max(0, min(sessions.count - 1, $0 - 1))] }
-            ?? sessions.last!
+        guard let latest = sessions.last else { return }
+        let session = args.first.flatMap(Int.init)
+            .map { sessions[max(0, min(sessions.count - 1, $0 - 1))] } ?? latest
         let (taps, grid) = session.reconstruct()
         let events = TapClustering.collapse(taps, windowSeconds: 0.035)
         let report = TimingAnalysis.analyze(taps: events, grid: grid, chordWindowMs: 0)
@@ -628,12 +642,13 @@ public enum Commands {
 
     /// Summary of every tagged condition, pooled across takes.
     private static func runTags(sessions: [JamSession]) {
-        let tagged = sessions.filter { $0.tag != nil }
+        // Paired with their tag as they are selected, so the tag is never re-unwrapped.
+        let tagged = sessions.compactMap { s in s.tag.map { (tag: $0, session: s) } }
         guard !tagged.isEmpty else {
             print("No tagged takes yet. Tag one with:  TimingSpike jam 100 32 relaxed")
             return
         }
-        let groups = Dictionary(grouping: tagged, by: { $0.tag! })
+        let groups = Dictionary(grouping: tagged, by: \.tag).mapValues { $0.map(\.session) }
 
         Console.heading("Conditions")
         print("\(pad("Tag", 14))\(pad("takes", 7))\(pad("events", 8))\(pad("mean", 20))\(pad("SD", 20))r₁")
@@ -728,7 +743,7 @@ public enum Commands {
     /// If feel and spread correlate, their instinct is a reliable instrument and can be
     /// trusted mid-practice. If they don't, that gap is itself the finding.
     private static func runFeel(sessions: [JamSession]) {
-        let rated = sessions.filter { $0.feelRating != nil }
+        let rated = sessions.compactMap { s in s.feelRating.map { (rating: $0, session: s) } }
         Console.heading("Feel vs measurement")
         guard rated.count >= 3 else {
             print("Only \(rated.count) rated take(s). Record a few more — you're asked "
@@ -737,15 +752,15 @@ public enum Commands {
         }
 
         print("\(pad("Take", 22))\(pad("tag", 12))\(pad("feel", 6))\(pad("SD", 9))mean")
-        for s in rated {
+        for (rating, s) in rated {
             let a = asynchronies(of: s)
             print("\(pad(dateLabel(s.date), 22))\(pad(s.tag ?? "—", 12))"
-                + "\(pad(String(repeating: "★", count: s.feelRating!), 6))"
+                + "\(pad(String(repeating: "★", count: rating), 6))"
                 + "\(pad(Console.ms(Stats.sd(a), 1), 9))\(Console.ms(Stats.mean(a), 1))")
         }
 
-        let feels = rated.map { Double($0.feelRating!) }
-        let spreads = rated.map { Stats.sd(asynchronies(of: $0)) }
+        let feels = rated.map { Double($0.rating) }
+        let spreads = rated.map { Stats.sd(asynchronies(of: $0.session)) }
         if let r = Stats.correlation(feels, spreads) {
             print(String(format: "\nfeel vs spread: r = %+.2f", r))
             if rated.count < 6 {
@@ -1224,9 +1239,9 @@ public enum Commands {
         // The histogram is the clearest picture of *how* the form is missed.
         let keys = report.formErrorHistogram.keys.sorted()
         if keys.count > 1 || keys.first != 0 {
-            let bars = keys.map { k -> String in
+            let bars = report.formErrorHistogram.sorted { $0.key < $1.key }.map { k, count -> String in
                 let label = k == 0 ? "on" : (k > 0 ? "+\(k)" : "\(k)")
-                return "\(label): \(report.formErrorHistogram[k]!)"
+                return "\(label): \(count)"
             }.joined(separator: "   ")
             print("Bars off:         \(bars)")
         }

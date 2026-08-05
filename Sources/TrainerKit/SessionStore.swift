@@ -407,16 +407,50 @@ enum SessionStore {
         load(prefix: "session-", as: TrainingSessionRecord.self).sorted { $0.date < $1.date }
     }
 
+    /// Every stored file that no longer decodes, across **every** take type.
+    ///
+    /// R6.1 says every take ever recorded must continue to decode, "verified by running
+    /// `review list`" — and that verification did not exist. `load` writes a note to stderr and
+    /// returns whatever survived, so the command exited 0 and `check.sh` printed PASS however
+    /// much history had been orphaned. `review list` also loads only jams, so a schema change
+    /// to any of the other five types could never have been caught by it at all.
+    ///
+    /// This is deliberately separate from loading: an integrity check that runs as a side
+    /// effect of reading is one a caller can forget to look at.
+    static func unreadableFiles() -> [URL] {
+        var bad = unreadable(prefix: "jam-", as: JamSession.self)
+        bad += unreadable(prefix: "form-", as: FormSession.self)
+        bad += unreadable(prefix: "dropout-", as: DropoutSession.self)
+        bad += unreadable(prefix: "tempo-", as: TempoSession.self)
+        bad += unreadable(prefix: "memory-", as: MemorySession.self)
+        bad += unreadable(prefix: "session-", as: TrainingSessionRecord.self)
+        return bad.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    private static func unreadable<T: Decodable>(prefix: String, as type: T.Type) -> [URL] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return storedFiles(prefix: prefix).filter { url in
+            guard let data = try? Data(contentsOf: url) else { return true }
+            return (try? decoder.decode(T.self, from: data)) == nil
+        }
+    }
+
+    /// Files on disk carrying a given prefix, in name order.
+    private static func storedFiles(prefix: String) -> [URL] {
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory,
+                        includingPropertiesForKeys: nil)) ?? []
+        return files.filter {
+            $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix(prefix)
+        }
+    }
+
     /// Decode every file with the given name prefix. The prefix keeps jam and form takes
     /// apart, so neither can be silently decoded as the other.
     private static func load<T: Decodable>(prefix: String, as type: T.Type) -> [T] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory,
-                        includingPropertiesForKeys: nil)) ?? []
-        let candidates = files.filter {
-            $0.pathExtension == "json" && $0.lastPathComponent.hasPrefix(prefix)
-        }
+        let candidates = storedFiles(prefix: prefix)
         let decoded = candidates.compactMap { try? decoder.decode(T.self, from: Data(contentsOf: $0)) }
         // Silently dropping unreadable sessions is how a schema change quietly erases
         // history. Say so instead.

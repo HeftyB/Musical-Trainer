@@ -1659,10 +1659,44 @@ looks like evidence the fix was unnecessary, and it is not.
 
 | # | Finding | Why it matters |
 |---|---|---|
-| 5 | `check.sh`'s force-unwrap rule only matches `!` followed by `.`, so bare force-unwraps pass. Six live in `Sources/`: `DropoutAnalysis.swift:163`, `WarmUpAnalysis.swift:119`, `Commands.swift:636`, `:723`, `:727`, `:1200`. | Every one is guarded by a preceding filter, so none can trap today. The defect is that the gate reports a rule as held when it is not — R4.7 is unenforced, and the next one may not be guarded. |
-| 6 | The decode gate cannot fail. `check.sh` runs `review list` and tests the exit status, but `SessionStore.load` writes its "could not be read" note to stderr and returns whatever decoded; the CLI exits 0. | R6.1 says every take ever recorded must continue to decode, "verified by running `review list`". A schema change that orphaned the entire history would still print `PASS`. The check must read the note, not the exit code. |
+| 5 ✅ | `check.sh`'s force-unwrap rule only matched `!` followed by `.`, so bare force-unwraps passed. **Eleven** lived in `Sources/`, not the six the first pass found — excluding lines containing a quote hid the rest. | Every one was guarded by a preceding filter, so none could trap. The defect is that the gate reported a rule as held when it was not — R4.7 was unenforced, and the next one might not be guarded. |
+| 6 ✅ | The decode gate could not fail. `check.sh` runs `review list` and tests the exit status, but `SessionStore.load` wrote its "could not be read" note to stderr and returned whatever decoded; the CLI exited 0. **And `review list` loads only jams**, so a schema change to any of the other five types could never have been caught by it. | R6.1 says every take ever recorded must continue to decode, "verified by running `review list`". A change that orphaned the entire history would still have printed `PASS`. |
 | 7 | The M7 trend doc comment sits above `runContent` (`Commands.swift:986`); `runTrend` at `:1078` has none. | Left behind when M12's command was inserted. §0 of `STANDARDS.md` treats misplaced content as a defect; a comment describing the function above it is worse than none. |
 | 8 | `MemorySession.roundWindows` indexes four parallel arrays by `roundConditions.indices`. | A length mismatch traps instead of reporting, which is the failure mode R6.4 exists to prevent — a storage inconsistency should be legible, not a crash on load. |
+
+#### Fixed — step 3
+
+Both rules now fail when they should, which was checked by planting a violation for each rather
+than by reading the regex.
+
+**Finding 5.** The rule matches a postfix `!` after any identifier, `)` or `]`, which also
+catches `Type!` declarations. All eleven violations are gone: four in the pure modules and
+`Commands`, rewritten to `guard let`, paired `compactMap`, or iterating a dictionary's pairs
+instead of re-subscripting its own keys; and three implicitly-unwrapped `AVAudio*Node`
+declarations, built into a local and then retained, which needed no restructuring at all.
+
+Two things surfaced while doing it, and both are the point of the finding rather than asides:
+
+- **The first pass undercounted.** It reported six violations; there are eleven. The search that
+  found six excluded lines containing a quote, to duck string-literal false positives, and that
+  filter hid five real ones. A rule relaxed to avoid noise stops being a rule.
+- **The replacement was itself broken, in exactly the way it was fixing.** `[A-Za-z0-9_)\]]!`
+  looks like it includes `]` in the set. Inside a bracket expression a backslash is literal, so
+  the set closes at the first `]` and the pattern means something else — it matched nothing and
+  reported PASS. Two rounds of testing at the shell missed it because the shell and the script
+  disagreed; only planting a violation and running `check.sh` itself exposed it. `]!` is now its
+  own alternative. **Verifying a gate means making it fail on purpose, not reading it.**
+
+That last point generalised: every other rule in `check.sh` was then given a planted violation —
+a pure module importing `AVFoundation`, `GrooveCore` importing `TimingCore`, a `print`, a
+`Date()`, a cached-summary read, a `URLSession` — and all six failed as they should. The rest of
+the gate is sound; this one rule was not.
+
+**Finding 6.** `SessionStore.unreadableFiles()` checks all six stored types, and `review list`
+throws when any file fails to decode, so the exit status `check.sh` reads finally means
+something. Verified by planting a corrupt `form-` file: the command exits 1 and names the file
+and the rules. A `form-` probe was used deliberately, because the old check loaded only jams and
+would not have noticed.
 
 ### 9. Neither the content nor the condition readout exists in the app
 
@@ -1745,7 +1779,7 @@ because none of it is load-bearing for the milestone.
 | 0 ✅ | 1 — cluster bootstrap; `review tags` / `review conditions` moved onto it | `TimingCore/Bootstrap.swift` |
 | 1 ✅ | 2 — per-condition attrition, reported and caveated | `TimingCore/TempoMemory.swift` |
 | 2 ✅ | 3, 4 — partial content window; trend take axis | `TimingCore` |
-| 3 | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
+| 3 ✅ | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
 | 4 | 7, 8 — comment placement, parallel-array decode | mixed |
 | — ✅ | 11 — non-finite summaries destroying takes. Jumped the queue: found in a live session, and every further session was losing data until it landed. | `TimingCore/Statistics.swift`, `TrainerKit` |
 | later | 11's root cause — `.nan` as a sentinel replaced by `Optional` across the three reports | `TimingCore` |

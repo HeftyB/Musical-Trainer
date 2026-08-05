@@ -55,8 +55,8 @@ private struct CaptureState {
 
 final class AudioIO {
     private let engine = AVAudioEngine()
-    private var sourceNode: AVAudioSourceNode!
-    private var sinkNode: AVAudioSinkNode!
+    private var sourceNode: AVAudioSourceNode?
+    private var sinkNode: AVAudioSinkNode?
 
     private let renderState: UnsafeMutablePointer<RenderState>
     private let captureState: UnsafeMutablePointer<CaptureState>
@@ -139,19 +139,22 @@ final class AudioIO {
 
     private func buildGraph() {
         let state = renderState
-        sourceNode = AVAudioSourceNode(format: outputFormat) { _, timestamp, frameCount, ablPtr in
+        // Locals, then retained — see the note in `GroovePlayer.buildGraph`.
+        let source = AVAudioSourceNode(format: outputFormat) { _, timestamp, frameCount, ablPtr in
             AudioIO.render(state: state, timestamp: timestamp, frameCount: frameCount, ablPtr: ablPtr)
         }
 
         let capture = captureState
-        sinkNode = AVAudioSinkNode { timestamp, frameCount, ablPtr in
+        let sink = AVAudioSinkNode { timestamp, frameCount, ablPtr in
             AudioIO.receive(state: capture, timestamp: timestamp, frameCount: frameCount, ablPtr: ablPtr)
         }
 
-        engine.attach(sourceNode)
-        engine.attach(sinkNode)
-        engine.connect(sourceNode, to: engine.outputNode, format: outputFormat)
-        engine.connect(engine.inputNode, to: sinkNode, format: inputFormat)
+        sourceNode = source
+        sinkNode = sink
+        engine.attach(source)
+        engine.attach(sink)
+        engine.connect(source, to: engine.outputNode, format: outputFormat)
+        engine.connect(engine.inputNode, to: sink, format: inputFormat)
     }
 
     private static func render(state: UnsafeMutablePointer<RenderState>,

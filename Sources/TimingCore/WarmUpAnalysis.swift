@@ -116,7 +116,8 @@ public enum WarmUpAnalysis {
         let contributing = sessions.filter { session in
             guard session.count >= 2 else { return false }
             let elapsed = session.map(\.elapsedMinutes)
-            return (elapsed.max()! - elapsed.min()!) >= minimumSpanMinutes
+            guard let first = elapsed.min(), let last = elapsed.max() else { return false }
+            return (last - first) >= minimumSpanMinutes
         }
         guard contributing.count >= 2 else {
             if contributing.count == 1 {

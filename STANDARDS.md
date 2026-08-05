@@ -199,6 +199,16 @@ synthetic ground truth without hardware. If it passes and a live run fails, the 
 hardware or the clock bridge, not the maths — that separation is the whole reason it exists.
 
 **R5.6 — Hardware paths are verified by a live run**, and the result is recorded in `PLAN.md`.
+
+**R5.7 — A rule in `check.sh` is verified by making it fail.** Add the rule, plant a violation,
+watch it report FAIL, remove the violation, watch it report PASS. Reading the pattern is not
+verification.
+
+> The force-unwrap rule matched `!` only when followed by `.`, so eleven force-unwraps sat in
+> `Sources` under a green PASS. Its replacement was then broken the same way — `[A-Za-z0-9_)\]]!`
+> closes the bracket expression at the first `]`, because a backslash inside brackets is
+> literal — and two rounds of checking at the shell missed it, because the shell and the script
+> disagreed. Only planting a violation and running `check.sh` found it. See PLAN.md §7.20.
 Audio, MIDI and the drill runners cannot be unit tested; pretending otherwise is worse than
 admitting the gap.
 
@@ -385,6 +395,10 @@ swift build -c release && ./.build/release/TimingSpike selftest
 ```sh
 ./.build/release/TimingSpike review list     # every historical take must still decode
 ```
+
+It checks all six stored types, not just the jams it lists, and **exits non-zero** if any file
+fails to decode. `check.sh` reads that status. For most of its life this command printed a note
+and exited 0, so the check could not fail.
 
 ### 9.4 Releasing a build to yourself
 
