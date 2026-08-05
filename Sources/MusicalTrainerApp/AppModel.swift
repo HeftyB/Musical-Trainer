@@ -361,20 +361,42 @@ final class AppModel: ObservableObject {
 
     /// One line under the picker saying what the choice costs, in the player's terms.
     var rungAdvice: String {
-        let hidden = IntervalRung.ladder.count - scorableRungs.count
-        let ceiling = hidden > 0
-            ? String(format: " Finer divisions are hidden at %d BPM: the scoring window would be "
-                   + "narrower than three of your own %.0f ms spread, so notes you aimed "
-                   + "correctly would be thrown out as off-grid.", Int(bpm), recentSpreadMs)
-            : ""
-        guard let rung else {
-            return "Free playing measures where you put notes without asking for any particular "
-                 + "note value — what every take on record is." + ceiling
+        let choice: String
+        if let rung {
+            choice = String(format: "Asks for %@ and scores against them: a %.0f ms gap between "
+                          + "notes at %d BPM. A coarser note value lands off-grid and is "
+                          + "discarded rather than counted late.",
+                            rung.label, rung.intervalSeconds(atBpm: bpm) * 1000, Int(bpm))
+        } else {
+            choice = "Free playing measures where you put notes without asking for any "
+                   + "particular note value — what every take on record is."
         }
-        return String(format: "Asks for %@ and scores against them: a %.0f ms gap between notes "
-                    + "at %d BPM. A coarser note value lands off-grid and is discarded rather "
-                    + "than counted late.%@",
-                      rung.label, rung.intervalSeconds(atBpm: bpm) * 1000, Int(bpm), ceiling)
+        return ([choice] + [hiddenRungAdvice]).compactMap { $0 }.joined(separator: " ")
+    }
+
+    /// Which rungs this tempo cannot score, and **the tempo that would let them in**.
+    ///
+    /// The way in is the part worth saying. Sixteenths sit at a ~99 BPM ceiling at this player's
+    /// spread, so they are unreachable from the 100 BPM default — a picker that hides them
+    /// without naming the tempo that reveals them looks like the rung does not exist. §7.23
+    /// step 1 predicted exactly this: sixteenths are already at their ceiling at the reference
+    /// tempo, and the rung becomes available as the spread comes down, which is the thing being
+    /// trained.
+    private var hiddenRungAdvice: String? {
+        let spread = recentSpreadMs
+        let hidden = IntervalRung.ladder.filter { !$0.isScorable(atBpm: bpm, spreadMs: spread) }
+        guard !hidden.isEmpty else { return nil }
+
+        let named = hidden.map { rung -> String in
+            "\(rung.label) at \(Int(rung.maximumBpm(forSpreadMs: spread).rounded(.down))) BPM or below"
+        }
+        let list = named.count == 1
+            ? named[0]
+            : named.dropLast().joined(separator: ", ") + " and " + (named.last ?? "")
+        return String(format: "Hidden at %d BPM, because the scoring window would be under three "
+                    + "times your own %.0f ms spread and notes you aimed correctly would be "
+                    + "thrown out: %@. They open up as your spread comes down.",
+                      Int(bpm), spread, list)
     }
 
     /// Drop a rung that this tempo can no longer score, so the picker and the take never

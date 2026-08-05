@@ -2938,9 +2938,18 @@ Alone and Tempo gain a subdivision picker; Form deliberately does not, for the r
 gives.
 
 **The picker offers only what the tempo can score.** Rather than listing four rungs and
-explaining afterwards that two of them would throw away notes, it lists the scorable ones and
-says why the others are missing — and moving the tempo slider drops a rung that has just gone
-above its ceiling, so the picker and the take can never disagree about what is legal.
+explaining afterwards that some would throw away notes, it lists the scorable ones and says why
+the others are missing — and moving the tempo slider drops a rung that has just gone above its
+ceiling, so the picker and the take can never disagree about what is legal.
+
+**A hidden rung has to name the way in**, which the first version did not. It said "finer
+divisions are hidden at 100 BPM" — plural for what is usually one rung, without naming it and
+without the tempo that reveals it. Sixteenths sit at a 99 BPM ceiling at this player's current
+spread, so they are unreachable from the 100 BPM default, and a picker that hides them silently
+looks like the rung does not exist rather than like it is one BPM out of reach. It now reads
+*"sixteenths at 99 BPM or below … they open up as your spread comes down"*, which is step 1's
+prediction arriving on screen: the ceiling is a fact about the player, and the top rung becomes
+available exactly when the thing being trained improves.
 
 **Free is the jam's default and is not quarters.** The other two default to quarters, because
 their instructions have asked for one note per beat since M6 and M8.
