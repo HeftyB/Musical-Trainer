@@ -241,7 +241,7 @@ public struct SessionSummary {
 /// The takes carry the placement that makes them analysable; this carries the intent — what
 /// the planner chose, why, and what was skipped. Without it, a session where two drills were
 /// abandoned looks identical to one that was planned short.
-struct TrainingSessionRecord: Codable {
+struct TrainingSessionRecord: Codable, StoredTake {
     struct Block: Codable {
         let index: Int
         let role: String

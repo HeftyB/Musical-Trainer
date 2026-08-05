@@ -1027,13 +1027,11 @@ public enum Commands {
         }
     }
 
-    /// M7: is anything actually improving?
-    ///
-    /// Fits each metric against take number and reports the slope with a bootstrap interval,
-    /// so "my spread is coming down" is either supported or isn't. Confounded groups are
-    /// split rather than blended — a tempo change moves timing spread on its own, and a trend
-    /// computed across the change would be measuring the tempo, not the player.
     /// M12: does what you play change how you time it?
+    ///
+    /// Correlates content against timing spread **within** each take, which holds the day, the
+    /// tempo, the backing and the fatigue fixed. What it cannot hold fixed is printed with the
+    /// result rather than assumed away.
     private static func runContent() {
         Console.heading("What you play")
         print("\(Console.dim)Within a take, does more interesting playing go with tighter "
@@ -1119,6 +1117,12 @@ public enum Commands {
         }
     }
 
+    /// M7: is anything actually improving?
+    ///
+    /// Fits each metric against take number and reports the slope with a bootstrap interval,
+    /// so "my spread is coming down" is either supported or isn't. Confounded groups are
+    /// split rather than blended — a tempo change moves timing spread on its own, and a trend
+    /// computed across the change would be measuring the tempo, not the player.
     private static func runTrend() {
         Console.heading("Trends")
 

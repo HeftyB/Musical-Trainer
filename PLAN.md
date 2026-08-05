@@ -1661,8 +1661,8 @@ looks like evidence the fix was unnecessary, and it is not.
 |---|---|---|
 | 5 ✅ | `check.sh`'s force-unwrap rule only matched `!` followed by `.`, so bare force-unwraps passed. **Eleven** lived in `Sources/`, not the six the first pass found — excluding lines containing a quote hid the rest. | Every one was guarded by a preceding filter, so none could trap. The defect is that the gate reported a rule as held when it was not — R4.7 was unenforced, and the next one might not be guarded. |
 | 6 ✅ | The decode gate could not fail. `check.sh` runs `review list` and tests the exit status, but `SessionStore.load` wrote its "could not be read" note to stderr and returned whatever decoded; the CLI exited 0. **And `review list` loads only jams**, so a schema change to any of the other five types could never have been caught by it. | R6.1 says every take ever recorded must continue to decode, "verified by running `review list`". A change that orphaned the entire history would still have printed `PASS`. |
-| 7 | The M7 trend doc comment sits above `runContent` (`Commands.swift:986`); `runTrend` at `:1078` has none. | Left behind when M12's command was inserted. §0 of `STANDARDS.md` treats misplaced content as a defect; a comment describing the function above it is worse than none. |
-| 8 | `MemorySession.roundWindows` indexes four parallel arrays by `roundConditions.indices`. | A length mismatch traps instead of reporting, which is the failure mode R6.4 exists to prevent — a storage inconsistency should be legible, not a crash on load. |
+| 7 ✅ | The M7 trend doc comment sat above `runContent`; `runTrend` had none. | Left behind when M12's command was inserted. §0 of `STANDARDS.md` treats misplaced content as a defect; a comment describing the function above it is worse than none. |
+| 8 ✅ | `MemorySession.roundWindows` indexed five parallel arrays by `roundConditions.indices`; `TempoSession` had the quieter form of the same thing, where `zip` truncates to the shortest and says nothing. | A length mismatch traps instead of reporting, which is the failure mode R6.4 exists to prevent — a storage inconsistency should be legible, not a crash while reading history. |
 
 #### Fixed — step 3
 
@@ -1697,6 +1697,28 @@ throws when any file fails to decode, so the exit status `check.sh` reads finall
 something. Verified by planting a corrupt `form-` file: the command exits 1 and names the file
 and the rules. A `form-` probe was used deliberately, because the old check loaded only jams and
 would not have noticed.
+
+#### Fixed — step 4
+
+Finding 7 is a comment moved to the function it describes.
+
+Finding 8 became a small piece of structure rather than a bounds check. `Codable` proves the
+fields decoded; it cannot prove that five arrays describing the same rounds are the same length.
+A new `StoredTake` protocol carries `isStructurallyValid`, defaulting to true, and the loader
+treats an invalid file as unreadable — so it surfaces through finding 6's `unreadableFiles()`
+and `review list` **with a name attached**, rather than as a stack trace while reading history.
+`roundWindows` also returns nothing rather than trapping, so both paths are covered.
+
+Two things worth keeping from doing it:
+
+- **`TempoSession` had the same defect in a quieter form.** It builds its rounds with `zip`,
+  which does not trap on a mismatch — it truncates to the shortest array and says nothing, so a
+  malformed file would report a take with fewer rounds than were played and look entirely
+  plausible. That is worse than the crash, and it was only found by asking which other type
+  carried parallel arrays. It is validated too.
+- **The fix rides on the previous one.** Finding 6 gave the project a way to say "this file is
+  not readable, here is its name"; finding 8 is just another reason for a file to be in that
+  list. Three `selftest` checks cover it, including the property that used to trap.
 
 ### 9. Neither the content nor the condition readout exists in the app
 
@@ -1780,7 +1802,7 @@ because none of it is load-bearing for the milestone.
 | 1 ✅ | 2 — per-condition attrition, reported and caveated | `TimingCore/TempoMemory.swift` |
 | 2 ✅ | 3, 4 — partial content window; trend take axis | `TimingCore` |
 | 3 ✅ | 5, 6 — close both enforcement holes, then fix what they surface | `scripts/check.sh` |
-| 4 | 7, 8 — comment placement, parallel-array decode | mixed |
+| 4 ✅ | 7, 8 — comment placement, parallel-array decode | mixed |
 | — ✅ | 11 — non-finite summaries destroying takes. Jumped the queue: found in a live session, and every further session was losing data until it landed. | `TimingCore/Statistics.swift`, `TrainerKit` |
 | later | 11's root cause — `.nan` as a sentinel replaced by `Optional` across the three reports | `TimingCore` |
 | T1 | The gap finding 11 exposed: nothing has ever tested writing a take. See §7.22. | new test target |

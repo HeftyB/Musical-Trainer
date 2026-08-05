@@ -29,12 +29,31 @@ public struct SessionPlacement: Codable, Equatable {
     }
 }
 
+/// A stored take that can check its own internal consistency.
+///
+/// `Codable` proves the fields are present and correctly typed. It cannot prove that several
+/// parallel arrays describing the same rounds are the same length — a file where they disagree
+/// decodes cleanly and then traps on the first index out of range. A crash while reading
+/// history is precisely the failure R6.4 exists to prevent, and it would take the app down
+/// rather than reporting anything.
+///
+/// Types carrying parallel arrays implement this; everything else takes the default. An invalid
+/// file is treated as unreadable, so it surfaces through `unreadableFiles()` and `review list`
+/// with a name attached instead of as a stack trace.
+protocol StoredTake: Decodable {
+    var isStructurallyValid: Bool { get }
+}
+
+extension StoredTake {
+    var isStructurallyValid: Bool { true }
+}
+
 /// A recorded jam, persisted to disk.
 ///
 /// Stores the raw taps and grid parameters, not just the summary, so the M5 review can
 /// re-analyze and plot a session without the player having to record it again. The summary
 /// fields are duplicated for cheap listing.
-struct JamSession: Codable {
+struct JamSession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let device: String
@@ -130,7 +149,7 @@ struct JamSession: Codable {
 /// A recorded form drill. Kept separate from `JamSession` because it measures a different
 /// thing — where you are in the music, not how you place a beat — and pooling the two would
 /// be meaningless.
-struct FormSession: Codable {
+struct FormSession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let bars: Int
@@ -167,7 +186,7 @@ struct FormSession: Codable {
 
 /// A recorded continuation drill. Separate again: it is the only session type that yields a
 /// clock/motor split, because it is the only one with unpaced playing in it.
-struct DropoutSession: Codable {
+struct DropoutSession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let pacedBars: Int
@@ -227,7 +246,7 @@ struct DropoutSession: Codable {
 }
 
 /// A recorded tempo-calibration session.
-struct TempoSession: Codable {
+struct TempoSession: Codable, StoredTake {
     let date: Date
     let targets: [Double]
     let leadBars: Int
@@ -255,6 +274,13 @@ struct TempoSession: Codable {
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
 
+    /// Three arrays describe the same rounds. `roundWindows` uses `zip`, which does not trap
+    /// on a mismatch — it silently truncates to the shortest, so a malformed file would report
+    /// a take with fewer rounds than were played and look entirely plausible.
+    var isStructurallyValid: Bool {
+        roundHoldStarts.count == roundTargets.count && roundHoldEnds.count == roundTargets.count
+    }
+
     var roundWindows: [TempoRound] {
         zip(roundTargets.indices, zip(roundTargets, zip(roundHoldStarts, roundHoldEnds))).map {
             TempoRound(index: $0.0, targetBpm: $0.1.0,
@@ -266,7 +292,7 @@ struct TempoSession: Codable {
 /// A recorded tempo-memory drill. Separate again, because it is the only drill with an
 /// experimental *condition* in it — the two retention types are the measurement, and pooling
 /// them with anything else would throw away the contrast.
-struct MemorySession: Codable {
+struct MemorySession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let referenceBars: Int
@@ -296,8 +322,19 @@ struct MemorySession: Codable {
 
     var taps: [Tap] { tapTimes.map { Tap(time: $0) } }
 
+    /// Five arrays describe the same rounds, so they must be the same length. A file where
+    /// they disagree would trap on the first index out of range.
+    var isStructurallyValid: Bool {
+        let n = roundConditions.count
+        return roundRetentionStarts.count == n && roundRetentionEnds.count == n
+            && roundReproduceStarts.count == n && roundReproduceEnds.count == n
+    }
+
     var roundWindows: [MemoryRound] {
-        roundConditions.indices.map { i in
+        // Belt and braces: such a file never loads, and if one reaches here it yields no
+        // rounds rather than crashing.
+        guard isStructurallyValid else { return [] }
+        return roundConditions.indices.map { i in
             MemoryRound(index: i, targetBpm: bpm,
                         condition: RetentionCondition(rawValue: roundConditions[i]) ?? .silent,
                         retentionStart: roundRetentionStarts[i],
@@ -427,12 +464,13 @@ enum SessionStore {
         return bad.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    private static func unreadable<T: Decodable>(prefix: String, as type: T.Type) -> [URL] {
+    private static func unreadable<T: StoredTake>(prefix: String, as type: T.Type) -> [URL] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return storedFiles(prefix: prefix).filter { url in
-            guard let data = try? Data(contentsOf: url) else { return true }
-            return (try? decoder.decode(T.self, from: data)) == nil
+            guard let data = try? Data(contentsOf: url),
+                  let value = try? decoder.decode(T.self, from: data) else { return true }
+            return !value.isStructurallyValid
         }
     }
 
@@ -447,11 +485,16 @@ enum SessionStore {
 
     /// Decode every file with the given name prefix. The prefix keeps jam and form takes
     /// apart, so neither can be silently decoded as the other.
-    private static func load<T: Decodable>(prefix: String, as type: T.Type) -> [T] {
+    private static func load<T: StoredTake>(prefix: String, as type: T.Type) -> [T] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let candidates = storedFiles(prefix: prefix)
-        let decoded = candidates.compactMap { try? decoder.decode(T.self, from: Data(contentsOf: $0)) }
+        let decoded = candidates.compactMap { url -> T? in
+            guard let data = try? Data(contentsOf: url),
+                  let value = try? decoder.decode(T.self, from: data),
+                  value.isStructurallyValid else { return nil }
+            return value
+        }
         // Silently dropping unreadable sessions is how a schema change quietly erases
         // history. Say so instead.
         if decoded.count < candidates.count {

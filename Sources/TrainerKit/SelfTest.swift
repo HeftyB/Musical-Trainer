@@ -49,6 +49,7 @@ public enum SelfTest {
         ok = liveInstrument() && ok
         ok = jamReduction() && ok
         ok = degenerateTakesStillEncode() && ok
+        ok = inconsistentTakesAreRejected() && ok
         ok = fullPipeline() && ok
 
         print("\n" + (ok
@@ -466,6 +467,41 @@ public enum SelfTest {
                            splitIsReliable: emptyDropout.splitIsReliable,
                            discardedTrials: emptyDropout.discardedTrials, placement: nil)),
                    "no silence was scorable") && ok
+        return ok
+    }
+
+    /// A take whose parallel arrays disagree is unreadable, not a crash.
+    ///
+    /// `Codable` proves the fields decoded; it cannot prove that five arrays describing the
+    /// same rounds are the same length. Such a file used to decode cleanly and then trap on the
+    /// first index out of range — taking the app down while *reading history*, which is the one
+    /// thing R6.4 exists to prevent.
+    private static func inconsistentTakesAreRejected() -> Bool {
+        let good = MemorySession(
+            date: Date(), bpm: 100, referenceBars: 4, retentionBars: 4, reproduceBars: 4,
+            rounds: 2, feelRating: nil, tapTimes: [],
+            roundConditions: ["silent", "filled"],
+            roundRetentionStarts: [0, 10], roundRetentionEnds: [5, 15],
+            roundReproduceStarts: [5, 15], roundReproduceEnds: [10, 20],
+            usableCount: 0, silentMeanAbsErrorPercent: nil, filledMeanAbsErrorPercent: nil,
+            interferenceCost: nil, headline: "", placement: nil)
+        // One condition too many: the round count and the window arrays disagree.
+        let bad = MemorySession(
+            date: Date(), bpm: 100, referenceBars: 4, retentionBars: 4, reproduceBars: 4,
+            rounds: 3, feelRating: nil, tapTimes: [],
+            roundConditions: ["silent", "filled", "silent"],
+            roundRetentionStarts: [0, 10], roundRetentionEnds: [5, 15],
+            roundReproduceStarts: [5, 15], roundReproduceEnds: [10, 20],
+            usableCount: 0, silentMeanAbsErrorPercent: nil, filledMeanAbsErrorPercent: nil,
+            interferenceCost: nil, headline: "", placement: nil)
+
+        var ok = check("consistent take is valid", good.isStructurallyValid,
+                       "\(good.roundWindows.count) round(s) rebuilt")
+        ok = check("mismatched parallel arrays are rejected", !bad.isStructurallyValid,
+                   "3 conditions against 2 windows") && ok
+        // The property that used to trap.
+        ok = check("an invalid take rebuilds no rounds", bad.roundWindows.isEmpty,
+                   "would have trapped on index 2") && ok
         return ok
     }
 
