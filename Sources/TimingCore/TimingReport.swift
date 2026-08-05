@@ -54,7 +54,7 @@ public enum TimingAnalysis {
     ///   one rhythmic event before matching, so chords count once. 0 disables clustering
     ///   (e.g. when the caller has already clustered).
     public static func analyze(taps: [Tap], grid: Grid,
-                               windowFraction: Double = 0.4,
+                               windowFraction: Double = Matching.defaultWindowFraction,
                                chordWindowMs: Double = 35) -> TimingReport {
         let events = chordWindowMs > 0
             ? TapClustering.collapse(taps, windowSeconds: chordWindowMs / 1000)

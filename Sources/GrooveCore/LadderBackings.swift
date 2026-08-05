@@ -8,9 +8,10 @@ import Foundation
 /// names. So the hats carry the division and everything else stays constant: kick on 1 and 3,
 /// backbeat on 2 and 4, across every rung. Only the density changes, which is the point.
 ///
-/// Keyed by steps per beat rather than by `IntervalRung`, because `GrooveCore` depends on
-/// nothing — not even `TimingCore` (R1.1.3). The pairing of rung to backing lives in
-/// `TrainerKit`, which imports both.
+/// Keyed by an `Int` rather than by `IntervalRung`, because `GrooveCore` depends on nothing —
+/// not even `TimingCore` (R1.1.3). The pairing of rung to backing lives in `TrainerKit`, which
+/// imports both. That `Int` is the **rung's** subdivision throughout this file, named
+/// `notesPerBeat` so it cannot be confused with a `Pattern`'s `stepsPerBeat`.
 ///
 /// **The pattern's step resolution is not the analysis grid.** They coincide today at 4, which
 /// is why `jamBacking` scores takes on a sixteenth-note grid, but they answer different
@@ -59,11 +60,13 @@ public enum LadderBackings {
     /// A one-bar fill at the rung's own resolution, so the fill never contradicts the division
     /// it interrupts. Adds to the groove rather than replacing it — a fill that leaves a hole
     /// where the pulse should be is the opposite of what a landmark is for (§6.1).
-    public static func fill(stepsPerBeat: Int) -> Pattern {
-        let base = pattern(stepsPerBeat: stepsPerBeat)
+    ///
+    /// - Parameter notesPerBeat: the **rung's** subdivision, not the pattern's step resolution.
+    public static func fill(notesPerBeat: Int) -> Pattern {
+        let base = pattern(notesPerBeat: notesPerBeat)
         let bar = base.stepsPerBar
         let secondHalf = Array((bar / 2)..<bar)
-        // `base.stepsPerBeat`, not `stepsPerBeat`. The first is the pattern's step resolution
+        // `base.stepsPerBeat`, not `notesPerBeat`. The first is the pattern's step resolution
         // and the second is the rung's subdivision, and they are only equal for triplets and
         // sixteenths — the very distinction this file's header sets out, got wrong here first
         // time and caught by the test that asserts a fill keeps its groove's resolution.
@@ -72,10 +75,17 @@ public enum LadderBackings {
                            + secondHalf.map { Hit(voice: .tom, step: $0, velocity: 100) })
     }
 
-    /// The groove for a given number of steps per beat. Anything unrecognised falls back to
-    /// eighths, which is what every take before the ladder played over.
-    public static func pattern(stepsPerBeat: Int) -> Pattern {
-        switch stepsPerBeat {
+    /// The groove for a rung. Anything unrecognised falls back to eighths, which is what every
+    /// take before the ladder played over.
+    ///
+    /// - Parameter notesPerBeat: the **rung's** subdivision — 1 quarters, 2 eighths, 3 triplet
+    ///   eighths, 4 sixteenths. Not the returned pattern's `stepsPerBeat`, which is 4 for all
+    ///   three straight rungs: quarters are programmed on a sixteenth step grid that only fires
+    ///   on the beat. Passing a pattern's own resolution back in here would silently promote
+    ///   quarters to sixteenths, and the parameter used to be named so that it invited exactly
+    ///   that (M14 step 4a).
+    public static func pattern(notesPerBeat: Int) -> Pattern {
+        switch notesPerBeat {
         case 1:  return quarters
         case 2:  return eighths
         case 3:  return tripletEighths
@@ -89,9 +99,11 @@ public enum LadderBackings {
     ///
     /// Both sections keep the same rhythmic skeleton, exactly as `jamBacking` does — the timing
     /// demand has to be constant across a take or the rung is not the only thing being measured.
-    public static func backing(stepsPerBeat: Int) -> Arrangement {
-        let groove = pattern(stepsPerBeat: stepsPerBeat)
-        let capped = fill(stepsPerBeat: stepsPerBeat)
+    ///
+    /// - Parameter notesPerBeat: the **rung's** subdivision. See `pattern(notesPerBeat:)`.
+    public static func backing(notesPerBeat: Int) -> Arrangement {
+        let groove = pattern(notesPerBeat: notesPerBeat)
+        let capped = fill(notesPerBeat: notesPerBeat)
         return Arrangement(sections: [
             Section(name: "A", pattern: groove, bars: 8, fill: capped),
             Section(name: "B", pattern: groove, bars: 8, fill: capped),

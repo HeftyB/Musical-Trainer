@@ -74,8 +74,19 @@ public enum DropoutAnalysis {
     /// A trial with more than this fraction of odd intervals is not a continuation sequence.
     private static let maxOddFraction = 0.25
 
+    /// How much of a beat counts as "played on that beat" while the band is present.
+    ///
+    /// **Deliberately wider than `Matching.defaultWindowFraction`, and it is not a scoring
+    /// grid.** The paced sections are not what this drill measures — the silences are. This
+    /// window only decides which notes contribute to `pacedSDms`, a descriptive figure for the
+    /// accompanied playing either side of a silence, so being inclusive costs nothing and
+    /// excluding a drifting player's notes would make that figure flatter than the playing was.
+    /// Named rather than left as a literal so it cannot be mistaken for the matcher's constant
+    /// drifting out of sync — the two differ on purpose.
+    public static let pacedWindowFraction = 0.45
+
     public static func analyze(taps: [Tap], grid: Grid, sections: [DropoutSection],
-                               matchWindowFraction: Double = 0.45) -> DropoutReport {
+                               matchWindowFraction: Double = pacedWindowFraction) -> DropoutReport {
         let sorted = taps.sorted { $0.time < $1.time }
         let beat = grid.beatInterval
 

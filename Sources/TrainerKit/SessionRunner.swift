@@ -108,23 +108,16 @@ public final class SessionRunner {
         index < plan.blocks.count ? plan.blocks[index] : nil
     }
 
-    /// What to show before the current block — generated from the block that will actually run,
-    /// including its experiment arm (R3.6).
-    ///
-    /// For an instruction-only experiment the arm *is* the condition, so showing the generic
-    /// text would not merely be vague: it would run neither arm.
-    public var currentInstructions: DrillInstructions? {
-        guard let block = currentBlock else { return nil }
-        switch block.plan {
-        case .jam:     return DrillInstructions.jam(arm: block.experiment?.arm)
-        case .groove:  return nil
-        case .form(let p):
-            return DrillInstructions.form(level: p.level)
-        case .dropout: return DrillInstructions.dropout
-        case .tempo:   return DrillInstructions.tempo
-        case .memory:  return DrillInstructions.memory
-        }
-    }
+    // There is deliberately no `currentInstructions` here. `DrillInstructions.forBlock(_:)` is
+    // the one mapping from a planned block to its text, and both surfaces call it directly.
+    //
+    // A second copy lived on this type until M14 step 4a, and it is worth recording what it
+    // cost rather than only deleting it. Nothing in either front end ever called it — but the
+    // two tests named for checking that the runner shows the arm's instructions called it, so
+    // the path under test was not the path that shipped. That is §7.20 step 4's defect exactly,
+    // left in place by the fix for §7.20 step 4: the accessor was orphaned and the tests were
+    // not moved with it. An instruction-only experiment is decided entirely by this text, so
+    // a copy that only tests can reach is worse than no test at all.
 
     public var isFinished: Bool { index >= plan.blocks.count }
 

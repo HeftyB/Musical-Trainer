@@ -951,10 +951,10 @@ public enum Commands {
         let spreadMs = spreads.isEmpty ? 20 : Stats.median(spreads)
 
         let subjects: [(name: String, rung: IntervalRung?, arrangement: Arrangement)] =
-            [("quarters", .quarters, LadderBackings.backing(stepsPerBeat: 1)),
-             ("eighths", .eighths, LadderBackings.backing(stepsPerBeat: 2)),
-             ("triplet-eighths", .tripletEighths, LadderBackings.backing(stepsPerBeat: 3)),
-             ("sixteenths", .sixteenths, LadderBackings.backing(stepsPerBeat: 4)),
+            [("quarters", .quarters, LadderBackings.backing(notesPerBeat: 1)),
+             ("eighths", .eighths, LadderBackings.backing(notesPerBeat: 2)),
+             ("triplet-eighths", .tripletEighths, LadderBackings.backing(notesPerBeat: 3)),
+             ("sixteenths", .sixteenths, LadderBackings.backing(notesPerBeat: 4)),
              ("jam-backing", nil, GrooveLibrary.jamBacking)]
 
         print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",

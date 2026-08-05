@@ -52,26 +52,44 @@ final class ArmInstructionTests: XCTestCase {
         }
     }
 
-    /// The runner shows the instructions for the block it is about to run, arm included.
-    func testTheRunnerShowsTheArmsInstructions() throws {
+    /// An experiment block shows the arm's instructions, through the mapping both surfaces use.
+    ///
+    /// This asserted against a `SessionRunner.currentInstructions` accessor until M14 step 4a.
+    /// No front end ever called it — both call `DrillInstructions.forBlock(_:)` — so the two
+    /// tests below were guarding a copy of the mapping rather than the one that ships. §7.20
+    /// step 4 records that same shape as the defect it nearly missed; the fix for it added
+    /// `forBlock` and left the accessor and these tests pointing at each other.
+    func testAnExperimentBlockShowsTheArmsInstructions() {
         let assignment = ExperimentAssignment(
             experimentId: UUID(), name: "steady-vs-melodic", arm: "melodic", runIndex: 0)
         let block = SessionBlock(role: .experiment,
                                  plan: .jam(JamPlan(bpm: 100, bars: 64, tag: "steady-vs-melodic")),
                                  reason: "the experiment slot", experiment: assignment)
-        let runner = SessionRunner(plan: SessionPlan(targetMinutes: 30, blocks: [block], notes: []))
 
-        let shown = try XCTUnwrap(runner.currentInstructions)
+        let shown = DrillInstructions.forBlock(block)
         XCTAssertEqual(shown.steps, DrillInstructions.jam(arm: "melodic").steps)
         XCTAssertNotEqual(shown.steps, DrillInstructions.jam.steps)
     }
 
     /// A jam that is not part of an experiment still gets the plain text.
-    func testAnOrdinaryJamBlockIsUnaffected() throws {
+    func testAnOrdinaryJamBlockIsUnaffected() {
         let block = SessionBlock(role: .benchmark,
                                  plan: .jam(JamPlan(bpm: 100, bars: 64, tag: "benchmark")),
                                  reason: "the locked slot")
-        let runner = SessionRunner(plan: SessionPlan(targetMinutes: 30, blocks: [block], notes: []))
-        XCTAssertEqual(try XCTUnwrap(runner.currentInstructions).steps, DrillInstructions.jam.steps)
+        XCTAssertEqual(DrillInstructions.forBlock(block).steps, DrillInstructions.jam.steps)
+    }
+
+    /// Every block a plan can contain has instructions, including the unmeasured warm-up.
+    ///
+    /// The deleted accessor returned nil for the groove block while `forBlock` returns the
+    /// groove text, and the app has always rendered `forBlock` unconditionally — so the two
+    /// disagreed about the one block type neither test covered.
+    func testEveryBlockKindInAPlannedSessionHasText() {
+        let plan = SessionPlanner.plan(targetMinutes: 45, from: PlannerInput())
+        for block in plan.blocks {
+            let text = DrillInstructions.forBlock(block)
+            XCTAssertFalse(text.goal.isEmpty, "\(block.plan.drillName) has no goal")
+            XCTAssertFalse(text.steps.isEmpty, "\(block.plan.drillName) has no steps")
+        }
     }
 }
