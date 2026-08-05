@@ -1020,11 +1020,21 @@ public enum TrainerEngine {
     }
 
     public static func plannerInput() -> PlannerInput {
-        let jams = SessionStore.loadAll().map { session -> PlannerInput.Jam in
+        let allJams = SessionStore.loadAll()
+        let jams = allJams.map { session -> PlannerInput.Jam in
             let r = session.report()
             return PlannerInput.Jam(bpm: session.bpm, sdMs: r.sdAsynchronyMs,
                                     absBiasMs: abs(r.meanAsynchronyMs),
                                     lag1: r.lag1Autocorrelation)
+        }
+
+        // Ladder takes are jams with a rung, and they are the only jams whose tempo the planner
+        // is allowed to move — so they are handed over separately from the free ones rather than
+        // filtered out of them downstream.
+        let ladders = allJams.compactMap { session -> PlannerInput.Ladder? in
+            guard let raw = session.rung, let rung = IntervalRung(rawValue: raw),
+                  let sd = Stats.finite(session.report().sdAsynchronyMs) else { return nil }
+            return PlannerInput.Ladder(bpm: session.bpm, rung: rung, sdMs: sd)
         }
 
         let continuations = SessionStore.loadAllDropout().map { session -> PlannerInput.Continuation in
@@ -1072,7 +1082,8 @@ public enum TrainerEngine {
         }
 
         return PlannerInput(jams: jams, continuations: continuations, forms: forms,
-                            tempos: tempos, memories: memories, experiments: experiments)
+                            tempos: tempos, memories: memories, experiments: experiments,
+                            ladders: ladders)
     }
 
     public static func planSession(targetMinutes: Int) -> SessionPlan {

@@ -2424,7 +2424,8 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | 3b ✅ | The premise underneath step 3, measured instead of assumed: does spread actually scale with the interval? It does not. See below. |
 | 4a ✅ | Ground clearing found by the pre-step-4 review: one matching-window constant, one block-to-instructions mapping, one meaning for `LadderBackings`' parameter. |
 | 4b ✅ | The **jam** gains a rung, end to end: config, backing, analysis grid, storage, instructions (R3.6), the CLI, and the confound axes that consume it. |
-| 4d | Planner rotates tempo on training blocks only, picking the rung after the tempo, with a test that it never touches the benchmark or an experiment block. The other four drills gain a rung with it. |
+| 4d ✅ | Planner rotates tempo on a ladder training block only, picking the rung after the tempo, with tests that it never touches the benchmark, the cold probe or an experiment block. |
+| 4e | The other four drills gain a rung, and the two isochrony gates stop assuming quarters (trap 4). |
 | 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
 | 6 | Both surfaces, and docs. |
 
@@ -2759,6 +2760,64 @@ own group rather than folding into quarters. `comparabilityNotes` gains the same
 **Not in this step:** the app's single-take setup screen has no rung picker, so a hand-run rung
 take is CLI-only until step 6. Sessions are unaffected — the planner will hand rungs to the app
 through `SessionRunner` at step 4d.
+
+### Step 4d, as built — the planner varies one block, and only one
+
+A **ladder block** joins the evening: one jam at a rotated tempo and a prescribed rung, tagged
+`ladder` so it can never pool with free playing. Eighteen tests.
+
+**Tempo first, rung second.** Step 1 settled that these are one decision and this is where it
+lands: a rung chosen before the tempo can be illegal by the time the tempo arrives, since at
+140 BPM only quarters and eighths clear their ceiling at this player's spread. Choosing in this
+order means the ceiling constrains rather than contradicts, and a test asserts the same history
+that yields sixteenths at 80 BPM yields eighths at 140.
+
+**80 / 100 / 120 / 140, by min-count with a seeded tie-break.** Not a cycle: a strict rotation
+puts each tempo at a fixed position in the sequence, so anything varying with *where in a run* a
+take falls lands entirely on one tempo — the `ExperimentSchedule` argument (§7.20 step 2) on a
+different axis. The tempos stay within one of each other and the order still shuffles.
+
+**Promotion is one rung at a time**, from the highest already recorded. That gate is not about
+measurement, unlike the ceiling: no rung above eighths has ever been played and whether a groove
+is playable-along-to is not something its step list can answer (R5.6), so promoting two at once
+would put the player on a backing nobody has heard at a tempo nobody has tried.
+
+**The ceiling now prefers the rung's own spread** once that rung has two takes, falling back to
+the overall median otherwise. One take does not overrule it: a bad first evening would lower
+that rung's ceiling and lock the player out of tempos they can handle. Step 3b is what makes the
+fallback sound — absolute spread is interval-invariant for this player, so the overall figure is
+a fair estimate for a rung never played.
+
+**It takes a slot outright rather than competing**, exactly as form does and for a matching
+reason: it is on a third axis. Ranked against the clock drills on their evidence it would never
+be scheduled at all — the split is settled, the clock is the looser half, and the continuation
+and recall drills fill every slot they are offered. `maximumTrainingBlocks` goes to four with
+two reserved, so the clock drills still get the same two they had.
+
+#### It crowded form out of every short session, and the test for that missed it
+
+Two blocks that each take a slot outright are ordered by which is appended first, and in a
+session too short for both the second one goes. Adding the ladder ahead of form dropped form
+from **every 20-minute session** — §7.16's regression exactly, arriving on a new cause a
+milestone later.
+
+The test written to catch it did not, because it ran only at 45 minutes, where both fit and the
+ordering is invisible. The shortest session is the only place the ordering is observable, which
+makes it the only length worth testing; it now runs at 20, 30 and 45 across nine histories.
+
+Form goes first: it has the older claim and the explicit guard, and the ladder is the block that
+waits for a longer evening. When the ladder is the one that does not fit, the plan says so —
+a block silently missing is a session the player has no way to disagree with.
+
+#### The test that passed when it should not have
+
+`testTheBenchmarkNeverMoves` compared each plan's benchmark against a reference plan built by
+the same planner. Planting a benchmark at `referenceBpm + 5` did **not** fail it: the reference
+moved with the thing it was checking, so the test could see variation *between* histories and
+was blind to a constant that was simply wrong — which is the likelier mistake once a planner has
+a tempo rotation in it at all. It now asserts the values absolutely, and the planted violation
+fails 27 assertions. R5.7 is written about `check.sh` rules; it applies to any test whose whole
+job is that something did not change.
 
 ### What this cannot verify
 

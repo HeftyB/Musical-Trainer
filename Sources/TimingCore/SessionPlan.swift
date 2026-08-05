@@ -264,6 +264,16 @@ public struct PlannerInput: Equatable {
         }
     }
 
+    /// A take played at a prescribed rung. Free jams are `Jam`s and never appear here.
+    public struct Ladder: Equatable {
+        public let bpm: Double
+        public let rung: IntervalRung
+        public let sdMs: Double
+        public init(bpm: Double, rung: IntervalRung, sdMs: Double) {
+            self.bpm = bpm; self.rung = rung; self.sdMs = sdMs
+        }
+    }
+
     /// What each experiment has collected so far, oldest-first: the arm of every take already
     /// assigned to it. That is all the scheduler needs — balance and counterbalancing are both
     /// functions of the arms already run.
@@ -282,13 +292,14 @@ public struct PlannerInput: Equatable {
     public let tempos: [Tempo]
     public let memories: [Memory]
     public let experiments: [Experiment]
+    public let ladders: [Ladder]
 
     public init(jams: [Jam] = [], continuations: [Continuation] = [],
                 forms: [Form] = [], tempos: [Tempo] = [], memories: [Memory] = [],
-                experiments: [Experiment] = []) {
+                experiments: [Experiment] = [], ladders: [Ladder] = []) {
         self.jams = jams; self.continuations = continuations
         self.forms = forms; self.tempos = tempos; self.memories = memories
-        self.experiments = experiments
+        self.experiments = experiments; self.ladders = ladders
     }
 }
 
@@ -312,8 +323,32 @@ public enum SessionPlanner {
 
     /// A closing jam shorter than this isn't worth the name.
     public static let minimumClosingBars = 16
-    public static let maximumTrainingBlocks = 3
+    public static let maximumTrainingBlocks = 4
     public static let maximumClosingBlocks = 3
+
+    // MARK: The interval ladder
+
+    /// The tempos a ladder block rotates through.
+    ///
+    /// Spread out on purpose. §7.23 step 3 refuses to fit until three intervals carry two takes
+    /// each, and four takes at one tempo six minutes apart bought almost nothing — one take per
+    /// tempo per sitting, rotated, is what gets there. The benchmark stays at 100 forever
+    /// regardless (R3.5); this is the block that was *designed* to vary.
+    public static let ladderTempos: [Double] = [80, 100, 120, 140]
+
+    /// Locked, like the benchmark's, so a ladder take is comparable to the last one at its rung.
+    public static let ladderBars = 32
+
+    /// Ladder takes at a rung before that rung's own spread is trusted over the overall figure.
+    ///
+    /// The ceiling is derived from the player's spread, and §7.23 step 3b measured that spread
+    /// to be interval-invariant — so the overall median is a sound starting estimate for a rung
+    /// never played. One take at a rung is not a reason to overrule it: a bad first evening
+    /// would lower that rung's ceiling and lock the player out of tempos they can handle.
+    public static let minimumTakesForRungSpread = 2
+
+    /// Spread assumed for a player with no takes at all, matching `IntervalRung`'s worked table.
+    public static let assumedSpreadMs = 20.0
 
     /// Recent history means the last handful, not all of it. A drill fixed six weeks ago
     /// should not keep being scheduled because it once went badly.
@@ -400,18 +435,42 @@ public enum SessionPlanner {
             }
         }
 
-        // Timing candidates compete with each other for all but one slot.
+        // Timing candidates compete with each other for the slots the two reserved ones leave —
+        // the ladder and form each take one outright, for the reasons given below.
+        let reservedSlots = 2
         for candidate in timingCandidates(from: input, sizes: sizes, notes: &notes) {
-            guard blocks.filter({ $0.role == .training }).count < maximumTrainingBlocks - 1 else { break }
+            guard blocks.filter({ $0.role == .training }).count
+                    < maximumTrainingBlocks - reservedSlots else { break }
             if fits(candidate) { blocks.append(candidate) }
         }
 
-        // Form gets the remaining slot outright rather than competing for it. It is the only
-        // drill on the *other* axis — knowing where you are in the music, which is tens of
-        // seconds, not milliseconds (§6.1) — so ranking it against the clock drills on their
-        // evidence would drop it from every session the moment a clock drill had a reason.
+        // Form gets a slot outright rather than competing for it. It is the only drill on the
+        // *other* axis — knowing where you are in the music, which is tens of seconds, not
+        // milliseconds (§6.1) — so ranking it against the clock drills on their evidence would
+        // drop it from every session the moment a clock drill had a reason.
         let form = formBlock(from: input, sizes: sizes, notes: &notes)
         if fits(form) { blocks.append(form) }
+
+        // The ladder gets a slot outright too, for a matching reason: it is on a *third* axis.
+        // The clock drills measure how steadily a pulse is held; form measures knowing where you
+        // are in the music; this measures how the gap between notes changes both, and nothing
+        // else in the app varies it. Ranked against the clock drills on their evidence it would
+        // never be scheduled — the split is settled and the clock is the looser half, so those
+        // two candidates fill every slot they are offered.
+        //
+        // **After form, and that ordering is load-bearing.** Both take a slot outright, so in a
+        // session too short for both the one appended second is the one that goes. Adding the
+        // ladder ahead of form silently dropped form from every 20-minute session — §7.16's
+        // regression exactly, on a new cause, and it survived the first version of the test that
+        // exists to catch it because that test only ran at 30 minutes. Form has the older claim
+        // and the explicit guard; the ladder is the one that waits for a longer evening.
+        let ladder = ladderBlock(from: input)
+        if fits(ladder) { blocks.append(ladder) } else {
+            notes.append("No room for an interval-ladder take in \(targetMinutes) minutes. It is "
+                       + "the only block that varies the gap between notes, and `review interval` "
+                       + "stays a refusal until three intervals carry two takes each — a longer "
+                       + "session is what it needs.")
+        }
 
         // Whatever is left goes to closing jams, snapped to whole 8-bar phrases.
         //
@@ -506,6 +565,115 @@ public enum SessionPlanner {
                   + "changes between arms is what you are asked to play. "
                   + "\(progress.takesRemaining) take(s) to go before anything is compared.",
             experiment: assignment)
+    }
+
+    // MARK: The interval ladder
+
+    /// One take at a rotated tempo and the hardest rung that tempo can score honestly.
+    ///
+    /// **Tempo first, rung second, and they are one decision.** Step 1 derived a tempo ceiling
+    /// per rung from the matching window, so a rung picked before the tempo could be illegal by
+    /// the time the tempo arrives — at 140 BPM only quarters and eighths can be scored at this
+    /// player's spread. Choosing in this order means the ceiling constrains rather than
+    /// contradicts.
+    ///
+    /// This block and this block alone varies tempo. The benchmark, the experiment take and the
+    /// cold probe are all locked at the reference (R3.5), because every confound already in this
+    /// dataset arrived by a parameter changing between takes.
+    static func ladderBlock(from input: PlannerInput) -> SessionBlock {
+        let bpm = nextLadderTempo(from: input.ladders)
+        let rung = nextRung(atBpm: bpm, from: input)
+        let spread = spreadEstimate(for: rung, from: input)
+        let ceiling = rung.maximumBpm(forSpreadMs: spread)
+
+        let why: String
+        if let highest = highestRungPlayed(input.ladders), rung != highest {
+            why = "Up a rung from the \(highest.label) you have on record. "
+        } else if input.ladders.isEmpty {
+            why = "The first rung of the ladder, and the first take that asks for a subdivision. "
+        } else {
+            let held = ceiling < 260
+                ? "this tempo cannot honestly score a finer one"
+                : "the rung above needs a take at this one first"
+            why = "The same rung again — \(held). "
+        }
+
+        return SessionBlock(
+            role: .training,
+            plan: .jam(JamPlan(bpm: bpm, bars: ladderBars, tag: "ladder", rung: rung)),
+            reason: why + String(format: "%d BPM asks for a %.0f ms gap between notes, and the "
+                               + "tempo rotates between sittings so the interval actually varies "
+                               + "— four takes at one tempo say almost nothing about it. Scored "
+                               + "against %@, whose ceiling here is %.0f BPM at your %.1f ms "
+                               + "spread.",
+                                 Int(bpm), rung.intervalSeconds(atBpm: bpm) * 1000,
+                                 rung.label, ceiling, spread))
+    }
+
+    /// The least-used tempo in the rotation, ties broken by a seeded draw.
+    ///
+    /// Min-count rather than a cycle, for the reason `ExperimentSchedule` uses it: a strict
+    /// rotation puts each tempo at a fixed position in the sequence, so anything that varies
+    /// with *where in a run* a take falls lands entirely on one tempo. Min-count keeps them
+    /// within one of each other and still shuffles the order.
+    static func nextLadderTempo(from ladders: [PlannerInput.Ladder]) -> Double {
+        var counts = [Int](repeating: 0, count: ladderTempos.count)
+        for take in ladders {
+            if let i = ladderTempos.firstIndex(where: { abs($0 - take.bpm) < 0.5 }) { counts[i] += 1 }
+        }
+        let fewest = counts.min() ?? 0
+        let candidates = ladderTempos.indices.filter { counts[$0] == fewest }
+        var rng = SplitMix64(seed: 0x1A44E4 &+ UInt64(ladders.count))
+        return ladderTempos[candidates[Int(rng.next() % UInt64(candidates.count))]]
+    }
+
+    /// The hardest rung that is both scorable at this tempo and one step from what has been played.
+    ///
+    /// Two gates, and they exist for different reasons. The **ceiling** is a measurement problem:
+    /// above it the matching window is worth fewer than three of the player's own spreads and
+    /// notes they aimed correctly get discarded, so the off-grid rate becomes a property of the
+    /// rung (§7.23 step 1). The **one-step rule** is a live-run problem: no rung above eighths
+    /// has ever been played, and whether a groove is playable-along-to is not something its step
+    /// list can answer (R5.6). Promoting two rungs at once would put the player on a backing
+    /// nobody has heard at a tempo nobody has tried.
+    static func nextRung(atBpm bpm: Double, from input: PlannerInput) -> IntervalRung {
+        let highest = highestRungPlayed(input.ladders)
+        let reachable = highest?.harder ?? highest ?? .quarters
+
+        // Walk down from the reachable rung to the first that this tempo can score.
+        for rung in IntervalRung.ladder.reversed()
+        where IntervalRung.ladder.firstIndex(of: rung) ?? 0
+              <= IntervalRung.ladder.firstIndex(of: reachable) ?? 0 {
+            if rung.isScorable(atBpm: bpm, spreadMs: spreadEstimate(for: rung, from: input)) {
+                return rung
+            }
+        }
+        return .quarters
+    }
+
+    private static func highestRungPlayed(_ ladders: [PlannerInput.Ladder]) -> IntervalRung? {
+        ladders.map(\.rung).max { a, b in
+            (IntervalRung.ladder.firstIndex(of: a) ?? 0) < (IntervalRung.ladder.firstIndex(of: b) ?? 0)
+        }
+    }
+
+    /// The spread the ceiling is computed against: this rung's own once it has enough takes,
+    /// otherwise the player's overall figure.
+    ///
+    /// Step 3b measured absolute spread to be interval-invariant for this player, which is what
+    /// makes the overall figure a sound estimate for a rung never played. Preferring the rung's
+    /// own once it exists is the part that self-corrects if that stops being true.
+    static func spreadEstimate(for rung: IntervalRung, from input: PlannerInput) -> Double {
+        let atRung = input.ladders.filter { $0.rung == rung }.map(\.sdMs).filter { $0 > 0 }
+        if atRung.count >= minimumTakesForRungSpread, let median = median(atRung) { return median }
+        let recent = Array(input.jams.suffix(recentWindow)).map(\.sdMs).filter { $0 > 0 }
+        return median(recent) ?? assumedSpreadMs
+    }
+
+    private static func median(_ x: [Double]) -> Double? {
+        guard !x.isEmpty else { return nil }
+        let s = x.sorted()
+        return s.count % 2 == 1 ? s[s.count / 2] : (s[s.count / 2 - 1] + s[s.count / 2]) / 2
     }
 
     // MARK: Training selection

@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M13 are done. M14 is in progress — steps 0–3, 3b, 4a and 4b, planned in §7.23.** The subdivision
+**M0–M13 are done. M14 is in progress — steps 0–3, 3b, 4a, 4b and 4d, planned in §7.23.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -152,7 +152,7 @@ reaches takes recorded before it.
 | Quantify uncertainty | `TimingCore/Bootstrap`, `Statistics` | Three bootstraps, and picking the wrong one is a defect (R3.2) |
 | Store | `TrainerKit/SessionStore` | One JSON per take; raw taps plus a summary nothing reads back |
 | Aggregate | `TimingCore/TrendAnalysis`, `WarmUpAnalysis`, `ExperimentAnalysis`, `IntervalResponse`, `ProducedInterval` | Trends, cold-vs-warm, the A/B readout, and the interval axis. The last two are the only pair where the unit differs on purpose — takes for the first, **notes** for the second |
-| Decide what to practise | `TimingCore/SessionPlan` (`SessionPlanner`), `Experiment` | Builds the evening; `ExperimentSchedule` assigns arms |
+| Decide what to practise | `TimingCore/SessionPlan` (`SessionPlanner`), `Experiment` | Builds the evening; `ExperimentSchedule` assigns arms. The **ladder block is the only one whose tempo may vary** — cold probe, benchmark and experiment are locked (R3.5) |
 | Run the evening | `TrainerKit/SessionRunner` | State machine over blocks; stamps placement and arm. Sequences, never measures |
 | Drive it all | `TrainerKit/TrainerEngine` | `runJam` / `runForm` / `runDropout` / `runTempo` / `runMemory` — the **only** implementations of anything measured |
 | Show it | `TrainerKit/Commands` (console), `Sources/MusicalTrainerApp` (SwiftUI) | Presentation only |
