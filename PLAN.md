@@ -2411,7 +2411,7 @@ experiment would either break R3.5 or silently confound five evenings of collect
 | 0 ✅ | Store the grid's actual subdivision instead of a hardcoded 4. Prerequisite, and worth doing whether or not M14 proceeds. |
 | 1 ✅ | `IntervalRung` in `TimingCore` — subdivision, tempo ceiling from the matching window, and the IOI it implies. Tests that the window stays at or above 3 SD at the ceiling. |
 | 2 ✅ | Backings per rung in `GrooveCore`. The groove has to *imply* the subdivision or there is nothing to lock to. |
-| 3 | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
+| 3 ✅ | The tempo-and-interval readout: spread normalised by IOI, signed asynchrony against IOI, and both split by rung. This is the step that answers the player's question, and on today's data its honest answer is "not enough tempo spread yet". |
 | 4 | Drills gain a rung; instructions generated from it (R3.6); planner rotates tempo on training blocks only, with a test that it never touches the benchmark or an experiment block. |
 | 5 | A `slow-vs-fast` experiment in the M13 library, so the tempo question gets a preregistered answer rather than an observational one. Queued behind the two experiments already collecting. |
 | 6 | Both surfaces, and docs. |
@@ -2546,6 +2546,54 @@ point), and it is one take. What it mainly shows is that the window effect is **
 baseline**: 4–5% of notes are off-grid at the reference tempo, so most off-grid notes are
 genuinely off-grid playing rather than a scoring artefact. The ceiling is worth keeping, and it
 is not what is driving the off-grid rate.
+
+### Step 3, as built, and what it says today
+
+`IntervalResponseAnalysis` and `review interval`. Takes are bucketed by the interval they were
+played at, spread is reported **relative to that interval**, and two slopes are fitted against
+it: relative spread, and signed placement. Nine tests.
+
+**The two claims are tested apart because they need different handling.** Rushing at slow tempos
+is a claim about signed asynchrony and nothing forces it mechanically, so a slope there is a
+finding. "Faster is easier" is a claim about precision, and raw spread cannot carry it — scatter
+grows with the interval it sits inside, so milliseconds fall at faster tempos on their own. The
+test that pins this plants a player whose spread is exactly 3% of the interval at every tempo and
+requires the analysis to report *no* tempo effect, while the raw millisecond figures it was
+computed from differ by more than a factor of two.
+
+#### The mistake worth recording: what "the interval" means
+
+The first version used the grid the take was *scored* on. Every jam so far is free playing scored
+on a sixteenth-note grid, so it reported a 150 ms task at 100 BPM — **an interval nobody
+performed**. The scoring resolution is a property of the analysis; the task interval is a
+property of what the player was asked to do, and they are only the same once a rung is
+prescribed.
+
+`IntervalObservation.subdivisions` is now explicitly *notes per beat the player was asked to
+produce*, which is 1 for every take on record and becomes the rung from step 4. That turned 150
+ms into 600 ms and relative spread from a meaningless 14.9% into 3.7%.
+
+This is the same conflation as step 2's fill bug — pattern resolution against analysis grid —
+arriving a third time on a different axis. It is worth naming as a recurring shape rather than
+three separate slips: **in this codebase, "how finely we divide the beat" always has at least two
+meanings, and they are rarely the same one.**
+
+#### What it says on the 21 jams
+
+| Interval | Tempo | Takes | Spread | Of interval | Placement |
+|---|---|---|---|---|---|
+| 500 ms | 120 BPM | 1 | 19.3 ms | 3.9% | −13.5 ms |
+| 545 ms | 110 BPM | 4 (one sitting) | 24.5 ms | 4.5% | −4.4 ms |
+| 600 ms | 100 BPM | 16 | 22.4 ms | 3.7% | −14.1 ms |
+
+**No slope, and the refusal is the finding.** Three intervals with at least two takes each are
+needed; there are two. But the shape is informative in its own right: the 110 BPM evening is
+worst on *both* measures while the tempos either side of it resemble each other more than either
+resembles it. That is the signature of one different evening, not of a tempo response — and it is
+exactly what a slope fitted through three points would have hidden.
+
+It also sharpens what to record. Four takes at one tempo six minutes apart bought almost nothing;
+one take per tempo per sitting, rotated, is what turns this from a refusal into an answer.
 
 ### What this cannot verify
 

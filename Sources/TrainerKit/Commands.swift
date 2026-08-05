@@ -417,6 +417,9 @@ public enum Commands {
         if args.first == "cold" { runCold(); return }
         if args.first == "content" { runContent(); return }
         if args.first == "experiment" { runExperiments(); return }
+        if args.first == "interval" || args.first == "tempo-response" {
+            runIntervalResponse(); return
+        }
         if args.first == "tempo" { runTempoHistory(); return }
 
         let sessions = SessionStore.loadAll()
@@ -1080,6 +1083,53 @@ public enum Commands {
                 + "\(outcome.config.pacedBars) \(outcome.suggestedSilentBars) "
                 + "\(outcome.config.cycles)\(Console.reset)")
         }
+    }
+
+    /// M14: does tempo change how you play?
+    private static func runIntervalResponse() {
+        Console.heading("Tempo and interval")
+        print("\(Console.dim)Subdivision and tempo are one axis — both move the gap between "
+            + "notes, and eighths at 100 BPM\nare the same 300 ms task as quarters at 200. "
+            + "Spread is shown relative to that gap, because\nscatter grows with the interval "
+            + "it sits inside.\(Console.reset)\n")
+
+        let report = IntervalResponseAnalysis.analyze(TrainerEngine.intervalObservations())
+        guard !report.buckets.isEmpty else {
+            print("No takes yet.")
+            return
+        }
+
+        print(pad("interval", 12) + pad("tempo", 10) + pad("takes", 7)
+            + pad("spread", 11) + pad("of interval", 13) + "placement")
+        for bucket in report.buckets {
+            let spread = bucket.meanSpreadMs.map { String(format: "%.1f ms", $0) } ?? "—"
+            let relative = bucket.relativeSpreadPercent.map { String(format: "%.1f%%", $0) } ?? "—"
+            let bias = bucket.meanBiasMs.map { String(format: "%+.1f ms", $0) } ?? "—"
+            let sittings = bucket.sittings <= 1 && bucket.takes > 1 ? "  one sitting" : ""
+            print(pad(String(format: "%.0f ms", bucket.intervalMs), 12)
+                + pad(String(format: "%.0f BPM", bucket.bpm), 10)
+                + pad("\(bucket.takes)", 7)
+                + pad(spread, 11) + pad(relative, 13) + pad(bias, 11)
+                + "\(Console.dim)\(sittings)\(Console.reset)")
+        }
+
+        func row(_ label: String, _ fit: TrendFit?, _ unit: String) {
+            guard let fit else {
+                print("  \(pad(label, 26))\(Console.dim)not enough range\(Console.reset)")
+                return
+            }
+            let verdict = fit.isReal ? "\(Console.bold)real\(Console.reset)"
+                                     : "\(Console.dim)within noise\(Console.reset)"
+            print("  \(pad(label, 26))"
+                + pad(String(format: "%+.2f%@ [%+.2f, %+.2f]", fit.slope * 100, unit,
+                             fit.low * 100, fit.high * 100), 34) + verdict)
+        }
+        print("\nPer 100 ms of extra interval:")
+        row("relative spread", report.relativeSpreadVsInterval, " pts")
+        row("placement", report.biasVsInterval, " ms")
+
+        print("\n\(report.headline)")
+        for note in report.notes { Console.warn(note) }
     }
 
     /// M13: what the experiments have collected, and what they are allowed to say.

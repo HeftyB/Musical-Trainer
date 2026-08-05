@@ -43,7 +43,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 309 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 318 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -81,6 +81,7 @@ swift build -c release   # the console tool
 | `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
 | `review experiment` | **M13.** What the A/B experiments have collected. Arms are assigned before you play and balanced against what has already run; nothing is compared until every arm reaches the number of takes declared up front. |
 | `render [bpm] [bars]` | **M14.** Renders every ladder backing — quarters, eighths, triplet eighths, sixteenths — plus the jam backing to WAV files in `temp/renders`, so a groove can be judged by ear without a live run. Flags any rung above its tempo ceiling. Default 100, 8. |
+| `review interval` | **M14.** Does tempo change how you play? Buckets takes by the interval they were played at, reports spread *relative to that interval* — raw milliseconds fall at faster tempos on their own — and fits placement and precision against it. Refuses to fit until tempo has actually been varied. |
 | `show` | Prints stored calibration and the constant for each device. |
 
 **Run `selftest` first after any change.** If it passes and a live run fails, the fault is

@@ -55,7 +55,7 @@ Alone, Tempo, Recall, Play — and History.
 **CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
 and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
 has the annotated table. The analysis readouts are `review trend | cold | content | feel |
-tags | conditions | compare | form | dropout | tempo | experiment`.
+tags | conditions | compare | form | dropout | tempo | experiment | interval`.
 
 `render [bpm] [bars]` writes every ladder backing to `temp/renders` as a WAV. **A rung the
 player has not heard is a rung the planner must not promote them onto** (§7.23), and this is how
@@ -68,7 +68,7 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 250 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 259 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (59 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -83,7 +83,7 @@ that precondition is met without booking a live run.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 309 tests, no hardware needed
+swift test                              # 318 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

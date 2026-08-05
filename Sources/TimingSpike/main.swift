@@ -54,6 +54,7 @@ func usage() {
       review cold               M10: is it warming up, or getting better?
       review content            M12: does what you play change your timing?
       review tempo              tempo-calibration history
+      review interval           M14: does tempo change how you play?
       render [bpm] [bars]
                         render each ladder backing to temp/renders as a WAV,
                         so a groove can be judged by ear without a live run

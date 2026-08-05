@@ -948,6 +948,25 @@ public enum TrainerEngine {
         }
     }
 
+    /// Every jam reduced to the interval it was played at, for the tempo question.
+    ///
+    /// The subdivision comes from the take rather than a constant — which is the whole reason
+    /// M14 step 0 came first. Without it the interval cannot be recovered, and a take scored on
+    /// a sixteenth grid would be indistinguishable from one scored on quarters.
+    public static func intervalObservations() -> [IntervalObservation] {
+        SessionStore.loadAll().map { session in
+            let r = session.report()
+            // The beat, not the stored grid. A free jam asks for no subdivision — it was
+            // *scored* on a sixteenth grid, which is a property of the analysis rather than of
+            // the task. When step 4 starts prescribing a rung, that rung goes here instead.
+            return IntervalObservation(
+                bpm: session.bpm, subdivisions: 1,
+                spreadMs: Stats.finite(r.sdAsynchronyMs),
+                biasMs: Stats.finite(r.meanAsynchronyMs),
+                sittingId: session.placement?.sessionId)
+        }
+    }
+
     public static func plannerInput() -> PlannerInput {
         let jams = SessionStore.loadAll().map { session -> PlannerInput.Jam in
             let r = session.report()

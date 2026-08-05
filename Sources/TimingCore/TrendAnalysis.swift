@@ -80,9 +80,20 @@ public enum TrendAnalysis {
         // *usable* take while the unit string, the labels and this doc comment all say per
         // take. Over `[10, nan, 8, 7, 6]` that is −1.3 against a true −1.0.
         let points = values.enumerated().filter { $0.element.isFinite }
-        guard points.count >= minimumPoints else { return nil }
-        let x = points.map { Double($0.offset) }
-        let clean = points.map(\.element)
+        return fit(x: points.map { Double($0.offset) }, y: points.map(\.element),
+                   lowerIsBetter: lowerIsBetter, iterations: iterations, seed: seed)
+    }
+
+    /// The same fit against an arbitrary x — take number is only one thing a metric can move
+    /// against. M14 fits against the inter-onset interval, which is the axis subdivision and
+    /// tempo share, and the uncertainty is the same pairs bootstrap either way.
+    public static func fit(x: [Double], y: [Double],
+                           lowerIsBetter: Bool,
+                           iterations: Int = 2000,
+                           seed: UInt64 = 0xA11CE) -> TrendFit? {
+        let pairs = zip(x, y).filter { $0.0.isFinite && $0.1.isFinite }
+        guard pairs.count >= minimumPoints else { return nil }
+        let x = pairs.map(\.0), clean = pairs.map(\.1)
         guard let observed = Stats.linearFit(x: x, y: clean) else { return nil }
 
         // A resample that happens to draw the same index every time has no x-variance and no
