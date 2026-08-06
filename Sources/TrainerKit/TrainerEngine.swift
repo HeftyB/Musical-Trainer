@@ -243,7 +243,7 @@ public enum TrainerEngine {
             outputMap: player.outputMapPairs,
             midi: midi.events.map { ($0.hostTime, Int($0.velocity), Int($0.note)) },
             grooveStartSample: startSample, grooveEndSample: endSample,
-            bpm: config.bpm, subdivisions: config.gridSubdivisions,
+            bpm: config.bpm, subdivisions: config.gridSubdivisions, feel: config.feel,
             calibrationConstantMs: env.calibrationMs ?? 0)
         else { throw SpikeError("Could not reconstruct the take — no audio timing map captured.") }
 

@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M15 are built. M14 has had one live run; M15 has had none.**
+**M0–M15 are built. M14 has had one live run; M15 has had two swung takes and no offbeat take.**
 
 M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
 the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
@@ -245,9 +245,9 @@ Types worth knowing before changing anything:
   run (R5.6), and the result recorded in PLAN.md.
 - **`TrainerKitTests` cannot run in CI.** `TrainerKit` is macOS-only, so a green Woodpecker
   pipeline covers *less* than a green `check.sh`.
-- **M13 has run live once; M15 has never run at all.** No swung take and no offbeat take exists.
-  The swing readout's thresholds (24 notes off the division, and at least half as many as on it)
-  were set from one afternoon and one correction, and have never seen real playing.
+- **M15 has two swung takes and no offbeat take.** Both were played at 4 a.m., tagged `tired`,
+  at a first attempt: they establish that the machinery works and nothing about the player. The
+  swing readout's thresholds have now fired correctly on real playing once.
 - **The offbeat drill is CLI-only.** No app mode yet — the one surface gap M15 leaves.
 - **`selftest` covers the analysis pipeline against synthetic ground truth**, not storage — that
   moved to `TrainerKitTests` with T1.
@@ -285,6 +285,7 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 | Confounds get named, not blended | A changed backing produced a "real" 8 ms spread change that was partly just different music. |
 | A swung take never reaches Wing–Kristofferson | Swing alternates the intervals by design and the isochrony gate passes them. On a planted 12 ms clock and 8 ms motor, a swung series reported motor 99.7 ms and a negative clock variance. `DropoutConfig.validate` refuses it. |
 | The band's swing and the grid's come from one conversion | `Feel` and `Swing` cannot share a type across the module boundary. A groove swinging at 2:1 while the grid scored 1.5:1 would look exactly like a player who drags. `JamConfig.swing` is the only conversion; `SwingAgreementTests` pins them to the sample. |
+| The feel reaches the grid the *app* builds, not only the one a test builds | Both swung takes ever recorded were scored straight, because `JamAnalysis.reduce` and `SessionStore.reconstruct` kept their old calls. Reported +22 ms drag, 54 ms spread and r₁ = −0.52 — the first negative in the project's history, and an artefact. |
 | A feel needs a groove, not just warped timing | The first swung backings were timed perfectly and sounded straight: every loud event stayed on an even grid and the feel was carried by a hat 8 dB down. |
 
 ## Data and analysis conventions
