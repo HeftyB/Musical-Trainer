@@ -142,7 +142,13 @@ struct JamSession: Codable, StoredTake {
     /// Rebuild the taps and grid for re-analysis in the review.
     func reconstruct() -> (taps: [Tap], grid: Grid) {
         let taps = zip(tapTimes, tapVelocities).map { Tap(time: $0, velocity: $1) }
-        return (taps, Grid(startTime: gridStartTime, bpm: bpm, subdivisions: subdivisions))
+        // **The feel belongs here.** Leaving it off scored every swung take against an even
+        // grid: the first two swung takes ever recorded came back with a 54 ms spread, +22 ms
+        // of drag and r₁ = −0.52 against a player who has never once been negative — the exact
+        // signature §7.24 step 2 predicted and tested for, arriving because the grid the *test*
+        // built carried a feel and the grid the *app* built did not.
+        return (taps, Grid(startTime: gridStartTime, bpm: bpm, subdivisions: subdivisions,
+                           feel: feel))
     }
 
     /// This take under the *current* analysis.

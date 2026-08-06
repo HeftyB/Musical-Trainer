@@ -3477,6 +3477,75 @@ crash **spliced into another bundle's output** because the two test targets run 
 passed when filtered to its own class and killed the run otherwise. Worth recording: a crash
 attributed to the test that happens to be printing is not necessarily the test that crashed.
 
+### Step 7 — the first swung takes, and the defect they found
+
+6 August, 03:53 and 03:56, both tagged `tired`: 64 bars of eighths at 2:1 and at 3:2. **The first
+live data M15 has ever had, and it found a defect nothing in the suite could.**
+
+#### What it reported, and why every number was wrong
+
+| | as reported | after the fix |
+|---|---|---|
+| mean | **+22.3 ms, dragging** | −16.6 ms, rushing |
+| spread | **54.0 ms** | 28.7 ms |
+| r₁ | **−0.52, "chasing the click"** | +0.49, drifting |
+| headline | *"You're chasing the click… this is what focusing harder does"* | — |
+
+That r₁ would have been the **first negative reading in the project's history**, from a player who
+has been +0.13 to +0.47 across twenty-seven takes, and it directly contradicts §5.1's founding
+claim. The spread was more than double anything ever recorded. Both were artefacts.
+
+The tell was in the readout itself: *"Asked for 1:1 and played about 1.6:1"*, on a take stored
+with `swingRatio = 2`. The grid was straight.
+
+#### The gap
+
+`Grid` gained a feel in step 2 and both places that build one in the running app kept their old
+call: `JamAnalysis.reduce` for a live take, `SessionStore.reconstruct` for a review. Every swung
+take was therefore scored against an even grid, live *and* on every recompute.
+
+Step 2's tests did not catch it because **every one of them built its grid inside the test**. The
+suite proved a swung grid places notes correctly, that a swung player on one scores as perfect,
+and that the same player on a straight grid reads as badly dragging — it never asked whether the
+app hands the grid a feel at all. `LESSONS.md` shape 1, and the fifth instance on this project:
+the path under test was not the path that ships.
+
+It is also shape 9 in the same breath — a constant that happens to match. `Grid`'s feel parameter
+defaults to straight, so both call sites compiled unchanged and were correct for every take
+recorded before M15.
+
+`FeelReachesTheGridTests` closes it from both ends, and reverting the storage half fails three
+assertions. The defect's own signature is now a test: a perfectly swung player on a straight grid
+must read as 50 ms of drag with a 50 ms spread and **nothing flagged**.
+
+#### What the takes say, now they are scored properly
+
+| asked | produced | interval | offbeat spread | on-division spread | notes |
+|---|---|---|---|---|---|
+| 2:1 | **1.76:1** [1.71, 1.83] | — | 30.0 ms | 27.5 ms | 239 / 248 |
+| 3:2 | **1.57:1** [1.52, 1.62] | — | 33.5 ms | 34.4 ms | 249 / 254 |
+
+Both takes swing, both land close to what was asked, and **the two are separated by their
+intervals** — 1.76 against 1.57, with non-overlapping intervals. The measurement can tell 3:2
+from 2:1 even though the player reported the two backings as hard to distinguish by ear.
+
+Read no further into these than that. Both were played at four in the morning, tagged `tired`,
+at a task attempted for the first time; the spreads (30 and 34 ms) are well above his 22 ms
+baseline and that is exactly what a new task played exhausted should look like. **What they
+establish is that the machinery works, not anything about the player.**
+
+One thing worth noting rather than concluding: at 2:1 he played *straighter* than asked (1.76),
+and at 3:2 he played *deeper* than asked (1.57 against 1.50). Both are pulled toward each other,
+which is what a player converging on their own natural swing would look like — and is exactly the
+question a preregistered design would have to ask properly.
+
+#### And it extended step 3b
+
+The swung takes produce genuinely short intervals — the 200 ms and 240 ms short halves of 2:1 and
+3:2 pairs at 100 BPM — so the produced-interval range now runs 200 ms to 1200 ms, a sixfold
+spread. **The finding holds and strengthens**: absolute spread −0.17 ms per 100 ms
+[−1.94, +0.59], relative −1.08 points and real.
+
 ### What this cannot verify
 
 The clock bridge is untouched, so `selftest` remains the arbiter of the maths. But the ladder

@@ -24,6 +24,7 @@ enum JamAnalysis {
                        grooveEndSample: Int64,
                        bpm: Double,
                        subdivisions: Int,
+                       feel: Feel = .straight,
                        calibrationConstantMs: Double) -> Reduced? {
         guard let epoch = outputMap.first?.hostTime else { return nil }
         var map = SampleHostMap()
@@ -32,7 +33,10 @@ enum JamAnalysis {
               let endSec = map.hostSeconds(atSample: Double(grooveEndSample)) else { return nil }
 
         let constantSec = calibrationConstantMs / 1000
-        let grid = Grid(startTime: startSec, bpm: bpm, subdivisions: subdivisions)
+        // The feel has to reach the grid or a swung take is scored straight, which does not
+        // fail — it reports a large, plausible drag with a doubled spread and an inverted r₁.
+        // See PLAN.md §7.24 step 7.
+        let grid = Grid(startTime: startSec, bpm: bpm, subdivisions: subdivisions, feel: feel)
 
         // A one-beat guard band on each side drops the count-in notes and any final
         // ring-out so they cannot masquerade as timing data.
