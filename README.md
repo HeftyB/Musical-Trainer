@@ -52,7 +52,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 514 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 527 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -86,7 +86,7 @@ swift build -c release   # the console tool
 | `review form` | Form-drill history — progress up the landmark ladder. |
 | `review dropout` | Continuation-drill history: the clock/motor split over time. |
 | `review tempo` | Tempo-calibration history. |
-| `review trend` | Is anything actually improving? Fits each metric with a confidence interval, splitting confounded groups. |
+| `review trend` | Is anything actually improving? Fits each metric with a confidence interval, one line per task — takes that differ in tempo, subdivision, feel, silence length, difficulty level or phrase length are never fitted together, because a line across the change measures the change. |
 | `review content` | **M12.** Does what you play change how you time it? Correlates musical content against timing spread within each take. |
 | `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
 | `review experiment` | **M13.** What the A/B experiments have collected. Arms are assigned before you play and balanced against what has already run; nothing is compared until every arm reaches the number of takes declared up front. Three are queued: two where the arms differ in what you are *told*, and **M14's** `slow-vs-fast` where they differ in tempo. |

@@ -1431,23 +1431,71 @@ public enum TrainerEngine {
         return series
     }
 
+    /// One line per comparable group, rather than one line and a warning beside it.
+    ///
+    /// Jams have been grouped since M7 — by tempo, then rung, then feel, then offbeat level —
+    /// because a trend fitted across a change of task measures the change. The other three
+    /// drills warned instead, in words that made the case themselves: *"a longer silence is a
+    /// harder task"*, *"a trend here reflects the ladder as much as you"*, *"a longer wait is a
+    /// harder task"* — and then fitted the line anyway.
+    ///
+    /// Naming a confound is the floor, not the fix (R3.4 versus R3.5). A reader who sees a
+    /// verdict and a caveat has still been shown a verdict, and the continuation drill's clock
+    /// SD read "worsening" on a series whose two hardest takes were also its most recent
+    /// (§7.26).
+    ///
+    /// Groups smaller than `TrendAnalysis.minimumPoints` get no fit, which is the honest answer
+    /// and the visible cost of this change: splitting twelve takes four ways leaves most of them
+    /// unable to say anything. They could not say anything before either.
+    private static func groupedTrends<Take, Key: Hashable & Comparable>(
+        _ takes: [Take],
+        by key: (Take) -> Key,
+        title: (Key) -> String,
+        rows: ([Take]) -> [TrendRow],
+        warnings: ([Take]) -> [String] = { _ in [] }
+    ) -> [TrendSeries] {
+        Set(takes.map(key)).sorted().map { groupKey in
+            let group = takes.filter { key($0) == groupKey }
+            return TrendSeries(title: title(groupKey), takeCount: group.count,
+                               warnings: warnings(group), rows: rows(group))
+        }
+    }
+
+    /// Silence length **and** rung: both change the task. A longer silence is harder, and a
+    /// rung changes the note value being sustained, which is §7.23 trap 3 inside this drill.
+    ///
+    /// **Here an absent rung really does mean quarters**, and that is the opposite of the rule
+    /// for jams. The two are decided by what the player was told, not by the field: a jam with
+    /// no rung says *play what you like*, which is a different task from quarters, while
+    /// `DrillInstructions.dropout(rung:)` returns the *same text* for `nil` and for `.quarters`
+    /// — "Play exactly ONE NOTE PER BEAT" — because this drill has demanded one note per beat in
+    /// words since M6. Grouping them apart would split one task in two on a distinction the
+    /// player was never shown (`LESSONS.md` shape 13, and §7.24 step 1 for the jam side).
+    private struct DropoutKey: Hashable, Comparable {
+        let silentBars: Int
+        let rung: IntervalRung
+
+        init(silentBars: Int, rung: String?) {
+            self.silentBars = silentBars
+            self.rung = rung.flatMap(IntervalRung.init(rawValue:)) ?? .quarters
+        }
+
+        static func < (a: DropoutKey, b: DropoutKey) -> Bool {
+            a.silentBars != b.silentBars
+                ? a.silentBars < b.silentBars : a.rung.rawValue < b.rung.rawValue
+        }
+    }
+
     private static func dropoutTrends() -> [TrendSeries] {
-        var series: [TrendSeries] = []
-        let drops = SessionStore.loadAllDropout()
-        if !drops.isEmpty {
-            let reports = drops.map { session -> DropoutReport in
-                return session.report()
-            }
-            var warnings: [String] = []
-            let silences = TrendAnalysis.distinct(drops.map(\.silentBars))
-            if silences.count > 1 {
-                warnings.append("mixed silence lengths (\(silences.map(String.init).joined(separator: ", ")) bars) — "
-                              + "a longer silence is a harder task.")
-            }
-            series.append(TrendSeries(
-                title: "Continuation drill", takeCount: drops.count, warnings: warnings,
-                rows: [
-                    TrendAnalysis.row("|tempo bias|", reports.map { $0.tempoBiasBpm.map(abs) ?? .nan },
+        groupedTrends(
+            SessionStore.loadAllDropout(),
+            by: { DropoutKey(silentBars: $0.silentBars, rung: $0.rung) },
+            title: { "Continuation drill — \($0.silentBars)-bar silences, \($0.rung.label)" },
+            rows: { group in
+                let reports = group.map { $0.report() }
+                return [
+                    TrendAnalysis.row("|tempo bias|",
+                                      reports.map { $0.tempoBiasBpm.map(abs) ?? .nan },
                                       lowerIsBetter: true),
                     TrendAnalysis.row("clock SD",
                                       reports.map {
@@ -1455,74 +1503,67 @@ public enum TrainerEngine {
                                               ? ($0.wingKristofferson?.clockSDms ?? .nan) : .nan
                                       },
                                       lowerIsBetter: true),
-                ]))
+                ]
+            })
+    }
+
+    /// Level and phrase length. The level is a *ladder* — it is meant to rise — so a line fitted
+    /// across it measures the promotion rather than the player, and on-form rate falling as the
+    /// landmarks are removed is the drill working rather than the player getting worse.
+    private struct FormKey: Hashable, Comparable {
+        let level: Int
+        let phraseBars: Int
+        static func < (a: FormKey, b: FormKey) -> Bool {
+            a.level != b.level ? a.level < b.level : a.phraseBars < b.phraseBars
         }
-        return series
     }
 
     private static func formTrends() -> [TrendSeries] {
-        var series: [TrendSeries] = []
-        let forms = SessionStore.loadAllForm()
-        if !forms.isEmpty {
-            let reports = forms.map { $0.report() }
-            var warnings: [String] = []
-            let levels = TrendAnalysis.distinct(forms.map(\.level))
-            if levels.count > 1 {
-                warnings.append("mixed levels — difficulty changed between takes, so a trend here "
-                              + "reflects the ladder as much as you.")
-            }
-            let phrases = TrendAnalysis.distinct(forms.map(\.phraseBars))
-            if phrases.count > 1 {
-                warnings.append("mixed phrase lengths (\(phrases.map(String.init).joined(separator: ", ")) bars).")
-            }
-            series.append(TrendSeries(
-                title: "Form drill", takeCount: forms.count, warnings: warnings,
-                rows: [TrendAnalysis.row("on-form rate", reports.map(\.onFormRate), lowerIsBetter: false)]))
-        }
-        return series
+        groupedTrends(
+            SessionStore.loadAllForm(),
+            by: { FormKey(level: $0.level, phraseBars: $0.phraseBars) },
+            title: { "Form drill — level \($0.level), \($0.phraseBars)-bar phrases" },
+            rows: { group in
+                [TrendAnalysis.row("on-form rate", group.map { $0.report().onFormRate },
+                                   lowerIsBetter: false)]
+            })
     }
 
     private static func memoryTrends() -> [TrendSeries] {
-        let sessions = SessionStore.loadAllMemory()
-        guard !sessions.isEmpty else { return [] }
-        let reports = sessions.map {
-            TempoMemoryAnalysis.analyze(taps: $0.taps, rounds: $0.roundWindows)
-        }
-        var warnings: [String] = []
-        let waits = TrendAnalysis.distinct(sessions.map(\.retentionBars))
-        if waits.count > 1 {
-            warnings.append("mixed wait lengths (\(waits.map(String.init).joined(separator: ", ")) bars) — "
-                          + "a longer wait is a harder task.")
-        }
-        return [TrendSeries(
-            title: "Recall drill", takeCount: sessions.count, warnings: warnings,
-            rows: [TrendAnalysis.row("interference cost", reports.map { $0.interferenceCost ?? .nan },
-                                     lowerIsBetter: true)])]
+        groupedTrends(
+            SessionStore.loadAllMemory(),
+            by: { $0.retentionBars },
+            title: { "Recall drill — \($0)-bar waits" },
+            rows: { group in
+                let reports = group.map {
+                    TempoMemoryAnalysis.analyze(taps: $0.taps, rounds: $0.roundWindows)
+                }
+                return [TrendAnalysis.row("interference cost",
+                                          reports.map { $0.interferenceCost ?? .nan },
+                                          lowerIsBetter: true)]
+            })
+    }
+
+    /// The target set, because rotating targets is a harder task than holding one.
+    ///
+    /// Every take on record targets 100, so this splits nothing today — and it is here for the
+    /// same reason the others are: M14's ladder rotates tempo between sittings by design, so the
+    /// confound is scheduled rather than hypothetical. Fixing three of four sites is how a rule
+    /// comes to be half-applied (§7.20 finding 2).
+    private static func tempoKey(_ take: TempoSession) -> String {
+        take.targets.map { String(Int($0)) }.joined(separator: "/")
     }
 
     private static func tempoTrends() -> [TrendSeries] {
-        var series: [TrendSeries] = []
-        let tempos = SessionStore.loadAllTempo()
-        if !tempos.isEmpty {
-            let reports = tempos.map {
-                $0.report()
-            }
-            var warnings: [String] = []
-            let targetSets = TrendAnalysis.distinct(tempos.map {
-                $0.targets.map { String(Int($0)) }.joined(separator: "/")
+        groupedTrends(
+            SessionStore.loadAllTempo(),
+            by: tempoKey,
+            title: { "Tempo drill — \($0) BPM" },
+            rows: { group in
+                [TrendAnalysis.row("tempo error (%)",
+                                   group.map { $0.report().meanAbsErrorPercent ?? .nan },
+                                   lowerIsBetter: true)]
             })
-            if targetSets.count > 1 {
-                warnings.append("mixed target sets (\(targetSets.joined(separator: "; "))) — "
-                              + "rotating targets is a harder task than holding one.")
-            }
-            series.append(TrendSeries(
-                title: "Tempo drill", takeCount: tempos.count, warnings: warnings,
-                rows: [TrendAnalysis.row("tempo error (%)",
-                                         reports.map { $0.meanAbsErrorPercent ?? .nan },
-                                         lowerIsBetter: true)]))
-        }
-
-        return series
     }
 
     // MARK: - Free groove

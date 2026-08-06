@@ -4049,7 +4049,77 @@ rather than inside them.
 
 ---
 
-## 8. Project layout
+## 7.27 Every trend is fitted over one task
+
+The last section left a verdict standing that it had shown to be confounded, and this closes it.
+Jams have been grouped since M7 — by tempo, then rung (§7.23), then feel (§7.24 step 5), then
+offbeat level (§7.24 step 8). The other four drills **warned** instead, and the warnings made the
+case themselves:
+
+> *"mixed silence lengths — a longer silence is a harder task."*
+> *"mixed levels — difficulty changed between takes, so a trend here reflects the ladder as much
+> as you."*
+> *"mixed wait lengths — a longer wait is a harder task."*
+
+Each of those sentences is an argument for not fitting the line, printed immediately above the
+line. **Naming a confound is R3.4; not computing a verdict across it is R3.5**, and the second is
+what the jam trends have always done. A reader shown a verdict and a caveat has still been shown
+a verdict.
+
+### Two verdicts retracted
+
+| | pooled | grouped |
+|---|---|---|
+| Continuation, clock SD | +1.32/take [+0.64, +3.05] **worsening** | +2.05 [−1.03, +4.85] flat, on the seven 4-bar takes |
+| Form, on-form rate | −0.04/take [−0.07, −0.01] **worsening** | −0.01 [−0.15, +0.10] flat, at level 2 over 8-bar phrases |
+
+Neither was the player. The continuation series ran 2, 4, 4, 4, 4, 8, 16, 16, 4, 8 bars of
+silence and its two hardest takes landed late; the form series climbed levels 0 → 1 → 2, and
+on-form rate falling as the landmarks are removed **is the drill working**. `review cold` reported
+the same form verdict from the same cause and is not fixed here — see below.
+
+After the change nothing in any drill trend is moving.
+
+### What it cost, said plainly
+
+Three groups out of eleven have the three points a fit needs. Splitting twelve continuation takes
+four ways leaves most of them saying "1 usable point — need 3", and that is the honest answer
+rather than a regression: those takes could not support a verdict before either, they were being
+lent significance by takes of a different task. The cost is visible where it used to be invisible.
+
+### The asymmetry that nearly split one task in two
+
+Grouping the continuation drill by rung first produced *two* 8-bar groups — one keyed `nil`, one
+keyed `quarters` — from takes recorded either side of M14. That is the opposite of §7.24 step 1's
+rule for jams, and getting it right meant asking what the **player was told** rather than what the
+field held: `DrillInstructions.dropout(rung:)` returns the same text for `nil` and for
+`.quarters`, because this drill has demanded one note per beat in words since M6. So here an
+absent rung really is quarters, and grouping them apart would have invented a distinction never
+shown to anyone. A jam is the other way round — no rung means *play what you like*, which is a
+different task. `LESSONS.md` shape 13, both directions in one codebase, decided by R3.6 rather
+than by taste. There is a test asserting the two instruction texts are identical, so the day they
+diverge the grouping stops being justified and says so.
+
+### Two notes on method
+
+**The tempo drill was fixed although it splits nothing today.** Every tempo take on record targets
+100, so grouping changes its output not at all — and M14's ladder rotates tempo between sittings
+by design, so the confound is scheduled rather than hypothetical. Three sites out of four is how
+§7.20 finding 2 happened.
+
+**A test crashed the run while this was being written**, in exactly the shape §7.24 step 6
+recorded: `XCTAssertEqual` does not stop a test, so asserting a count and then subscripting turns
+one failure into an index trap that kills every test after it. Found only because the revert-check
+reported two passes and nothing else, which looked like the guards not firing. Suspect the probe
+(`LESSONS.md` shape 16) — the guards were fine and the harness was lying.
+
+### Not fixed here
+
+`review cold` (`WarmUpAnalysis`) pools the same way: it reported form's cold start "worsening
+−0.109/sitting" over takes spanning levels 0–2. It is a different function with a different
+grouping problem — its unit is the *sitting*, and splitting by level would leave almost no
+sitting with two comparable takes — so it needs a design decision rather than the same edit.
+Recorded here so the next reader does not take that verdict at face value.
 
 Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what
 make the numbers testable, and the rule that keeps them honest is that **anything analysable

@@ -103,8 +103,8 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 387 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (127 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 391 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (136 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -148,7 +148,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 514 tests, no hardware needed
+swift test                              # 527 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -395,10 +395,13 @@ Current as of 69 takes across 9 sittings — 27 jams, 12 form, 12 continuation, 
   recorded (4.2 ms). **The 8-bar figures moved in §7.25** — one of them was 40.7 / 20.9 and the
   other read 193.5 / 71.3, both inflated by a handful of hesitations feeding a variance. Anything
   quoting the old numbers is quoting the defect.
-- **`review trend`'s continuation clock SD must not be read yet.** It says "worsening"
-  (+1.32/take [+0.64, +3.05]) over a series that pools 2-, 4-, 8- and 16-bar silences, which the
-  line above says not to do. The fit warns about it instead of splitting; §7.25 records why that
-  is queued rather than done.
+- **Nothing in the drill trends is moving, and two "worsening" verdicts were retracted to get
+  there** (§7.27). `review trend` now fits one line per task instead of one line and a caveat:
+  the continuation clock SD was +1.32/take [+0.64, +3.05] *worsening* across pooled 2-, 4-, 8-
+  and 16-bar silences and is +2.05 [−1.03, +4.85] **flat** on the seven 4-bar takes; the form
+  on-form rate was −0.04/take [−0.07, −0.01] *worsening* across levels 0–2 and is −0.01
+  [−0.15, +0.10] **flat** at level 2 over 8-bar phrases. Both verdicts were the ladder, not the
+  player. Only three groups now have the three points a fit needs, which is the honest cost.
 - **"Runs ~5% slow unaccompanied" is dead.** The last two 16-bar continuation takes produced
   99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% and are still
   fitted flat; the −1.8% on 5 Aug was recorded *warm*, third in its sitting, and is not a fourth

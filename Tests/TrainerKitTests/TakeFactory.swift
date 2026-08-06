@@ -60,14 +60,16 @@ enum TakeFactory {
             rawVelocities: raw.map(\.velocity))
     }
 
-    static func form(marks: Int = 8, phraseBars: Int = 8, level: Int = 0) -> FormSession {
+    static func form(marks: Int = 8, phraseBars: Int = 8, level: Int = 0,
+                     dayOffset: Int = 0) -> FormSession {
         let g = grid(subdivisions: 4)
         let barSeconds = g.beatInterval * 4
         let markTimes = (0..<marks).map { g.startTime + Double($0 * phraseBars) * barSeconds + 0.01 }
         let r = FormAnalysis.analyze(markTimes: markTimes, grid: g, beatsPerBar: 4,
                                      barsPerPhrase: phraseBars, totalBars: 64)
         return FormSession(
-            date: Date(timeIntervalSince1970: 1_770_000_100), bpm: g.bpm, bars: 64,
+            date: Date(timeIntervalSince1970: 1_770_000_100 + Double(dayOffset) * 86_400),
+            bpm: g.bpm, bars: 64,
             phraseBars: phraseBars, level: level, feelRating: 3, gridStartTime: g.startTime,
             subdivisions: g.subdivisions, markTimes: markTimes, phrasesAvailable: r.phrasesAvailable,
             marksPlaced: r.marksPlaced, onFormCount: r.onFormCount, tightCount: r.tightCount,
@@ -79,17 +81,19 @@ enum TakeFactory {
             placement: placement(role: "training"), experiment: nil)
     }
 
-    static func dropout(_ p: Performance = .steady, cycles: Int = 4) -> DropoutSession {
+    static func dropout(_ p: Performance = .steady, cycles: Int = 4, silentBars: Int = 4,
+                        rung: IntervalRung? = nil, dayOffset: Int = 0) -> DropoutSession {
         let g = grid(subdivisions: 1)
         let session = DropoutSession(
-            date: Date(timeIntervalSince1970: 1_770_000_200), bpm: g.bpm, pacedBars: 4,
-            silentBars: 4, cycles: cycles, feelRating: 4, gridStartTime: g.startTime,
+            date: Date(timeIntervalSince1970: 1_770_000_200 + Double(dayOffset) * 86_400),
+            bpm: g.bpm, pacedBars: 4,
+            silentBars: silentBars, cycles: cycles, feelRating: 4, gridStartTime: g.startTime,
             subdivisions: g.subdivisions, tapTimes: p.taps(grid: g).map(\.time),
             pacedSDms: nil, unpacedIntervalSDms: nil, clockSDms: nil, motorSDms: nil,
             modelHolds: false, reentryErrorMeanMs: nil, reentryErrorSDms: nil,
             headline: "", tempoBiasBpm: nil, playedBpm: nil, splitIsReliable: nil,
             discardedTrials: nil, placement: placement(role: "training"), experiment: nil,
-            rung: nil, swingRatio: nil)
+            rung: rung?.rawValue, swingRatio: nil)
         // Recompute through the same path the engine uses, so the stored summary is the one the
         // analysis actually produces rather than a hand-written guess.
         let (t, gr, sections) = session.reconstruct()
@@ -108,28 +112,33 @@ enum TakeFactory {
             reentryErrorSDms: Stats.finite(r.reentryErrorSDms), headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: session.placement, experiment: nil, rung: nil, swingRatio: nil)
+            placement: session.placement, experiment: nil, rung: rung?.rawValue,
+            swingRatio: nil)
     }
 
-    static func tempo(rounds: Int = 4) -> TempoSession {
+    static func tempo(rounds: Int = 4, targets: [Double] = [100],
+                      dayOffset: Int = 0) -> TempoSession {
         let holdSeconds = 9.6
         let starts = (0..<rounds).map { 1_000 + Double($0) * 20 }
         return TempoSession(
-            date: Date(timeIntervalSince1970: 1_770_000_300), targets: [100], leadBars: 4,
+            date: Date(timeIntervalSince1970: 1_770_000_300 + Double(dayOffset) * 86_400),
+            targets: targets, leadBars: 4,
             holdBars: 4, rounds: rounds, feelRating: 3,
             tapTimes: starts.flatMap { start in (0..<16).map { start + Double($0) * 0.6 } },
-            roundTargets: Array(repeating: 100, count: rounds),
+            roundTargets: (0..<rounds).map { targets[$0 % targets.count] },
             roundHoldStarts: starts, roundHoldEnds: starts.map { $0 + holdSeconds },
             usableCount: rounds, meanErrorPercent: nil, meanAbsErrorPercent: nil,
             improvementPerRound: nil, headline: "", placement: placement(role: "cold"),
             experiment: nil, rung: nil)
     }
 
-    static func memory(rounds: Int = 4) -> MemorySession {
+    static func memory(rounds: Int = 4, retentionBars: Int = 4,
+                       dayOffset: Int = 0) -> MemorySession {
         let starts = (0..<rounds).map { 1_000 + Double($0) * 30 }
         return MemorySession(
-            date: Date(timeIntervalSince1970: 1_770_000_400), bpm: 100, referenceBars: 4,
-            retentionBars: 4, reproduceBars: 4, rounds: rounds, feelRating: 3,
+            date: Date(timeIntervalSince1970: 1_770_000_400 + Double(dayOffset) * 86_400),
+            bpm: 100, referenceBars: 4,
+            retentionBars: retentionBars, reproduceBars: 4, rounds: rounds, feelRating: 3,
             tapTimes: starts.flatMap { start in (0..<16).map { start + 10 + Double($0) * 0.6 } },
             roundConditions: (0..<rounds).map { $0 % 2 == 0 ? "silent" : "filled" },
             roundRetentionStarts: starts, roundRetentionEnds: starts.map { $0 + 9.6 },
