@@ -18,16 +18,6 @@ public enum BlockRole: String, Codable, Equatable, CaseIterable {
     case closing
     /// A take assigned to an experiment arm. Locked parameters, fixed slot — only the arm moves.
     case experiment
-    /// A deliberate look at a rung the player has **not** earned, run for the reading rather
-    /// than for the promotion.
-    ///
-    /// **A probe is not a rung, and the distinction is load-bearing rather than pedantic.** The
-    /// form planner picks the next level from the last take, so without this a single forced
-    /// level-3 take becomes the new floor and every later session plans level 3 while reporting
-    /// that the player is staying there until they clear 90% (§7.26). Anything that reads the
-    /// ladder's state must exclude these, and `SessionPlacement.role` is stored as a raw string
-    /// precisely so adding this case leaves every take on record decodable (R6.1).
-    case probe
 }
 
 // MARK: - Block parameters
@@ -360,16 +350,6 @@ public enum SessionPlanner {
     public static let benchmarkBars = 64
     public static let benchmarkTag = "benchmark"
     public static let closingTag = "closing"
-    /// The top of the form ladder — silence across the phrase boundary — proposed once as a
-    /// probe rather than waited for. See `probeBlock`.
-    public static let probeLevel = 3
-    /// Takes at one level before the planner stops waiting for the gate and probes the top.
-    ///
-    /// Four, because that is a month of sittings at this player's rate and long enough that
-    /// another take at the same level is worth less than one reading at the top. Checked
-    /// against the real history rather than reasoned to: twelve form takes, the last nine all
-    /// at level 2, so this fires and would have fired five takes ago.
-    public static let probeAfterHeldTakes = 4
 
     /// Rating plus the brief for the next block. Playing time alone would under-promise.
     public static let betweenBlockSeconds: Double = 25
@@ -979,67 +959,12 @@ public enum SessionPlanner {
                              + "landmarks thin out: level %d.", last.onFormRate * 100, next))
         }
 
-        // Stuck at a level is the only place a probe belongs.
-        //
-        // Level 3 — silence across the phrase boundary — is the level this drill was designed
-        // around and it has never run. Not because it was locked: the app's picker offers every
-        // level and the CLI takes one as an argument. It has never run because nothing ever
-        // *proposed* it, and the gate above needs 90% where the player sits at 75% (§7.26).
-        //
-        // It comes **after** every other rule on purpose. A player about to be promoted should
-        // be promoted — an earned level is worth more than a probed one — and a player whose
-        // phrase length is moving has a confound to settle first. This fires only where the
-        // planner would otherwise have said "stay where you are" for the Nth time running,
-        // which is the situation the probe is an answer to.
-        if let probe = probeBlock(earned: recent, all: input.forms, sizes: sizes, last: last) {
-            return probe
-        }
-
         return SessionBlock(
             role: .training,
             plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars,
                                  phraseBars: last.phraseBars, level: last.level)),
             reason: String(format: "%.0f%% on form last time — stay at level %d until it is "
                          + "above 90%% with nothing unmarked.", last.onFormRate * 100, last.level))
-    }
-
-    /// One deliberate look at the top of the ladder, or `nil`.
-    ///
-    /// Two preconditions:
-    ///
-    /// - **Level 3 has never been played.** One reading is the point; a second is a rung, and
-    ///   rungs are earned.
-    /// - **The level has not moved for `probeAfterHeldTakes` takes.** "Stuck" measured rather
-    ///   than assumed. Wired against the real history before the number was believed
-    ///   (`LESSONS.md` shape 11): twelve takes, the last nine all at level 2.
-    ///
-    /// A third was written and then removed, which is worth recording because the reasoning for
-    /// it was good and the data disagreed. It required the last take to leave no phrase unmarked
-    /// — the promotion gate's own condition — on the argument that a player losing the thread
-    /// with the band playing learns nothing from the band going away. On the real history it
-    /// **never fires**: the takes that make the player stuck at level 2 are exactly the ones
-    /// with unmarked phrases, so the probe would only ever have been offered to someone about to
-    /// be promoted anyway. Borrowing the gate's precondition re-imposes most of the gate, and
-    /// the probe exists because the gate will not get there (§7.26).
-    private static func probeBlock(earned: [PlannerInput.Form], all: [PlannerInput.Form],
-                                   sizes: Sizes, last: PlannerInput.Form) -> SessionBlock? {
-        guard last.level < probeLevel,
-              !all.contains(where: { $0.level >= probeLevel }),
-              earned.suffix(probeAfterHeldTakes).count >= probeAfterHeldTakes,
-              earned.suffix(probeAfterHeldTakes).allSatisfy({ $0.level == last.level })
-        else { return nil }
-
-        return SessionBlock(
-            role: .probe,
-            // Only the level moves. The phrase length stays where it was earned, so the take
-            // answers one question instead of two — the same rule M16's two axes are built on.
-            plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars,
-                                 phraseBars: last.phraseBars, level: probeLevel)),
-            reason: "Level \(probeLevel) has never been played, and \(probeAfterHeldTakes) takes "
-                  + "running at level \(last.level) say the gate is not going to get you there. "
-                  + "This is a probe, not a promotion — the band goes silent across the turn, "
-                  + "and however it goes the ladder stays at level \(last.level). One reading at "
-                  + "the top is worth more than another take in the middle.")
     }
 
     private static func mean(_ x: [Double]) -> Double? {

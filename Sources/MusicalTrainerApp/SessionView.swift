@@ -351,9 +351,6 @@ func roleLabel(_ role: BlockRole) -> String {
     case .training:  return "training"
     case .closing:   return "playing"
     case .experiment: return "experiment"
-    // Named for what it is on screen too. A block labelled "training" at a level the player
-    // has not earned reads as a promotion, which is the thing the role exists to prevent.
-    case .probe:     return "probe"
     }
 }
 

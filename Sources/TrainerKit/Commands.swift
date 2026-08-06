@@ -341,7 +341,8 @@ public enum Commands {
     // MARK: - M4 jam
 
     public static func runJam(bpm: Double, bars: Int, tag: String?, rung: String? = nil,
-                              swing: String? = nil) throws {
+                              swing: String? = nil,
+                              flags: CommandFlags = CommandFlags()) throws {
         Console.heading("Jam — record a take")
 
         let prescribed = try parseRung(rung)
@@ -390,6 +391,7 @@ public enum Commands {
             }
         }
         printInstructions(DrillInstructions.jam(rung: prescribed, feel: swingFeel))
+        announceProbe(flags)
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runJam(config)
@@ -400,7 +402,7 @@ public enum Commands {
         reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
                      events: outcome.eventCount, uncalibrated: !env.isCalibrated,
                      grid: outcome.analysisGrid, offbeat: nil)
-        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        let url = try TrainerEngine.save(outcome, feelRating: feel, wasProbe: flags.isProbe)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
     }
 
@@ -806,13 +808,13 @@ public enum Commands {
             // A probe is marked in the ladder it is not part of. Without this a level the
             // player was handed for one take reads as a level they climbed to, which is the
             // whole confusion the role exists to prevent (§7.26).
-            let probe = s.placement?.role == BlockRole.probe.rawValue
+            let probe = s.wasProbe == true
             let level = probe ? "\(s.level)*" : "\(s.level)"
             print("\(pad(dateLabel(s.date), 22))\(pad(level, 5))"
                 + "\(pad("\(s.phraseBars) bars", 8))\(pad(onForm, 10))\(pad(tight, 9))\(slip)")
         }
         print("\n\(Console.dim)\"nailed\" = on the right bar AND close to the downbeat.\(Console.reset)")
-        if sessions.contains(where: { $0.placement?.role == BlockRole.probe.rawValue }) {
+        if sessions.contains(where: { $0.wasProbe == true }) {
             print("\(Console.dim)* a probe — a level run for the reading, not one you earned. "
                 + "The ladder ignores these.\(Console.reset)")
         }
@@ -1119,7 +1121,8 @@ public enum Commands {
     // MARK: - Offbeat drill
 
     /// M15: hold the chop between the beats while the beat itself disappears.
-    public static func runOffbeat(bpm: Double, bars: Int, level rawLevel: Int) throws {
+    public static func runOffbeat(bpm: Double, bars: Int, level rawLevel: Int,
+                                  flags: CommandFlags = CommandFlags()) throws {
         Console.heading("Offbeat drill — hold the chop between the beats")
         guard let level = OffbeatLevel(rawValue: rawLevel) else {
             throw SpikeError("Level must be 0–\(OffbeatLevel.allCases.count - 1): "
@@ -1136,6 +1139,7 @@ public enum Commands {
             + "\(level.label)\(Console.reset)"
             + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
         printInstructions(DrillInstructions.offbeat(level: level))
+        announceProbe(flags)
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runJam(config)
@@ -1146,8 +1150,17 @@ public enum Commands {
                      events: outcome.eventCount, uncalibrated: !env.isCalibrated,
                      grid: outcome.analysisGrid,
                      offbeat: OffbeatContext(report: offbeat, level: level))
-        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        let url = try TrainerEngine.save(outcome, feelRating: feel, wasProbe: flags.isProbe)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
+    }
+
+    /// Said before the take, not after. A probe is stored differently and read differently, and
+    /// a player who did not mean to run one should find out while they can still stop.
+    private static func announceProbe(_ flags: CommandFlags) {
+        guard flags.isProbe else { return }
+        Console.warn("Probe: this take is recorded as a deliberate look at a setting you have "
+            + "not earned. Nothing that decides what to practise next will read it, and it "
+            + "cannot move a ladder.")
     }
 
     /// Where the notes went, and — separately — how tightly.
@@ -1679,7 +1692,8 @@ public enum Commands {
     // MARK: - Form drill
 
     /// Landmark strength for the form drill — how much the music tells you where you are.
-    public static func runForm(bpm: Double, bars: Int, phraseBars: Int, level rawLevel: Int) throws {
+    public static func runForm(bpm: Double, bars: Int, phraseBars: Int, level rawLevel: Int,
+                               flags: CommandFlags = CommandFlags()) throws {
         Console.heading("Form drill — feel the phrase")
         guard let level = FormLevel(rawValue: rawLevel) else {
             throw SpikeError("Level \(rawLevel) out of range (0–3).")
@@ -1693,6 +1707,7 @@ public enum Commands {
             + String(format: "~%.1f min", config.durationSeconds / 60))
         print("Landmarks: \(level.label)")
         printInstructions(DrillInstructions.form(level: level.rawValue))
+        announceProbe(flags)
         if level.hasArrivalAccent {
             print("\n  \(Console.dim)At this level a crash cymbal lands exactly on the beat you are\n"
                 + "  aiming for — including the very first bar. Land with it, not after it.\(Console.reset)")
@@ -1704,7 +1719,7 @@ public enum Commands {
         let outcome = try TrainerEngine.runForm(config)
         let feel = Console.readRating("\nHow did that feel?")
         reportForm(outcome.report, level: level, keyNotes: outcome.notesPlayed)
-        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        let url = try TrainerEngine.save(outcome, feelRating: feel, wasProbe: flags.isProbe)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
     }
 

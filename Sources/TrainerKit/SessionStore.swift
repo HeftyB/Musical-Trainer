@@ -126,6 +126,15 @@ struct JamSession: Codable, StoredTake {
     /// Which experiment and arm, when this take was played as part of one. Written since M13;
     /// nothing reads it yet. See `ExperimentAssignment`.
     let experiment: ExperimentAssignment?
+    /// True when this take was deliberately run at a setting the player had **not** earned —
+    /// a probe, launched with `--probe` for the reading rather than for the promotion.
+    ///
+    /// The whole point is that nothing which decides what to practise next may read one. The
+    /// form planner picks the next level from the last take and the ladder picks the next rung
+    /// from the highest played, so without this a single test take at the top becomes the floor
+    /// (§7.26). Optional, so every take recorded before the flag existed still decodes; absent
+    /// means an ordinary take, which every one of them was.
+    let wasProbe: Bool?
 
     // Every note-on in the window, before chord clustering: pitch, velocity, time.
     //
@@ -257,6 +266,15 @@ struct FormSession: Codable, StoredTake {
     /// Which experiment and arm, when this take was played as part of one. Written since M13;
     /// nothing reads it yet. See `ExperimentAssignment`.
     let experiment: ExperimentAssignment?
+    /// True when this take was deliberately run at a setting the player had **not** earned —
+    /// a probe, launched with `--probe` for the reading rather than for the promotion.
+    ///
+    /// The whole point is that nothing which decides what to practise next may read one. The
+    /// form planner picks the next level from the last take and the ladder picks the next rung
+    /// from the highest played, so without this a single test take at the top becomes the floor
+    /// (§7.26). Optional, so every take recorded before the flag existed still decodes; absent
+    /// means an ordinary take, which every one of them was.
+    let wasProbe: Bool?
 
     /// Re-analyse from the stored marks, like the other drills, so an analysis fix reaches
     /// takes recorded before it. Everything the analysis needs is stored: tempo, grid origin,

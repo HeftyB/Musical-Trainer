@@ -4037,50 +4037,62 @@ The alternative — infer it from the level being above the earned one — is th
 defect of R3.3.1: three readouts would each have to remember the rule, and §7.20 finding 2 is
 what happens when two of three do.
 
-### The probe, as built
+### The probe, as built — in the CLI, not in the planner
 
-`BlockRole.probe`, and the form planner proposes level 3 exactly once. Nine tests.
+**The first version put the rule in the planner and that was the wrong place.** It proposed level
+3 once the player had been held four takes at one level, which worked and was tested, and it was
+still a testing affordance living in the business logic: a rule that changes what the app
+recommends, built to get one reading. The planner's job is to decide what to practise, and it now
+has an opinion about a level nobody earned.
 
-**It comes last among the form rules, not first.** The first version put it ahead of everything
-and it hijacked the form block in five existing planner tests — correctly, because a rule that
-fires whenever level 3 is unplayed makes the probe the *default* rather than a one-off. An earned
-promotion is worth more than a probed reading, and a moving phrase length is a confound to settle
-first, so the probe now replaces only the fallback: the branch that says *"stay where you are"*
-for the Nth time running. That is the situation it is an answer to.
+So the rule is gone and the capability moved to where testing belongs. `--probe`, on any drill:
 
-**A precondition was written, and the data threw it out.** The draft also required the last take
-to leave no phrase unmarked — the promotion gate's own condition — reasoning that a player losing
-the thread with the band playing learns nothing from the band going away. Run against the real
-history it **never fires**: the takes that make him stuck at level 2 are exactly the ones with
-unmarked phrases. Borrowing the gate's precondition re-imposes most of the gate, and the probe
-exists because the gate will not get there. `LESSONS.md` shape 11, caught by wiring the readout
-to real data rather than by argument — the rule now has two preconditions instead of three.
+```sh
+TimingSpike form 100 64 8 3 --probe
+TimingSpike offbeat 100 32 3 --probe
+TimingSpike jam 100 32 test sixteenths --probe
+```
 
-What remains: level 3 never played, and `probeAfterHeldTakes` = 4 takes running at one level.
-Four because it is about a month of sittings at this player's rate; checked against the history
-before it was believed, where the last nine takes are all level 2, so it fires and would have
-fired five takes ago.
+Level 3 was never locked — both surfaces have always offered it — so nothing new is reachable.
+What is new is that the take is **recorded as a probe**, and that is the part that matters.
 
-`session plan 30` on the real store now yields:
+#### Why the marker is the whole feature
 
-> **7. Form** — *probe · level 3 · 4-bar phrases* — "Level 3 has never been played, and 4 takes
-> running at level 2 say the gate is not going to get you there. This is a probe, not a
-> promotion — the band goes silent across the turn, and however it goes the ladder stays at
-> level 2."
+Without it, running the test take by hand walks straight into the trap the planner rule was
+invented to dodge. The form rule picks the next level from the last take and `nextRung` promotes
+one step from the highest rung ever played, so a level-3 form take or a sixteenths jam run for
+curiosity becomes the ladder's new floor. Every later session then plans it and reports that the
+player is staying there until they clear 90%. Reverting the storage wiring reproduces exactly
+that.
 
-**Only the level moves.** Phrase length stays where it was earned, so the take answers one
-question rather than two — the rule M16's two axes are built on.
+`wasProbe` is stored on jam and form takes, optional so every take on record still decodes, and
+absent means an ordinary take — which all of them were. It is the single source: `PlannerInput`
+reads it when building both the form history and the ladder history, and `review form` marks a
+probe `*` with a footnote so a level in the history that was never climbed to cannot read as
+progress.
 
-#### The trap, reproduced and closed
+**Not a session role.** The draft used `BlockRole.probe` and a fabricated one-take placement, and
+that would have fragmented `review cold`: sittings are inferred from 45-minute gaps between
+takes, so a CLI probe carrying its own session id would split itself out of the sitting it was
+actually played in while every other CLI take stayed grouped. One stored flag, no invented
+session, and the enum case is gone rather than left dead.
 
-Reverting the `wasProbe` filter and re-running the suite produces the predicted failure word for
-word: after a probe scoring 20%, the next session plans *"20% on form last time — stay at level 3
-until it is above 90% with nothing unmarked."* A take handed to the player for one reading had
-become the level they were held at. Four tests fail on that revert, including the felt-period rule
-reading a probe's marked period as evidence about the player.
+#### The flag parser
 
-`review form` marks probes with `*` and a footnote, because a level in the ladder history that was
-never climbed to is the same confusion in a different place.
+`CommandFlags.parse` splits flags from positional arguments before anything reads them, so
+`--probe` may sit anywhere on the line and every positional default keeps counting from zero. It
+is a pure function for the usual reason — every drill command opens an audio device and waits, so
+argument handling that lives inside one cannot be tested (§7.22, and §7.24 step 5, where checking
+an argument started a real take from a shell).
+
+**An unknown flag is refused, not ignored.** A mistyped `--porbe` that quietly ran an ordinary
+take would record it as earned, which is the corruption the flag exists to prevent arriving
+through a typo. The parse also happens *inside* the top-level `catch`: outside it, the refusal
+arrived as a Swift crash dump rather than a sentence, which is how the first version shipped for
+about a minute.
+
+The GUI is untouched. A probe is a testing affordance, the app is for playing, and nothing about
+this appears on a screen the player uses.
 
 ### What this does not settle
 
