@@ -85,6 +85,18 @@ expect_empty "no cached summary field is read outside SessionStore" \
 expect_empty "only tests redirect the session store" \
     grep -rn 'directoryOverride *=' Sources --include='*.swift'
 
+# What a take is *scored* on and what the music is *authored* at are different quantities that
+# happened to be the same number — both 4 — for the whole life of the project, so no test can
+# tell them apart (LESSONS.md shape 9, a constant that happens to match). M19 re-voices every
+# pattern onto a 24-step grid; reading the analysis grid off a pattern would silently re-score
+# all thirty takes on record. A grep is the only guard that can bite before that lands.
+# GrooveCore *must* read it — it is the sequencer. The rule is that the measurement layer must
+# not: TrainerKit decides what a take is scored on, and that decision may not come from how the
+# drums happen to be written. Comment lines are excluded so the doc comment explaining this rule
+# does not trip it.
+expect_empty "the analysis grid is never read off a pattern's step resolution" \
+    bash -c "grep -rn '\.stepsPerBeat' Sources/TrainerKit --include='*.swift' | grep -vE ':[[:space:]]*(///|//)'"
+
 # ── 4. Privacy and supply chain (STANDARDS §7) ───────────────────────────────────
 head2 "Privacy and supply chain"
 

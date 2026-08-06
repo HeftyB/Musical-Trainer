@@ -4223,6 +4223,88 @@ reproduces both original gaps.
 
 ---
 
+## 7.29 M19 — musical depth
+
+§7.13 asked for *"sectional arrangements with real dynamics, more styles, longer forms. No new
+measurement."* That is right and it is not sufficient, because the thing being asked for —
+**variety** — is the thing §2's invariant table names as having corrupted a finding: a changed
+backing once produced a "real" 8 ms spread change that was partly just different music.
+
+So the milestone is not "write more patterns". It is **make the music unbounded where nothing
+longitudinal is read and byte-identical where it is, and make the difference structural rather
+than something anyone has to remember.**
+
+| Slot | Role | Music |
+|---|---|---|
+| Cold probe, benchmark jam, experiment arms | `cold`, `benchmark`, `experiment` | Frozen, for ever (R3.5) |
+| Training blocks, closing jam, Play, free CLI jams | `training`, `closing`, none | Deep |
+
+### Settled with the player, 6 August
+
+- **Four styles to start**, with the framework built to take more — rock, motown/soul, funk,
+  half-time — then one per sitting. A batch of ten is a batch nobody auditions properly.
+- **The bass is rhythmic only** for now: root and fifth, locking with the kick. Harmony is not a
+  smaller version of this problem, it is a different one — key, chord progression, voice leading,
+  and what any of it means for a *timing* trainer — so it becomes **its own milestone** rather
+  than being smuggled in as a parameter. The framework laid here has to accept it without rework:
+  that is what `Hit.note` being optional and per-hit is for.
+- **The closing jam rotates its style between sittings and keeps one seed within a sitting**, so
+  an evening has a single musical identity and the next evening is new. Variety across sittings,
+  an earworm inside one.
+
+### Unbounded material from bounded authoring
+
+Styles are authored — kick and snare skeleton, hat or ride behaviour, a bass figure, a fill
+vocabulary, an intensity map. **Arrangements are generated** from `(style, seed, bars, intensity)`
+using `GrooveCore`'s seeded RNG (R1.2.1), and **the seed is stored on the take**: `grooveName`
+becomes `style@seed`. That is what makes the approach permissible rather than reckless — R1.2.2
+holds, the exact backing is reconstructible from stored data for ever, `render` can reproduce any
+take's music, and `TakeAxis` still sees two seeds of one style as honestly different music.
+
+**Variation is in what fires and how hard, never in when.** The backing is the ruler the player
+is measured against, so there is no jitter parameter, no groove template and no humanisation
+anywhere in the generator. A hit's sample position comes from the grid and the feel and from
+nothing else. It would sound better, which is exactly what makes it dangerous.
+
+### Step 0, as built — the scoring grid stops being a property of the drums
+
+```swift
+return rung?.subdivisions ?? backing.arrangement.stepsPerBeat   // before
+return rung?.subdivisions ?? Self.freePlayingSubdivisions       // after
+```
+
+**The grid a free jam was scored on was a property of the music.** `jamBacking` is programmed at
+four steps per beat, so twenty-six of the thirty takes on record are analysed on a sixteenth grid
+for that reason and no other. Step 1 re-voices every pattern onto a twenty-four-step grid so that
+binary and ternary can share an arrangement — and that would have silently re-scored the entire
+history.
+
+This is `LESSONS.md` shape 10, one word with two meanings, **still live after §7.23 found and
+fixed four instances of it**: the distinction between what content is *authored* at and what a
+player is *scored* against was drawn for `LadderBackings` and never carried back to this
+fallback. Four fixes and a doc comment about the distinction were not enough; the fifth instance
+sat in the default branch of the same expression.
+
+Fifteen readouts captured before and after — `review list`, `trend`, `interval`, `dropout`,
+`feel`, `tags`, `form`, `cold`, `selftest` and six individual takes — are **byte-identical**,
+which is the whole claim of this step.
+
+#### No test can prove this one, and saying so is the point
+
+Both quantities are 4 today. Reverting the change moves no observable value, so every assertion
+in `FreePlayingGridTests` still passes against the defect — `LESSONS.md` shape 9, a constant that
+happens to match, and the reason the first revert-check came back green and looked like success.
+
+The real guard is therefore in `check.sh`: nothing in `TrainerKit` may read a pattern's
+`stepsPerBeat` at all. `GrooveCore` must — it is the sequencer — so the rule is scoped to the
+measurement layer, and comment lines are excluded so the doc comment explaining the rule does not
+trip it. Verified by planting the old expression and watching the gate report FAIL (R5.7).
+
+The tests hold the *value* rather than the decoupling, and they start proving the decoupling by
+themselves the moment step 1 makes the two numbers differ.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what
