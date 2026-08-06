@@ -88,6 +88,13 @@ public enum TrainerEngine {
         /// that only marks beats, the player is really being asked to subdivide from memory.
         var backing: (name: String, arrangement: Arrangement) {
             guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking) }
+            // A feel gets its own groove, not the straight one with warped timing. Warping alone
+            // leaves every loud event on an even grid and the feel inaudible — see
+            // `LadderBackings.swungPattern`.
+            guard feel.isStraight || !feel.applies(toSubdivisions: rung.subdivisions) else {
+                return ("ladder-\(rung.rawValue)-swung",
+                        LadderBackings.swungBacking(notesPerBeat: rung.subdivisions))
+            }
             return ("ladder-\(rung.rawValue)",
                     LadderBackings.backing(notesPerBeat: rung.subdivisions))
         }

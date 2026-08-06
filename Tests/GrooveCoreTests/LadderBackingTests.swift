@@ -151,6 +151,70 @@ final class LadderBackingTests: XCTestCase {
         }
     }
 
+    // MARK: A swung groove has to be heard as swung
+
+    /// **Every** swung position carries a ghost, not only the ones before a backbeat.
+    ///
+    /// Marking two of the four made the feel alternate across the bar — one half shuffling, the
+    /// next reading straight — which measured better than nothing and sounded worse than uniform.
+    func testEverySwungPositionIsMarked() {
+        for notesPerBeat in [2, 4] {
+            let groove = LadderBackings.swungPattern(notesPerBeat: notesPerBeat)
+            let perBeat = groove.stepsPerBeat
+            let offStep = perBeat / 2
+
+            for beat in 0..<groove.beatsPerBar {
+                let step = beat * perBeat + offStep
+                XCTAssertTrue(groove.hits.contains { $0.voice == .snare && $0.step == step },
+                              "\(notesPerBeat)/beat: nothing marks the swung note of beat \(beat + 1)")
+            }
+        }
+    }
+
+    /// The framework has to sit back or the shuffle layer is buried under it. Velocity on the hat
+    /// alone cannot close the gap — the synth's hat peaks about 2.3x below its kick, and the top
+    /// of the velocity range buys 1.27x over 100.
+    func testTheKickAndSnareSitBackAndTheHatComesForward() {
+        let groove = LadderBackings.swungPattern(notesPerBeat: 2)
+        let frame = groove.hits.filter { ($0.voice == .kick || $0.voice == .snare) && $0.velocity > 70 }
+        XCTAssertTrue(frame.isEmpty, "the framework must not be at full velocity: \(frame)")
+
+        let hats = groove.hits.filter { $0.voice == .closedHat }
+        XCTAssertTrue(hats.allSatisfy { $0.velocity >= 120 }, "\(hats.map(\.velocity))")
+    }
+
+    /// The skeleton is otherwise untouched — kick on 1 and 3, backbeat on 2 and 4 — so a swung
+    /// take and a straight one differ in feel rather than in groove (§7.23 step 2).
+    func testTheSkeletonSurvivesTheSwing() {
+        for notesPerBeat in [2, 4] {
+            let groove = LadderBackings.swungPattern(notesPerBeat: notesPerBeat)
+            let perBeat = groove.stepsPerBeat
+            let kicks = groove.hits.filter { $0.voice == .kick }.map { $0.step / perBeat }.sorted()
+            let backbeats = groove.hits.filter { $0.voice == .snare && $0.velocity > 60 }
+                .map { $0.step / perBeat }.sorted()
+
+            XCTAssertEqual(kicks, [0, 2], "\(notesPerBeat)/beat")
+            XCTAssertEqual(backbeats, [1, 3], "\(notesPerBeat)/beat")
+        }
+    }
+
+    /// A rung with no binary pair cannot swing, so the swung groove is the straight one rather
+    /// than a marker invented for a feel that does not apply.
+    func testANonBinaryRungGetsTheStraightGrooveBack() {
+        for notesPerBeat in [1, 3] {
+            XCTAssertEqual(LadderBackings.swungPattern(notesPerBeat: notesPerBeat),
+                           LadderBackings.pattern(notesPerBeat: notesPerBeat),
+                           "\(notesPerBeat)/beat has no pair to swing")
+        }
+    }
+
+    /// And the straight backings are untouched, so every recorded take still played what it played.
+    func testTheStraightBackingsAreUnchangedByAnyOfThis() {
+        XCTAssertEqual(LadderBackings.pattern(notesPerBeat: 2), LadderBackings.eighths)
+        XCTAssertEqual(LadderBackings.pattern(notesPerBeat: 4), LadderBackings.sixteenths)
+        XCTAssertTrue(LadderBackings.eighths.hits.allSatisfy { $0.velocity == 100 })
+    }
+
     /// The ladder must not have moved the backing every recorded take was played over.
     func testTheExistingJamBackingIsUntouched() {
         XCTAssertEqual(GrooveLibrary.jamBacking.stepsPerBeat, 4)

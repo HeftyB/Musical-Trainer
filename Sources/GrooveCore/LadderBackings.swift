@@ -94,6 +94,70 @@ public enum LadderBackings {
         }
     }
 
+    /// A groove built to be *heard* as swung, not merely timed as swung.
+    ///
+    /// Warping a straight backing is necessary and not sufficient, which the first swung renders
+    /// showed plainly. With the kick on 1 and 3 and the snare on 2 and 4, every loud event sits
+    /// on a rigidly even grid and the only thing carrying the feel is the hi-hat — measured at
+    /// **8 dB below** the kick. The ear locks to the even framework and hears the displaced hats
+    /// as slightly loose rather than as a shuffle. The player's verdict on those renders was that
+    /// they "sound like straight time", and the timing was exactly right the whole time.
+    ///
+    /// So a feel gets a groove of its own (§7.13: *"backings per feel, since a swing drill over
+    /// a straight-eighths backing teaches the wrong thing"*). Two changes, both aimed at putting
+    /// weight on a swung position:
+    ///
+    /// - **The kick and snare sit back and the hat comes forward.** Velocity on the hat alone
+    ///   cannot close the gap: the synth's hat peaks around 2.3× quieter than its kick, and
+    ///   velocity 127 buys only 1.27× over 100. The framework has to come down for the shuffle
+    ///   layer to be the foreground, so kick and snare drop to 70 and the hats go to the top.
+    /// - **A ghost snare on the swung eighth before each backbeat.** The most recognisable
+    ///   shuffle marker, and weight on a swung position rather than only on the even grid.
+    ///
+    /// The skeleton is otherwise untouched: kick on 1 and 3, backbeat on 2 and 4, exactly as
+    /// every other rung (§7.23 step 2). Only what carries the *feel* is added.
+    ///
+    /// - Parameter notesPerBeat: the **rung's** subdivision. Only binary rungs can swing.
+    public static func swungPattern(notesPerBeat: Int) -> Pattern {
+        let base = pattern(notesPerBeat: notesPerBeat)
+        // Only a binary division has a pair to swing. Triplets are what swing borrows from, and
+        // an undivided beat has nothing between its notes — for either, the swung groove is the
+        // straight one, so nothing here invents a marker for a feel that does not apply.
+        guard notesPerBeat > 1, notesPerBeat & (notesPerBeat - 1) == 0 else { return base }
+        let perBeat = base.stepsPerBeat
+        let offStep = perBeat / 2                       // the swung member of each pair
+
+        var hits = base.hits.filter { $0.voice != .closedHat }
+
+        // Hats on every point of the division, accented on the beat.
+        let hatStride = perBeat / notesPerBeat
+        hits = hits.map { Hit(voice: $0.voice, step: $0.step, velocity: 70) }
+        for step in stride(from: 0, to: base.stepsPerBar, by: hatStride) {
+            let onBeat = step % perBeat == 0
+            // Barely accented. A pronounced accent on the beat reinforces the even framework,
+            // which is the thing being fought.
+            hits.append(Hit(voice: .closedHat, step: step, velocity: onBeat ? 127 : 120))
+        }
+        // A ghost snare on **every** swung position, not only before the backbeats. Marking two
+        // of the four made the feel alternate across the bar — one half shuffling, the next half
+        // reading straight — which is worse than marking none. Uniform is the point: the player
+        // needs the division to be unmistakable everywhere, not to be inferred half the time.
+        for beat in 0..<base.beatsPerBar {
+            hits.append(Hit(voice: .snare, step: beat * perBeat + offStep, velocity: 58))
+        }
+        return Pattern(stepsPerBar: base.stepsPerBar, stepsPerBeat: perBeat, hits: hits)
+    }
+
+    /// A full swung backing, laid out like `backing(notesPerBeat:)`.
+    public static func swungBacking(notesPerBeat: Int) -> Arrangement {
+        let groove = swungPattern(notesPerBeat: notesPerBeat)
+        let capped = fill(notesPerBeat: notesPerBeat)
+        return Arrangement(sections: [
+            Section(name: "A", pattern: groove, bars: 8, fill: capped),
+            Section(name: "B", pattern: groove, bars: 8, fill: capped),
+        ], loop: true)
+    }
+
     /// A count-in bar that **states the rung**: the hat line alone, no kick and no backbeat.
     ///
     /// The count-in is where the drill says what it is asking for, in the only language that

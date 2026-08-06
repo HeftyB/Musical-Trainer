@@ -3376,6 +3376,46 @@ failure on untouched code. Same cause each time — a stored property added to a
 documented in `AGENT.md`; the lesson from the third instance is to clean *proactively* after such
 a change rather than waiting for a confusing failure to prompt it.
 
+#### The renders sounded straight, and the timing was right the whole time
+
+The first swung backings came back from the player as *"they do not have that swing feel, sounds
+like straight time"*. The timing was exact — hats at 0.000, 0.400, 0.600, 1.000 for 2:1 at
+100 BPM, and near-silent at the straight 0.300. **The fault was voicing.**
+
+| | off-beat against the framework |
+|---|---|
+| straight backing (for reference) | −8.8 dB |
+| swung, as first shipped | **−7.9 dB** |
+| after | **−2.1 dB**, uniform across all four positions |
+
+With the kick on 1 and 3 and the snare on 2 and 4, every loud event sat on a rigidly even 600 ms
+grid, and the only thing carrying the feel was a hi-hat 8 dB down. The ear locks to the even
+framework and hears the displaced hats as *slightly loose* rather than as a shuffle. §7.13 said
+backings per feel; the timing warp was half of that and the groove was the other half.
+
+**Three attempts, and the first two were reasoning rather than measuring:**
+
+1. Ghost snare before each backbeat, plus authentic ride accents — strong on the beat, light off
+   it. **−7.5 dB: almost nothing.** The accent pattern *reinforced* the even framework, which is
+   the thing being fought, and the ghosts marked only two of the four swung positions.
+2. Kick and snare back to 70, hats to the top of the range. −5.0 dB, and now the marked and
+   unmarked halves of the bar felt different — one half shuffling, the next reading straight.
+   Measurably better and musically worse.
+3. A ghost on **every** swung position. −2.1 dB and uniform.
+
+The constraint that forced the framework down is measurable rather than aesthetic: the synth's
+hat peaks about **2.3× below its kick**, and velocity 127 buys only 1.27× over 100. Velocity on
+the hat alone cannot close the gap.
+
+**A 4:3 option was dropped from the picker.** At 100 BPM it sits 20 ms from straight, and the
+player could not distinguish it from either neighbour. Three choices — straight, 3:2, 2:1 — are
+each audibly distinct. The ratio stays continuous in the model, because measuring what he
+actually produces needs it; only the offered choices are coarse.
+
+**Still unverified: whether it now reads as a shuffle.** The measurement says the swung note is
+no longer buried; only an ear can say whether that is enough, and the planner still schedules
+nothing swung until one has been played (R5.6).
+
 ### What this cannot verify
 
 The clock bridge is untouched, so `selftest` remains the arbiter of the maths. But the ladder

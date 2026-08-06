@@ -359,8 +359,13 @@ final class AppModel: ObservableObject {
     }
 
     /// The ratios offered, each labelled in the words a player would use.
+    /// Three, all audibly distinct. A 4:3 option sat 20 ms from straight at 100 BPM and the
+    /// player could not tell it apart from either neighbour — false precision in a picker whose
+    /// job is to let him choose a feel he can hear. The ratio stays continuous in the model,
+    /// because measuring what he actually produces needs it; only the offered choices are
+    /// coarse.
     static let swingChoices: [(ratio: Double, label: String)] = [
-        (1, "Straight"), (1.33, "Barely (4:3)"), (1.5, "Shuffle (3:2)"), (2, "Swung (2:1)"),
+        (1, "Straight"), (1.5, "Shuffle (3:2)"), (2, "Swung (2:1)"),
     ]
 
     /// Drop a swing the chosen rung cannot carry, so the picker and the take never disagree.

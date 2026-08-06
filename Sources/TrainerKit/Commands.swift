@@ -1078,10 +1078,12 @@ public enum Commands {
              ("triplet-eighths", .tripletEighths, .straight, LadderBackings.backing(notesPerBeat: 3)),
              ("sixteenths", .sixteenths, .straight, LadderBackings.backing(notesPerBeat: 4)),
              ("eighths-swung-1.5", .eighths, Feel(swingRatio: 1.5) ?? .straight,
-              LadderBackings.backing(notesPerBeat: 2)),
-             ("eighths-swung-2.0", .eighths, .swung, LadderBackings.backing(notesPerBeat: 2)),
+              LadderBackings.swungBacking(notesPerBeat: 2)),
+             ("eighths-swung-2.0", .eighths, .swung, LadderBackings.swungBacking(notesPerBeat: 2)),
+             ("eighths-swung-3.0", .eighths, Feel(swingRatio: 3) ?? .straight,
+              LadderBackings.swungBacking(notesPerBeat: 2)),
              ("sixteenths-swung-1.5", .sixteenths, Feel(swingRatio: 1.5) ?? .straight,
-              LadderBackings.backing(notesPerBeat: 4)),
+              LadderBackings.swungBacking(notesPerBeat: 4)),
              ("jam-backing", nil, .straight, GrooveLibrary.jamBacking)]
 
         print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
