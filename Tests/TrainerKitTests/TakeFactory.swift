@@ -39,7 +39,11 @@ enum TakeFactory {
         let r = TimingAnalysis.analyze(taps: events, grid: g)
         return JamSession(
             date: Date(timeIntervalSince1970: 1_770_000_000), bpm: g.bpm, device: "test-device",
-            calibrationConstantMs: 2.58, calibrationSource: "measured", grooveName: "jamBacking",
+            calibrationConstantMs: 2.58, calibrationSource: "measured",
+            // The name the engine would have written, not a literal: an offbeat take is stored
+            // under its backing, and a test that says "jamBacking" cannot see a confound the
+            // real take carries.
+            grooveName: offbeatLevel.map { "offbeat-\($0)" } ?? "jamBacking",
             bars: bars, subdivisions: g.subdivisions, rung: rung?.rawValue,
             swingRatio: feel.isStraight ? nil : feel.swingRatio,
             offbeatLevel: offbeatLevel, tag: tag, feelRating: 4,

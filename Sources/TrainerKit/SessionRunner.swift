@@ -137,6 +137,23 @@ public final class SessionRunner {
 
     // MARK: - Running
 
+    /// The config a planned jam block runs as.
+    ///
+    /// Everything the plan settles travels into the config, so what the block preview announced
+    /// is what plays and what the take is stored with. **`offbeatLevel` was the one that did
+    /// not**: the field was on `JamPlan` and `DrillInstructions.forBlock` already read it, so a
+    /// planned offbeat block would have shown the skank's instructions and run an ordinary jam
+    /// over `jamBacking` — the arm-text mismatch of §7.20 finding 9, pre-wired and waiting for
+    /// the planner to set the field (§7.24 step 8).
+    ///
+    /// Extracted from `runCurrent` because a decision inside a function that needs an audio
+    /// device is a decision no test can reach, which is how this one shipped unnoticed.
+    static func jamConfig(for p: JamPlan) -> TrainerEngine.JamConfig {
+        TrainerEngine.JamConfig(
+            bpm: p.bpm, bars: p.bars, tag: p.tag, rung: p.rung, feel: p.feel,
+            offbeatLevel: p.offbeatLevel.flatMap(OffbeatLevel.init(rawValue:)))
+    }
+
     /// Play the current block. Blocks for its duration, so call it off the main thread.
     ///
     /// - Throws: `TakeCancelled` when the player stops it. The caller decides whether that
@@ -155,12 +172,8 @@ public final class SessionRunner {
             return .unmeasured
 
         case .jam(let p):
-            // The rung travels from the plan into the config, so what was shown before the
-            // session is what runs — and what is stored on the take afterwards.
-            return .jam(try TrainerEngine.runJam(
-                TrainerEngine.JamConfig(bpm: p.bpm, bars: p.bars, tag: p.tag, rung: p.rung,
-                                        feel: p.feel),
-                progress: progress, cancellation: cancellation))
+            return .jam(try TrainerEngine.runJam(Self.jamConfig(for: p),
+                                                 progress: progress, cancellation: cancellation))
 
         case .form(let p):
             return .form(try TrainerEngine.runForm(

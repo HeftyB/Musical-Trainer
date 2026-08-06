@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M15 are built. M14 has had one live run; M15 has had two swung takes and no offbeat take.**
+**M0–M15 are built. M14 has had one live run; M15 has had two swung takes and one offbeat take.**
 
 M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
 the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
@@ -43,7 +43,12 @@ different axis from product capability, and steps d–e of it are done.
 **What has and has not been played.** M14 ran once, on 5 August: the chain held end to end
 (`rung=quarters → ladder-quarters → subdivisions=1 → tag=ladder`) and the experiment take was
 stamped. **That sitting's timing data is not usable** — it was played exhausted and is recorded
-as such in §7.24. Nothing from M15 has run at all: no swung take, no offbeat take.
+as such in §7.24. M15 has three live takes, all in the small hours of 6 August and all tagged
+`tired`: two swung jams (§7.24 step 7) and one offbeat take at level 0 (§7.24 step 8). **Both
+sittings found a defect no test could, and both were the same gap** — between the path a live
+take runs and the path a stored take is read back on. The swung takes were scored on a straight
+grid; the offbeat take's own result did not survive being saved. Nothing has yet been played
+above eighths, and no offbeat take has been held rather than slipped.
 
 Three things to watch on the next session, all in the gap between tested pieces where every
 defect of this shape has lived:
@@ -51,7 +56,7 @@ defect of this shape has lived:
 - the **arm text** on screen matches the arm the debrief reports;
 - the **rung and feel** the block preview announces match what the take is stored with;
 - at offbeat level 3, a report of "slipped" on a take that *felt* fine means the phrase marker
-  is not doing its job (§7.24 step 6).
+  is not doing its job (§7.24 step 6). At level 0 it has already meant the feel genuinely went.
 
 No backing above eighths has been played along to — only rendered and heard. The swung backings
 have been heard and confirmed as a shuffle; nobody has played *along* to one.
@@ -90,7 +95,7 @@ that precondition is met without booking a live run.
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 378 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (111 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (127 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -104,7 +109,7 @@ that precondition is met without booking a live run.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 489 tests, no hardware needed
+swift test                              # 505 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -245,9 +250,12 @@ Types worth knowing before changing anything:
   run (R5.6), and the result recorded in PLAN.md.
 - **`TrainerKitTests` cannot run in CI.** `TrainerKit` is macOS-only, so a green Woodpecker
   pipeline covers *less* than a green `check.sh`.
-- **M15 has two swung takes and no offbeat take.** Both were played at 4 a.m., tagged `tired`,
-  at a first attempt: they establish that the machinery works and nothing about the player. The
-  swing readout's thresholds have now fired correctly on real playing once.
+- **M15 has two swung takes and one offbeat take**, all played around 4 a.m., tagged `tired`, at
+  a first attempt: they establish that the machinery works and nothing about the player. The
+  swing readout's thresholds have now fired correctly on real playing once. The offbeat take
+  **slipped** — 26 of 112 notes off the beat — so the drill has never yet measured a held skank,
+  and the swing block's misfire on a held one (§7.24 step 8) is closed by test rather than by
+  observation.
 - **The offbeat drill is CLI-only.** No app mode yet — the one surface gap M15 leaves.
 - **`selftest` covers the analysis pipeline against synthetic ground truth**, not storage — that
   moved to `TrainerKitTests` with T1.
@@ -285,6 +293,8 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 | Confounds get named, not blended | A changed backing produced a "real" 8 ms spread change that was partly just different music. |
 | A swung take never reaches Wing–Kristofferson | Swing alternates the intervals by design and the isochrony gate passes them. On a planted 12 ms clock and 8 ms motor, a swung series reported motor 99.7 ms and a negative clock variance. `DropoutConfig.validate` refuses it. |
 | The band's swing and the grid's come from one conversion | `Feel` and `Swing` cannot share a type across the module boundary. A groove swinging at 2:1 while the grid scored 1.5:1 would look exactly like a player who drags. `JamConfig.swing` is the only conversion; `SwingAgreementTests` pins them to the sample. |
+| A drill's identity survives being stored | The offbeat drill was wired into the live console path alone. `review` called the first slipped skank "steady, just early", the trend pooled its 48.4 ms spread with the free jams and turned that group's bias "worsening", and a planned block would have shown skank instructions over `jamBacking`. The take's own accessor had no callers at all. |
+| The swing block and the offbeat block are mutually exclusive | A skank puts every note "off the division", so the swing readout gets *more* confident the better the feel is held: three stray notes on the beat are enough to report "you swing the beat 1.1:1" about a player dividing nothing. |
 | The feel reaches the grid the *app* builds, not only the one a test builds | Both swung takes ever recorded were scored straight, because `JamAnalysis.reduce` and `SessionStore.reconstruct` kept their old calls. Reported +22 ms drag, 54 ms spread and r₁ = −0.52 — the first negative in the project's history, and an artefact. |
 | A feel needs a groove, not just warped timing | The first swung backings were timed perfectly and sounded straight: every loud event stayed on an even grid and the feel was carried by a hat 8 dB down. |
 

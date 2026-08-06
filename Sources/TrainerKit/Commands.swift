@@ -399,13 +399,39 @@ public enum Commands {
         let feel = Console.readRating("\nHow did that feel?")
         reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
                      events: outcome.eventCount, uncalibrated: !env.isCalibrated,
-                     grid: outcome.analysisGrid)
+                     grid: outcome.analysisGrid, offbeat: nil)
         let url = try TrainerEngine.save(outcome, feelRating: feel)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
     }
 
-    private static func reportTiming(_ report: TimingReport, notesCaptured: Int, events: Int,
-                                     uncalibrated: Bool, grid: Grid? = nil) {
+    /// An offbeat take's own readout, carried as one value rather than as a flag.
+    ///
+    /// A boolean saying "suppress the swing block" would be R3.3.1's defect — a value every
+    /// caller has to remember to check. This cannot be half-passed: a caller either has an
+    /// offbeat take and its report, or it does not.
+    struct OffbeatContext {
+        let report: OffbeatReport
+        let level: OffbeatLevel
+    }
+
+    /// Which of the two mutually exclusive blocks a take's readout ended with.
+    ///
+    /// Returned by `reportTiming` rather than computed beside it, and the difference is the
+    /// point: a value derived alongside the branch would agree with a branch that had been
+    /// changed underneath it, which is `LESSONS.md` shape 1 — the path under test not being the
+    /// path that ships, the thing that let a swung take be scored straight for a whole
+    /// milestone. This is produced *by* the branch that prints.
+    enum Readout: Equatable {
+        case swing
+        case offbeat(OffbeatLevel)
+        /// Nothing to divide and nothing asked for — or too little playing to analyse.
+        case neither
+    }
+
+    @discardableResult
+    static func reportTiming(_ report: TimingReport, notesCaptured: Int, events: Int,
+                             uncalibrated: Bool, grid: Grid? = nil,
+                             offbeat: OffbeatContext?) -> Readout {
         Console.heading("Your take")
         print("Notes captured: \(notesCaptured)  →  \(events) chord/note events")
         // "Off the grid" = events that landed more than ~40% of a 16th from any beat. Missed
@@ -419,7 +445,7 @@ public enum Commands {
             } else {
                 print("You played \(events) events but few lined up with the beat. Try playing closer to the pulse.")
             }
-            return
+            return .neither
         }
 
         print("\n\(Console.bold)\(report.headline)\(Console.reset)\n")
@@ -455,7 +481,20 @@ public enum Commands {
             print(String(format: "Velocity coupling: r = %+.2f  (%@)", vc,
                          vc > 0 ? "harder = later" : "harder = earlier"))
         }
-        if let grid { reportSwing(report: report, grid: grid) }
+        // Mutually exclusive, and the offbeat drill wins. On an eighths grid every note the
+        // skank asks for sits "off the division", so `SwingAnalysis` reads a held feel as a
+        // player dividing the beat and prints a ratio for it — and the tighter the chop, the
+        // more confident the wrong number. The two blocks answer different questions about the
+        // same notes, and only one of them is the task the player was set (§7.24 step 8).
+        if let offbeat {
+            reportOffbeat(offbeat.report, level: offbeat.level)
+            return .offbeat(offbeat.level)
+        }
+        if let grid {
+            reportSwing(report: report, grid: grid)
+            return .swing
+        }
+        return .neither
     }
 
     /// How the beat was divided, when enough notes landed off the division to say.
@@ -590,8 +629,29 @@ public enum Commands {
         } else {
             Console.warn("uncalibrated take — bias unreliable.")
         }
+        // An offbeat take gets the readout it was recorded for. Without this the review said
+        // "steady, just early" about a take that had slipped onto the beat for 86 of its 112
+        // notes — the drill's headline failure, computed once at take time and then never
+        // again, against R3.1's rule that every readout recomputes from the raw taps
+        // (§7.24 step 8).
         reportTiming(report, notesCaptured: session.tapTimes.count, events: events.count,
-                     uncalibrated: session.calibrationConstantMs == nil, grid: grid)
+                     uncalibrated: session.calibrationConstantMs == nil, grid: grid,
+                     offbeat: offbeatContext(for: session))
+    }
+
+    /// The stored take's offbeat readout, when it was one.
+    ///
+    /// Goes through `JamSession.offbeatReport()` so the review recomputes from raw taps like
+    /// every other number, rather than pairing `reconstruct()` with an `analyze` call of its own.
+    ///
+    /// Internal rather than private so the decision is reachable from a test. The `print` calls
+    /// it feeds are not — that gap is what `offbeat:` losing its default value covers instead:
+    /// a new readout cannot silently omit an offbeat take's own result, because it will not
+    /// compile without saying something about it.
+    static func offbeatContext(for session: JamSession) -> OffbeatContext? {
+        guard let level = session.offbeatLevel.flatMap(OffbeatLevel.init(rawValue:)),
+              let report = session.offbeatReport() else { return nil }
+        return OffbeatContext(report: report, level: level)
     }
 
     private static func dateLabel(_ date: Date) -> String {
@@ -1071,10 +1131,12 @@ public enum Commands {
 
         let outcome = try TrainerEngine.runJam(config)
         let feel = Console.readRating("\nHow did that feel?")
+        let offbeat = OffbeatAnalysis.analyze(matched: outcome.report.matched,
+                                              grid: outcome.analysisGrid)
         reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
                      events: outcome.eventCount, uncalibrated: !env.isCalibrated,
-                     grid: outcome.analysisGrid)
-        reportOffbeat(outcome.report, grid: outcome.analysisGrid, level: level)
+                     grid: outcome.analysisGrid,
+                     offbeat: OffbeatContext(report: offbeat, level: level))
         let url = try TrainerEngine.save(outcome, feelRating: feel)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
     }
@@ -1084,8 +1146,7 @@ public enum Commands {
     /// The two are printed apart because they are different failures. A player who slipped onto
     /// the beat is *precise*, on the wrong points, so a placement figure alone would call a lost
     /// feel an excellent take.
-    static func reportOffbeat(_ report: TimingReport, grid: Grid, level: OffbeatLevel) {
-        let r = OffbeatAnalysis.analyze(matched: report.matched, grid: grid)
+    static func reportOffbeat(_ r: OffbeatReport, level: OffbeatLevel) {
         Console.heading("Where the notes went")
 
         print(String(format: "Off the beat:     %d of %d  (%.0f%%)",

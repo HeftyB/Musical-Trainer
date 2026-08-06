@@ -1358,19 +1358,39 @@ public enum TrainerEngine {
         /// same tempo and rung are different tasks, and a line fitted across the change would
         /// be measuring the change.
         let swingRatio: Double?
+        /// So does the offbeat drill, and it is the sharpest case of the three.
+        ///
+        /// An offbeat take stores no rung and no swing, so without this it keys identically to a
+        /// free jam and lands in the group the project reads its progress from. The first one
+        /// ever recorded did exactly that: a 48.4 ms spread — by a wide margin the worst take on
+        /// record, and a different task — fitted into "Jams at 100 BPM" alongside 21 free jams,
+        /// with only a mixed-backings warning to name it (§7.24 step 8).
+        let offbeatLevel: Int?
 
         var label: String {
             let rungPart = rung.flatMap { IntervalRung(rawValue: $0)?.label }.map { ", \($0)" } ?? ""
             let feelPart = swingRatio.flatMap { Feel(swingRatio: $0) }
                 .map { ", \($0.label)" } ?? ""
-            return rungPart + feelPart
+            let offbeatPart = offbeatLevel.flatMap(OffbeatLevel.init(rawValue:))
+                .map { ", offbeat level \($0.rawValue) — \($0.label)" } ?? ""
+            return rungPart + feelPart + offbeatPart
         }
 
         static func < (a: GroupKey, b: GroupKey) -> Bool {
             if a.bpm != b.bpm { return a.bpm < b.bpm }
             if (a.rung ?? "") != (b.rung ?? "") { return (a.rung ?? "") < (b.rung ?? "") }
-            return (a.swingRatio ?? 1) < (b.swingRatio ?? 1)
+            if (a.swingRatio ?? 1) != (b.swingRatio ?? 1) {
+                return (a.swingRatio ?? 1) < (b.swingRatio ?? 1)
+            }
+            return (a.offbeatLevel ?? -1) < (b.offbeatLevel ?? -1)
         }
+    }
+
+    /// The group a take belongs to. One construction site, because two would let the set of
+    /// groups and the filter that fills them disagree about what a group is.
+    private static func groupKey(_ take: JamSession) -> GroupKey {
+        GroupKey(bpm: Int(take.bpm), rung: take.rung, swingRatio: take.swingRatio,
+                 offbeatLevel: take.offbeatLevel)
     }
 
     private static func jamTrends() -> [TrendSeries] {
@@ -1383,12 +1403,9 @@ public enum TrainerEngine {
         // (§7.23 trap 3). Free playing is its own group rather than being folded into quarters —
         // "play what you like" and "play one note per beat" are different tasks.
         let jams = SessionStore.loadAll()
-        let groups = Set(jams.map { GroupKey(bpm: Int($0.bpm), rung: $0.rung,
-                                             swingRatio: $0.swingRatio) })
+        let groups = Set(jams.map(groupKey))
         for key in groups.sorted() {
-            let takes = jams.filter {
-                GroupKey(bpm: Int($0.bpm), rung: $0.rung, swingRatio: $0.swingRatio) == key
-            }
+            let takes = jams.filter { groupKey($0) == key }
             let tempo = key.bpm
             let reports = takes.map { $0.report() }
             var warnings: [String] = []
