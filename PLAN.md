@@ -2899,10 +2899,16 @@ Three limits, stated because they bound what this licenses:
 **Falsifier**: a prescribed-sixteenths take whose absolute spread comes back near 6 ms rather
 than near 22 kills this and restores step 3's premise.
 
-**Recomputed on 27 jams after the 5 August session, and it holds**: absolute +0.21 ms per 100 ms
-[−1.41, +1.18], relative −0.71 points and real. The table above is the 21-take snapshot the
-finding was made on; the shares moved a little with the new sitting — a beat apart is now 78.7%
-rather than 82.4%, an eighth 14.7% rather than 10.5% — and the conclusion did not.
+**Recomputed on 27 jams after the 5 August session, and again on 30**: absolute −0.11 ms per
+100 ms [−1.85, +0.63] against −1.07 points [−2.54, −0.69] for the percentage. The conclusion has
+survived three recomputes.
+
+The table above is the 21-take snapshot the finding was made on, and the shares have moved with
+every sitting since. **Among free jams, which is the population this caveat is about**, a beat
+apart went 82.4% → 78.7% → 78.4% and an eighth 10.5% → 14.7% → 15.0%. Across *all* 30 jams the
+beat share is 70.2% and the eighth 23.9%, because M15's two swung takes and the skank are
+prescribed eighths and pull the whole corpus. Two different populations, two right answers —
+quote the free-jam figure when caveating a free-jam number.
 
 #### What it decides
 
@@ -2934,9 +2940,10 @@ delete the effect it is meant to expose.
 
 #### The thing this recontextualises
 
-**82.4% of every matched note this project has ever recorded is a beat apart from the last one.**
-So 24.07, 17.37, 22.00, "his ~20 ms spread", the trend line, `review feel`, both experiments and
-the ceiling are all, to within a rounding error, *quarter-note placement in free playing*. The
+**82.4% of every matched note this project had recorded at the time was a beat apart from the
+last one** — 78.4% over the 26 free jams on record now, and the point is unchanged. So 24.07,
+17.37, 22.00, "his ~20 ms spread", the trend line, `review feel`, both experiments and the
+ceiling are all, to within a rounding error, *quarter-note placement in free playing*. The
 sixteenth-note grid those takes were scored on is doing almost no work.
 
 That reframes M14. §7.13 and this section describe the ladder as extending a measured skill onto
@@ -3493,8 +3500,9 @@ as many as on-division ones**. A player genuinely dividing the unit produces rou
 while an ornamenting one produces a tenth. Both guards are needed — the count alone passed the
 take that prompted this.
 
-**No take on record now qualifies**, which is the correct answer and consistent with step 3b:
-82.4% of every matched note sits a beat from the last. The readout becomes answerable when a
+**No take on record qualified when this shipped**, which was the correct answer and consistent
+with step 3b: at the time 82.4% of every matched note sat a beat from the last, and 78.4% of
+every free-jam note still does. Step 7's swung takes are the first that qualify. The readout becomes answerable when a
 prescribed eighths rung is actually played, which is what step 5 schedules.
 
 #### Also worth recording

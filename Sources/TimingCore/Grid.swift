@@ -42,8 +42,14 @@ public struct Grid: Equatable {
     // *particular* point. Killing it was cheaper than letting a second meaning grow around it,
     // which is the mistake §7.23 made four times with "how finely we divide the beat".
 
-    /// Where each subdivision of the beat sits, as a fraction of the beat. Cached because
-    /// `time(ofIndex:)` is called once per candidate per tap.
+    /// Where each subdivision of the beat sits, as a fraction of the beat.
+    ///
+    /// Computed on each access, not cached — `nearestIndex(to:)` searches three beats' worth of
+    /// candidates per tap and every one of them rebuilds this array. It has never been on a hot
+    /// path that mattered (analysis runs after the take, never in the render callback), so the
+    /// allocation is left alone rather than traded for a stored property that would have to be
+    /// kept in step with `feel` and `subdivisions`. The comment here previously claimed a cache
+    /// that did not exist, which is worse than either choice.
     private var phases: [Double] { feel.phases(subdivisions: subdivisions) }
 
     public func time(ofIndex index: Int) -> Double {
