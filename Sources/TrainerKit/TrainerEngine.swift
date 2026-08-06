@@ -104,6 +104,21 @@ public enum TrainerEngine {
         /// subdivision here *is* the thing the ceiling constrains.
         var gridSubdivisions: Int { rung?.subdivisions ?? backing.arrangement.stepsPerBeat }
 
+        /// The feel, restated for the band.
+        ///
+        /// **This is the one place a `Feel` becomes a `Swing`**, and it has to be: `GrooveCore`
+        /// cannot see `TimingCore` (R1.1.3), so the type the analysis scores against and the
+        /// type the band plays are different types describing one thing. A second conversion
+        /// somewhere else would be two constants to keep in sync, and a groove swinging at one
+        /// ratio while the grid scores at another teaches one thing and measures another — with
+        /// nothing on screen to show it. `SwingAgreementTests` pins the two to the sample.
+        ///
+        /// Keyed on `gridSubdivisions` rather than the pattern's step resolution, because the
+        /// rung is what is being divided.
+        var swing: Swing {
+            Swing(ratio: feel.swingRatio, notesPerBeat: gridSubdivisions)
+        }
+
         /// The bar the count-in plays, twice, before the backing starts.
         ///
         /// A property rather than a literal inside `runJam` for the same reason `backing` and
@@ -168,7 +183,8 @@ public enum TrainerEngine {
         let env = try environment()
 
         let player = try GroovePlayer()
-        let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate)
+        let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate,
+                            swing: config.swing)
         let backing = config.backing.arrangement
         let countInBars = 2
 

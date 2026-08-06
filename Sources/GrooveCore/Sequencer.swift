@@ -23,17 +23,32 @@ public struct ScheduledHit: Equatable {
 public struct Sequencer {
     public let bpm: Double
     public let sampleRate: Double
+    /// How the beat is divided. `.none` leaves every position exactly where it was.
+    public let swing: Swing
 
-    public init(bpm: Double, sampleRate: Double) {
+    public init(bpm: Double, sampleRate: Double, swing: Swing = .none) {
         precondition(bpm > 0 && sampleRate > 0, "bpm and sampleRate must be positive")
         self.bpm = bpm
         self.sampleRate = sampleRate
+        self.swing = swing
     }
 
     /// Absolute sample for a global step index (bars already flattened into steps).
+    ///
+    /// Still index arithmetic (R2.2): the beat and the step within it come from integer
+    /// division of the global step, so nothing accumulates however long a take runs. The swing
+    /// warps the *fraction* of the beat, which leaves every beat and bar line exactly where it
+    /// was — the count-in boundary and the analysis window depend on that.
     public func sample(globalStep: Int, stepsPerBeat: Int) -> Int64 {
-        let secondsPerStep = 60.0 / bpm / Double(stepsPerBeat)
-        return Int64((Double(globalStep) * secondsPerStep * sampleRate).rounded())
+        let beatSeconds = 60.0 / bpm
+        guard swing.isActive else {
+            let secondsPerStep = beatSeconds / Double(stepsPerBeat)
+            return Int64((Double(globalStep) * secondsPerStep * sampleRate).rounded())
+        }
+        let beat = Int(floor(Double(globalStep) / Double(stepsPerBeat)))
+        let stepInBeat = globalStep - beat * stepsPerBeat
+        let phase = swing.warp(Double(stepInBeat) / Double(stepsPerBeat))
+        return Int64(((Double(beat) + phase) * beatSeconds * sampleRate).rounded())
     }
 
     /// Sample at which a given bar begins.

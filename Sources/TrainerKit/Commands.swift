@@ -1032,19 +1032,30 @@ public enum Commands {
         let spreads = TrainerEngine.recentJamSpreadsMs()
         let spreadMs = spreads.isEmpty ? SessionPlanner.assumedSpreadMs : Stats.median(spreads)
 
-        let subjects: [(name: String, rung: IntervalRung?, arrangement: Arrangement)] =
-            [("quarters", .quarters, LadderBackings.backing(notesPerBeat: 1)),
-             ("eighths", .eighths, LadderBackings.backing(notesPerBeat: 2)),
-             ("triplet-eighths", .tripletEighths, LadderBackings.backing(notesPerBeat: 3)),
-             ("sixteenths", .sixteenths, LadderBackings.backing(notesPerBeat: 4)),
-             ("jam-backing", nil, GrooveLibrary.jamBacking)]
+        // Feels are rendered beside the straight rungs, because a swing is a thing you judge by
+        // ear or not at all. A step list cannot say whether 1.5:1 sounds like a shuffle or like
+        // a mistake, and §7.23's rule — do not promote onto a rung nobody has heard — applies to
+        // a feel at least as strongly.
+        let subjects: [(name: String, rung: IntervalRung?, feel: Feel, arrangement: Arrangement)] =
+            [("quarters", .quarters, .straight, LadderBackings.backing(notesPerBeat: 1)),
+             ("eighths", .eighths, .straight, LadderBackings.backing(notesPerBeat: 2)),
+             ("triplet-eighths", .tripletEighths, .straight, LadderBackings.backing(notesPerBeat: 3)),
+             ("sixteenths", .sixteenths, .straight, LadderBackings.backing(notesPerBeat: 4)),
+             ("eighths-swung-1.5", .eighths, Feel(swingRatio: 1.5) ?? .straight,
+              LadderBackings.backing(notesPerBeat: 2)),
+             ("eighths-swung-2.0", .eighths, .swung, LadderBackings.backing(notesPerBeat: 2)),
+             ("sixteenths-swung-1.5", .sixteenths, Feel(swingRatio: 1.5) ?? .straight,
+              LadderBackings.backing(notesPerBeat: 4)),
+             ("jam-backing", nil, .straight, GrooveLibrary.jamBacking)]
 
         print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
                      Int(bpm), bars, spreadMs,
                      spreads.isEmpty ? " (no takes yet — assumed)" : ""))
         print("")
-        for (name, rung, arrangement) in subjects {
-            let sequencer = Sequencer(bpm: bpm, sampleRate: fs)
+        for (name, rung, feel, arrangement) in subjects {
+            // The same conversion the engine makes, so what is rendered is what would be played.
+            let swing = Swing(ratio: feel.swingRatio, notesPerBeat: rung?.subdivisions ?? 1)
+            let sequencer = Sequencer(bpm: bpm, sampleRate: fs, swing: swing)
             var hits: [ScheduledHit] = []
             for bar in 0..<bars {
                 hits += sequencer.schedule(pattern: arrangement.pattern(atBar: bar), bar: bar)
@@ -1058,12 +1069,19 @@ public enum Commands {
             let peak = samples.map(abs).max() ?? 0
             // Above its ceiling a rung starts discarding notes the player aimed correctly, so
             // the render says so rather than letting it be judged only by ear.
+            // Above its ceiling the window is worth fewer than three of the player's spreads.
+            // A feel tightens that further, because the short half of a swung pair is shorter
+            // than an even division — so the ceiling is asked of the feel, not the rung alone.
             var note = ""
-            if let rung, !rung.isScorable(atBpm: bpm, spreadMs: spreadMs) {
-                note = String(format: "  %@above its %.0f BPM ceiling%@", Console.yellow,
-                              rung.maximumBpm(forSpreadMs: spreadMs), Console.reset)
+            if let rung {
+                let ceiling = feel.maximumBpm(subdivisions: rung.subdivisions,
+                                              forSpreadMs: spreadMs)
+                if bpm > ceiling {
+                    note = String(format: "  %@above its %.0f BPM ceiling%@", Console.yellow,
+                                  ceiling, Console.reset)
+                }
             }
-            print("  \(pad(name, 18))\(pad(String(format: "peak %.2f", peak), 12))"
+            print("  \(pad(name, 22))\(pad(String(format: "peak %.2f", peak), 12))"
                 + "\(pad(url.lastPathComponent, 30))\(note)")
             if clipped > 0 {
                 Console.warn("\(name) clipped on \(clipped) sample(s) — the mix is too hot, and "

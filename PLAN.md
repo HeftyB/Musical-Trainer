@@ -3117,7 +3117,7 @@ and never as a spread.
 | 1 ✅ | `Feel` as pure arithmetic, and storage for it — written and unread |
 | 2 ✅ | `Grid` and `Matching` gain the feel; `interval` retired; **straight bit-for-bit identical over every stored take** |
 | 3 ✅ | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
-| 4 | Backings per feel, and `render` so a feel is heard before it is promoted |
+| 4 ✅ | Backings per feel, and `render` so a feel is heard before it is promoted |
 | 5 | Drills gain a feel, both surfaces |
 | 6 | Offbeat drill — ska and reggae |
 
@@ -3268,6 +3268,49 @@ while measuring swung sixteenths, which is a different question with the same wo
 
 `review list`, `review dropout`, `review interval`, `review trend` and `selftest` are all still
 byte-identical to the pre-M15 baseline.
+
+### Step 4, as built — the band swings too
+
+**A warp of time, not a property of hits.** A swung pattern is the same pattern: hits keep their
+integer step positions and the `Sequencer` moves *when those steps happen*. `Pattern` stays on a
+uniform grid, bar and beat lines do not move — which the count-in handover and the analysis
+window both depend on — and a sixteenth ornament inside a swung eighth pair moves with its pair
+rather than needing a rule of its own.
+
+Still index arithmetic (R2.2): beat and step-within-beat come from integer division of the
+global step, so nothing accumulates however long a take runs.
+
+#### The two descriptions of one feel, and the test that pins them
+
+`Feel` tells the analysis where to expect a note; `Swing` tells the sequencer when to play one.
+They cannot be the same type, because `GrooveCore` depends on nothing — not even `TimingCore`
+(R1.1.3) — and they cannot be defined in terms of each other for the same reason.
+
+That is a hazard rather than an inconvenience. **A groove swinging at 2:1 while the grid scored
+at 1.5:1 would teach one feel and measure another**, produce a large stable asynchrony, and look
+exactly like a player who drags. Nothing on screen would distinguish it from a real finding.
+
+So `JamConfig.swing` is the single conversion point, and `SwingAgreementTests` pins the two
+derivations to the sample: every subdivision of every beat, at five ratios, on both step
+resolutions the ladder uses. Drifting one side by 5% fails **98 assertions**. That file is the
+only thing standing between the two derivations and a silent disagreement, and it says so.
+
+#### Rendered, because a feel is judged by ear or not at all
+
+`render` gains swung eighths at 1.5 and 2.0 and swung sixteenths at 1.5, beside the straight
+rungs. §7.23's rule — do not promote onto a rung nobody has heard — applies at least as strongly
+to a feel: a step list cannot say whether 1.5:1 sounds like a shuffle or like a mistake.
+
+The ceiling in that readout now comes from the feel rather than the rung alone, because the short
+half of a swung pair is shorter than an even division and binds sooner.
+
+**The audio was checked rather than assumed.** The swung renders differ from the straight one
+from exactly 0.300 s — where the straight offbeat sits and the swung one has moved off it. Worth
+recording that the first check *appeared* to show swing never reaching the audio, and the fault
+was an onset detector firing on energy tripling, which never happens after the first hit of a
+bar. A broken probe reporting a defect that is not there costs as much as missing one.
+
+Whether these are *playable* is still a live-run question and always was.
 
 ### What this cannot verify
 
