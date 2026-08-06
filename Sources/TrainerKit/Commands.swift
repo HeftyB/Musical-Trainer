@@ -1300,6 +1300,16 @@ public enum Commands {
             print("")
         }
 
+        // Said out loud, and with what it is for: a hesitation is not a noisy beat, and the
+        // clock/motor figures below are computed over the stretches either side of it rather
+        // than through it. Nine such intervals once reported a 193.5 ms clock (§7.25).
+        if r.brokenIntervals > 0 {
+            Console.warn("\(r.brokenIntervals) gap(s) in the playing — a pause or a dropped note "
+                + "— split the silences into shorter runs. The split below is measured on the "
+                + "runs, because a gap is the sequence restarting rather than one late beat.")
+            print("")
+        }
+
         if let wk = r.wingKristofferson, r.splitIsReliable {
             // The whole reason this drill exists — two numbers no amount of playing by feel
             // can separate.
