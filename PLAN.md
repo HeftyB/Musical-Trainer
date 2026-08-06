@@ -904,6 +904,16 @@ Three entries were added after the original M9–M22 list and sit out of numeric
 where their dependencies put them: **M16.5** (the skank family), the **M20 note**, and **M23**
 (jazz time, deferred with its argument).
 
+**M19 now runs ahead of M16**, decided with the player on 6 August. M16's span ladder grows the
+phrase to 32 bars and there is no backing that sustains 32 bars, so the ladder would be built on
+music that cannot carry it; M16.5's organ bubble needs a triplet skank backing, and M19 is where
+the pattern format is settled. Building M19 second would mean revisiting both.
+
+**What does not wait for M19 is M16's other axis.** The decision below splits form into a
+spatial ladder and a temporal one, and only the spatial one needs longer music — levels 0→3 at a
+fixed 8-bar phrase run on today's backing. Since the level-3 probe is the piece the player asked
+for first, it goes before M19 rather than behind it. See §7.26.
+
 ### M9 — Session builder
 The app proposes and runs a whole session: warm-up calibration, two or three drills chosen
 from recent data, then a longer jam. One click to start; it moves between drills itself.
@@ -1018,6 +1028,26 @@ The level-2 data showed the player marking a steady **4-bar** phrase against an 
 setting: a consistent feel, not a lost one. Phrase length becomes a trained variable in its
 own right — nested phrasing (4 inside 8 inside 16), explicit "which period do you feel?"
 probes, and a ladder that grows the span rather than only removing landmarks.
+
+**Reframed once twelve form takes existed, and settled with the player on 6 August — see §7.26
+for the design and the data behind it.** The premise above is one observation; twelve takes say
+the felt period is *unstable* rather than merely different, which is a finding about the player
+rather than a setting to chase. So the milestone splits the two things the form drill has been
+conflating — *where am I* (spatial, whole bars off the phrase top) and *how cleanly did I land*
+(temporal, milliseconds off the bar line) — and gives each its own ladder. At 8 bars he finds
+the right bar 75% of the time and lands cleanly on 23%; at 4 bars, 64% and 38%. Those move in
+opposite directions and one ladder cannot train both.
+
+Three decisions, all the player's:
+
+- **One axis per sitting, chosen by the planner.** Two form blocks in an evening is more form
+  than the session budget has room for, and running both at once reintroduces the confound the
+  milestone exists to remove.
+- **Level 3 is worth forcing, as a probe.** Neither form level 3 (silence across the boundary)
+  nor offbeat level 3 has ever run. A single deliberate take says more than another six at
+  level 2 — but a probe is not a rung, and §7.26 records the trap that makes that distinction
+  load-bearing rather than pedantic.
+- **M19 first**, for the span ladder and for M16.5's backing. The temporal ladder does not wait.
 
 ### M16.5 — The skank family
 The offbeat drill (§7.24 step 6) trains one thing the player has named as a skill he wants: the
@@ -3803,6 +3833,82 @@ separated. **Left standing deliberately**, with the fix queued: it is a differen
 different function, and folding it in here would put two arguments in one commit.
 
 Until it is split, the continuation clock-SD trend should not be read.
+
+---
+
+## 7.26 M16 — the decisions, and what forcing a level actually costs
+
+Settled with the player on 6 August, against twelve form takes. The design argument is in §7.13;
+this section holds what the decisions imply for the code, and two things found while checking
+them that change what one of the answers means.
+
+### The two axes
+
+| Axis | Ladder | What it removes | Needs M19 |
+|---|---|---|---|
+| **Where am I** (spatial) | 8 → 16 → 32 bar phrases at a fixed landmark level | Nothing; the span grows | **Yes** — no backing sustains 32 bars |
+| **Landing cleanly** (temporal) | Levels 0 → 3 at a fixed 8-bar phrase | Landmarks, as now | No |
+
+`formErrorBars` and `phaseErrorMs` are both already computed. The report treats the second as a
+refinement of the first; the data says they move independently, so they become peers. That is
+the third time this project has found a categorical failure and a magnitude failure needing
+separation — `FormAnalysis`'s own original split, M15's slipping-versus-placement (§7.24 step 6),
+and now this.
+
+**One axis per sitting, chosen by the planner**, with a test that it never moves both at once.
+The chooser needs both axes to exist, so it lands with the span ladder after M19.
+
+### Level 3 is not locked, and never was
+
+The premise going in was that the promotion gate is why level 3 has never run. Checked against
+the code, that is only half true and the half that is false matters:
+
+- The **app** offers every level — `SetupView`'s picker is over `FormLevel.allCases`.
+- The **CLI** takes the level as an argument: `form 100 64 8 3`.
+- The **planner** is the only thing that will not go there. `SessionPlan.swift`'s rule is
+  `onFormRate >= 0.9 && !hasUnmarkedPhrases && level < 3`, and he is at 75%.
+
+So level 3 has been one click away every evening since the drill was built. It has not run
+because nothing ever *proposed* it, which is a different problem from a gate being too strict —
+and it means "forcing" it is a planner change, not an unlocking.
+
+### The trap: a probe silently becomes the new floor
+
+The planner picks the next form level from the **last** form take. Its fallback is:
+
+```swift
+return SessionBlock(… FormPlan(… level: last.level) …,
+    reason: "…stay at level N until it is above 90% with nothing unmarked.")
+```
+
+`last.level`, not the highest *earned* level. So one forced level-3 probe — however badly it
+goes — becomes `last`, and every subsequent session plans level 3 and reports that he is staying
+there until he clears 90%. **A probe would be read as a rung**, and the ladder's floor would have
+moved on the strength of a take that was explicitly not a promotion.
+
+This is the same shape as §7.24 step 8's trend pooling: a take of a different kind entering a
+series that assumes every member is the same kind. It is worth stating that the trap is not a
+reason to refuse the probe — the probe is a good idea — it is the reason the probe needs a name
+in the data before it is run, not after.
+
+**Mechanism: a `probe` case on `BlockRole`.** `SessionPlacement.role` is already stored as a raw
+string precisely so a future role cannot make an old take undecodable (R6.1), so this is additive
+and every take on record still reads. The planner then computes the earned level from non-probe
+takes, and `review form` can show a probe without it looking like progress up the ladder.
+
+The alternative — infer it from the level being above the earned one — is the flag-every-caller
+defect of R3.3.1: three readouts would each have to remember the rule, and §7.20 finding 2 is
+what happens when two of three do.
+
+### What this does not settle
+
+`markedPeriodStability` — how consistent the marked period was *within* a take — is still the
+first thing to build, and still cheap: the mark times are stored, so it is computable
+retroactively over all twelve takes. A player marking a steady 4 against an 8-bar setting has a
+stable period at the wrong length; one marking 4, 7, 5, 8 has no period at all. The current data
+cannot tell those apart, and `markedEveryBars` has been driving the planner on the assumption
+that it can. It may still change the milestone's shape, which is why it comes before the ladders
+rather than inside them.
 
 ---
 
