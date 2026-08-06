@@ -70,10 +70,14 @@ public enum TrainerEngine {
         ///
         /// See `JamPlan.rung`: `nil` is "no rung was prescribed", not "quarters".
         public var rung: IntervalRung?
+        /// Where the subdivision is expected to sit. Straight unless asked otherwise, and
+        /// straight is the identity — see `Feel`.
+        public var feel: Feel = .straight
 
         public init(bpm: Double = 100, bars: Int = 32, tag: String? = nil,
-                    rung: IntervalRung? = nil) {
-            self.bpm = bpm; self.bars = bars; self.tag = tag; self.rung = rung
+                    rung: IntervalRung? = nil, feel: Feel = .straight) {
+            self.bpm = bpm; self.bars = bars; self.tag = tag
+            self.rung = rung; self.feel = feel
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
 
@@ -217,6 +221,7 @@ public enum TrainerEngine {
             grooveName: outcome.config.backing.name, bars: outcome.config.bars,
             subdivisions: outcome.gridSubdivisions,
             rung: outcome.config.rung?.rawValue,
+            swingRatio: outcome.config.feel.isStraight ? nil : outcome.config.feel.swingRatio,
             tag: outcome.config.tag?.lowercased(), feelRating: feelRating,
             gridStartTime: outcome.gridStartTime,
             tapTimes: outcome.taps.map(\.time), tapVelocities: outcome.taps.map(\.velocity),
@@ -361,11 +366,13 @@ public enum TrainerEngine {
         /// snapped it to the nearest whole number. Setting it makes the analysis know what the
         /// instructions already said, which is what removes the snapping (§7.23 step 4e).
         public var rung: IntervalRung?
+        /// Where the subdivision is expected to sit. See `JamConfig.feel`.
+        public var feel: Feel = .straight
 
         public init(bpm: Double = 100, pacedBars: Int = 4, silentBars: Int = 4, cycles: Int = 6,
-                    rung: IntervalRung? = nil) {
+                    rung: IntervalRung? = nil, feel: Feel = .straight) {
             self.bpm = bpm; self.pacedBars = pacedBars; self.silentBars = silentBars
-            self.cycles = cycles; self.rung = rung
+            self.cycles = cycles; self.rung = rung; self.feel = feel
         }
         public var cycle: DropoutDrill.Cycle {
             DropoutDrill.Cycle(pacedBars: pacedBars, silentBars: silentBars)
@@ -494,7 +501,8 @@ public enum TrainerEngine {
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
             placement: placement, experiment: experiment,
-            rung: outcome.config.rung?.rawValue)
+            rung: outcome.config.rung?.rawValue,
+            swingRatio: outcome.config.feel.isStraight ? nil : outcome.config.feel.swingRatio)
         return try SessionStore.save(session)
     }
 

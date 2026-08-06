@@ -3068,6 +3068,100 @@ than a prediction. **M19 (musical depth) has earned a move up the roadmap**, and
 the answer: straight, swing and reggae are unmistakably different in a way that quarters against
 eighths over one skeleton is not.
 
+---
+
+## 7.24 M15 — the feels
+
+§7.13's largest measurement change since M2: every style in the stated goal moves the *target*
+rather than the tolerance. Matching swing against an even grid reports **style as error**, and
+does it with numbers that stay entirely plausible — §5.3's sign inversion in a costume that is
+much harder to notice.
+
+### The blast radius is far smaller than it looks
+
+Between them, `Grid.interval`, `nearestIndex(to:)` and `time(ofIndex:)` have **one consumer** —
+`Matching`. Everything else reads `beatInterval` or does index arithmetic. So the grid can keep
+integer indices and a uniform beat while only the index → time mapping gains an offset, and
+`TimingReport`, `MusicalContent`, `DropoutAnalysis`, `FormAnalysis`, `JamAnalysis` and every
+stored type are untouched.
+
+### Swing ratio consistency is not a measurable quantity
+
+§7.13 says *"consistency of that ratio is the skill, in the same way SD rather than bias is the
+skill for straight time."* The instinct is right and **the unit is wrong**. Ratio relates to
+offbeat phase by `r = φ/(1−φ)`, so `dr/dφ = 1/(1−φ)²`:
+
+| ratio | phase | dr/dφ | ratio SD from measurement noise **alone** |
+|---|---|---|---|
+| 1.0 | 0.500 | 4.0 | 0.13 |
+| 1.5 | 0.600 | 6.2 | 0.21 |
+| 2.0 | 0.667 | 9.0 | 0.30 |
+| 3.0 | 0.750 | 16.0 | 0.54 |
+
+At this player's 20.1 ms spread, identical physical steadiness reports as a ratio SD that
+**quadruples** between r=1 and r=3. Someone who tightened up while swinging harder would look
+worse. That is §7.23 step 3b's mistake — a derived unit that is not comparable across the axis
+it varies on — and this time it is caught before it ships.
+
+**So consistency is offbeat phase spread in milliseconds**: the same quantity, the same units
+and the same precision as every other spread the app reports, directly comparable to the
+*downbeat's* spread in the same take. The ratio is reported as a derived mean with an interval,
+and never as a spread.
+
+### Steps
+
+| | Delivers |
+|---|---|
+| 0 ✅ | Live ladder run — chain verified end to end |
+| 0b ✅ | What that run exposed: the count-in states the rung, the ladder starts at eighths, a sitting can declare its state |
+| 1 ✅ | `Feel` as pure arithmetic, and storage for it — written and unread |
+| 2 | `Grid` gains the feel; `interval` retired; **straight bit-for-bit identical over every stored take** |
+| 3 | `Matching` under a feel — symmetric window on the smaller gap; §5.3's trap re-planted per feel |
+| 4 | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
+| 5 | Backings per feel, and `render` so a feel is heard before it is promoted |
+| 6 | Drills gain a feel, both surfaces |
+| 7 | Offbeat drill — ska and reggae |
+
+### Step 1, as built
+
+**One number, and straight is not a special case.** A feel is the long-to-short ratio of the
+divided beat, and a ratio of 1 *is* straight — long and short are equal. The identity falls out
+of the arithmetic instead of being handled separately, so no code path needs an `if straight`
+and every straight take stays exactly what it was. Ten tests.
+
+**Swing applies to the finest binary division and nothing else.** Swung eighths delay the
+off-eighth; swung sixteenths delay the second of each pair while the **eighths stay put**;
+triplets are the division swing borrows from, so a triplet rung is always straight — "swung
+triplets" is a division of a division nobody plays.
+
+**Ska and reggae are deliberately not feels.** They put the emphasis on the offbeat, but the
+offbeat is still at half the beat: the grid stays straight and what changes is which points the
+player is asked to hit and what the band plays underneath. That is a drill, not a grid, and
+deciding it now keeps `Feel` down to one parameter.
+
+**The ceiling agrees with M14, which is the check that matters.** `Feel.maximumBpm` derives from
+the *shortest* gap rather than an even one. At a ratio of 1 it reproduces each rung's own
+ceiling exactly — 400 / 199 / 133 / 100 — because at a ratio of 1 it *is* the rung. At 2:1,
+eighths resolve like triplets (133 BPM), since the short half of a swung pair is a third of the
+beat. Two derivations agreeing rather than merely coexisting.
+
+**Storage: `swingRatio` on jam and continuation takes, `nil` meaning straight.** That reading is
+honest here in a way it was not for `rung`, where `nil` means *no rung was prescribed* and
+emphatically not quarters. A ratio of 1 is the identity and every take on record was played
+against an even grid, so an absent value reads as straight without inventing anything. Straight
+writes nothing, so no stored take's JSON moves.
+
+Not on the tempo or recall drills: those produce a pulse rather than a division, and if either
+ever gains a feel nothing is lost by adding it then — every take before it genuinely was
+straight. That is the one case where R6.3's "store it before you need it" does not bind, and the
+reason is the identity again.
+
+**A stale build wasted a debugging round**, in precisely the way §7.23 step 0 recorded: two
+stored structs changed layout while the test objects were still compiled against the old ones,
+and two `SessionRunner` tests failed on logic that `git diff` showed to be untouched. It
+vanished under `swift package clean`. The tell is unchanged code failing — worth reaching for
+the clean build before the debugger.
+
 ### What this cannot verify
 
 The clock bridge is untouched, so `selftest` remains the arbiter of the maths. But the ladder

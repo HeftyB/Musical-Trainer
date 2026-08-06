@@ -85,6 +85,14 @@ struct JamSession: Codable, StoredTake {
     /// the beat. A raw string rather than the enum for the same reason as
     /// `ExperimentAssignment.arm`: adding a rung must never orphan a recorded take.
     let rung: String?
+    /// The long-to-short swing ratio the take was played at. `nil` is straight.
+    ///
+    /// Unlike `rung`, where `nil` means *no rung was prescribed* and emphatically not quarters,
+    /// `nil` here really does mean straight: a ratio of 1 **is** straight, the identity of the
+    /// arithmetic rather than a separate case, and every take recorded before M15 was played
+    /// against an even grid. So an absent value reads as straight without inventing anything.
+    /// See `Feel`.
+    let swingRatio: Double?
 
     /// Condition label for this take ("relaxed", "focused", "flow", …), lowercased. Optional
     /// so takes recorded before tagging existed still decode.
@@ -159,6 +167,9 @@ struct JamSession: Codable, StoredTake {
         guard beats > 0 else { return nil }
         return Double(report().matchedCount) / beats
     }
+
+    /// The feel this take was played against — straight unless a ratio was stored.
+    var feel: Feel { swingRatio.flatMap { Feel(swingRatio: $0) } ?? .straight }
 
     /// Notes per beat the player was **asked** to produce: the rung, or 1 for free playing.
     ///
@@ -288,6 +299,14 @@ struct DropoutSession: Codable, StoredTake {
     /// `nil` on every take recorded before M14, where the analysis inferred it from what was
     /// played. The inference is kept for those; it is the *snapping* inside it that changed.
     let rung: String?
+    /// The long-to-short swing ratio the take was played at. `nil` is straight.
+    ///
+    /// Unlike `rung`, where `nil` means *no rung was prescribed* and emphatically not quarters,
+    /// `nil` here really does mean straight: a ratio of 1 **is** straight, it is the identity of
+    /// the arithmetic rather than a separate case, and every take recorded before M15 was played
+    /// against an even grid. So an absent value can be read as straight without inventing
+    /// anything. See `Feel`.
+    let swingRatio: Double?
 
     /// This take under the current analysis, with the note value it was asked for.
     ///
@@ -304,6 +323,9 @@ struct DropoutSession: Codable, StoredTake {
 
     /// Notes per beat asked for, or `nil` when nothing was prescribed and the analysis infers.
     var askedNotesPerBeat: Int? { rung.flatMap { IntervalRung(rawValue: $0)?.subdivisions } }
+
+    /// The feel this take was played against — straight unless a ratio was stored.
+    var feel: Feel { swingRatio.flatMap { Feel(swingRatio: $0) } ?? .straight }
 
     /// Rebuild the inputs to the analysis, so a stored drill can be re-analysed with the
     /// current logic. The stored summary is only a cache; this is the source of truth.

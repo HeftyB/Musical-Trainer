@@ -31,7 +31,7 @@ enum TakeFactory {
     static func jam(_ p: Performance = .steady, bars: Int = 32, tag: String? = nil,
                     experiment: ExperimentAssignment? = nil,
                     grid customGrid: Grid? = nil,
-                    rung: IntervalRung? = nil) -> JamSession {
+                    rung: IntervalRung? = nil, feel: Feel = .straight) -> JamSession {
         let g = customGrid ?? grid()
         let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
@@ -40,6 +40,7 @@ enum TakeFactory {
             date: Date(timeIntervalSince1970: 1_770_000_000), bpm: g.bpm, device: "test-device",
             calibrationConstantMs: 2.58, calibrationSource: "measured", grooveName: "jamBacking",
             bars: bars, subdivisions: g.subdivisions, rung: rung?.rawValue,
+            swingRatio: feel.isStraight ? nil : feel.swingRatio,
             tag: tag, feelRating: 4,
             gridStartTime: g.startTime,
             tapTimes: events.map(\.time), tapVelocities: events.map(\.velocity),
@@ -83,7 +84,7 @@ enum TakeFactory {
             modelHolds: false, reentryErrorMeanMs: nil, reentryErrorSDms: nil,
             headline: "", tempoBiasBpm: nil, playedBpm: nil, splitIsReliable: nil,
             discardedTrials: nil, placement: placement(role: "training"), experiment: nil,
-            rung: nil)
+            rung: nil, swingRatio: nil)
         // Recompute through the same path the engine uses, so the stored summary is the one the
         // analysis actually produces rather than a hand-written guess.
         let (t, gr, sections) = session.reconstruct()
@@ -102,7 +103,7 @@ enum TakeFactory {
             reentryErrorSDms: Stats.finite(r.reentryErrorSDms), headline: r.headline,
             tempoBiasBpm: Stats.finite(r.tempoBiasBpm), playedBpm: Stats.finite(r.playedBpm),
             splitIsReliable: r.splitIsReliable, discardedTrials: r.discardedTrials,
-            placement: session.placement, experiment: nil, rung: nil)
+            placement: session.placement, experiment: nil, rung: nil, swingRatio: nil)
     }
 
     static func tempo(rounds: Int = 4) -> TempoSession {

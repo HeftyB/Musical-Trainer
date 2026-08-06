@@ -13,7 +13,7 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M14 are built — every step of §7.23 is in. M14 has never run live.** The subdivision
+**M0–M14 are built and M14 has now had one live run (§7.23). M15 is in progress — steps 0b and 1 of 7, planned in §7.24.** The subdivision
 ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
 interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
 roadmap through M22.
@@ -183,6 +183,11 @@ Types worth knowing before changing anything:
   the beat a note landed), not a measure of note values played.
 - **`SessionPlacement`** — where a take sat in a planned evening, and the state the player
   declared before it started. Optional; 14 of 21 jams have none.
+- **`Feel`** — the long-to-short ratio of the divided beat, and **a ratio of 1 is straight**.
+  The identity falls out of the arithmetic, so nothing needs an `if straight` and `nil` in
+  storage genuinely means straight — unlike `nil` rung. Swing applies to the finest *binary*
+  division only: a triplet rung never swings. Ska and reggae are **not** feels; their grid is
+  straight and only the drill changes.
 - **`SessionState`** — usual / tired / amped / distracted / stiff, declared **before** the first
   block and never after. After the fact it would be post-hoc exclusion. `nil` means not
   declared, which is not the same as `usual`.
