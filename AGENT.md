@@ -21,6 +21,13 @@ plus the offbeat drill. PLAN.md §7 has the milestone table with an "as built" s
 §7.13 is the roadmap through M22, and M23 (jazz timing) is deferred behind the instrument
 milestones for the reason given there.
 
+**Next is not M16.** As of 6 August the order is: the form **level-3 probe** (§7.26), then
+**M19** (musical depth), then M16's span ladder. M19 moved ahead because a 32-bar phrase needs a
+backing that sustains 32 bars and M16.5's organ bubble needs the pattern format settled. The
+level-3 probe went ahead of *both* because it runs on today's backing.
+**Do not schedule a level-3 form take without the `probe` role landing first** — the planner
+picks the next level from the last take, so a probe becomes the floor (§7.26).
+
 | Done | |
 |---|---|
 | M0–M1 | Clock bridge validated, calibration |
