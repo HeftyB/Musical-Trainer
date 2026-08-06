@@ -97,11 +97,16 @@ public enum ProducedIntervalAnalysis {
     /// never saw where it was aimed.
     public static func notes(from matched: [MatchedTap], grid: Grid) -> [ProducedNote] {
         let ordered = matched.sorted { $0.gridIndex < $1.gridIndex }
-        let intervalMs = grid.interval * 1000
         return zip(ordered, ordered.dropFirst()).compactMap { previous, note in
             let gap = note.gridIndex - previous.gridIndex
             guard gap >= 1 else { return nil }
-            return ProducedNote(gapSteps: gap, intervalMs: Double(gap) * intervalMs,
+            // The distance between the two grid points, asked of the grid rather than computed
+            // as steps × a single spacing. Under a feel there is no single spacing, and the gap
+            // between a downbeat and a swung offbeat is not the gap between that offbeat and
+            // the next downbeat — this is one of the two places that assumption was buried.
+            let spanMs = (grid.time(ofIndex: note.gridIndex)
+                        - grid.time(ofIndex: previous.gridIndex)) * 1000
+            return ProducedNote(gapSteps: gap, intervalMs: spanMs,
                                 asynchronyMs: note.asynchronyMs)
         }
     }

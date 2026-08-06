@@ -117,7 +117,11 @@ public struct Performance {
             var offset = (biasMs + driftMsPerBeat * Double(beat)) / 1000
             offset += rng.gaussian(sd: spreadMs) / 1000
             // An off-grid note lands beyond the matching window and counts as an extra.
-            if rng.uniform() < offGridRate { offset += grid.interval * 0.45 }
+            // Beyond the window at this point — asked of the grid, because under a feel the
+            // spacing differs from point to point.
+            if rng.uniform() < offGridRate {
+                offset += grid.gap(around: beat * grid.subdivisions) * 0.45
+            }
             for voice in 0..<Swift.max(1, chordSize) {
                 out.append(Tap(time: target + offset + Double(voice) * 0.004,
                                velocity: 80, note: 60 + voice * 4))

@@ -109,6 +109,11 @@ Four test targets, and where each runs:
 calling `SessionStore.save` directly**, or a test will write into the real practice history.
 `check.sh` fails if anything outside `Tests/` arms that redirect.
 
+**After changing a stored property on a shared type, `swift package clean` before trusting a
+failure.** Test objects compiled against the old struct layout fail on code that has not
+changed — the tell is `git diff` showing the failing file untouched. It has cost two debugging
+rounds in M15 alone and is recorded in PLAN §7.23 step 0 and §7.24 step 2.
+
 **Run `selftest` after any change to analysis or audio.** It has caught six real defects that
 would otherwise have surfaced as mysterious live-run failures. If it passes and a live run
 fails, the fault is hardware or the clock bridge — not the maths. That separation is the
@@ -165,6 +170,9 @@ reaches takes recorded before it.
 Types worth knowing before changing anything:
 
 - **`Grid`** — index arithmetic, never accumulation. `subdivisions` is grid points per beat.
+  Indices stay uniform under a feel; only their *times* move, which is what stops a feel
+  reaching past `Matching`. There is deliberately **no `interval`** — under a feel there is no
+  single spacing, so ask `gap(around:)` about a particular point.
 - **`IntervalRung`** — a rung of M14's ladder, and the tempo ceiling its matching window implies.
   The ceiling assumes absolute spread does not move with the interval, which §7.23 step 3b
   measured rather than assumed.
@@ -183,6 +191,7 @@ Types worth knowing before changing anything:
   the beat a note landed), not a measure of note values played.
 - **`SessionPlacement`** — where a take sat in a planned evening, and the state the player
   declared before it started. Optional; 14 of 21 jams have none.
+- **`Grid`** — index arithmetic, never accumulation. Indices stay uniform under a feel; only their *times* move, which is what keeps a feel from reaching past `Matching`. There is deliberately no `interval`: under a feel there is no single spacing, so ask `gap(around:)` about a point.
 - **`Feel`** — the long-to-short ratio of the divided beat, and **a ratio of 1 is straight**.
   The identity falls out of the arithmetic, so nothing needs an `if straight` and `nil` in
   storage genuinely means straight — unlike `nil` rung. Swing applies to the finest *binary*

@@ -43,7 +43,7 @@ final class JamRungTests: XCTestCase {
     func testAQuartersRungIsNotScoredOnASixteenthGrid() {
         let config = TrainerEngine.JamConfig(bpm: 100, rung: .quarters)
         let grid = Grid(startTime: 0, bpm: config.bpm, subdivisions: config.gridSubdivisions)
-        XCTAssertEqual(grid.interval, 0.6, accuracy: 1e-9, "a beat, not a sixteenth")
+        XCTAssertEqual(grid.gap(around: 0), 0.6, accuracy: 1e-9, "a beat, not a sixteenth")
     }
 
     // MARK: - The count-in states the rung

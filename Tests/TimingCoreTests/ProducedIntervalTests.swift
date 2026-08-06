@@ -173,7 +173,13 @@ final class ProducedIntervalTests: XCTestCase {
         let played = ProducedIntervalAnalysis.notes(from: matched, grid: grid)
 
         XCTAssertEqual(played.map(\.gapSteps), [4, 4, 2])
-        XCTAssertEqual(played.map(\.intervalMs), [600, 600, 300])
+        // The span is asked of the grid rather than computed as steps × one spacing, because
+        // under a feel there is no one spacing — so it carries float rounding that the old
+        // multiplication did not. Bins are keyed on the rounded value, so nothing downstream
+        // moves; exact equality here would only be pinning the arithmetic's shape.
+        for (actual, expected) in zip(played.map(\.intervalMs), [600.0, 600, 300]) {
+            XCTAssertEqual(actual, expected, accuracy: 1e-9)
+        }
     }
 
     /// Two notes on the same grid point cannot happen after matching, but the reduction must not

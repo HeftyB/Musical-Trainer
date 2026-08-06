@@ -4,7 +4,7 @@ import XCTest
 final class GridTests: XCTestCase {
     func testIndexTimeRoundTrip() {
         let grid = Grid(startTime: 1.0, bpm: 120, subdivisions: 1)   // 0.5 s per beat
-        XCTAssertEqual(grid.interval, 0.5, accuracy: 1e-12)
+        XCTAssertEqual(grid.gap(around: 0), 0.5, accuracy: 1e-12)
         XCTAssertEqual(grid.time(ofIndex: 4), 3.0, accuracy: 1e-12)
         XCTAssertEqual(grid.nearestIndex(to: 3.02), 4)
         XCTAssertEqual(grid.nearestIndex(to: 2.74), 3)
@@ -36,7 +36,7 @@ final class MatchingTests: XCTestCase {
     func testSignInversionTrapIsAvoided() {
         // A note 45% of a beat late must NOT snap forward and report as ~55% early.
         // Window is ±40% of the interval, so it falls in the dead zone → extra.
-        let late = Tap(time: grid.time(ofIndex: 0) + 0.45 * grid.interval)
+        let late = Tap(time: grid.time(ofIndex: 0) + 0.45 * grid.gap(around: 0))
         let result = Matching.match(taps: [late], to: grid)
         XCTAssertTrue(result.matched.isEmpty, "a 45%-late note should not be matched at all")
         XCTAssertEqual(result.extraTaps.count, 1)
@@ -44,7 +44,7 @@ final class MatchingTests: XCTestCase {
 
     func testNoteWithinWindowStillMatches() {
         // 30% late is inside the window and should match its own grid point, late.
-        let tap = Tap(time: grid.time(ofIndex: 2) + 0.30 * grid.interval)
+        let tap = Tap(time: grid.time(ofIndex: 2) + 0.30 * grid.gap(around: 0))
         let result = Matching.match(taps: [tap], to: grid)
         XCTAssertEqual(result.matched.count, 1)
         XCTAssertEqual(result.matched[0].gridIndex, 2)

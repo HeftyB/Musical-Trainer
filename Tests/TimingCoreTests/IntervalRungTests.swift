@@ -19,7 +19,7 @@ final class IntervalRungTests: XCTestCase {
     func testTheIntervalIsTheGridsInterval() {
         for rung in IntervalRung.allCases {
             let grid = Grid(startTime: 0, bpm: 137, subdivisions: rung.subdivisions)
-            XCTAssertEqual(rung.intervalSeconds(atBpm: 137), grid.interval, accuracy: 1e-12,
+            XCTAssertEqual(rung.intervalSeconds(atBpm: 137), grid.gap(around: 0), accuracy: 1e-12,
                            "\(rung.label) must describe the grid it will be scored on")
         }
     }
@@ -40,7 +40,7 @@ final class IntervalRungTests: XCTestCase {
         for rung in IntervalRung.allCases {
             let grid = Grid(startTime: 0, bpm: 100, subdivisions: rung.subdivisions)
             XCTAssertEqual(rung.windowSeconds(atBpm: 100),
-                           grid.interval * Matching.defaultWindowFraction, accuracy: 1e-12)
+                           grid.gap(around: 0) * Matching.defaultWindowFraction, accuracy: 1e-12)
         }
     }
 

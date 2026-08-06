@@ -3115,12 +3115,11 @@ and never as a spread.
 | 0 ✅ | Live ladder run — chain verified end to end |
 | 0b ✅ | What that run exposed: the count-in states the rung, the ladder starts at eighths, a sitting can declare its state |
 | 1 ✅ | `Feel` as pure arithmetic, and storage for it — written and unread |
-| 2 | `Grid` gains the feel; `interval` retired; **straight bit-for-bit identical over every stored take** |
-| 3 | `Matching` under a feel — symmetric window on the smaller gap; §5.3's trap re-planted per feel |
-| 4 | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
-| 5 | Backings per feel, and `render` so a feel is heard before it is promoted |
-| 6 | Drills gain a feel, both surfaces |
-| 7 | Offbeat drill — ska and reggae |
+| 2 ✅ | `Grid` and `Matching` gain the feel; `interval` retired; **straight bit-for-bit identical over every stored take** |
+| 3 | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
+| 4 | Backings per feel, and `render` so a feel is heard before it is promoted |
+| 5 | Drills gain a feel, both surfaces |
+| 6 | Offbeat drill — ska and reggae |
 
 ### Step 1, as built
 
@@ -3161,6 +3160,66 @@ stored structs changed layout while the test objects were still compiled against
 and two `SessionRunner` tests failed on logic that `git diff` showed to be untouched. It
 vanished under `swift package clean`. The tell is unchanged code failing — worth reaching for
 the clean build before the debugger.
+
+### Step 2, as built — the grid gains a feel
+
+`Grid` carries a `Feel`, `time(ofIndex:)` applies its phases, `nearestIndex(to:)` searches
+instead of dividing, and `interval` is gone. Steps 2 and 3 landed together because they had to:
+`Matching` was the thing consuming `interval`, so retiring it and teaching the matcher about
+uneven spacing is one change, not two.
+
+**Indices stay uniform; only their times move.** It would have been possible to express a feel
+by indexing the grid unevenly. Not doing that is what keeps the change contained — index `n` is
+still the `n`th subdivision, `phase(ofIndex:)` is still a modulo, and everything downstream of
+matching works in indices. A feel reaches `Matching` and stops there.
+
+**`interval` is retired rather than extended.** Under a feel the grid has no single spacing, so
+a property claiming one becomes a lie the moment swing arrives. `gap(around:)` replaces it and
+asks about a *particular* point. Killing it cost four call sites and was cheaper than letting a
+second meaning grow around it — which is the mistake §7.23 made four times over "how finely we
+divide the beat".
+
+**The window is symmetric on the smaller adjacent gap.** A window reaching 40% of each
+neighbouring gap would be wider on the long side of a swung pair, capture more late outliers
+than early ones, and **pull the mean late** — a bias rather than a lost note. Symmetric costs a
+little capture and biases nothing, and it also guarantees adjacent windows stay disjoint: each
+half-width is at most 40% of the gap it sits in, so two together span at most 80% of the
+distance between their points. `Matching`'s precondition has always asserted disjointness; now
+it is true for a reason rather than by construction. A test checks it at every ratio.
+
+#### The regression gate, and what it actually showed
+
+Written and run **before** the change, against arithmetic stated longhand rather than against
+`Grid`'s new implementation — a test that asked the new code whether it agreed with itself would
+pass through any mistake it made consistently. Every grid point, every `nearestIndex` over 400
+random offsets per tempo and rung, and every reported number over the degenerate corpus.
+
+Then the real corpus: `review list`, six individual takes, `review dropout`, `review interval`,
+`review trend` and `selftest`, captured before and diffed after. **All six byte-identical.**
+
+#### The trap, and the number it produces
+
+The failure this step exists to prevent is not a crash. It is style reported as error, and the
+first version of the test assumed swung offbeats would at least be *discarded* by a straight
+grid. **They are not**, and that is what makes it dangerous: at 100 BPM a 2:1 offbeat sits 400 ms
+into the beat, only 100 ms past the straight eighth, and the window is ±120 ms. So every note
+matches, the off-grid rate stays at zero, and a player swinging *perfectly* reads as **dragging
+50 ms with a 50 ms spread** — worse than any real take in this project's history and entirely
+plausible on the page, with nothing anywhere to flag it. That is now a test.
+
+#### Two process notes
+
+**The blast radius was two consumers, not one.** §7.24 above says `interval` had a single
+consumer. It had two — `ProducedInterval` was the other, and it was missing from the survey
+because the grep that produced that claim filtered out filenames containing "Interval" to
+suppress noise. A filter that hides real hits is §7.20 finding 5 in a new costume: the
+force-unwrap rule that excluded lines containing a quote and so missed five violations.
+
+**A stale build cost a second debugging round**, after already costing one in step 1. Both times
+a stored property changed on a shared type — `swingRatio` then `feel` — leaving test objects
+compiled against the old layout, and both times the tell was the same: tests failing on code
+`git diff` showed to be untouched. It is now in `AGENT.md` next to the build commands rather
+than only in this section.
 
 ### What this cannot verify
 

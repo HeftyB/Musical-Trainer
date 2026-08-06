@@ -20,8 +20,6 @@ public enum Matching {
                              windowFraction: Double = defaultWindowFraction) -> MatchResult {
         precondition(windowFraction > 0 && windowFraction < 0.5,
                      "windowFraction must be in (0, 0.5) to keep windows disjoint")
-        let windowSec = windowFraction * grid.interval
-
         struct Candidate { let tap: Tap; let index: Int; let offsetSec: Double }
         var candidates: [Candidate] = []
         var extras: [Tap] = []
@@ -29,7 +27,12 @@ public enum Matching {
         for tap in taps {
             let index = grid.nearestIndex(to: tap.time)
             let offset = tap.time - grid.time(ofIndex: index)
-            if abs(offset) <= windowSec {
+            // Per point, not once for the grid: under a feel the spacing is uneven, so a swung
+            // offbeat has less room on one side than the downbeat before it. `gap(around:)`
+            // returns the smaller of the two neighbouring gaps, which keeps the window
+            // symmetric and the windows disjoint — see its doc comment for why asymmetry would
+            // bias the mean rather than merely lose a note.
+            if abs(offset) <= windowFraction * grid.gap(around: index) {
                 candidates.append(Candidate(tap: tap, index: index, offsetSec: offset))
             } else {
                 extras.append(tap)
