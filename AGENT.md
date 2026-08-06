@@ -115,7 +115,7 @@ that precondition is met without booking a live run.
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 396 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (145 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (152 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -159,7 +159,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 541 tests, no hardware needed
+swift test                              # 548 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -443,9 +443,9 @@ Current as of 69 takes across 9 sittings — 27 jams, 12 form, 12 continuation, 
   take, and the censoring bias runs against that result rather than producing it. His hunch is
   about the mode of playing across a take, which M12 cannot test and M13's `steady-vs-melodic`
   experiment is now collecting for.
-- **Two tags now pool across tempos** — `focused` (100 and 110) and `relaxed` (100 and 120). Both
-  are flagged as mixed pools at the point of display, which is the only reason they are not
-  quietly wrong.
+- **Three tags pool across a confound** — `focused` and `relaxed` across tempos, and `tired`
+  across two swing ratios. All three are flagged at the point of display with what the mix
+  ruins (§7.28); `tired` was silent until that list was consolidated.
 - He thinks in feel and sound, not bar counts. He is a strong developer — pitch technical
   explanations high, but never explain music theory to him.
 

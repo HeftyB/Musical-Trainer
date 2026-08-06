@@ -4178,6 +4178,45 @@ grouping problem — its unit is the *sitting*, and splitting by level would lea
 sitting with two comparable takes — so it needs a design decision rather than the same edit.
 Recorded here so the next reader does not take that verdict at face value.
 
+---
+
+## 7.28 One list of what makes two takes a different task
+
+`review tags` pools every take carrying a label and reports the condition's mean, spread and r₁.
+`review conditions` compares two such pools. Both have to say when the takes inside them are not
+the same task, and each kept its own list of what that means:
+
+| | backing | tempo | device | rung | feel | offbeat level |
+|---|---|---|---|---|---|---|
+| `review tags` | yes | yes | yes | — | — | — |
+| `review conditions` | yes | yes | yes | yes | yes | — |
+
+The bottom-right corner is the one that was live. `tired` holds the two swung takes of §7.24
+step 7 — one at 2:1, one at 3:2 — and the pooled summary printed their blended spread with no
+warning at all, because feel was on the other list. An offbeat take tagged alongside jams would
+have gone unremarked on both.
+
+`TakeAxis.all` is the single list now and both readouts walk it. Each axis carries what stops
+being comparable rather than only that something differs, because a reader told the pool mixes
+feels still has to be told which number that ruins — so the pooled summary prints the consequence
+under the warning.
+
+**This is R3.4 and deliberately not R3.5.** §7.27 split the trends by task because the app chose
+those parameters and a line fitted across them measures the change. A tag is a label the *player*
+applied to whatever they were playing, so splitting `relaxed` into `relaxed at 100` and `relaxed
+at 120` would answer a question nobody asked. Name the confound at the point of display and leave
+the pool alone.
+
+Detection is `TakeAxis.mixed(in:)` rather than a filter inside the print loop, for the usual
+reason: a decision made inside something that prints is a decision no test can reach. The suite
+walks `TakeAxis.all` and asserts each axis is seen by *both* readouts, so an axis added later is
+covered without anyone remembering to add a case — and deleting the feel and offbeat entries
+reproduces both original gaps.
+
+---
+
+## 8. Project layout
+
 Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what
 make the numbers testable, and the rule that keeps them honest is that **anything analysable
 goes in `TimingCore` or `GrooveCore`**, because only those run under `swift test` against data
