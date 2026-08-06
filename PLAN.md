@@ -894,11 +894,15 @@ retroactively), but they keep the stored JSON legible.
 
 ---
 
-## 7.13 Roadmap M9–M22
+## 7.13 Roadmap M9–M23
 
 Direction set with the player: **training depth** over new instruments or packaging;
 **20–30 minute structured sessions**; **research built in as a first-class feature** rather
 than run by hand. Ordered by dependency and value, not difficulty.
+
+Three entries were added after the original M9–M22 list and sit out of numeric order below,
+where their dependencies put them: **M16.5** (the skank family), the **M20 note**, and **M23**
+(jazz time, deferred with its argument).
 
 ### M9 — Session builder
 The app proposes and runs a whole session: warm-up calibration, two or three drills chosen
@@ -1014,6 +1018,65 @@ The level-2 data showed the player marking a steady **4-bar** phrase against an 
 setting: a consistent feel, not a lost one. Phrase length becomes a trained variable in its
 own right — nested phrasing (4 inside 8 inside 16), explicit "which period do you feel?"
 probes, and a ladder that grows the span rather than only removing landmarks.
+
+### M16.5 — The skank family
+The offbeat drill (§7.24 step 6) trains one thing the player has named as a skill he wants: the
+**skank**. It is also the drill that generalises furthest, because "hold a position the band never
+plays" is not specific to ska.
+
+`OffbeatAnalysis` currently hardcodes one asked-for phase — `subdivisions / 2`, the "and" — and
+one forbidden one, the downbeat. Generalising that to a **set** of asked-for phases against a set
+of forbidden ones costs very little and opens the whole family:
+
+| Feel | Rung | Play | Rest on |
+|---|---|---|---|
+| Ska / reggae skank | eighths | the "and" | the beat |
+| **Organ bubble** | triplets | the 2nd and 3rd of each triplet | the beat |
+| Charleston, one-drop variants | eighths | selected offbeats only | the beat, and the unselected offbeats |
+
+**The organ bubble is the one to build next**, and the reason it is cheap is that the analysis
+already refuses to count notes that are neither the beat nor the asked-for point — that behaviour
+was written for stray sixteenths and is exactly what a two-of-three pattern needs. What it needs
+that does not exist: a triplet skank backing, and a phase *set* rather than a single phase.
+
+*Musical premise to confirm before building:* the characterisation assumed here is that the
+bubble rests on the beat and plays the second and third of each beat's triplet, commonly with
+alternating hands. The measurement follows from that and would change if the premise is wrong.
+
+### M20 note — the skank is the natural first cross-instrument drill
+§7.13's M20 argues that drum mode is worth building because "the measurement is unchanged (onsets
+against a grid) while the *input mapping* and the *backing* both change, which is exactly the seam
+M21 and M22 have to widen."
+
+The skank family is that argument's best example. A guitar skank, an organ bubble and a drum
+one-drop are **the same measurement** — notes on the offbeat, nothing on the beat, scored apart
+from placement — with three different instruments and three different backings. When guitar input
+arrives (M21), the offbeat drill is the first drill that should accept it, because nothing about
+its analysis needs to change.
+
+### M23 — Jazz time
+**Deferred behind the instrument milestones, and the reason is a data problem rather than a code
+one.** Recorded here so the deferral is on the record with its argument (§7.24 planning).
+
+The measurement needs a target that is a *distribution* rather than a point, and there is no
+definition of idiomatic available: no corpus, no reference pipeline, and one player. Any window
+would be a number invented and then scored against, which §3 of `STANDARDS.md` forbids outright.
+
+It is also not one skill. Comping on piano is a left-hand placement against a walking pulse nobody
+is playing; jazz drumming is a ride pattern with independent limbs; scatting is phrase-level rubato
+against an implied grid; guitar comping is different again. Each has a different target, a
+different role, and a different notion of "on" — and the app has no concept of *role* until M20's
+drum mode, which is the seam this needs.
+
+**What could be built sooner, honestly framed as smaller:** elasticity itself is measurable with
+tools that exist. *Did your placement vary at all, and was the variation structured or random?* —
+a spread plus the lag-1 autocorrelation the app already computes. A player deliberately pushing and
+pulling has structured variation; one who is merely loose has random variation, and r₁ separates
+them. It does **not** answer "was it idiomatic", and should not be sold as though it does.
+
+**Falsifier for the milestone:** if a reference corpus never becomes available, M23's scoring model
+never becomes honest, and the right outcome is that it stays unbuilt rather than shipping an
+invented window.
 
 ### M17 — Unified adaptive difficulty
 Four drills now have four ad-hoc progression rules. Replace them with one model: a per-axis
