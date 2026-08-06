@@ -3188,6 +3188,8 @@ and never as a spread.
 | 4 ✅ | Backings per feel, and `render` so a feel is heard before it is promoted |
 | 5 ✅ | The jam gains a feel, both surfaces. The continuation drill refuses one. |
 | 6 ✅ | Offbeat drill — ska and reggae |
+| 7 ✅ | The first swung takes, and the grid that was not reaching the app |
+| 8 ✅ | The first offbeat take, and the three stored paths the drill did not reach |
 
 ### Step 1, as built
 
@@ -3608,6 +3610,94 @@ The swung takes produce genuinely short intervals — the 200 ms and 240 ms shor
 3:2 pairs at 100 BPM — so the produced-interval range now runs 200 ms to 1200 ms, a sixfold
 spread. **The finding holds and strengthens**: absolute spread −0.17 ms per 100 ms
 [−1.94, +0.59], relative −1.08 points and real.
+
+### Step 8 — the first offbeat take, and the three places it did not reach
+
+6 August, 04:32, level 0, 32 bars — the first offbeat take ever recorded, and like step 7 it
+found what no test could. The take itself is the drill working: **26 of 112 notes on the offbeat,
+86 on the beat, share 0.23 — slipped**, which is the exact failure §7.24 step 6 built the
+separation for. The player lost the feel and the analysis said so, live.
+
+Nothing that read the take back could say it. The drill was wired into the live console path and
+nowhere else, so the moment the take was saved its own result stopped existing:
+
+| Surface | What it said about a slipped skank |
+|---|---|
+| `review 30` | *"You sit consistently ahead of the beat — steady, just early."* No offbeat block. |
+| `review trend` | Pooled it with 21 free jams at 100 BPM |
+| The planner | Could not have run it at all |
+
+**This is step 7 again, one step later.** There the grid the *test* built carried a feel and the
+grid the *app* built did not; here the readout the *live path* produced carried the drill and the
+readout every *stored* path produced did not. `LESSONS.md` shape 1, sixth instance on this
+project, and the tell was the same both times: the code that ships was never the code under test.
+
+#### The review was silent because nothing called the accessor
+
+`JamSession.offbeatReport()` existed, was correct, and had **zero callers in `Sources` and zero
+in `Tests`**. It was written in step 6 alongside the storage and then never wired, so the offbeat
+verdict was computed once at take time and never recomputed — the only readout in the project
+that disobeys R3.1. `reviewTake` now builds an `OffbeatContext` through it, so the review
+re-derives the slip from raw taps like every other number.
+
+#### The swing block would have fired on a *held* take, and that is the wrong way round
+
+`reportTiming` ran `reportSwing` on every jam. On the eighths grid the offbeat drill forces,
+every note the skank asks for sits "off the division", so `SwingAnalysis`'s share guard —
+off-division notes against on-division ones — is cleared more comfortably the **better** the feel
+is held. A held skank with three stray notes on the beat reports *"You swing the beat about
+1.1:1, and place the swung note to 0.0 ms"*: a confident ratio for a player dividing nothing.
+
+The one real take escaped it only by slipping so badly (26 against 86) that the share fell below
+0.5 and the guard withheld the number. So the readout was silent on the take that went wrong and
+would have spoken on the first take that went right. That is §7.24's own trap in a new place — a
+number that stays entirely plausible while describing the wrong question.
+
+The two blocks are now mutually exclusive, and the choice is **returned by the branch that
+prints it** rather than computed beside it. A value derived alongside the branch agrees with a
+branch that has been changed underneath it, which is how step 7's defect survived a suite that
+tested swung grids thoroughly.
+
+#### The trend pooled it, and it had already moved a verdict
+
+`GroupKey` split on tempo, rung and — since step 5 — feel. `offbeatLevel` arrived in step 6 and
+was not added, so a take storing no rung and no swing keyed identically to a free jam. Verified
+on the real data: the take sat inside *"Jams at 100 BPM"* with 21 free jams, and it is not a
+subtle passenger. Its 48.4 ms spread is the widest in the project's history.
+
+| "Jams at 100 BPM" | with the offbeat take pooled in | split out |
+|---|---|---|
+| spread (SD) | +0.30/take [−0.20, +0.83] flat | −0.01/take [−0.26, +0.18] flat |
+| \|bias\| | **+0.29/take [+0.01, +0.62] worsening** | +0.28/take [−0.03, +0.62] flat |
+
+**Retracted: the group's bias was never worsening.** One take of a different drill, over a
+different backing, carried the interval off zero. The mixed-backings warning did fire — R3.4 was
+doing its job — but a warning beside a verdict is not the same as not computing the verdict, and
+§7.23 trap 3 gave rung and feel their own *group* for exactly this reason. Naming a confound is
+the floor, not the fix.
+
+#### The planner would have run the wrong drill
+
+`JamPlan.offbeatLevel` existed and `DrillInstructions.forBlock` already read it, so a planned
+offbeat block would have printed the skank's instructions and played an ordinary jam over
+`jamBacking`, scored on a sixteenth grid. Three of four pieces shipped wired; `SessionRunner`
+built its `JamConfig` with `rung:` and `feel:` only. Nothing caught it because the decision lived
+inside a function that opens an audio device — `LESSONS.md` shape 1's own guard, unheeded — so it
+is now `SessionRunner.jamConfig(for:)` and a test asserts the level reaches the backing and the
+grid. Latent rather than live: the planner never sets the field, which is why the take that found
+everything else could not find this.
+
+#### What the suite gained
+
+Eleven tests, and each fix was verified by reverting it and watching the assertion fail — the
+`Performance` generator gained `beatPhase` and `slipRate` so a skank, held or slipped, is a
+shared pathology rather than a fixture in one file. `slipRate > 0` short-circuits before the
+random draw so no existing test's planted taps move.
+
+**The one line still uncovered** is `reviewTake` passing the context into `reportTiming`: it
+feeds `print`, and stdout capture is not worth building for it. `offbeat:` lost its default value
+instead, so a new readout cannot silently omit an offbeat take's result — a compiler guard rather
+than a test, and worth saying so rather than implying coverage.
 
 ### What this cannot verify
 
