@@ -104,9 +104,12 @@ struct SetupView: View {
                         }
                         .labelsHidden().frame(width: 220)
                     }
-                    // Only where a swing means anything: triplets have no binary pair, and free
-                    // playing prescribes no division for a feel to describe.
-                    if model.mode == .jam && model.feelApplies {
+                    // Always shown in Jam, and *disabled* rather than hidden where a swing
+                    // means nothing. Hiding it made the feature unreachable: the default
+                    // subdivision is Free, a feel needs a division to describe, so the row never
+                    // appeared and nothing on screen said it existed. That is the same mistake
+                    // as hiding a rung without naming what was hidden, made one control down.
+                    if model.mode == .jam {
                         LabeledContent("Feel") {
                             Picker("", selection: $model.swingRatio) {
                                 ForEach(AppModel.swingChoices, id: \.ratio) { choice in
@@ -114,7 +117,13 @@ struct SetupView: View {
                                 }
                             }
                             .labelsHidden().frame(width: 220)
+                            .disabled(!model.feelApplies)
                         }
+                    }
+                    if let feelAdvice = model.feelAdvice {
+                        Text(feelAdvice)
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     Text(model.rungAdvice)
                         .font(.caption).foregroundStyle(.secondary)

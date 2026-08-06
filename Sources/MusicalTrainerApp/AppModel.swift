@@ -391,6 +391,15 @@ final class AppModel: ObservableObject {
         return Stats.median(spreads)
     }
 
+    /// Why the Feel picker is greyed out, when it is. Shown rather than left to be guessed.
+    var feelAdvice: String? {
+        guard mode == .jam, !feelApplies else { return nil }
+        guard rung != nil else {
+            return "Swing needs a subdivision to swing — pick eighths or sixteenths above."
+        }
+        return "Triplets are the division swing borrows from, so there is no pair to swing."
+    }
+
     /// One line under the picker saying what the choice costs, in the player's terms.
     var rungAdvice: String {
         let choice: String
