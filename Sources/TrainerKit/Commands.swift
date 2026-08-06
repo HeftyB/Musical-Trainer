@@ -368,13 +368,14 @@ public enum Commands {
         // experience rather than a rationalisation of the measurement.
         let feel = Console.readRating("\nHow did that feel?")
         reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
-                     events: outcome.eventCount, uncalibrated: !env.isCalibrated)
+                     events: outcome.eventCount, uncalibrated: !env.isCalibrated,
+                     grid: outcome.analysisGrid)
         let url = try TrainerEngine.save(outcome, feelRating: feel)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
     }
 
     private static func reportTiming(_ report: TimingReport, notesCaptured: Int, events: Int,
-                                     uncalibrated: Bool) {
+                                     uncalibrated: Bool, grid: Grid? = nil) {
         Console.heading("Your take")
         print("Notes captured: \(notesCaptured)  →  \(events) chord/note events")
         // "Off the grid" = events that landed more than ~40% of a 16th from any beat. Missed
@@ -424,6 +425,34 @@ public enum Commands {
             print(String(format: "Velocity coupling: r = %+.2f  (%@)", vc,
                          vc > 0 ? "harder = later" : "harder = earlier"))
         }
+        if let grid { reportSwing(report: report, grid: grid) }
+    }
+
+    /// How the beat was divided, when enough notes landed off the division to say.
+    ///
+    /// Shown for any take with off-division playing, not only a swung one — a player asked for
+    /// straight eighths who is quietly swinging them is exactly the thing this can see and
+    /// nothing else could (§7.24 step 3).
+    private static func reportSwing(report: TimingReport, grid: Grid) {
+        let swing = SwingAnalysis.analyze(matched: report.matched, grid: grid)
+        guard swing.ratioIsMeaningful, swing.offbeatCount >= SwingAnalysis.minimumOffbeats,
+              let ratio = swing.producedRatio else { return }
+
+        print("")
+        print("\(Console.bold)Dividing \(swing.dividedUnit)\(Console.reset)")
+        let interval = swing.producedRatioInterval
+            .map { String(format: "  95%% CI [%.2f, %.2f]", $0.low, $0.high) } ?? ""
+        print(String(format: "Ratio:            %.2f:1%@", ratio, interval))
+        if let on = swing.downbeatSpreadMs, let off = swing.offbeatSpreadMs {
+            // Milliseconds, and side by side on purpose: the same steadiness would report as a
+            // very different *ratio* spread depending on how hard the swing is, so the ratio is
+            // never given a spread of its own.
+            print("Spread:           \(Console.ms(off, 1)) off the division, "
+                + "\(Console.ms(on, 1)) on it   "
+                + "\(Console.dim)(\(swing.offbeatCount) / \(swing.downbeatCount) notes)\(Console.reset)")
+        }
+        print("\n\(swing.headline)")
+        for note in swing.notes { Console.warn(note) }
     }
 
     /// Format a 95% CI as "  95% CI [lo, hi]" in ms, or "" if unavailable.
@@ -532,7 +561,7 @@ public enum Commands {
             Console.warn("uncalibrated take — bias unreliable.")
         }
         reportTiming(report, notesCaptured: session.tapTimes.count, events: events.count,
-                     uncalibrated: session.calibrationConstantMs == nil)
+                     uncalibrated: session.calibrationConstantMs == nil, grid: grid)
     }
 
     private static func dateLabel(_ date: Date) -> String {

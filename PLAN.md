@@ -3116,7 +3116,7 @@ and never as a spread.
 | 0b ✅ | What that run exposed: the count-in states the rung, the ladder starts at eighths, a sitting can declare its state |
 | 1 ✅ | `Feel` as pure arithmetic, and storage for it — written and unread |
 | 2 ✅ | `Grid` and `Matching` gain the feel; `interval` retired; **straight bit-for-bit identical over every stored take** |
-| 3 | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
+| 3 ✅ | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
 | 4 | Backings per feel, and `render` so a feel is heard before it is promoted |
 | 5 | Drills gain a feel, both surfaces |
 | 6 | Offbeat drill — ska and reggae |
@@ -3220,6 +3220,54 @@ a stored property changed on a shared type — `swingRatio` then `feel` — leav
 compiled against the old layout, and both times the tell was the same: tests failing on code
 `git diff` showed to be untouched. It is now in `AGENT.md` next to the build commands rather
 than only in this section.
+
+### Step 3, as built — swing measured as placement, not as a ratio of intervals
+
+`SwingAnalysis`, and a `Dividing …` block in `review <n>` whenever a take has enough
+off-division playing to support one. Thirteen tests.
+
+**The ratio is derived and never measured per pair.** A swung note's produced phase is where the
+feel expected it plus how far it actually landed from there, as a fraction of the *pair's* span;
+the ratio is `φ/(1−φ)` of the mean. Its interval comes from a moving-block bootstrap on the
+offbeat asynchronies, transformed through the same monotonic map — bootstrapping the ratio
+directly would resample a quantity whose scale changes across its own range.
+
+**Consistency is the swung note's spread in milliseconds**, printed beside the on-division
+spread from the same take so the two can be read against each other. That comparison is the
+clock/motor question on a new axis: is the pulse steadier than the placement inside it?
+
+The `dr/dφ` argument is now a test rather than only a paragraph. Two planted players with
+*identical* physical steadiness, one straight and one at 3:1, must report the same consistency —
+and the test also computes what the rejected unit would have said, which is that the deep
+swinger is **3.5× worse** for no reason he could hear or change.
+
+**It answers a question on takes that already exist**: a player asked for straight eighths who
+is quietly swinging them. Nothing in the app could ask that before.
+
+#### The threshold the readout found
+
+Wiring it up immediately exposed one that reasoning had not. A free jam with **12 notes off the
+division against 117 on it** reported *"you swing each eighth 1.4:1"* with an interval excluding
+even — a confident statement about a feel, computed from twelve incidental grace notes. Twelve
+is comfortably enough for a bootstrap and nowhere near enough to be a division.
+
+So the count guard rose to 24 and gained a companion: off-division notes must be at least **half
+as many as on-division ones**. A player genuinely dividing the unit produces roughly one of each,
+while an ornamenting one produces a tenth. Both guards are needed — the count alone passed the
+take that prompted this.
+
+**No take on record now qualifies**, which is the correct answer and consistent with step 3b:
+82.4% of every matched note sits a beat from the last. The readout becomes answerable when a
+prescribed eighths rung is actually played, which is what step 5 schedules.
+
+#### Also worth recording
+
+The headline names *what* is being divided — "the beat" at eighths, "each eighth" at sixteenths.
+Every take on record is scored at sixteenths, so without that the readout would say "the beat"
+while measuring swung sixteenths, which is a different question with the same words.
+
+`review list`, `review dropout`, `review interval`, `review trend` and `selftest` are all still
+byte-identical to the pre-M15 baseline.
 
 ### What this cannot verify
 

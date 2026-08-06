@@ -148,6 +148,12 @@ public enum TrainerEngine {
         /// moment a backing differed every number would have moved between the live report and
         /// the review.
         fileprivate let gridSubdivisions: Int
+        /// The grid this take was scored on, for readouts that need more than the summary —
+        /// the swing analysis asks which grid points were off the division.
+        public var analysisGrid: Grid {
+            Grid(startTime: gridStartTime, bpm: config.bpm, subdivisions: gridSubdivisions,
+                 feel: config.feel)
+        }
         fileprivate let taps: [Tap]
         /// Every note-on in the window, before chord clustering — pitch, velocity and time.
         /// Clustering collapses a chord to one rhythmic event, which is right for timing and
@@ -401,6 +407,12 @@ public enum TrainerEngine {
         fileprivate let gridStartTime: Double
         /// The grid the silences were scored against — see `JamOutcome.gridSubdivisions`.
         fileprivate let gridSubdivisions: Int
+        /// The grid this take was scored on, for readouts that need more than the summary —
+        /// the swing analysis asks which grid points were off the division.
+        public var analysisGrid: Grid {
+            Grid(startTime: gridStartTime, bpm: config.bpm, subdivisions: gridSubdivisions,
+                 feel: config.feel)
+        }
         fileprivate let tapTimes: [Double]
     }
 
