@@ -3712,6 +3712,100 @@ and one take covers 120.
 
 ---
 
+## 7.25 A fraction gate cannot protect a variance
+
+Found by reading `review dropout` while re-deriving figures for a documentation pass, which is
+worth recording on its own: **nothing was looking for this, and no test could have been.**
+
+| 5 Aug, 18:23 · 4+8×8 | clock | motor |
+|---|---|---|
+| as reported | **193.5 ms** | 71.3 ms |
+| every other usable take on record | 11.4 – 40.7 ms | 4.2 – 20.9 ms |
+
+At 100 BPM a clock SD of 193.5 ms is a third of a beat, one sigma — a player whose internal
+period wanders by two hundred milliseconds could not have produced the 97 BPM the same take
+reports. The number was displayed with `splitIsReliable` **true**.
+
+### What the raw taps said
+
+Eight trials, none discarded, all inside the isochrony gate. The intervals:
+
+```
+trial 4:  670,612,668,604,642,606,624,635,727,2592,608,590,594,...
+trial 5:  883,323,3070,586,581,600,588,589,596,619,603,638,607,...
+trial 6:  ...,700,1455,592,674,665,601,1154,662
+```
+
+Nine intervals out of 232 — **4%** — are pauses and dropped notes. A 3070 ms interval at a 600 ms
+beat is five beats of nothing. Per trial:
+
+| trial | intervals | odd | share of count | **share of squared error** |
+|---|---|---|---|---|
+| 1 | 30 | 1 | 3% | **76%** |
+| 3 | 31 | 1 | 3% | **72%** |
+| 4 | 27 | 1 | 4% | **99%** |
+| 5 | 27 | 2 | 7% | **99%** |
+| 6 | 27 | 2 | 7% | **95%** |
+
+### The defect is the shape of the guard, not its threshold
+
+`maxOddFraction` admits a trial with up to 25% of its intervals outside the 0.6–1.6× band. That
+is the right question for *"was this silence a continuation attempt at all"* and the wrong guard
+for what happens next, because Wing–Kristofferson is **quadratic in the residuals**. A fraction
+gate counts an outlier once; the variance it is protecting counts it squared. Every take above
+sailed through at 3–7%.
+
+Tightening the fraction would not fix it and would throw away good trials. The exclusion belongs
+where the violation is: a hesitation is not a noisy beat, it is the sequence **stopping and
+starting again**, so the stretches either side are two continuation sequences rather than one
+with a hole. `DropoutAnalysis.continuationRuns` splits at every out-of-band interval and
+`WingKristofferson.decompose(trials:)` takes the runs unchanged — it already centres each trial
+on its own mean and never takes a product across a boundary, which is exactly what a run needs.
+
+Nothing new is invented: the band is the one the trial-level gate already uses, and the count of
+what was broken out is reported (`brokenIntervals`, on the trial and on the report, and warned
+in the readout). An exclusion nobody can see is indistinguishable from quietly dropping the data
+that spoiled the answer.
+
+The same contamination reached two more statistics off the same series, both fixed with it:
+`unpacedIntervalSDms` is a spread, and `withinTrialDriftMsPerBeat` is a least-squares slope —
+equally quadratic in an outlier, and a gap also breaks the x-axis it is fitted against, since
+the intervals either side of a pause are not consecutive beats. The tempo readout is
+deliberately **not** touched: it is built from medians, and the take that exposed all of this
+reported its 97 BPM correctly throughout. Only the quadratic statistics were ever wrong.
+
+### What it did to the corpus
+
+Twelve stored takes, recomputed:
+
+| | before | after |
+|---|---|---|
+| 5 Aug 18:23 (4+8×8) | 193.5 / 71.3 | **24.1 / 15.4** |
+| 4 Aug 01:54 (4+8×8) | 40.7 / 20.9 | **29.6 / 9.6** |
+| seven others | — | **identical to the decimal** |
+| two already withheld (γ₁ > 0) | — | still withheld |
+
+The second one matters as much as the first: 40.7 / 20.9 was quoted in `AGENT.md` as this
+player's 8-bar figure, and it was inflated by one gap.
+
+### What it did **not** do, which was the expectation going in
+
+I predicted the trend's clock-SD verdict would collapse. It did not. `review trend` moved from
+`+12.15/take [+0.84, +25.21]` to `+1.32/take [+0.64, +3.05]` — an order of magnitude smaller and
+**still "worsening"**, because the interval still excludes zero.
+
+That verdict is confounded, and by something this document already forbids: §7.7 says do not
+pool across silence lengths, because a longer silence is a harder task. The nine usable takes
+are 2, 4, 4, 4, 4, 4, 8, 8 and 16 bars, and the two 8-bar takes are the two highest clock
+figures. `dropoutTrends` fits one line through all of them and prints a warning instead of
+splitting, which is the same defect §7.24 step 8 fixed for jams — a confound named rather than
+separated. **Left standing deliberately**, with the fix queued: it is a different change, in a
+different function, and folding it in here would put two arguments in one commit.
+
+Until it is split, the continuation clock-SD trend should not be read.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what

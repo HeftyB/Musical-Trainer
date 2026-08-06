@@ -94,7 +94,7 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 378 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 387 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (127 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -109,7 +109,7 @@ that precondition is met without booking a live run.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 505 tests, no hardware needed
+swift test                              # 514 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -289,6 +289,7 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 | Collapse near-simultaneous onsets before measuring | One accidental double-hit turned a true 11 ms clock SD into 55 ms, and another into 92 ms. |
 | Match against a *window*, never nearest-grid-point alone | A note 60% of a beat late snaps forward and reports as early — sign inverted. |
 | Wing–Kristofferson needs isochronous, stationary input | Mixed note values produced a confident 143 ms "clock SD". Motor SD at 0 means the model hit its floor, not that the player is perfect. |
+| A guard on a *count* cannot protect a *variance* | The isochrony gate admits a trial with a quarter of its intervals out of band, and the decomposition squares them. Nine intervals in 232 — 4%, well inside the gate — carried up to 99% of a trial's squared error and reported a 193.5 ms clock SD at a 600 ms beat, flagged reliable. Splitting the trial at each gap put it back to 24.1 ms. |
 | Nothing louder than the groove except on the beat being marked | A crash one bar early made the form drill measure reaction to a decoy. Two takes wasted. |
 | Confounds get named, not blended | A changed backing produced a "real" 8 ms spread change that was partly just different music. |
 | A swung take never reaches Wing–Kristofferson | Swing alternates the intervals by design and the isochrony gate passes them. On a planted 12 ms clock and 8 ms motor, a swung series reported motor 99.7 ms and a negative clock variance. `DropoutConfig.validate` refuses it. |
@@ -350,8 +351,15 @@ Current as of 69 takes across 9 sittings — 27 jams, 12 form, 12 continuation, 
   −13.5 that morning. Unexplained either way. Bias is not failure (§2) and spread did not move
   with it.
 - **Clock is the looser half in every trustworthy split.** Do not pool across silence lengths:
-  4-bar runs ~11–22 / 4–12 ms across five takes, 8-bar 40.7 / 20.9, 16-bar 22.1 / 6.8. Longer is
-  a harder task. The newest 4-bar take has the lowest motor figure recorded (4.2 ms).
+  4-bar runs ~11–22 / 4–12 ms across five takes, 8-bar 29.6 / 9.6 and 24.1 / 15.4, 16-bar
+  22.1 / 6.8. Longer is a harder task. The newest 4-bar take has the lowest motor figure
+  recorded (4.2 ms). **The 8-bar figures moved in §7.25** — one of them was 40.7 / 20.9 and the
+  other read 193.5 / 71.3, both inflated by a handful of hesitations feeding a variance. Anything
+  quoting the old numbers is quoting the defect.
+- **`review trend`'s continuation clock SD must not be read yet.** It says "worsening"
+  (+1.32/take [+0.64, +3.05]) over a series that pools 2-, 4-, 8- and 16-bar silences, which the
+  line above says not to do. The fit warns about it instead of splitting; §7.25 records why that
+  is queued rather than done.
 - **"Runs ~5% slow unaccompanied" is dead.** The last two 16-bar continuation takes produced
   99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% and are still
   fitted flat; the −1.8% on 5 Aug was recorded *warm*, third in its sitting, and is not a fourth

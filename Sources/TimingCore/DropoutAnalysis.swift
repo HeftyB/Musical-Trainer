@@ -24,6 +24,13 @@ public struct ContinuationTrial: Equatable {
     /// isochronous sequence; a silence with subdivisions or dropped notes in it violates
     /// that outright and must not feed the decomposition.
     public let isIsochronous: Bool
+    /// Intervals inside this trial that were not "the next beat" — a hesitation or a dropped
+    /// note — and so broke the continuation sequence in two.
+    ///
+    /// Counted and reported rather than silently removed. Four percent of one take's intervals
+    /// carried 99% of its squared error, so this number being small is not a reason to ignore
+    /// it: it is the reason it matters.
+    public let brokenIntervals: Int
     /// Whether the period *changed* during the silence — accelerating or slowing — as
     /// opposed to simply sitting at the wrong tempo. ms per beat.
     public let withinTrialDriftMsPerBeat: Double?
@@ -34,6 +41,12 @@ public struct ContinuationTrial: Equatable {
 
 public struct DropoutReport: Equatable {
     public let trials: [ContinuationTrial]
+    /// Intervals broken out of otherwise-usable trials as hesitations or dropped notes.
+    ///
+    /// Reported beside `discardedTrials` because it is the same exclusion at a finer grain, and
+    /// because an exclusion nobody can see is indistinguishable from quietly dropping the data
+    /// that spoiled the answer.
+    public let brokenIntervals: Int
     /// Trials thrown out for not being one note per beat.
     public let discardedTrials: Int
 
@@ -78,6 +91,45 @@ public enum DropoutAnalysis {
     private static let isochronyHigh = 1.6
     /// A trial with more than this fraction of odd intervals is not a continuation sequence.
     private static let maxOddFraction = 0.25
+
+    /// Contiguous stretches of a trial that are genuinely one note per beat.
+    ///
+    /// **A fraction guard cannot protect a variance.** `maxOddFraction` admits a trial with up
+    /// to a quarter of its intervals outside the band, which is right for deciding whether a
+    /// silence was a continuation attempt at all and catastrophic for what happens next: the
+    /// decomposition is quadratic in the residuals, so an interval five beats long contributes
+    /// its distance from the median *squared*. On the real corpus nine intervals out of 232 —
+    /// four percent, comfortably inside the fraction gate — carried between 72% and 99% of the
+    /// squared error of the trials they sat in, and reported a clock SD of 193.5 ms at a 600 ms
+    /// beat. That is a third of a beat, one sigma, from a player whose every other take reads
+    /// 11–41 ms (§7.25).
+    ///
+    /// So the exclusion is applied where the violation is. A hesitation is not a noisy beat, it
+    /// is the sequence stopping and starting again, and the stretches either side of it are two
+    /// continuation sequences rather than one with a hole. `WingKristofferson.decompose(trials:)`
+    /// already centres each trial on its own mean and never takes a product across a boundary,
+    /// so runs feed it exactly as trials do.
+    ///
+    /// The band is the same 0.6–1.6× the trial-level gate uses. Nothing new is invented here,
+    /// and the count of what was broken out is reported (`brokenIntervals`) so the exclusion is
+    /// declared rather than quiet.
+    static func continuationRuns(_ intervals: [Double]) -> [[Double]] {
+        guard !intervals.isEmpty else { return [] }
+        let median = Stats.median(intervals)
+        guard median > 0 else { return [] }
+
+        var runs: [[Double]] = []
+        var current: [Double] = []
+        for interval in intervals {
+            if interval < isochronyLow * median || interval > isochronyHigh * median {
+                if !current.isEmpty { runs.append(current); current = [] }
+            } else {
+                current.append(interval)
+            }
+        }
+        if !current.isEmpty { runs.append(current) }
+        return runs
+    }
 
     /// How much of a beat counts as "played on that beat" while the band is present.
     ///
@@ -141,12 +193,22 @@ public enum DropoutAnalysis {
                 isochronous = Double(odd.count) / Double(intervals.count) <= maxOddFraction
             }
 
+            // The stretches that are genuinely continuation, and what broke them apart.
+            let runs = isochronous ? Self.continuationRuns(intervals) : []
+            let broken = isochronous
+                ? intervals.count - runs.reduce(0) { $0 + $1.count } : 0
+
             // Acceleration *within* the silence: is the period itself changing?
+            //
+            // Fitted per run and averaged, not across the whole series. A least-squares slope
+            // is as quadratic in an outlier as a variance is, and a gap also breaks the x-axis
+            // it is fitted against — the intervals either side of a hesitation are not
+            // consecutive beats, so a single line through them measures the hesitation.
             var withinDrift: Double?
-            if isochronous, intervals.count >= 4,
-               let fit = Stats.linearFit(x: (0..<intervals.count).map(Double.init), y: intervals) {
-                withinDrift = fit.slope
+            let slopes = runs.filter { $0.count >= 4 }.compactMap {
+                Stats.linearFit(x: (0..<$0.count).map(Double.init), y: $0)?.slope
             }
+            if !slopes.isEmpty { withinDrift = Stats.mean(slopes) }
 
             // Re-entry measured against the known return downbeat, not the nearest beat: a
             // drifted player can be most of a beat away, where nearest-beat matching would
@@ -162,12 +224,18 @@ public enum DropoutAnalysis {
 
             trials.append(ContinuationTrial(
                 index: order, intervalsMs: intervals, medianIntervalMs: median,
-                isIsochronous: isochronous, withinTrialDriftMsPerBeat: withinDrift,
+                isIsochronous: isochronous, brokenIntervals: broken,
+                withinTrialDriftMsPerBeat: withinDrift,
                 reentryErrorMs: reentry, noteCount: inSection.count))
         }
 
         let usable = trials.filter(\.isIsochronous)
-        let wk = WingKristofferson.decompose(trials: usable.map(\.intervalsMs))
+        // Runs, not whole trials — see `continuationRuns`. The tempo readout below is
+        // deliberately left on the full series: it is built from medians, which a handful of
+        // long intervals cannot move, and the take that exposed all this reported its 97 BPM
+        // correctly throughout. Only the quadratic statistics were wrong.
+        let runsByTrial = usable.map { Self.continuationRuns($0.intervalsMs) }
+        let wk = WingKristofferson.decompose(trials: runsByTrial.flatMap { $0 })
 
         // A motor estimate at the model's floor is not a measurement of the player.
         var reliable = false
@@ -216,11 +284,15 @@ public enum DropoutAnalysis {
         }
 
         let withinDrifts = usable.compactMap(\.withinTrialDriftMsPerBeat)
-        let allIntervals = usable.flatMap(\.intervalsMs)
+        // Also from the runs: this is a spread, so it has the same quadratic sensitivity that
+        // made the decomposition wrong, and reporting the two on different data would let them
+        // disagree about the same take.
+        let allIntervals = runsByTrial.flatMap { $0 }.flatMap { $0 }
         let reentries = trials.compactMap(\.reentryErrorMs)
 
         return DropoutReport(
             trials: trials,
+            brokenIntervals: usable.reduce(0) { $0 + $1.brokenIntervals },
             discardedTrials: trials.count - usable.count,
             pacedSDms: pacedAsync.count > 1 ? Stats.sd(pacedAsync) : .nan,
             unpacedIntervalSDms: allIntervals.count > 1 ? Stats.sd(allIntervals) : .nan,
