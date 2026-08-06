@@ -320,6 +320,9 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var sessionMinutes: Int?
     @Published private(set) var sessionPlan: SessionPlan?
+    /// Declared before the session starts, never after — see `SessionState`. Defaults to
+    /// `usual` so pressing straight through records an ordinary evening rather than nothing.
+    @Published var sessionState: SessionState = .usual
     @Published private(set) var sessionSummary: SessionSummary?
     /// Raised when a block was stopped mid-way: skip this drill, or end the session?
     @Published var sessionStopDecision = false
@@ -435,7 +438,7 @@ final class AppModel: ObservableObject {
 
     func beginSession() {
         guard let plan = sessionPlan else { return }
-        runner = SessionRunner(plan: plan)
+        runner = SessionRunner(plan: plan, state: sessionState)
         showNextBrief()
     }
 

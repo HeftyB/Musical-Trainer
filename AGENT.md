@@ -181,7 +181,11 @@ Types worth knowing before changing anything:
   test that plants exactly that.
 - **`TimingReport`** — what a jam produced. `subdivisionStats` is **phase-conditional** (where in
   the beat a note landed), not a measure of note values played.
-- **`SessionPlacement`** — where a take sat in a planned evening. Optional; 14 of 21 jams have none.
+- **`SessionPlacement`** — where a take sat in a planned evening, and the state the player
+  declared before it started. Optional; 14 of 21 jams have none.
+- **`SessionState`** — usual / tired / amped / distracted / stiff, declared **before** the first
+  block and never after. After the fact it would be post-hoc exclusion. `nil` means not
+  declared, which is not the same as `usual`.
 - **`ExperimentAssignment`** — which experiment and arm a take belongs to. Optional.
 - **`ExperimentDesign.bpmByArm`** — set only when **tempo is the condition** (`slow-vs-fast`).
   For the other two designs the instruction text *is* the independent variable, so wrong text

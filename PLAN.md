@@ -3025,6 +3025,41 @@ set. The one-step promotion rule exists to keep the player off a backing nobody 
 (R5.6) and eighths satisfies it outright. Quarters remains reachable by hand from either
 surface — it is only the planner that will not choose it.
 
+#### A sitting can now say what it is
+
+There was nowhere to declare "I am exhausted tonight". A single take carries a `tag`; a session
+take gets a role tag instead, so the one sitting that most needed a caveat had no field for one.
+
+`SessionState` — **usual, tired, amped, distracted, stiff** — declared before the first block
+and stamped on every take of the sitting via `SessionPlacement`.
+
+**Before, or not at all.** Marking a sitting after it has gone badly is post-hoc exclusion, one
+step from dropping the takes you dislike, and this project fights that everywhere else — the
+preregistered stopping rule, the refusal to revise `takesPerArm`, the withheld interference
+cost. Declared first it is an ordinary condition and `review tags` already knows how to pool
+conditions. There is deliberately no "discard this session" switch: §7.17 found fatigue *in* the
+data, which is more use than takes quietly missing.
+
+**The five probe different mechanisms, not different amounts of "off".** `stiff` is physical and
+should surface as motor noise; `distracted` is attentional and should surface as clock noise —
+§5.1's founding prediction on a new axis. `tired` and `amped` are the two ends of arousal. If
+they separate that way it is a result about mechanism; if they all simply widen spread, that is
+informative too.
+
+**`usual` is not a claim to be well rested.** It is the unmarked case, which is what most
+evenings are, and it is first in the list because both pickers default to the first option —
+pressing through has to record an ordinary evening rather than recording nothing. A list rather
+than free text because synonyms never pool: "knackered", "shattered" and "tired" would be three
+conditions of one take each.
+
+**`nil` still means *not declared*** — every take before this, and any surface that does not
+ask. Folding it into `usual` would erase the difference between saying nothing and saying
+nothing was wrong. Same distinction as M14's `nil` rung, for the same reason.
+
+Nothing reads it yet. Fifth time this project has stored a field ahead of the analysis that
+needs it (R6.3), and the reason is unchanged: a sitting recorded without its state can never be
+asked about afterwards.
+
 #### What it says about the roadmap
 
 §7.23 step 2 held everything but the density constant on purpose, so rungs stay comparable.

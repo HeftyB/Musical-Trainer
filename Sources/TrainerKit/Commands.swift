@@ -230,9 +230,16 @@ public enum Commands {
             Console.warn("no calibration for this output device — bias will be uncorrected. "
                        + "Spread and drift are still valid.")
         }
+        // Asked **before** the session, never after. Declared first it is a condition; marked
+        // afterwards it would be a way of excusing a sitting that went badly, which is one step
+        // from dropping the takes you dislike.
+        let states = SessionState.allCases
+        let chosen = states[Console.readChoice("How are you coming into this?",
+                                               options: states.map { ($0.label, $0.blurb) })]
+
         guard Console.confirm("\nStart the session?") else { return }
 
-        let runner = SessionRunner(plan: plan)
+        let runner = SessionRunner(plan: plan, state: chosen)
         var endedEarly = false
 
         while let block = runner.currentBlock {

@@ -22,10 +22,23 @@ public struct SessionPlacement: Codable, Equatable {
     /// a cold measurement and one taken 25 minutes in are not the same measurement, and
     /// differencing timestamps would fold in however long was spent on the rating screen.
     public let elapsedSeconds: Double
+    /// How the player said they felt before the sitting began — see `SessionState`.
+    ///
+    /// Raw string, like `role`, so a state added later never orphans a recorded take. Copied
+    /// onto every take of the sitting rather than left in the manifest alone, so pooling by it
+    /// needs no join — the same reasoning that puts `role` here.
+    ///
+    /// `nil` means **not declared**, which is every take before M15 and any surface that does
+    /// not ask. It does *not* mean `usual`: the picker defaults to `usual` so a declared
+    /// ordinary evening is recorded as one, and folding the two together would erase the
+    /// difference between saying nothing and saying nothing was wrong.
+    public let state: String?
 
-    public init(sessionId: UUID, blockIndex: Int, role: String, elapsedSeconds: Double) {
+    public init(sessionId: UUID, blockIndex: Int, role: String, elapsedSeconds: Double,
+                state: String? = nil) {
         self.sessionId = sessionId; self.blockIndex = blockIndex
         self.role = role; self.elapsedSeconds = elapsedSeconds
+        self.state = state
     }
 }
 

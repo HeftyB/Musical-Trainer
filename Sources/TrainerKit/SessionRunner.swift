@@ -90,6 +90,8 @@ public final class SessionRunner {
 
     public let plan: SessionPlan
     public let sessionId: UUID
+    /// Declared before the first block and stamped on every take of the sitting.
+    public let state: SessionState?
     public private(set) var index = 0
     public private(set) var results: [BlockResult] = []
 
@@ -98,10 +100,12 @@ public final class SessionRunner {
     /// cold take and a take twenty minutes in tell themselves apart later.
     private var blockStartElapsed: Double = 0
 
-    public init(plan: SessionPlan, sessionId: UUID = UUID(), startDate: Date = Date()) {
+    public init(plan: SessionPlan, sessionId: UUID = UUID(), startDate: Date = Date(),
+                state: SessionState? = nil) {
         self.plan = plan
         self.sessionId = sessionId
         self.startDate = startDate
+        self.state = state
     }
 
     public var currentBlock: SessionBlock? {
@@ -193,9 +197,7 @@ public final class SessionRunner {
     /// reason storage changed before anything else in M9 did.
     public func complete(_ outcome: BlockOutcome, feelRating: Int?) throws {
         guard let block = currentBlock else { return }
-        let placement = SessionPlacement(sessionId: sessionId, blockIndex: index,
-                                         role: block.role.rawValue,
-                                         elapsedSeconds: blockStartElapsed)
+        let placement = placement(forBlock: block, at: blockStartElapsed)
         // The arm comes from the block, so a take is stamped with the condition the plan said
         // it would run under rather than with one decided at save time.
         let experiment = block.experiment
@@ -222,6 +224,18 @@ public final class SessionRunner {
         index += 1
     }
 
+    /// The placement that will be stamped on a take finishing now.
+    ///
+    /// A method rather than four arguments assembled inline in `complete`, because `complete`
+    /// can only be reached with a real drill outcome and those need an audio device — anything
+    /// decided in there is unreachable from a suite. The same reason `JamConfig.countInBar`
+    /// moved out of `runJam`.
+    func placement(forBlock block: SessionBlock, at elapsed: Double) -> SessionPlacement {
+        SessionPlacement(sessionId: sessionId, blockIndex: index,
+                         role: block.role.rawValue, elapsedSeconds: elapsed,
+                         state: state?.rawValue)
+    }
+
     /// Abandon the current block and move on. The recording is discarded, exactly as a
     /// stopped single take is: a drill stopped because something was wrong is not worth
     /// measuring, and a fragment would pollute the pooled statistics.
@@ -237,7 +251,7 @@ public final class SessionRunner {
         let summary = SessionSummary(
             sessionId: sessionId, date: startDate, targetMinutes: plan.targetMinutes,
             durationSeconds: Date().timeIntervalSince(startDate),
-            endedEarly: endedEarly, plan: plan, results: results)
+            endedEarly: endedEarly, plan: plan, results: results, state: state)
         try SessionStore.save(TrainingSessionRecord(summary))
         return summary
     }
@@ -252,6 +266,7 @@ public struct SessionSummary {
     public let endedEarly: Bool
     public let plan: SessionPlan
     public let results: [SessionRunner.BlockResult]
+    public let state: SessionState?
 
     public var completedCount: Int { results.filter { !$0.wasSkipped }.count }
     public var skippedCount: Int { results.filter(\.wasSkipped).count }
@@ -288,6 +303,9 @@ struct TrainingSessionRecord: Codable, StoredTake {
     let endedEarly: Bool
     let planNotes: [String]
     let blocks: [Block]
+    /// The declared state, on the manifest as well as on each take: the manifest is the record
+    /// of intent, and "what did I say before this evening" belongs with it.
+    let state: String?
 
     init(_ summary: SessionSummary) {
         id = summary.sessionId
@@ -296,6 +314,7 @@ struct TrainingSessionRecord: Codable, StoredTake {
         durationSeconds = summary.durationSeconds
         endedEarly = summary.endedEarly
         planNotes = summary.plan.notes
+        state = summary.state?.rawValue
         blocks = summary.results.map {
             Block(index: $0.index, role: $0.block.role.rawValue,
                   drill: $0.block.plan.drillName, settings: $0.block.plan.settingsLabel,

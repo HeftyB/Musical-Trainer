@@ -14,6 +14,11 @@ Hit **Session** for a whole planned evening — pick 20, 30 or 45 minutes and th
 the drills from what your last takes measured, tells you why it picked each one, and runs them
 in order. Nothing measured appears on screen until the debrief at the end.
 
+You can say how you are coming into it — *usual, tired, amped, distracted, stiff* — and every
+take of the sitting is recorded under it. It is asked **before** you start, never after: marked
+afterwards it would be a way of excusing an evening that went badly, and the point is to be able
+to compare tired evenings against ordinary ones rather than to discount them.
+
 Or pick a mode (Jam / Form / Alone / Tempo / Recall / Play), set the options, hit Start. Each mode
 shows exactly what it expects of you before you begin. Jam, Alone and Tempo can ask for a
 **subdivision** — quarters, eighths, triplet eighths or sixteenths — and score against it; the

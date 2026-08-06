@@ -25,6 +25,8 @@ struct SessionPlanView: View {
 
             lengthPicker
 
+            if model.sessionPlan != nil { statePicker }
+
             if let plan = model.sessionPlan {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
@@ -58,6 +60,24 @@ struct SessionPlanView: View {
                     model.chooseSessionLength(minutes)
                 }
             }
+        }
+    }
+
+    /// Asked before the plan is committed to. Afterwards it would be a way of excusing a
+    /// sitting that went badly, which is a short step from dropping the takes you dislike.
+    private var statePicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text("Coming into this").font(.callout).foregroundStyle(.secondary)
+                Picker("", selection: $model.sessionState) {
+                    ForEach(SessionState.allCases, id: \.self) { state in
+                        Text(state.label.capitalized).tag(state)
+                    }
+                }
+                .labelsHidden().frame(width: 160)
+            }
+            Text(model.sessionState.blurb)
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 

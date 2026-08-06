@@ -45,6 +45,24 @@ public enum Console {
         return value
     }
 
+    /// Pick one of a numbered list, defaulting to the first on an empty line.
+    ///
+    /// The default is the first option on purpose: the caller orders the list so that the
+    /// unmarked case comes first, and pressing return records it rather than recording nothing.
+    public static func readChoice(_ question: String,
+                                  options: [(label: String, blurb: String)]) -> Int {
+        print("\n\(question)")
+        for (i, option) in options.enumerated() {
+            let marker = i == 0 ? "(default)" : ""
+            let label = option.label.padding(toLength: 12, withPad: " ", startingAt: 0)
+            print("  \(i + 1). \(label)\(dim)\(option.blurb) \(marker)\(reset)")
+        }
+        print("Choose [1-\(options.count), enter for 1]: ", terminator: "")
+        guard let line = readLine()?.trimmingCharacters(in: .whitespaces), !line.isEmpty,
+              let value = Int(line), (1...options.count).contains(value) else { return 0 }
+        return value - 1
+    }
+
     public static func confirm(_ question: String) -> Bool {
         print("\(question) [y/N]: ", terminator: "")
         let line = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
