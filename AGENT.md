@@ -13,10 +13,13 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M14 are built and M14 has now had one live run (§7.23). M15 is in progress — steps 0b and 1 of 7, planned in §7.24.** The subdivision
-ladder, reframed to carry tempo with it because both move the same variable: the inter-onset
-interval. PLAN.md §7 has the milestone table with an "as built" section for each; §7.13 is the
-roadmap through M22.
+**M0–M15 are built. M14 has had one live run; M15 has had none.**
+
+M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
+the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
+plus the offbeat drill. PLAN.md §7 has the milestone table with an "as built" section for each;
+§7.13 is the roadmap through M22, and M23 (jazz timing) is deferred behind the instrument
+milestones for the reason given there.
 
 | Done | |
 |---|---|
@@ -26,6 +29,7 @@ roadmap through M22.
 | M9–M12 | Session builder, cold-vs-warm, recall drill, musical content |
 | M13 | Experiment runner — preregistered A/B arms, no verdict before the declared n |
 | M14 | Interval ladder — rungs, tempo ceilings, a tempo-rotating block, `slow-vs-fast` (§7.23) |
+| M15 | The feels — a grid that expects the offbeat late, swing measured as placement, the offbeat drill (§7.24) |
 | T1 | Test infrastructure: the take factory, storage under test (§7.22) |
 
 **§7.20 is the pre-M13 review** — eleven places where a number or a rule said more than it
@@ -36,18 +40,27 @@ the *enforcement* being fake rather than the code being wrong.
 exposed — nothing had ever tested *writing* a take. It is not an M-number on purpose: it is a
 different axis from product capability, and steps d–e of it are done.
 
-**M13 and M14 have never run live.** The next planned session is the first to carry an
-experiment take *and* an interval-ladder take. Two things to watch, both in the gap between
-tested pieces where the last defect of this shape lived: the **arm text** on screen must match
-the arm the debrief reports, and the **rung** the ladder block announces must match the rung the
-take is stored with. A backing above eighths has also never been played along to at all — only
-rendered and listened to (§7.23 step 2).
+**What has and has not been played.** M14 ran once, on 5 August: the chain held end to end
+(`rung=quarters → ladder-quarters → subdivisions=1 → tag=ladder`) and the experiment take was
+stamped. **That sitting's timing data is not usable** — it was played exhausted and is recorded
+as such in §7.24. Nothing from M15 has run at all: no swung take, no offbeat take.
+
+Three things to watch on the next session, all in the gap between tested pieces where every
+defect of this shape has lived:
+
+- the **arm text** on screen matches the arm the debrief reports;
+- the **rung and feel** the block preview announces match what the take is stored with;
+- at offbeat level 3, a report of "slipped" on a take that *felt* fine means the phrase marker
+  is not doing its job (§7.24 step 6).
+
+No backing above eighths has been played along to — only rendered and heard. The swung backings
+have been heard and confirmed as a shuffle; nobody has played *along* to one.
 
 The three *planned* sessions written up are §7.17 (4 Aug 2026), §7.19 (5 Aug morning) and §7.21
 (5 Aug afternoon) — one manifest each on disk. Read them before touching drills: between them
 they produced two instruction bugs, one reporting bug, and the project's only retracted finding
 — none of them maths. Takes recorded from the drill menu since then are in the data but not
-written up; 14 of the 21 jams carry no session placement, so they are invisible to
+written up; 14 of the 27 jams carry no session placement, so they are invisible to
 `review cold`.
 
 ## Surfaces
@@ -56,12 +69,14 @@ Both front ends drive `TrainerEngine`; neither contains measurement logic.
 
 **App** (`./build-app.sh`): Session (a planned evening), six single-take modes — Jam, Form,
 Alone, Tempo, Recall, Play — and History. Jam, Alone and Tempo carry a **subdivision picker**
-that offers only the rungs the chosen tempo can score honestly.
+that offers only the rungs the chosen tempo can score honestly, and a Jam on a binary rung can
+also be **swung**. The offbeat drill is CLI-only so far.
 
 **CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
 and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
 has the annotated table. The analysis readouts are `review trend | cold | content | feel |
 tags | conditions | compare | form | dropout | tempo | experiment | interval`.
+Drills: `jam | form | dropout | tempo | memory | offbeat | session`.
 
 `render [bpm] [bars]` writes every ladder backing to `temp/renders` as a WAV. **A rung the
 player has not heard is a rung the planner must not promote them onto** (§7.23), and this is how
@@ -74,8 +89,8 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 313 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (80 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 378 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (111 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -89,7 +104,7 @@ that precondition is met without booking a live run.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 393 tests, no hardware needed
+swift test                              # 489 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -113,6 +128,12 @@ calling `SessionStore.save` directly**, or a test will write into the real pract
 failure.** Test objects compiled against the old struct layout fail on code that has not
 changed — the tell is `git diff` showing the failing file untouched. It has cost two debugging
 rounds in M15 alone and is recorded in PLAN §7.23 step 0 and §7.24 step 2.
+
+**Never run a drill command to check its arguments.** `jam`, `offbeat`, `dropout`, `tempo` and
+`memory` open an audio device and wait. Argument handling lives in `parseRung`, `parseFeel` and
+each config's `validate()` precisely so a test can reach it — §7.22 records a test that played a
+two-and-a-half-minute drill through the speakers, and §7.24 step 5 records the same mistake made
+from a shell.
 
 **Run `selftest` after any change to analysis or audio.** It has caught six real defects that
 would otherwise have surfaced as mysterious live-run failures. If it passes and a live run
@@ -158,7 +179,7 @@ reaches takes recorded before it.
 | Bridge the clocks | `TrainerKit/HostClock` (`SampleHostMap`), `JamAnalysis.reduce` | Least-squares fit of (hostTime, sample); calibration applied here, sign and all |
 | Collapse chords | `TimingCore/TapClustering` | Near-simultaneous note-ons are one rhythmic event |
 | Match to the grid | `TimingCore/Grid`, `Matching` | ±40% window (`Matching.defaultWindowFraction`); outside it is an *extra*, never a late note |
-| Analyse | `TimingCore/TimingReport`, `WingKristofferson`, `DropoutAnalysis`, `FormAnalysis`, `TempoCalibration`, `TempoMemory`, `MusicalContent` | One analysis per drill, all pure. Every stored type has a `report()` — **never pair `reconstruct()` with an `analyze` call of your own**, or the take's own parameters stop reaching the analysis |
+| Analyse | `TimingCore/TimingReport`, `WingKristofferson`, `DropoutAnalysis`, `FormAnalysis`, `TempoCalibration`, `TempoMemory`, `MusicalContent`, `SwingAnalysis`, `OffbeatAnalysis` | One analysis per drill, all pure. Every stored type has a `report()` — **never pair `reconstruct()` with an `analyze` call of your own**, or the take's own parameters stop reaching the analysis |
 | Quantify uncertainty | `TimingCore/Bootstrap`, `Statistics` | Three bootstraps, and picking the wrong one is a defect (R3.2) |
 | Store | `TrainerKit/SessionStore` | One JSON per take; raw taps plus a summary nothing reads back |
 | Aggregate | `TimingCore/TrendAnalysis`, `WarmUpAnalysis`, `ExperimentAnalysis`, `IntervalResponse`, `ProducedInterval` | Trends, cold-vs-warm, the A/B readout, and the interval axis. The last two are the only pair where the unit differs on purpose — takes for the first, **notes** for the second |
@@ -183,6 +204,13 @@ Types worth knowing before changing anything:
   `nil` means no rung was prescribed, **never quarters**: the benchmark and both experiment
   blocks must stay rung-less (R3.5). Distinct from `subdivisions`, which is the grid the take
   was *analysed* on; `taskSubdivisions` is the one the interval readout wants.
+- **`SwingReport`** — the ratio is **derived from mean offbeat phase and never measured per
+  pair**, and consistency is the swung note's spread in *milliseconds*. Reporting a spread of
+  ratios is not a stylistic choice: `dr/dφ` runs 4→16 across the useful range, so identical
+  steadiness would report four times worse the harder he swings (§7.24 step 3).
+- **`OffbeatLevel` / `OffbeatReport`** — the offbeat drill. **Slipping onto the beat is scored
+  apart from placement**, because a slipped player is dead on a grid point — the wrong one — and
+  a placement figure alone would call a lost feel an excellent take.
 - **`ProducedNote`** — one matched note keyed by the gap **in grid steps** to the note before it.
   Never key this on a *measured* inter-onset interval: a note's own error is inside its measured
   gap, and binning on it fabricates a placement slope out of a player who has none. There is a
@@ -217,7 +245,10 @@ Types worth knowing before changing anything:
   run (R5.6), and the result recorded in PLAN.md.
 - **`TrainerKitTests` cannot run in CI.** `TrainerKit` is macOS-only, so a green Woodpecker
   pipeline covers *less* than a green `check.sh`.
-- **M13 has never run live.** See the warning above.
+- **M13 has run live once; M15 has never run at all.** No swung take and no offbeat take exists.
+  The swing readout's thresholds (24 notes off the division, and at least half as many as on it)
+  were set from one afternoon and one correction, and have never seen real playing.
+- **The offbeat drill is CLI-only.** No app mode yet — the one surface gap M15 leaves.
 - **`selftest` covers the analysis pipeline against synthetic ground truth**, not storage — that
   moved to `TrainerKitTests` with T1.
 - **Backings are tested for pattern structure only.** Whether a groove is playable-along-to is a
@@ -252,6 +283,9 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 | Wing–Kristofferson needs isochronous, stationary input | Mixed note values produced a confident 143 ms "clock SD". Motor SD at 0 means the model hit its floor, not that the player is perfect. |
 | Nothing louder than the groove except on the beat being marked | A crash one bar early made the form drill measure reaction to a decoy. Two takes wasted. |
 | Confounds get named, not blended | A changed backing produced a "real" 8 ms spread change that was partly just different music. |
+| A swung take never reaches Wing–Kristofferson | Swing alternates the intervals by design and the isochrony gate passes them. On a planted 12 ms clock and 8 ms motor, a swung series reported motor 99.7 ms and a negative clock variance. `DropoutConfig.validate` refuses it. |
+| The band's swing and the grid's come from one conversion | `Feel` and `Swing` cannot share a type across the module boundary. A groove swinging at 2:1 while the grid scored 1.5:1 would look exactly like a player who drags. `JamConfig.swing` is the only conversion; `SwingAgreementTests` pins them to the sample. |
+| A feel needs a groove, not just warped timing | The first swung backings were timed perfectly and sounded straight: every loud event stayed on an even grid and the feel was carried by a hat 8 dB down. |
 
 ## Data and analysis conventions
 
@@ -261,6 +295,10 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 - **Every take carries an optional `ExperimentAssignment`** — experiment id, name, arm, run
   index — written since M13 step 1 and read by nothing yet. Same reasoning as the two below: a
   take recorded without its arm is lost to the comparison for good.
+- **Jam takes may carry a `rung`, a `swingRatio` and an `offbeatLevel`**, all optional. Absent
+  `rung` means *no rung was prescribed* and is **not** quarters; absent `swingRatio` really does
+  mean straight, because a ratio of 1 is the identity. That asymmetry is deliberate — see
+  §7.23 step 4b and §7.24 step 1 before assuming either.
 - **Every take carries an optional `SessionPlacement`** — session id, block index, role, and
   seconds elapsed into the sitting. That is what lets a cold take and a take twenty minutes in
   be told apart, and it is why M9 changed storage before it changed anything else.
@@ -282,11 +320,11 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 ## What the data says about this player
 
-Current as of 59 takes across 8 sittings — 21 jams, 12 form, 11 continuation, 8 tempo, 7 recall,
-3 planned sessions. **Recompute rather than trusting any of this:** `review trend`,
+Current as of 69 takes across 9 sittings — 27 jams, 12 form, 12 continuation, 10 tempo, 8 recall,
+5 planned sessions. **Recompute rather than trusting any of this:** `review trend`,
 `review dropout`, `review feel`, `review cold`, `review content`.
 
-- **r₁ is positive in all 21 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
+- **r₁ is positive in all 27 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
   wanders. He does not chase the click. Do not suggest counting harder; that is the documented
   way to make this worse, and he already reports it feels worse. The lowest reading in the whole
   set is +0.13, an untracked `relaxed` take on 3 Aug; the lowest in the *locked benchmark slot* —
@@ -307,23 +345,24 @@ Current as of 59 takes across 8 sittings — 21 jams, 12 form, 11 continuation, 
   99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% and are still
   fitted flat; the −1.8% on 5 Aug was recorded *warm*, third in its sitting, and is not a fourth
   cold point however much it looks like one.
-- **Feel tracks the measurement** (r = −0.66 over 19 rated takes) and reads "well calibrated" —
-  but fatigue broke it once: two jams with identical spread rated 4 and 1 twenty minutes apart
-  (§7.17). It has not recurred.
-- **82.4% of every matched note ever recorded is a beat apart from the last one** — an eighth
-  10.5%, a sixteenth 0.5% (25 notes in 21 takes). So every headline figure this project quotes,
+- **Feel tracks the measurement, but less well than it did**: r = −0.48 over the rated takes,
+  against −0.66 before the 5 Aug evening session. That sitting was played exhausted (§7.24) and
+  is the likeliest cause; §7.17 already recorded fatigue breaking the link once, with two jams of
+  identical spread rated 4 and 1. Treat the correlation as soft until a rested sitting restores it.
+- **78.7% of every matched note ever recorded is a beat apart from the last one** — an eighth
+  14.7%, a sixteenth 0.5% (35 notes in 27 takes). So every headline figure this project quotes,
   including "his ~20 ms spread", is *quarter-note placement in free playing*; the sixteenth-note
   grid the takes are scored on is doing almost no work. M14 is therefore the first measurement
   of most of the space, not an extension of a measured skill (§7.23 step 3b).
 - **His spread is a fixed number of milliseconds, not a fixed fraction of the interval.** Flat at
-  ~22–26 ms from 273 ms to 1200 ms between notes; +0.02 ms per 100 ms [−3.53, +0.79], while the
-  percentage form moves for real. Milliseconds are what compare across tempos and rungs for this
+  ~22–26 ms from 273 ms to 1200 ms between notes; +0.21 ms per 100 ms [−1.41, +1.18], while the
+  percentage form moves for real (−0.71 pts). Recomputed on 27 jams; the finding held. Milliseconds are what compare across tempos and rungs for this
   player — **do not normalise spread by the interval**, and do not assume "faster is tighter" is
   arithmetic. That premise was stated as fact in §7.23 for three steps before it was checked.
 - **Tempo is not analysed anywhere.** It is only ever *controlled for* — trends split mixed-tempo
   groups and `review tags` warns about them. His stated hypothesis is that faster is easier to a
   point and that slow tempos make him rush, and no readout can currently ask it. The data cannot
-  either: 16 jams at 100 BPM, 4 at 110 (all one evening, six minutes apart), 1 at 120. M14 is
+  either: 22 jams at 100 BPM, 4 at 110 (all one evening, six minutes apart), 1 at 120. M14 is
   where this gets built — see §7.23, including why raw spread cannot be compared across tempos.
 - **The recall drill's interference cost is not established.** §7.19 read it as the distractor
   *helping*; since the attrition rule landed (§7.20 finding 2), three of the four takes are
@@ -373,8 +412,9 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    and README.md and correct anything the change made untrue. Re-derive any count or figure
    quoted in prose rather than trusting it; four separate accuracy passes have each found
    numbers copied forward unchecked.
-5. **`./scripts/check.sh`** last. The pre-commit hook runs the fast half; run the whole thing
-   after touching analysis or audio.
+5. **`./scripts/check.sh`** last, and `.githooks/commit-msg temp/current-git-commit-message.txt`
+   — it takes a path and exits non-zero, so checking the message costs nothing and counting
+   characters by eye does not work. The pre-commit hook runs only the fast half of the gate.
 6. **Hand over.** Andrew commits and pushes; leave the tree ready and give him the commands.
 
 **Run these to the end before starting the next change.** Every change updates PLAN.md and

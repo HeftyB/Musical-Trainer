@@ -1,4 +1,5 @@
 import Foundation
+import GrooveCore
 import TimingCore
 
 /// What each drill asks of the player, written so someone who has never seen the app knows
@@ -75,6 +76,34 @@ public struct DrillInstructions {
             measures: "Where you sit against the beat and how much you scatter around it, at "
                     + "this rung — and the scatter is in milliseconds, which is what compares "
                     + "across rungs for you.")
+    }
+
+    /// The offbeat drill, whose text depends on how much of the downbeat is left.
+    ///
+    /// The same argument as `form(level:)`: a drill whose whole design is removing a cue cannot
+    /// have fixed text describing one. Telling a player at the hardest level to "lock the chop
+    /// against the kick" when there is no kick is §7.17's defect verbatim.
+    public static func offbeat(level: OffbeatLevel) -> DrillInstructions {
+        DrillInstructions(
+            goal: "Measures whether you can hold a position the band never plays. Ska and reggae "
+                + "put the emphasis between the beats, and the beat itself is what disappears.",
+            steps: [
+                "A two-bar count-in plays, then a skank: a chop on every offbeat.",
+                "Play ONE NOTE ON EVERY OFFBEAT — between the beats, with the chop, never on them.",
+                "Underneath, \(level.label). \(level.advice)",
+                "Any pitch, and nothing to read on screen while you play.",
+            ],
+            pitfalls: [
+                "Don't play on the beat. Drifting onto it is the failure this drill is for, and "
+                + "it is scored apart from placement — a note dead on the beat is not a slightly "
+                + "early offbeat, it is the feel inverted.",
+                "Don't count. If you lose the offbeat, wait for the next phrase and come back in "
+                + "rather than hunting for it mid-bar.",
+                "Don't fill the gaps. One note per offbeat and nothing between them, or there is "
+                + "no way to tell which notes were the chop.",
+            ],
+            measures: "How much of your playing stayed off the beat, and — separately — how "
+                    + "tightly you placed it, in milliseconds.")
     }
 
     /// A swung rung asks for something the straight text actively contradicts.
@@ -426,6 +455,9 @@ public extension DrillInstructions {
         switch block.plan {
         case .groove:      return .groove
         case .jam(let p):
+            if let level = p.offbeatLevel.flatMap(OffbeatLevel.init(rawValue:)) {
+                return .offbeat(level: level)
+            }
             // The arm wins when there is one. An experiment take runs at the benchmark's locked
             // settings and never carries a rung (R3.5), so the two cannot both be set — and if
             // a future design ever does both, the arm is the independent variable and losing it

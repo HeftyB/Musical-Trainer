@@ -2669,6 +2669,11 @@ Three limits, stated because they bound what this licenses:
 **Falsifier**: a prescribed-sixteenths take whose absolute spread comes back near 6 ms rather
 than near 22 kills this and restores step 3's premise.
 
+**Recomputed on 27 jams after the 5 August session, and it holds**: absolute +0.21 ms per 100 ms
+[−1.41, +1.18], relative −0.71 points and real. The table above is the 21-take snapshot the
+finding was made on; the shares moved a little with the new sitting — a beat apart is now 78.7%
+rather than 82.4%, an eighth 14.7% rather than 10.5% — and the conclusion did not.
+
 #### What it decides
 
 **The ceiling stands** (step 1). Its assumption is the measured one, not an unexamined one.
@@ -3119,7 +3124,7 @@ and never as a spread.
 | 3 ✅ | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
 | 4 ✅ | Backings per feel, and `render` so a feel is heard before it is promoted |
 | 5 ✅ | The jam gains a feel, both surfaces. The continuation drill refuses one. |
-| 6 | Offbeat drill — ska and reggae |
+| 6 ✅ | Offbeat drill — ska and reggae |
 
 ### Step 1, as built
 
@@ -3415,6 +3420,62 @@ actually produces needs it; only the offered choices are coarse.
 **Still unverified: whether it now reads as a shuffle.** The measurement says the swung note is
 no longer buried; only an ear can say whether that is enough, and the planner still schedules
 nothing swung until one has been played (R5.6).
+
+### Step 6, as built — holding a position the band never plays
+
+`offbeat [bpm] [bars] [level]`. A skank — a chop on every offbeat — with the downbeat removed a
+step at a time: kick on 1 and 3, then kick on 1, then backbeat only, then nothing on a beat at
+all. Nineteen tests.
+
+**Not a feel, and that is why it is a drill.** An offbeat sits at half the beat, exactly where it
+always did, so the grid is straight and `Feel` has nothing to say about it (§7.24 step 1). What
+changes is which points the player is asked to hit and how much the band states underneath —
+the same ladder shape as `DropoutLevel` turned through ninety degrees, removing the *downbeat*
+rather than the *band*.
+
+#### Two failures, kept apart
+
+A player can be a little early or late on the offbeat — ordinary placement error, in
+milliseconds. Or they can **slip onto the beat**, which is not a worse version of the same thing.
+The feel has inverted, and every note afterwards is right on a grid point, just the wrong one.
+
+Pooling them would report a lost feel as an *excellent* take, because a slipped player is dead on
+the beat. A test plants exactly that: notes on the downbeat with a 4 ms spread, which placement
+alone would call the tightest take in the dataset, and requires the report to call it slipped.
+This is `FormAnalysis`'s split — whole bars off the phrase against milliseconds off the bar line —
+arriving in a new place for the same reason.
+
+The threshold is two thirds on the offbeat, because a player holding the feel puts essentially
+everything there and one who has flipped puts essentially nothing. The middle is oscillation,
+which is its own state rather than poor placement.
+
+**Nothing is earned by a slipped take.** Promotion needs the feel held, above 90% on the offbeat
+and inside a spread ceiling — otherwise the next level measures a flip rather than a placement.
+
+#### The marker at the hardest level is not a concession
+
+With nothing on a beat, a player can hear their own chop *as* the downbeat. Once that flips it
+stays flipped, and the take then measures a phase error that happened in bar one rather than
+anything about placement. A kick at the top of each phrase bounds that to a single phrase, and it
+is what a real band does anyway. It can be switched off, and a test covers both.
+
+#### Storage
+
+A jam variant rather than a fifth stored type: same capture, same grid, same fields, and only the
+task and the backing differ — exactly the shape the experiment arms already have. `offbeatLevel`
+is optional on `JamSession`, so every take on record still decodes.
+
+The grid is forced to eighths whatever else is set. On a finer one a stray sixteenth would be
+neither the beat nor the offbeat, and letting it count as either would flatter the share that
+decides whether the feel was held.
+
+#### A test that crashed the suite
+
+`testEachLevelStatesNoMoreOfTheBeatThanTheOneBefore` seeded its running comparison with
+`Int.max` and then computed `previous + 1` — an overflow trap, which surfaced as a signal-4
+crash **spliced into another bundle's output** because the two test targets run in parallel. It
+passed when filtered to its own class and killed the run otherwise. Worth recording: a crash
+attributed to the test that happens to be printing is not necessarily the test that crashed.
 
 ### What this cannot verify
 

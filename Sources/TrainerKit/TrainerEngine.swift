@@ -73,11 +73,19 @@ public enum TrainerEngine {
         /// Where the subdivision is expected to sit. Straight unless asked otherwise, and
         /// straight is the identity — see `Feel`.
         public var feel: Feel = .straight
+        /// The offbeat drill's level, when this take is one.
+        ///
+        /// A jam variant rather than a separate drill type, for the same reason the experiment
+        /// arms are: it is the same capture, the same grid and the same storage, and only what
+        /// the player is asked to do and what the band states underneath differ. A fifth stored
+        /// type carrying the same fields would be a schema to keep in step for no gain.
+        public var offbeatLevel: OffbeatLevel?
 
         public init(bpm: Double = 100, bars: Int = 32, tag: String? = nil,
-                    rung: IntervalRung? = nil, feel: Feel = .straight) {
+                    rung: IntervalRung? = nil, feel: Feel = .straight,
+                    offbeatLevel: OffbeatLevel? = nil) {
             self.bpm = bpm; self.bars = bars; self.tag = tag
-            self.rung = rung; self.feel = feel
+            self.rung = rung; self.feel = feel; self.offbeatLevel = offbeatLevel
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
 
@@ -87,6 +95,10 @@ public enum TrainerEngine {
         /// ladder groove that makes its division audible — asked for sixteenths over a backing
         /// that only marks beats, the player is really being asked to subdivide from memory.
         var backing: (name: String, arrangement: Arrangement) {
+            if let level = offbeatLevel {
+                return ("offbeat-\(level.rawValue)",
+                        OffbeatBacking.backing(level: level, bars: max(1, bars)))
+            }
             guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking) }
             // A feel gets its own groove, not the straight one with warped timing. Warping alone
             // leaves every loud event on an even grid and the feel inaudible — see
@@ -109,7 +121,13 @@ public enum TrainerEngine {
         /// that resolution would measure a task nobody was set, and it is what step 1's tempo
         /// ceilings are derived against: the window is `0.4 × 60 / (bpm × subdivisions)`, so the
         /// subdivision here *is* the thing the ceiling constrains.
-        var gridSubdivisions: Int { rung?.subdivisions ?? backing.arrangement.stepsPerBeat }
+        /// The offbeat drill is scored on eighths whatever else is set: the offbeat *is* the
+        /// half-beat, and a finer grid would let a stray sixteenth count as neither the beat nor
+        /// the offbeat and quietly shrink both counts.
+        var gridSubdivisions: Int {
+            if offbeatLevel != nil { return 2 }
+            return rung?.subdivisions ?? backing.arrangement.stepsPerBeat
+        }
 
         /// The feel, restated for the band.
         ///
@@ -152,6 +170,10 @@ public enum TrainerEngine {
         public func validate() throws {
             guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
             guard (4...512).contains(bars) else { throw SpikeError("Bars must be 4–512.") }
+            guard offbeatLevel == nil || feel.isStraight else {
+                throw SpikeError("The offbeat drill is straight: an offbeat is at half the beat, "
+                               + "and swinging it would move the very point being held.")
+            }
         }
     }
 
@@ -251,6 +273,7 @@ public enum TrainerEngine {
             subdivisions: outcome.gridSubdivisions,
             rung: outcome.config.rung?.rawValue,
             swingRatio: outcome.config.feel.isStraight ? nil : outcome.config.feel.swingRatio,
+            offbeatLevel: outcome.config.offbeatLevel?.rawValue,
             tag: outcome.config.tag?.lowercased(), feelRating: feelRating,
             gridStartTime: outcome.gridStartTime,
             tapTimes: outcome.taps.map(\.time), tapVelocities: outcome.taps.map(\.velocity),

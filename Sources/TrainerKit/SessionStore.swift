@@ -93,6 +93,8 @@ struct JamSession: Codable, StoredTake {
     /// against an even grid. So an absent value reads as straight without inventing anything.
     /// See `Feel`.
     let swingRatio: Double?
+    /// The offbeat drill's level, when this take was one. `nil` for every ordinary jam.
+    let offbeatLevel: Int?
 
     /// Condition label for this take ("relaxed", "focused", "flow", …), lowercased. Optional
     /// so takes recorded before tagging existed still decode.
@@ -170,6 +172,12 @@ struct JamSession: Codable, StoredTake {
 
     /// The feel this take was played against — straight unless a ratio was stored.
     var feel: Feel { swingRatio.flatMap { Feel(swingRatio: $0) } ?? .straight }
+
+    /// This take's offbeat report, when it was an offbeat drill.
+    func offbeatReport() -> OffbeatReport? {
+        guard offbeatLevel != nil else { return nil }
+        return OffbeatAnalysis.analyze(matched: report().matched, grid: reconstruct().grid)
+    }
 
     /// Notes per beat the player was **asked** to produce: the rung, or 1 for free playing.
     ///

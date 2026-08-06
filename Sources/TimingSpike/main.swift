@@ -34,6 +34,10 @@ func usage() {
       form [bpm] [bars] [phraseBars] [level]
                         phrase-mark drill: hit a pad at each phrase top, no counting
                         (default 100, 64, 8, level 0; levels 0-3 remove the landmarks)
+      offbeat [bpm] [bars] [level]
+                        M15: ska and reggae. Play on every offbeat while the downbeat
+                        disappears -- levels 0-3 remove the kick, then the backbeat,
+                        then everything on a beat. (default 100, 32, 0)
       dropout [bpm] [pacedBars] [silentBars] [cycles] [rung]
                         continuation drill: play a steady note value through the silences.
                         The only drill that yields a clock/motor split. (100, 4, 4, 6,
@@ -117,6 +121,12 @@ do {
         let targets = arguments.dropFirst().compactMap(Double.init)
         try Commands.runTempo(targets: targets.isEmpty ? [100] : targets,
                               leadBars: 4, holdBars: 4, rounds: 8)
+
+    case "offbeat":
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
+        let level = arguments.dropFirst(3).first.flatMap(Int.init) ?? 0
+        try Commands.runOffbeat(bpm: bpm, bars: bars, level: level)
 
     case "session":
         // `session plan [minutes]` prints the choices without committing the evening to them.

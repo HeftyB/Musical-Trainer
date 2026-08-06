@@ -49,11 +49,14 @@ public struct JamPlan: Codable, Equatable {
     ///
     /// Stored as the ratio rather than a `Feel` so an old plan still decodes; `feel` rebuilds it.
     public let swingRatio: Double?
+    /// The offbeat drill's level, when this block is one. Raw so a new level never orphans a plan.
+    public let offbeatLevel: Int?
 
     public init(bpm: Double, bars: Int, tag: String?, rung: IntervalRung? = nil,
-                feel: Feel = .straight) {
+                feel: Feel = .straight, offbeatLevel: Int? = nil) {
         self.bpm = bpm; self.bars = bars; self.tag = tag; self.rung = rung
         self.swingRatio = feel.isStraight ? nil : feel.swingRatio
+        self.offbeatLevel = offbeatLevel
     }
 
     public var feel: Feel { swingRatio.flatMap { Feel(swingRatio: $0) } ?? .straight }

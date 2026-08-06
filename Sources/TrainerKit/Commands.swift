@@ -1047,6 +1047,69 @@ public enum Commands {
         }
     }
 
+    // MARK: - Offbeat drill
+
+    /// M15: hold the chop between the beats while the beat itself disappears.
+    public static func runOffbeat(bpm: Double, bars: Int, level rawLevel: Int) throws {
+        Console.heading("Offbeat drill — hold the chop between the beats")
+        guard let level = OffbeatLevel(rawValue: rawLevel) else {
+            throw SpikeError("Level must be 0–\(OffbeatLevel.allCases.count - 1): "
+                           + OffbeatLevel.allCases
+                               .map { "\($0.rawValue) \($0.label)" }.joined(separator: ", "))
+        }
+        let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: "offbeat",
+                                             offbeatLevel: level)
+        try config.validate()
+        let env = try TrainerEngine.environment()
+
+        print("Output: \(env.outputName)")
+        print("\n\(bars) bars at \(Int(bpm)) BPM  ·  \(Console.bold)level \(level.rawValue) — "
+            + "\(level.label)\(Console.reset)"
+            + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
+        printInstructions(DrillInstructions.offbeat(level: level))
+        Console.prompt("Ready?")
+
+        let outcome = try TrainerEngine.runJam(config)
+        let feel = Console.readRating("\nHow did that feel?")
+        reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
+                     events: outcome.eventCount, uncalibrated: !env.isCalibrated,
+                     grid: outcome.analysisGrid)
+        reportOffbeat(outcome.report, grid: outcome.analysisGrid, level: level)
+        let url = try TrainerEngine.save(outcome, feelRating: feel)
+        print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
+    }
+
+    /// Where the notes went, and — separately — how tightly.
+    ///
+    /// The two are printed apart because they are different failures. A player who slipped onto
+    /// the beat is *precise*, on the wrong points, so a placement figure alone would call a lost
+    /// feel an excellent take.
+    static func reportOffbeat(_ report: TimingReport, grid: Grid, level: OffbeatLevel) {
+        let r = OffbeatAnalysis.analyze(matched: report.matched, grid: grid)
+        Console.heading("Where the notes went")
+
+        print(String(format: "Off the beat:     %d of %d  (%.0f%%)",
+                     r.onOffbeat, r.onOffbeat + r.onDownbeat, r.offbeatShare * 100))
+        if let spread = r.spreadMs, let placement = r.placementMs {
+            print("Placement:        \(Console.ms(placement))   "
+                + "\(Console.dim)spread \(Console.ms(spread, 1))\(Console.reset)")
+        }
+        if let onBeat = r.downbeatSpreadMs {
+            print("On the beat:      \(Console.ms(onBeat, 1)) spread   "
+                + "\(Console.dim)(notes that should not be there)\(Console.reset)")
+        }
+
+        print("\n\(r.slipped ? Console.yellow : "")\(r.headline)\(Console.reset)")
+        for note in r.notes { Console.warn(note) }
+
+        let next = OffbeatAnalysis.suggestedLevel(
+            current: level.rawValue, highest: OffbeatLevel.allCases.count - 1,
+            report: r, spreadCeilingMs: 25)
+        if next > level.rawValue, let harder = OffbeatLevel(rawValue: next) {
+            print("\n\(Console.green)Ready for level \(next) — \(harder.label).\(Console.reset)")
+        }
+    }
+
     // MARK: - Rendering a backing to a file
 
     /// Render every ladder rung, plus the jam backing, to WAV files that can be listened to.

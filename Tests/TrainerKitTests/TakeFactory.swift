@@ -31,7 +31,8 @@ enum TakeFactory {
     static func jam(_ p: Performance = .steady, bars: Int = 32, tag: String? = nil,
                     experiment: ExperimentAssignment? = nil,
                     grid customGrid: Grid? = nil,
-                    rung: IntervalRung? = nil, feel: Feel = .straight) -> JamSession {
+                    rung: IntervalRung? = nil, feel: Feel = .straight,
+                    offbeatLevel: Int? = nil) -> JamSession {
         let g = customGrid ?? grid()
         let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
@@ -41,7 +42,7 @@ enum TakeFactory {
             calibrationConstantMs: 2.58, calibrationSource: "measured", grooveName: "jamBacking",
             bars: bars, subdivisions: g.subdivisions, rung: rung?.rawValue,
             swingRatio: feel.isStraight ? nil : feel.swingRatio,
-            tag: tag, feelRating: 4,
+            offbeatLevel: offbeatLevel, tag: tag, feelRating: 4,
             gridStartTime: g.startTime,
             tapTimes: events.map(\.time), tapVelocities: events.map(\.velocity),
             matchedCount: r.matchedCount, extraCount: r.extraCount, missedCount: r.missedCount,
