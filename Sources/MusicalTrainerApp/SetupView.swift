@@ -104,6 +104,18 @@ struct SetupView: View {
                         }
                         .labelsHidden().frame(width: 220)
                     }
+                    // Only where a swing means anything: triplets have no binary pair, and free
+                    // playing prescribes no division for a feel to describe.
+                    if model.mode == .jam && model.feelApplies {
+                        LabeledContent("Feel") {
+                            Picker("", selection: $model.swingRatio) {
+                                ForEach(AppModel.swingChoices, id: \.ratio) { choice in
+                                    Text(choice.label).tag(choice.ratio)
+                                }
+                            }
+                            .labelsHidden().frame(width: 220)
+                        }
+                    }
                     Text(model.rungAdvice)
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

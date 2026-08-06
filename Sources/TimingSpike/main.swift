@@ -25,10 +25,12 @@ func usage() {
       calibrate quick   loopback-only calibration for another output device
       calibrate reset   delete all stored calibration
       groove [bpm]      M3: play a synthesized groove + dropout ladder (default 100)
-      jam [bpm] [bars] [tag] [rung]
+      jam [bpm] [bars] [tag] [rung] [swing]
                         M4: record a take and analyze it (default 100, 32; tag e.g. relaxed).
                         M14: a rung asks for a subdivision and scores against it --
                         quarters, eighths, tripletEighths, sixteenths. Omit it to play free.
+                        M15: a swing ratio (1-4) places the offbeat late. 1 is straight,
+                        2 is the usual triplet feel. Needs a binary rung.
       form [bpm] [bars] [phraseBars] [level]
                         phrase-mark drill: hit a pad at each phrase top, no counting
                         (default 100, 64, 8, level 0; levels 0-3 remove the landmarks)
@@ -92,7 +94,8 @@ do {
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
         try Commands.runJam(bpm: bpm, bars: bars, tag: arguments.dropFirst(3).first,
-                            rung: arguments.dropFirst(4).first)
+                            rung: arguments.dropFirst(4).first,
+                            swing: arguments.dropFirst(5).first)
 
     case "form":
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100

@@ -79,7 +79,12 @@ final class AppModel: ObservableObject {
     /// `nil` is the default and it is not "quarters": free playing prescribes nothing, which is
     /// what every take on record is. Applies to Jam, Alone and Tempo — the three drills whose
     /// analysis is scored against a note value (§7.23 steps 4b and 4e).
-    @Published var rung: IntervalRung?
+    @Published var rung: IntervalRung? { didSet { clampFeelToRung() } }
+    /// How the division is placed. Straight is the identity, so this needs no "none" case.
+    ///
+    /// Jam only. The continuation drill refuses a swing outright — Wing–Kristofferson needs an
+    /// isochronous series and a swung one alternates by design (see `DropoutConfig.feel`).
+    @Published var swingRatio: Double = 1
     @Published var phraseBars: Int = 8 { didSet { setBars(bars) } }
     @Published var formLevel: FormLevel = .fillAndAccent
 
@@ -212,7 +217,7 @@ final class AppModel: ObservableObject {
         let jamConfig = TrainerEngine.JamConfig(
             bpm: bpm, bars: bars,
             tag: tag.trimmingCharacters(in: .whitespaces).isEmpty ? nil : tag,
-            rung: rung)
+            rung: rung, feel: feel)
         let formConfig = TrainerEngine.FormConfig(bpm: bpm, bars: bars,
                                                   phraseBars: phraseBars, level: formLevel)
         let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars)
@@ -344,6 +349,25 @@ final class AppModel: ObservableObject {
         mode.instructions(formLevel: formLevel.rawValue, rung: rung)
     }
 
+    var feel: Feel { Feel(swingRatio: swingRatio) ?? .straight }
+
+    /// Whether a swing means anything at the chosen rung. Triplets have no binary pair, and free
+    /// playing prescribes no division for a feel to describe.
+    var feelApplies: Bool {
+        guard let rung else { return false }
+        return rung.subdivisions == 2 || rung.subdivisions == 4
+    }
+
+    /// The ratios offered, each labelled in the words a player would use.
+    static let swingChoices: [(ratio: Double, label: String)] = [
+        (1, "Straight"), (1.33, "Barely (4:3)"), (1.5, "Shuffle (3:2)"), (2, "Swung (2:1)"),
+    ]
+
+    /// Drop a swing the chosen rung cannot carry, so the picker and the take never disagree.
+    func clampFeelToRung() {
+        if !feelApplies { swingRatio = 1 }
+    }
+
     /// Rungs this tempo can score honestly, for a player of this spread.
     ///
     /// Above its ceiling a rung's matching window is worth fewer than three of the player's own
@@ -387,11 +411,14 @@ final class AppModel: ObservableObject {
     /// trained.
     private var hiddenRungAdvice: String? {
         let spread = recentSpreadMs
-        let hidden = IntervalRung.ladder.filter { !$0.isScorable(atBpm: bpm, spreadMs: spread) }
+        let hidden = IntervalRung.ladder.filter {
+            bpm > feel.maximumBpm(subdivisions: $0.subdivisions, forSpreadMs: spread)
+        }
         guard !hidden.isEmpty else { return nil }
 
         let named = hidden.map { rung -> String in
-            "\(rung.label) at \(Int(rung.maximumBpm(forSpreadMs: spread).rounded(.down))) BPM or below"
+            let ceiling = feel.maximumBpm(subdivisions: rung.subdivisions, forSpreadMs: spread)
+            return "\(rung.label) at \(Int(ceiling.rounded(.down))) BPM or below"
         }
         let list = named.count == 1
             ? named[0]

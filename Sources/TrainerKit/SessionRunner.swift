@@ -158,7 +158,8 @@ public final class SessionRunner {
             // The rung travels from the plan into the config, so what was shown before the
             // session is what runs — and what is stored on the take afterwards.
             return .jam(try TrainerEngine.runJam(
-                TrainerEngine.JamConfig(bpm: p.bpm, bars: p.bars, tag: p.tag, rung: p.rung),
+                TrainerEngine.JamConfig(bpm: p.bpm, bars: p.bars, tag: p.tag, rung: p.rung,
+                                        feel: p.feel),
                 progress: progress, cancellation: cancellation))
 
         case .form(let p):

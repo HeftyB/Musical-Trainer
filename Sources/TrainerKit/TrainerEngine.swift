@@ -388,7 +388,21 @@ public enum TrainerEngine {
         /// snapped it to the nearest whole number. Setting it makes the analysis know what the
         /// instructions already said, which is what removes the snapping (§7.23 step 4e).
         public var rung: IntervalRung?
-        /// Where the subdivision is expected to sit. See `JamConfig.feel`.
+        /// Where the subdivision is expected to sit — **straight only**, and `validate()`
+        /// enforces it.
+        ///
+        /// Swing and Wing–Kristofferson are incompatible, not merely awkward together. The
+        /// decomposition assumes an isochronous series and swing makes the intervals alternate
+        /// by design: at 2:1 they run 400/200 at 100 BPM, which the isochrony gate *passes*
+        /// because both sit inside 0.6–1.6× of their own median. The alternation then lands
+        /// entirely in the lag-1 autocovariance, which is what motor variance is derived from.
+        ///
+        /// Measured on a planted 12 ms clock and 8 ms motor: straight eighths recover 9.0 and
+        /// 7.7; swung eighths report **motor 99.7 ms and a negative clock variance**. A
+        /// confident number, twelve times wrong, from a drill that looked like it ran fine.
+        ///
+        /// Making this work needs the decomposition to operate on pairs rather than on
+        /// intervals, which is a different piece of analysis and not one M15 needs.
         public var feel: Feel = .straight
 
         public init(bpm: Double = 100, pacedBars: Int = 4, silentBars: Int = 4, cycles: Int = 6,
@@ -410,6 +424,11 @@ public enum TrainerEngine {
                 throw SpikeError("Paced bars must be 1–16 and silent bars 1–32.")
             }
             guard (1...32).contains(cycles) else { throw SpikeError("Cycles must be 1–32.") }
+            guard feel.isStraight else {
+                throw SpikeError("The continuation drill cannot be swung: Wing–Kristofferson "
+                               + "needs an isochronous series, and a swung one alternates by "
+                               + "design. See DropoutConfig.feel.")
+            }
         }
     }
 
@@ -1068,7 +1087,11 @@ public enum TrainerEngine {
     /// M14 step 0 came first. Without it the interval cannot be recovered, and a take scored on
     /// a sixteenth grid would be indistinguishable from one scored on quarters.
     public static func intervalObservations() -> [IntervalObservation] {
-        SessionStore.loadAll().map { session in
+        // A swung take has no single interval. At 2:1 the notes alternate 400 and 200 ms, so the
+        // nominal 300 describes nothing that was played — and reporting it would be §7.23 step
+        // 3's mistake again, where the grid the take was *scored* on stood in for the task it
+        // actually performed. Swung takes are excluded rather than averaged onto the axis.
+        SessionStore.loadAll().filter { $0.feel.isStraight }.map { session in
             let r = session.report()
             // The rung, or the beat when no rung was prescribed — never the stored grid. A free
             // jam asks for no subdivision; it was *scored* on a sixteenth grid, which is a
@@ -1301,14 +1324,22 @@ public enum TrainerEngine {
     private struct GroupKey: Hashable, Comparable {
         let bpm: Int
         let rung: String?
+        /// Feel joins tempo and rung as a confound axis: a swung take and a straight one at the
+        /// same tempo and rung are different tasks, and a line fitted across the change would
+        /// be measuring the change.
+        let swingRatio: Double?
 
-        var rungLabel: String {
-            guard let rung, let parsed = IntervalRung(rawValue: rung) else { return "" }
-            return ", \(parsed.label)"
+        var label: String {
+            let rungPart = rung.flatMap { IntervalRung(rawValue: $0)?.label }.map { ", \($0)" } ?? ""
+            let feelPart = swingRatio.flatMap { Feel(swingRatio: $0) }
+                .map { ", \($0.label)" } ?? ""
+            return rungPart + feelPart
         }
 
         static func < (a: GroupKey, b: GroupKey) -> Bool {
-            a.bpm != b.bpm ? a.bpm < b.bpm : (a.rung ?? "") < (b.rung ?? "")
+            if a.bpm != b.bpm { return a.bpm < b.bpm }
+            if (a.rung ?? "") != (b.rung ?? "") { return (a.rung ?? "") < (b.rung ?? "") }
+            return (a.swingRatio ?? 1) < (b.swingRatio ?? 1)
         }
     }
 
@@ -1322,9 +1353,12 @@ public enum TrainerEngine {
         // (§7.23 trap 3). Free playing is its own group rather than being folded into quarters —
         // "play what you like" and "play one note per beat" are different tasks.
         let jams = SessionStore.loadAll()
-        let groups = Set(jams.map { GroupKey(bpm: Int($0.bpm), rung: $0.rung) })
+        let groups = Set(jams.map { GroupKey(bpm: Int($0.bpm), rung: $0.rung,
+                                             swingRatio: $0.swingRatio) })
         for key in groups.sorted() {
-            let takes = jams.filter { GroupKey(bpm: Int($0.bpm), rung: $0.rung) == key }
+            let takes = jams.filter {
+                GroupKey(bpm: Int($0.bpm), rung: $0.rung, swingRatio: $0.swingRatio) == key
+            }
             let tempo = key.bpm
             let reports = takes.map { $0.report() }
             var warnings: [String] = []
@@ -1338,7 +1372,7 @@ public enum TrainerEngine {
                 warnings.append("mixed output devices — bias is not comparable; spread and r₁ are.")
             }
             series.append(TrendSeries(
-                title: "Jams at \(tempo) BPM\(key.rungLabel)", takeCount: takes.count,
+                title: "Jams at \(tempo) BPM\(key.label)", takeCount: takes.count,
                 warnings: warnings,
                 rows: [
                     TrendAnalysis.row("spread (SD)", reports.map(\.sdAsynchronyMs), lowerIsBetter: true),

@@ -44,10 +44,19 @@ public struct JamPlan: Codable, Equatable {
     /// slots. Optional rather than defaulted for exactly that reason: a default would silently
     /// convert the trend's own slot into a drill.
     public let rung: IntervalRung?
+    /// How the division is placed. Straight is the identity, so a plan that says nothing about
+    /// feel is a straight plan — unlike `rung`, where saying nothing means no rung at all.
+    ///
+    /// Stored as the ratio rather than a `Feel` so an old plan still decodes; `feel` rebuilds it.
+    public let swingRatio: Double?
 
-    public init(bpm: Double, bars: Int, tag: String?, rung: IntervalRung? = nil) {
+    public init(bpm: Double, bars: Int, tag: String?, rung: IntervalRung? = nil,
+                feel: Feel = .straight) {
         self.bpm = bpm; self.bars = bars; self.tag = tag; self.rung = rung
+        self.swingRatio = feel.isStraight ? nil : feel.swingRatio
     }
+
+    public var feel: Feel { swingRatio.flatMap { Feel(swingRatio: $0) } ?? .straight }
 }
 
 public struct FormPlan: Codable, Equatable {
@@ -136,7 +145,8 @@ public enum BlockPlan: Codable, Equatable {
         case .groove(let p):  return "\(Int(p.bpm)) BPM · \(p.bars) bars"
         case .jam(let p):
             let rung = p.rung.map { " · \($0.label)" } ?? ""
-            return "\(Int(p.bpm)) BPM · \(p.bars) bars\(rung)"
+            let feel = p.feel.isStraight ? "" : " · \(p.feel.label)"
+            return "\(Int(p.bpm)) BPM · \(p.bars) bars\(rung)\(feel)"
         case .form(let p):    return "level \(p.level) · \(p.phraseBars)-bar phrases · \(p.bars) bars"
         case .dropout(let p): return "\(p.pacedBars)+\(p.silentBars) bars × \(p.cycles)"
         case .tempo(let p):

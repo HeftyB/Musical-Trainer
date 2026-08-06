@@ -3118,7 +3118,7 @@ and never as a spread.
 | 2 ✅ | `Grid` and `Matching` gain the feel; `interval` retired; **straight bit-for-bit identical over every stored take** |
 | 3 ✅ | `SwingReport`: ratio as a derived mean, consistency as offbeat spread |
 | 4 ✅ | Backings per feel, and `render` so a feel is heard before it is promoted |
-| 5 | Drills gain a feel, both surfaces |
+| 5 ✅ | The jam gains a feel, both surfaces. The continuation drill refuses one. |
 | 6 | Offbeat drill — ska and reggae |
 
 ### Step 1, as built
@@ -3311,6 +3311,70 @@ was an onset detector firing on energy tripling, which never happens after the f
 bar. A broken probe reporting a defect that is not there costs as much as missing one.
 
 Whether these are *playable* is still a live-run question and always was.
+
+### Step 5, as built — and the two places a feel must not go
+
+`JamPlan` and `JamConfig` carry a feel, the runner passes it through, instructions come from it
+(R3.6), and both surfaces can set it. Thirteen tests, all reachable without an audio device.
+
+#### Swing breaks Wing–Kristofferson, so the continuation drill refuses it
+
+This was going to be a scoping judgement and turned out to be a measurement. The decomposition
+assumes an isochronous series; swing makes the intervals alternate **by design**. Worse, the
+isochrony gate *passes* them — at 2:1 the intervals are 400 and 200 ms, and both sit inside
+0.6–1.6× of their own 300 ms median — so nothing upstream objects.
+
+The alternation then lands entirely in the lag-1 autocovariance, which is exactly where motor
+variance is derived from. On a planted 12 ms clock and 8 ms motor:
+
+| series | reported clock | reported motor |
+|---|---|---|
+| straight eighths | 9.0 ms | 7.7 ms |
+| swung 2:1 eighths | **negative variance** | **99.7 ms** |
+
+A twelvefold error, reported confidently, by a drill that looked like it ran fine. `DropoutConfig`
+now refuses a non-straight feel in `validate()` with that reason attached. Making it work needs
+the decomposition to operate on *pairs* rather than intervals, which is different analysis and
+not something M15 needs.
+
+#### A swung take has no interval, so it leaves the interval axis
+
+`IntervalObservation` assumes an even division. At 2:1 the notes alternate 400 and 200 ms, so the
+nominal 300 describes nothing that was played — which is §7.23 step 3's mistake exactly, where
+the grid a take was *scored* on stood in for the task it performed. `intervalObservations` filters
+swung takes out rather than averaging them onto the axis.
+
+Feel joins tempo and rung as a confound axis in the trend grouping and the comparability notes.
+
+#### The planner still schedules nothing swung
+
+**A feel nobody has heard is a feel the planner must not promote onto.** §7.23 made that a rule
+for rungs; whether 1.5:1 reads as a shuffle or as a mistake is even less answerable from a step
+list. Swing is hand-selected until a swung take exists in the history, at which point the same
+one-step promotion argument that governs rungs can govern feels. A test asserts every planned jam
+block is straight at every session length.
+
+#### Instructions, because the straight text contradicts a swung take
+
+The straight text says *"aim every note at a beat or an off-beat"* and warns against playing
+between them — which is precisely what a swung offbeat does. Handing a swung take that text would
+tell the player their own task is a mistake, which is §6.1 and §7.17's defect a third time. A
+swung rung gets text that says the hat is swinging with them and that straightening up lands
+off-grid rather than counting as early.
+
+#### Two process notes
+
+**I started a real take from the shell.** Checking the new argument parsing with `jam 100 8 test
+eighths 2.5` against a *stale* binary — the build had failed on a name collision — left the old
+binary sitting at its `Ready?` prompt for ten minutes. Nothing was recorded and no audio played,
+but it is the §7.22 `DrillConfigTests` mistake in a new place: **anything that verifies a
+command's argument handling must go through the parse and validate functions, never the command.**
+Every assertion in `FeelWiringTests` does.
+
+**A stale build cost a third debugging round**, this time surfacing as a segfault mid-suite plus a
+failure on untouched code. Same cause each time — a stored property added to a shared type. It is
+documented in `AGENT.md`; the lesson from the third instance is to clean *proactively* after such
+a change rather than waiting for a confusing failure to prompt it.
 
 ### What this cannot verify
 

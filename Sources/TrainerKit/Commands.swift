@@ -307,6 +307,28 @@ public enum Commands {
 
     /// One rung parser for every command, so an unknown name is refused the same way whatever
     /// it was typed after — and refused *before* any audio device is opened (R7.6).
+    /// A swing ratio, refused before any audio device is opened (R7.6).
+    ///
+    /// Refusing a swing without a rung is the important half: a free jam has no prescribed
+    /// division, so there is nothing for a feel to describe, and accepting one would store a
+    /// ratio the analysis would then score against notes nobody was asked to place.
+    static func parseFeel(_ raw: String?, rung: IntervalRung?) throws -> Feel {
+        guard let raw else { return .straight }
+        guard let ratio = Double(raw), let feel = Feel(swingRatio: ratio) else {
+            throw SpikeError("Swing must be a ratio between 1 and 4 — 1 is straight, 2 is the "
+                           + "usual triplet feel. Got '\(raw)'.")
+        }
+        guard let rung else {
+            throw SpikeError("A swing needs a rung to swing: free playing prescribes no division "
+                           + "for the feel to describe. Try:  jam 100 32 tag eighths 2")
+        }
+        guard feel.isStraight || feel.applies(toSubdivisions: rung.subdivisions) else {
+            throw SpikeError("\(rung.label) has no binary pair to swing — triplets are the "
+                           + "division swing borrows from. Use eighths or sixteenths.")
+        }
+        return feel
+    }
+
     static func parseRung(_ raw: String?) throws -> IntervalRung? {
         guard let raw else { return nil }
         guard let parsed = IntervalRung(rawValue: raw) else {
@@ -318,13 +340,15 @@ public enum Commands {
 
     // MARK: - M4 jam
 
-    public static func runJam(bpm: Double, bars: Int, tag: String?, rung: String? = nil) throws {
+    public static func runJam(bpm: Double, bars: Int, tag: String?, rung: String? = nil,
+                              swing: String? = nil) throws {
         Console.heading("Jam — record a take")
 
         let prescribed = try parseRung(rung)
+        let swingFeel = try parseFeel(swing, rung: prescribed)
 
         let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased(),
-                                             rung: prescribed)
+                                             rung: prescribed, feel: swingFeel)
         let env = try TrainerEngine.environment()
 
         print("Output: \(env.outputName)")
@@ -341,7 +365,8 @@ public enum Commands {
             + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
         if let tag = config.tag { print("Condition: \(Console.bold)\(tag)\(Console.reset)") }
         if let prescribed {
-            print("Rung: \(Console.bold)\(prescribed.label)\(Console.reset)"
+            let feelPart = swingFeel.isStraight ? "" : ", \(swingFeel.label)"
+            print("Rung: \(Console.bold)\(prescribed.label)\(feelPart)\(Console.reset)"
                 + "  \(Console.dim)(\(config.backing.name), scored on a "
                 + "\(config.gridSubdivisions)-per-beat grid)\(Console.reset)")
             // Above its ceiling the rung discards notes the player aimed correctly, and the
@@ -349,17 +374,22 @@ public enum Commands {
             // refused: the planner enforces, a hand-run take is the player's call.
             let spreads = TrainerEngine.recentJamSpreadsMs()
             let spreadMs = spreads.isEmpty ? SessionPlanner.assumedSpreadMs : Stats.median(spreads)
-            if !prescribed.isScorable(atBpm: bpm, spreadMs: spreadMs) {
-                Console.warn(String(format: "%@ at %d BPM is above its %.0f BPM ceiling for your "
-                                  + "%.1f ms spread. The matching window is narrower than three "
-                                  + "of your own spreads, so notes you aimed correctly will be "
-                                  + "discarded as off-grid and the off-grid rate becomes a fact "
-                                  + "about the rung rather than about you.",
-                                    prescribed.label, Int(bpm),
-                                    prescribed.maximumBpm(forSpreadMs: spreadMs), spreadMs))
+            // Asked of the feel, not the rung: a swing shortens the short half of the pair, so
+            // the window binds sooner than an even division would.
+            let ceiling = swingFeel.maximumBpm(subdivisions: prescribed.subdivisions,
+                                               forSpreadMs: spreadMs)
+            if bpm > ceiling {
+                Console.warn(String(format: "%@%@ at %d BPM is above its %.0f BPM ceiling for "
+                                  + "your %.1f ms spread. The matching window is narrower than "
+                                  + "three of your own spreads, so notes you aimed correctly "
+                                  + "will be discarded as off-grid and the off-grid rate becomes "
+                                  + "a fact about the rung rather than about you.",
+                                    prescribed.label,
+                                    swingFeel.isStraight ? "" : " \(swingFeel.label)",
+                                    Int(bpm), ceiling, spreadMs))
             }
         }
-        printInstructions(DrillInstructions.jam(rung: prescribed))
+        printInstructions(DrillInstructions.jam(rung: prescribed, feel: swingFeel))
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runJam(config)
@@ -598,6 +628,12 @@ public enum Commands {
 
         // Rung and tempo are one axis — both move the gap between notes — so a rung difference
         // is as disqualifying as a tempo one, and for the same reason (§7.23 trap 3).
+        let feel = describe({ $0.feel.label }, { $0 })
+        if feel.differs {
+            notes.append("Feel differs (\(feel.text)). Where the offbeat is expected is not the "
+                       + "same task, so placement and spread are not comparable.")
+        }
+
         let rung = describe({ $0.rung ?? "free" }, { $0 })
         if rung.differs {
             notes.append("Subdivision differs (\(rung.text)). The gap between notes is not the "

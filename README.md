@@ -23,7 +23,8 @@ Or pick a mode (Jam / Form / Alone / Tempo / Recall / Play), set the options, hi
 shows exactly what it expects of you before you begin. Jam, Alone and Tempo can ask for a
 **subdivision** — quarters, eighths, triplet eighths or sixteenths — and score against it; the
 picker offers only the ones your chosen tempo can measure honestly, and the Jam defaults to free
-playing. The take screen is
+playing. A Jam on a binary subdivision can also be **swung**, from a shuffle to a full 2:1, with
+the band swinging with you. The take screen is
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
 
@@ -69,7 +70,7 @@ swift build -c release   # the console tool
 | `calibrate quick` | **M1.** Loopback only (~15 s), derives its constant from the reference. |
 | `calibrate reset` | Deletes all stored calibration. |
 | `groove [bpm]` | **M3.** Plays a synthesized groove: count-in, a two-section arrangement with fills, the dropout ladder, and a slam back. Default 100 BPM. |
-| `jam [bpm] [bars] [tag] [rung]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. **M14:** add a rung — `quarters`, `eighths`, `tripletEighths`, `sixteenths` — to be asked for that subdivision and scored against it, over a groove whose hi-hat marks it. Omit it and you play free, as every take before M14 did. |
+| `jam [bpm] [bars] [tag] [rung]` | **M4.** Records a take against the groove, applies calibration, analyzes your timing, and saves the session. Default 100 BPM, 32 bars. **M14:** add a rung — `quarters`, `eighths`, `tripletEighths`, `sixteenths` — to be asked for that subdivision and scored against it, over a groove whose hi-hat marks it. Omit it and you play free, as every take before M14 did. **M15:** add a swing ratio (1–4) after the rung and the offbeat is expected late, with the band swinging too. |
 | `form [bpm] [bars] [phraseBars] [level]` | Phrase-mark drill: hit a pad at each phrase top, no counting. Levels 0–3 progressively remove the landmarks. Default 100, 64, 8, 0. |
 | `tempo [bpm ...]` | **M8.** Produce a tempo unaccompanied and be told what you actually played, round after round. Pass several tempos to rotate the target. |
 | `memory [bpm] [waitBars] [rounds]` | **M11.** Recall drill: hear a tempo, stop playing through the wait, then reproduce it. Half the waits are silent and half are filled with unrelated percussion — the gap between them says whether the period is stored or just being held. If you play through one condition's waits more than the other's, the comparison is withheld rather than reported: the two are no longer scored on the same task. Default 100, 4, 8. |

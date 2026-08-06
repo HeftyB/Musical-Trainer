@@ -43,8 +43,11 @@ public struct DrillInstructions {
     ///
     /// `nil` returns the plain jam text unchanged, which is what the benchmark and both
     /// experiment blocks must keep getting (R3.5).
-    public static func jam(rung: IntervalRung?) -> DrillInstructions {
+    public static func jam(rung: IntervalRung?, feel: Feel = .straight) -> DrillInstructions {
         guard let rung else { return jam }
+        if !feel.isStraight, feel.applies(toSubdivisions: rung.subdivisions) {
+            return swung(rung: rung, feel: feel)
+        }
         let each: String
         switch rung {
         case .quarters:       each = "one note on every beat"
@@ -72,6 +75,36 @@ public struct DrillInstructions {
             measures: "Where you sit against the beat and how much you scatter around it, at "
                     + "this rung — and the scatter is in milliseconds, which is what compares "
                     + "across rungs for you.")
+    }
+
+    /// A swung rung asks for something the straight text actively contradicts.
+    ///
+    /// The straight instructions say "aim every note at a beat or an off-beat" and warn against
+    /// playing between them — which is precisely what a swung offbeat does. Handing a swung take
+    /// the straight text would tell the player their own task is a mistake. §7.17 and §6.1 both
+    /// cost takes to instructions describing something other than what was running (R3.6).
+    private static func swung(rung: IntervalRung, feel: Feel) -> DrillInstructions {
+        let unit = rung.subdivisions == 2 ? "the beat" : "each eighth"
+        return DrillInstructions(
+            goal: "Measures how you place a **swung** division — where the offbeat sits, and how "
+                + "consistently you put it there. The hat is swinging with you.",
+            steps: [
+                "A two-bar count-in plays swung, then a groove whose hi-hat swings \(unit).",
+                "Play along in \(rung.label), letting the offbeat fall late the way the hat does.",
+                "Lock to the hat. Do not try to place the offbeat by arithmetic — it is a feel, "
+                + "and the band is playing it for you.",
+                "Any pitch. Only when you play is measured, and there is nothing to read.",
+            ],
+            pitfalls: [
+                "Don't straighten up when it gets hard. The take is scored against the swing, so "
+                + "an even offbeat lands off-grid and is discarded rather than counted early.",
+                "Don't chase the ratio. Where you naturally put the offbeat is the measurement, "
+                + "and the report says how far it sat from what was asked.",
+                "Don't play free or rubato — notes that aren't aiming at the grid are discarded.",
+            ],
+            measures: "Where you put the swung note and how tightly, in milliseconds, beside the "
+                    + "same figure for the notes on the division. The ratio you actually played "
+                    + "is reported too, derived from that placement.")
     }
 
     /// The jam's instructions **for a given experiment arm**.
@@ -398,7 +431,7 @@ public extension DrillInstructions {
             // a future design ever does both, the arm is the independent variable and losing it
             // would swap the conditions, which is the worse failure of the two.
             if let arm = block.experiment?.arm { return .jam(arm: arm) }
-            return .jam(rung: p.rung)
+            return .jam(rung: p.rung, feel: p.feel)
         case .form(let p): return .form(level: p.level)
         case .dropout(let p): return .dropout(rung: p.rung)
         case .tempo(let p):   return .tempo(rung: p.rung)
