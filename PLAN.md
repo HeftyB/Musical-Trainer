@@ -4037,6 +4037,51 @@ The alternative — infer it from the level being above the earned one — is th
 defect of R3.3.1: three readouts would each have to remember the rule, and §7.20 finding 2 is
 what happens when two of three do.
 
+### The probe, as built
+
+`BlockRole.probe`, and the form planner proposes level 3 exactly once. Nine tests.
+
+**It comes last among the form rules, not first.** The first version put it ahead of everything
+and it hijacked the form block in five existing planner tests — correctly, because a rule that
+fires whenever level 3 is unplayed makes the probe the *default* rather than a one-off. An earned
+promotion is worth more than a probed reading, and a moving phrase length is a confound to settle
+first, so the probe now replaces only the fallback: the branch that says *"stay where you are"*
+for the Nth time running. That is the situation it is an answer to.
+
+**A precondition was written, and the data threw it out.** The draft also required the last take
+to leave no phrase unmarked — the promotion gate's own condition — reasoning that a player losing
+the thread with the band playing learns nothing from the band going away. Run against the real
+history it **never fires**: the takes that make him stuck at level 2 are exactly the ones with
+unmarked phrases. Borrowing the gate's precondition re-imposes most of the gate, and the probe
+exists because the gate will not get there. `LESSONS.md` shape 11, caught by wiring the readout
+to real data rather than by argument — the rule now has two preconditions instead of three.
+
+What remains: level 3 never played, and `probeAfterHeldTakes` = 4 takes running at one level.
+Four because it is about a month of sittings at this player's rate; checked against the history
+before it was believed, where the last nine takes are all level 2, so it fires and would have
+fired five takes ago.
+
+`session plan 30` on the real store now yields:
+
+> **7. Form** — *probe · level 3 · 4-bar phrases* — "Level 3 has never been played, and 4 takes
+> running at level 2 say the gate is not going to get you there. This is a probe, not a
+> promotion — the band goes silent across the turn, and however it goes the ladder stays at
+> level 2."
+
+**Only the level moves.** Phrase length stays where it was earned, so the take answers one
+question rather than two — the rule M16's two axes are built on.
+
+#### The trap, reproduced and closed
+
+Reverting the `wasProbe` filter and re-running the suite produces the predicted failure word for
+word: after a probe scoring 20%, the next session plans *"20% on form last time — stay at level 3
+until it is above 90% with nothing unmarked."* A take handed to the player for one reading had
+become the level they were held at. Four tests fail on that revert, including the felt-period rule
+reading a probe's marked period as evidence about the player.
+
+`review form` marks probes with `*` and a footnote, because a level in the ladder history that was
+never climbed to is the same confusion in a different place.
+
 ### What this does not settle
 
 `markedPeriodStability` — how consistent the marked period was *within* a take — is still the

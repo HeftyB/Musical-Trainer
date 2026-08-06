@@ -803,10 +803,19 @@ public enum Commands {
             let onForm = "\(r.onFormCount)/\(r.marksPlaced)"
             let tight = "\(r.tightCount)/\(r.marksPlaced)"
             let slip = r.slipBarsPerPhrase.map { String(format: "%+.2f", $0) } ?? "—"
-            print("\(pad(dateLabel(s.date), 22))\(pad("\(s.level)", 5))"
+            // A probe is marked in the ladder it is not part of. Without this a level the
+            // player was handed for one take reads as a level they climbed to, which is the
+            // whole confusion the role exists to prevent (§7.26).
+            let probe = s.placement?.role == BlockRole.probe.rawValue
+            let level = probe ? "\(s.level)*" : "\(s.level)"
+            print("\(pad(dateLabel(s.date), 22))\(pad(level, 5))"
                 + "\(pad("\(s.phraseBars) bars", 8))\(pad(onForm, 10))\(pad(tight, 9))\(slip)")
         }
         print("\n\(Console.dim)\"nailed\" = on the right bar AND close to the downbeat.\(Console.reset)")
+        if sessions.contains(where: { $0.placement?.role == BlockRole.probe.rawValue }) {
+            print("\(Console.dim)* a probe — a level run for the reading, not one you earned. "
+                + "The ladder ignores these.\(Console.reset)")
+        }
     }
 
     /// Summary of every tagged condition, pooled across takes.

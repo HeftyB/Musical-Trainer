@@ -23,12 +23,14 @@ milestones for the reason given there) and M24 (voice — onsets from the microp
 instrument, and the only milestone that can ask whether the "clock" this project measures is
 the timekeeper or partly the hands).
 
-**Next is not M16.** As of 6 August the order is: the form **level-3 probe** (§7.26), then
-**M19** (musical depth), then M16's span ladder. M19 moved ahead because a 32-bar phrase needs a
-backing that sustains 32 bars and M16.5's organ bubble needs the pattern format settled. The
-level-3 probe went ahead of *both* because it runs on today's backing.
-**Do not schedule a level-3 form take without the `probe` role landing first** — the planner
-picks the next level from the last take, so a probe becomes the floor (§7.26).
+**Next is not M16.** As of 6 August the order is: the form **level-3 probe** (§7.26, built),
+then **M19** (musical depth), then M16's span ladder. M19 moved ahead because a 32-bar phrase
+needs a backing that sustains 32 bars and M16.5's organ bubble needs the pattern format settled.
+
+**The next planned session will propose a level-3 form probe, and it is meant to.** Silence across
+the phrase boundary, never played before. It is stamped `probe`, not `training`: the ladder stays
+at level 2 however it goes, `review form` marks it `*`, and nothing that decides where the ladder
+stands reads it. Play it for the reading. **A bad probe is data, not a demotion.**
 
 | Done | |
 |---|---|
@@ -103,7 +105,7 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 391 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 400 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (136 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -148,7 +150,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 527 tests, no hardware needed
+swift test                              # 536 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

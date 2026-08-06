@@ -52,7 +52,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 527 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 536 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -83,7 +83,7 @@ swift build -c release   # the console tool
 | `review tags` | Pooled summary of every tagged condition. |
 | `review conditions <a> <b>` | Pooled comparison of two conditions — the experiment readout. |
 | `review feel` | Does your sense of a good take match the measurement? |
-| `review form` | Form-drill history — progress up the landmark ladder. |
+| `review form` | Form-drill history — progress up the landmark ladder. A level marked `*` was a **probe**: a deliberate look at a rung you had not earned, which the ladder ignores. |
 | `review dropout` | Continuation-drill history: the clock/motor split over time. |
 | `review tempo` | Tempo-calibration history. |
 | `review trend` | Is anything actually improving? Fits each metric with a confidence interval, one line per task — takes that differ in tempo, subdivision, feel, silence length, difficulty level or phrase length are never fitted together, because a line across the change measures the change. |
@@ -194,6 +194,12 @@ Levels remove the landmarks as you improve:
 | `3` | silence across the boundary — the turn happens with no band at all |
 
 The report tells you when you've earned the next one. `review form` shows your history.
+
+A planned session may also offer level 3 as a **probe** — a deliberate look at the top of the
+ladder before you have earned it, once, when several takes running say the promotion gate is not
+going to get you there. However it goes, the ladder stays where it was: the take is stored apart,
+marked `*` in your history, and nothing that decides what to practise next reads it. Play it for
+the reading rather than for the score.
 
 ## Continuation drill — clock or hands?
 
