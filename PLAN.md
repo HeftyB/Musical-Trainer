@@ -900,9 +900,10 @@ Direction set with the player: **training depth** over new instruments or packag
 **20–30 minute structured sessions**; **research built in as a first-class feature** rather
 than run by hand. Ordered by dependency and value, not difficulty.
 
-Three entries were added after the original M9–M22 list and sit out of numeric order below,
-where their dependencies put them: **M16.5** (the skank family), the **M20 note**, and **M23**
-(jazz time, deferred with its argument).
+Four entries were added after the original M9–M22 list and sit out of numeric order below,
+where their dependencies put them: **M16.5** (the skank family), the **M20 note**, **M23**
+(jazz time, deferred with its argument), and **M24** (voice, which depends on M21's onset
+detection rather than on M23).
 
 **M19 now runs ahead of M16**, decided with the player on 6 August. M16's span ladder grows the
 phrase to 32 bars and there is no backing that sustains 32 bars, so the ladder would be built on
@@ -1084,6 +1085,11 @@ from placement — with three different instruments and three different backings
 arrives (M21), the offbeat drill is the first drill that should accept it, because nothing about
 its analysis needs to change.
 
+**A vocal skank is the same measurement again** (M24), and it is the one that tests the seam
+hardest: the input is not an instrument at all, and if `OffbeatAnalysis` still needs no change
+then the seam is genuinely where M20 claims it is. A chanted offbeat is also how the drill gets
+practised away from the keyboard, which is the point of the skank being a stated training goal.
+
 ### M23 — Jazz time
 **Deferred behind the instrument milestones, and the reason is a data problem rather than a code
 one.** Recorded here so the deferral is on the record with its argument (§7.24 planning).
@@ -1136,10 +1142,49 @@ guitar. And it is the natural first test of multi-instrument support: the measur
 unchanged (onsets against a grid) while the *input mapping* and the *backing* both change,
 which is exactly the seam M21 and M22 have to widen.
 
+**There is a real kit, and it changes the shape of this.** The player has a TDV6 drum module and
+plans a USB→MIDI interface for it. That splits M20 in two, and the halves are not equally
+expensive:
+
+| | Path | Measurement quality |
+|---|---|---|
+| Pads as a stand-in | Launchkey over CoreMIDI | The validated path. Buildable today, no purchase |
+| Real kit over MIDI | Module → USB→MIDI interface | **Also the validated path** — driver timestamps, no onset detection |
+| Real kit over audio | Module line out → TS→USB adapter | An onset-detection problem, and an unnecessary one |
+
+The middle row is the point. A drum module on MIDI is note-ons with driver timestamps, which is
+what M0 validated and what every take on record already uses — so playing real drums is the
+*same* measurement as playing the keys, with a different note mapping. **Do not route the module
+through the audio adapter to save buying the MIDI interface**: it would turn a solved measurement
+into M21's unsolved one for no gain. Worth checking on the first run whether the module adds
+latency of its own between pad and MIDI out; a constant would calibrate away like any other, and
+only its spread would matter.
+
 ### M21 — Guitar input
 Audio onset detection through an interface, reusing the calibration and analysis already
-built. A new input is additive once the drills and measurement are mature, and it is the only
-item requiring hardware the player does not own.
+built. A new input is additive once the drills and measurement are mature.
+
+~~It is the only item requiring hardware the player does not own.~~ **No longer true.** He has a
+cheap TS→USB adapter that already carries electric guitar, bass and amplifiers, with a better
+interface planned. The blocker was never really the hardware anyway — it is that this is the
+milestone where **audio onset detection has to be built and characterised**, and M24 then inherits
+it.
+
+Three things the adapter makes concrete rather than hypothetical:
+
+- **Characterise the adapter for spread, not for offset.** A constant input latency shifts bias
+  and leaves variance untouched (§ "On accuracy"), so a cheap converter is perfectly usable if its
+  buffering is *stable*. If it is not, it injects jitter into the one quantity this project
+  measures. That is a loopback measurement, and it must happen before the first guitar take
+  rather than after a surprising one.
+- **An amplifier is not a clean DI.** Distortion and compression smear the attack, which is the
+  same problem M24 has with a sung vowel against a plosive — the transient the detector needs is
+  exactly what a driven amp softens. Expect per-signal-chain onset bias, and characterise a
+  distorted tone separately from a clean one rather than assuming one constant covers both.
+- **Input devices need the calibration store's device keying.** Constants are already keyed by
+  name *and* data source, because the speakers and the headphone jack are one CoreAudio device
+  with different latency. An input device needs the same treatment, and it is the first time the
+  store has held one.
 
 ### M22 — Computer-keyboard input
 Timing capture from the Mac keyboard, for anyone who does not own a MIDI controller. Last on
@@ -1148,6 +1193,98 @@ HID timestamps are not driver-level MIDI timestamps all mean the *measurement qu
 have to be characterised from scratch — an M0-style validation run of its own before a single
 number could be trusted. Better as an on-ramp for other players than as a way for this one to
 practise.
+
+### M24 — Voice
+**The instrument comes out of the equation.** Onsets from the built-in microphone, produced by
+chanting, rhyming and spoken rhythm rather than by hands. Numbered after M23 because it was added
+last; placed here because its dependency is M21's onset detection, not M23's.
+
+Every timing number this project has ever produced came through one pair of hands on one
+keyboard. That is not a small caveat. `WingKristofferson` splits the variance into *clock* and
+*motor*, and the motor half is, specifically, **this player's fingers** — so "his clock SD is
+11–22 ms" is a claim about a timekeeper that has only ever been observed through a single
+effector.
+
+**That is the milestone's first and best experiment, and the app can already run it.** Chant a
+pulse and play a pulse, same tempo, same sitting, same drill. If the clock estimate is a property
+of the timekeeper it should survive the change of effector; if it moves, some of what has been
+called clock was hands all along. Nothing else in the roadmap can ask that question, and it
+bears on every figure in §7.7 onwards. The continuation drill is the right vehicle — it is
+already the only drill that separates the two — and voice is a `DropoutConfig` with a different
+input, not a new analysis.
+
+**It also puts a documented weakness under measurement.** Counting makes this player worse, which
+is recorded everywhere in this project as a thing to avoid and has never been *measured*. Voice
+makes it a preregistrable M13 design: count aloud against chant a rhyme, same pulse, arms
+assigned before the take. The instruction is the independent variable, which is the shape
+`relaxed-vs-focused` and `steady-vs-melodic` already have.
+
+**Why the world's rhythm pedagogies are the right source, and not decoration.** Konnakol, tabla
+bols, takadimi and the Kodály syllables were all designed to be *articulated crisply* — which is
+the same property an onset detector needs. That is a real convergence rather than a nice story:
+the traditional vocabularies solved the attack-clarity problem centuries before anyone had to
+detect it in software, and choosing syllables from them is choosing the ones with sharp
+transients. Accents, dialect and the placement conventions of different traditions then extend
+naturally onto M15's feel axis, since where a syllable sits inside a beat is exactly what `Feel`
+already models. Poetry and rhyme carry the other axis: metre is phrase structure, felt rather
+than counted, which is the form drill without an instrument.
+
+**The hard part is the measurement, and it is harder than guitar.** The hardware is owned outright
+— an external microphone he already records with, plus the headphones this drill requires — and
+the onsets are the worst-defined in the roadmap:
+
+| | Attack |
+|---|---|
+| Key strike (today) | A driver-level MIDI timestamp of a discrete event |
+| Plucked string (M21) | A sharp transient |
+| `ta`, `ka`, `pa` | A plosive burst — detectable |
+| `ma`, `na`, `sss`, a sung vowel | A slow rise with **no well-defined onset at all** |
+
+So the measured drills constrain the vocabulary to plosive-onset syllables and say so, rather
+than pretending a hummed note has an attack. Free vocalising can be *recorded* without being
+scored, the same way `rawTimes` stores what was played on takes M12 could not yet analyse.
+
+**M0 all over again, and that is the entry cost.** The same argument that puts M22 last applies
+here with more force: audio onset detection has its own latency, its own jitter, and a systematic
+bias that **differs per phoneme**. None of that may be assumed. The validation is unusually clean,
+though, and it is the reason this is buildable at all — **the MIDI path is already validated to
+the microsecond, so it can be the ground truth for the audio path.** Strike a key and voice a
+syllable together; the MIDI timestamp says when, the detector says when it thinks, and the
+difference is the constant plus its spread, per phoneme. That is M1's two-path trick pointed at a
+new input, and it needs no new hardware.
+
+What exists to build on, and what does not:
+
+- `TrainerKit/DSP` already has `transientEnvelope`, `noiseFloor` and `detectOnsets`, including
+  the backtrack that stops an envelope peak reporting every onset late. Written for calibration
+  strikes, and the closest thing to a starting point.
+- Calibration measures `L_midi + L_out`. Voice replaces the first term with microphone plus
+  detection latency, so the two-path procedure needs re-deriving rather than reusing.
+- **Headphones are a requirement, and the reason is feedback before it is bleed.** An open
+  microphone and a speaker in one room is a howl — the drill would be unusable before it was
+  inaccurate, and no amount of gain staging makes a hands-free vocal drill safe on speakers. Bleed
+  is the quieter second problem: a backing arriving at the same microphone as the voice puts the
+  band's own transients into the onset detector, which is the exact failure mode of detecting
+  onsets at all. So this is enforced like the Bluetooth refusal rather than advised like mic
+  placement — **refuse to run a vocal take on speakers**, the way `dropout` refuses a swung feel.
+  It also forces every vocal take onto the headphone calibration constant, which makes that path
+  load-bearing for the first time.
+- **The external microphone is the one to use**, and it helps twice. Better capture than the
+  built-in, and a mic on a stand can be *placed the same way twice* — which the two-path
+  calibration already depends on ("roughly equidistant from the sound source and the keyboard, so
+  the acoustic path lengths cancel") and which a laptop lid cannot promise. With headphones there
+  is no acoustic output path at all, so the vocal constant is measured the way `calibrate quick`
+  already does it: an earcup against the microphone.
+- `LESSONS.md` shape 16 is this milestone's own warning: an onset detector that fired on energy
+  *tripling* found nothing after the first event of a bar and looked exactly like a broken
+  feature. Validate the detector against a case whose answer is known before trusting it about
+  one that is not.
+
+**Falsifier.** If per-phoneme onset bias cannot be characterised tightly enough — if the spread
+of the detector is comparable to the ~20 ms spread being measured — then voice can carry the
+*phrase-level* drills, where the quantity is bars rather than milliseconds, and must not carry
+placement. Shipping a placement number the detector cannot support would be §3's forbidden case:
+a confident number that is wrong.
 
 ---
 

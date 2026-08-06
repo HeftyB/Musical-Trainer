@@ -18,8 +18,10 @@ Four documents, four jobs — putting content in the wrong one is a defect:
 M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
 the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
 plus the offbeat drill. PLAN.md §7 has the milestone table with an "as built" section for each;
-§7.13 is the roadmap through M22, and M23 (jazz timing) is deferred behind the instrument
-milestones for the reason given there.
+§7.13 is the roadmap through M22, plus M23 (jazz timing, deferred behind the instrument
+milestones for the reason given there) and M24 (voice — onsets from the microphone, no
+instrument, and the only milestone that can ask whether the "clock" this project measures is
+the timekeeper or partly the hands).
 
 **Next is not M16.** As of 6 August the order is: the form **level-3 probe** (§7.26), then
 **M19** (musical depth), then M16's span ladder. M19 moved ahead because a 32-bar phrase needs a
@@ -109,6 +111,36 @@ that precondition is met without booking a live run.
 - **Not installed:** `swiftlint`, `swift-format`, `gh`, `tea`, `jq`, `shellcheck`. `scripts/check.sh`
   does the linting with grep, because the rules that matter here are project-specific anyway.
 - **bash is 3.2** (macOS). No `mapfile`, no associative arrays, in hooks and scripts.
+
+## Input hardware — what a drill may assume
+
+Only the first row is what every take on record was measured through. The rest are **owned but
+never yet used for measurement**, so treat them as untested paths, not as capability.
+
+| Input | Status | Path |
+|---|---|---|
+| Launchkey (keys + pads) | **In use.** Every take ever recorded | CoreMIDI — driver timestamps, validated in M0 |
+| TS→USB audio adapter | Owned, cheap, works | Electric guitar, bass, amplifiers, and the TDV6 drum module's line out |
+| External microphone | Owned, used for recording | Vocal capture, and the calibration test tone |
+| USB→MIDI interface for the drums | **Planned purchase** | Would put the drum module on the MIDI path |
+| Better audio interface | Planned purchase | Replaces the TS→USB adapter |
+
+Three things follow, and they change what the roadmap costs:
+
+- **M21's guitar hardware is no longer missing.** PLAN §7.13 said guitar was the one milestone
+  needing hardware he does not own; the TS→USB adapter closes that. What it does not close is
+  the measurement question — see below.
+- **A cheap adapter is fine if its latency is *stable*.** Magnitude is calibrated away and only
+  shifts bias; variable buffering adds jitter, and jitter is the skill metric. So the adapter has
+  to be characterised for *spread*, not for offset, before any number through it is trusted.
+- **The drum module on MIDI is a different milestone from drums on audio.** With the planned
+  USB→MIDI interface the kit sends note-ons with driver timestamps — the path M0 already
+  validated — and needs no onset detection at all. Through the TS→USB line out it is an audio
+  problem. Same instrument, entirely different measurement quality.
+
+**Headphones are a hard requirement for anything vocal** (M24), and the reason is feedback, not
+just bleed: an open microphone and a speaker in one room is a howl, and the drill would be
+unusable before it was inaccurate.
 
 ## Build, test, run
 
