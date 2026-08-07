@@ -1249,7 +1249,10 @@ public enum Commands {
         // ear or not at all. A step list cannot say whether 1.5:1 sounds like a shuffle or like
         // a mistake, and §7.23's rule — do not promote onto a rung nobody has heard — applies to
         // a feel at least as strongly.
-        let subjects: [(name: String, rung: IntervalRung?, feel: Feel, arrangement: Arrangement)] =
+        typealias Subject = (name: String, rung: IntervalRung?, feel: Feel,
+                             arrangement: Arrangement)
+
+        let ladder: [Subject] =
             [("quarters", .quarters, .straight, LadderBackings.backing(notesPerBeat: 1)),
              ("eighths", .eighths, .straight, LadderBackings.backing(notesPerBeat: 2)),
              ("triplet-eighths", .tripletEighths, .straight, LadderBackings.backing(notesPerBeat: 3)),
@@ -1265,15 +1268,30 @@ public enum Commands {
              // The bass, so it can be judged by ear before a style is built on it. Nothing
              // frozen carries it (§7.29 step 2).
              ("bass-demo", nil, .straight, GrooveLibrary.bassDemo)]
-            // Every style at every intensity, because intensity is the thing that has to be
-            // judged: a layer entering should sound like the music getting more sure of itself
-            // and not like a switch being thrown (§7.29 step 3).
-            + StyleLibrary.all.flatMap { style in
-                Style.intensityRange.map { intensity in
-                    ("\(style.name)-\(intensity)", nil as IntervalRung?, Feel.straight,
-                     style.auditionArrangement(intensity: intensity))
-                }
+
+        // Every style at every intensity, because intensity is the thing that has to be judged:
+        // a layer entering should sound like the music getting more sure of itself and not like
+        // a switch being thrown (§7.29 step 3).
+        var styleSubjects: [Subject] = []
+        for style in StyleLibrary.all {
+            for intensity in Style.intensityRange {
+                styleSubjects.append((name: "\(style.name)-\(intensity)", rung: nil,
+                                      feel: .straight,
+                                      arrangement: style.auditionArrangement(intensity: intensity)))
             }
+        }
+
+        // A generated piece per style, long enough to hear the intensity arc move across
+        // phrases. That arc is the part a step list cannot judge: it either sounds like the
+        // music going somewhere or like a fader being nudged (§7.29 step 4).
+        for style in StyleLibrary.all {
+            let identity = BackingIdentity(style: style.name, seed: 0x5EED_0001)
+            styleSubjects.append((name: identity.name, rung: nil, feel: .straight,
+                                  arrangement: StyleArranger.arrangement(
+                                      style: style, seed: identity.seed, bars: max(bars, 32))))
+        }
+
+        let subjects: [Subject] = ladder + styleSubjects
 
         print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
                      Int(bpm), bars, spreadMs,

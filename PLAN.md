@@ -4427,7 +4427,6 @@ and R3.5 keeps it exactly as it is; `bassDemo` exists to be heard through `rende
 scheduled by nothing. A test walks every frozen arrangement bar by bar and requires no bass hit
 in any of them.
 
-The style format is step 3 and the generator step 4.
 
 ### Step 3, as built — a style is layers, and intensity is which of them play
 
@@ -4490,6 +4489,52 @@ music. No planner, no drill and no frozen backing can reach a style, and a test 
 arrangement takes have been measured against to prove it.
 
 The generator and the stored seed are step 4.
+
+### Step 4, as built — the seed, and why it is stored
+
+`StyleArranger.arrangement(style:seed:bars:phraseBars:)`. A style is bounded authoring; the music
+it produces is not, because how the intensity moves, which fill lands where and how long the
+phrases run are all chosen from a seed.
+
+**The seed is stored, and that is what makes generation permissible rather than reckless.**
+R1.2.2 says a result that cannot be reproduced from stored data is not a result — so a generated
+backing that could not be rebuilt would make every take played over one unexplainable the moment
+the generator changed. `BackingIdentity` writes it into `grooveName` as `motown@000000005eed0001`,
+which needs **no schema change at all**: the field is already stored on every take and already
+treated as a confound by `TakeAxis` and the trend grouping, so two seeds of one style are honestly
+different music and every take on record keeps decoding. A name without an `@` is not a generated
+backing and parses as nothing, which is every take recorded before M19 — they really did play
+fixed music and that distinction has to survive.
+
+#### The intensity arc is chosen, not sampled
+
+Intensity moves along one of five shapes — build and settle, slow burn, open strong, call and
+response, two gears — rather than being drawn per phrase. **Independent random intensity sounds
+like somebody nudging a fader**: nothing is built to, there is no arrival, and a listener cannot
+tell a section from an accident. A shape gives a piece somewhere to go, which is the difference
+between thirty minutes being worth playing and being endured.
+
+The fill choices are drawn *before* the loop rather than per phrase, so two pieces from one seed
+share their opening whatever their lengths. That is what lets the planner keep one seed inside a
+sitting and rotate the style between them (§7.29's settled decisions): an evening has one musical
+identity and the next evening is new.
+
+#### The generator adds nothing
+
+It selects among bars the style already defines and never invents or moves a hit — variation is
+in what fires, never in when. A test walks every bar of several seeded pieces and requires each
+one to be a bar the style produces at some intensity, or one of its fills. That is the assertion
+that keeps the backing a ruler.
+
+`phraseBars` is a parameter with a default of eight, because M16's span ladder grows it to sixteen
+and thirty-two and the generator should not have to change when it does. A test drives all four.
+
+One `Section` per bar, because a style's layers cycle at their own lengths and a section holding
+one pattern for eight bars would flatten exactly the variation the layers exist to create.
+
+`render` writes a generated piece per style so the arc can be heard, which is the only way to
+judge it. Still nothing schedules a style: the planner is step 6.
+
 
 
 ---
