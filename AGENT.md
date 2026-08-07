@@ -23,9 +23,16 @@ milestones for the reason given there) and M24 (voice — onsets from the microp
 instrument, and the only milestone that can ask whether the "clock" this project measures is
 the timekeeper or partly the hands).
 
-**Next is not M16.** As of 6 August the order is: the form **level-3 probe** (§7.26, built),
-then **M19** (musical depth), then M16's span ladder. M19 moved ahead because a 32-bar phrase
-needs a backing that sustains 32 bars and M16.5's organ bubble needs the pattern format settled.
+**M19 is in progress** (§7.29), ahead of M16 because a 32-bar phrase needs a backing that
+sustains 32 bars and M16.5's organ bubble needs the pattern format settled. Steps 0 and 1 are
+done and changed no audio by design: the grid a free jam is scored on is a named constant rather
+than the drum programming's resolution, and every arrangement now speaks **one grid of 24 steps
+to the beat** so a triplet section and a straight one can share a piece of music. Patterns are
+still authored at whatever reads naturally and `Arrangement` lifts them.
+
+**Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
+position before and after the lift, at three tempos and four feels, and a one-step drift fails it
+3,265 times. The nineteen WAVs `render` writes are the other half of that gate.
 
 **Anything can be tried from the CLI without corrupting a ladder.** `--probe`, anywhere on the
 line, records a take as a deliberate look at a setting that was not earned — form level 3, a rung
@@ -119,8 +126,8 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 396 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (152 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 403 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (157 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -164,7 +171,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 548 tests, no hardware needed
+swift test                              # 560 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -262,7 +269,9 @@ Types worth knowing before changing anything:
   value: rounding an observed 1.45 notes-per-beat to 1 reports 45% fast as a fact when the same
   playing also reads 27% slow. Every stored take is near a whole subdivision, so nothing moved.
   `nil` means no rung was prescribed, **never quarters**: the benchmark and both experiment
-  blocks must stay rung-less (R3.5). Distinct from `subdivisions`, which is the grid the take
+  blocks must stay rung-less (R3.5). A rung-less take is scored at
+  `JamConfig.freePlayingSubdivisions` — sixteenths, fixed, and deliberately not the backing's
+  step resolution (§7.29 step 0). Distinct from `subdivisions`, which is the grid the take
   was *analysed* on; `taskSubdivisions` is the one the interval readout wants.
 - **`SwingReport`** — the ratio is **derived from mean offbeat phase and never measured per
   pair**, and consistency is the swung note's spread in *milliseconds*. Reporting a spread of

@@ -73,7 +73,13 @@ final class LadderBackingTests: XCTestCase {
     func testABackingLoopsWithLandmarksRatherThanRunningFlat() {
         for notesPerBeat in [1, 2, 3, 4] {
             let backing = LadderBackings.backing(notesPerBeat: notesPerBeat)
-            XCTAssertEqual(backing.stepsPerBeat, notesPerBeat == 3 ? 3 : 4)
+            // Authored at 3 steps per beat for triplets and 4 for the rest, and lifted to the
+            // common grid by `Arrangement` so a triplet rung and a binary one are the same kind
+            // of object (§7.29 step 1). The authoring resolution is checked where the patterns
+            // are built; what matters here is that the arrangement speaks one grid.
+            XCTAssertEqual(backing.stepsPerBeat, Pattern.commonStepsPerBeat)
+            XCTAssertEqual(LadderBackings.pattern(notesPerBeat: notesPerBeat).stepsPerBeat,
+                           notesPerBeat == 3 ? 3 : 4)
             XCTAssertEqual(backing.totalBars, 16)
             // A fill on the last bar of each eight, so the form is feelable without counting.
             XCTAssertNotEqual(backing.pattern(atBar: 7), backing.pattern(atBar: 6))
@@ -216,8 +222,26 @@ final class LadderBackingTests: XCTestCase {
     }
 
     /// The ladder must not have moved the backing every recorded take was played over.
+    ///
+    /// This used to assert the arrangement's step resolution, which was a *proxy* for "the music
+    /// has not moved" and stopped being one when §7.29 step 1 lifted every arrangement to the
+    /// common grid. It now asserts the thing itself: the sample each hit lands on, over a full
+    /// pass of the arrangement, against the patterns as authored. A proxy that survives a change
+    /// it should have caught is worse than no assertion at all.
     func testTheExistingJamBackingIsUntouched() {
-        XCTAssertEqual(GrooveLibrary.jamBacking.stepsPerBeat, 4)
         XCTAssertEqual(GrooveLibrary.basicRock.hits.filter { $0.voice == .closedHat }.count, 8)
+        XCTAssertEqual(GrooveLibrary.basicRock.stepsPerBeat, 4, "still authored at sixteenths")
+
+        let sequencer = Sequencer(bpm: 100, sampleRate: 44_100)
+        let authored: [GrooveCore.Pattern] = [GrooveLibrary.basicRock, GrooveLibrary.drivingRide]
+        for bar in 0..<GrooveLibrary.jamBacking.totalBars {
+            let played = sequencer.schedule(pattern: GrooveLibrary.jamBacking.pattern(atBar: bar),
+                                            bar: bar).map(\.sample).sorted()
+            // Bars 7 and 15 are fills; the rest are the section's own pattern.
+            guard bar != 7, bar != 15 else { continue }
+            let expected = sequencer.schedule(pattern: authored[bar < 8 ? 0 : 1], bar: bar)
+                .map(\.sample).sorted()
+            XCTAssertEqual(played, expected, "bar \(bar) of the backing every take was played over")
+        }
     }
 }

@@ -111,22 +111,42 @@ public enum TrainerEngine {
                     LadderBackings.backing(notesPerBeat: rung.subdivisions))
         }
 
+        /// The grid a take with no prescribed rung is scored on.
+        ///
+        /// **Sixteenths, fixed, and deliberately not the backing's step resolution.** Free
+        /// playing prescribes nothing, so the grid is a choice about how finely to measure and
+        /// not a fact about the music — and every free take on record was scored at sixteenths,
+        /// so this is the value that keeps them comparable with whatever comes next.
+        ///
+        /// It was `backing.arrangement.stepsPerBeat` until M19 step 0, which made **the grid a
+        /// free jam is scored on a property of the drum programming**: `jamBacking` happens to
+        /// be written at four steps per beat, so twenty-six of the thirty takes on record are
+        /// analysed at sixteenths for that reason and no other. Re-voicing the backing on a finer
+        /// grid — which M19 does, at twenty-four steps per beat — would silently have re-scored
+        /// the entire history.
+        ///
+        /// That is `LESSONS.md` shape 10, one word with two meanings, still live after §7.23
+        /// found and fixed four instances of it: the distinction between what the *content* is
+        /// authored at and what the *player* is scored against was drawn for `LadderBackings`
+        /// and never carried back to this fallback.
+        public static let freePlayingSubdivisions = 4
+
         /// Grid points per beat for the **analysis**.
         ///
-        /// The rung when there is one, and only otherwise the backing's step resolution. Those
-        /// are different quantities and this is the third place in M14 where confusing them was
-        /// the available mistake — `LadderBackings` returns a pattern whose `stepsPerBeat` is 4
-        /// for quarters, eighths *and* sixteenths, because all three are programmed on a
-        /// sixteenth step grid and differ only in which steps fire. Scoring a quarters rung on
-        /// that resolution would measure a task nobody was set, and it is what step 1's tempo
-        /// ceilings are derived against: the window is `0.4 × 60 / (bpm × subdivisions)`, so the
-        /// subdivision here *is* the thing the ceiling constrains.
+        /// The rung when there is one, `freePlayingSubdivisions` otherwise. Those are different
+        /// quantities and this is the third place in M14 where confusing them was the available
+        /// mistake — `LadderBackings` returns a pattern whose `stepsPerBeat` is 4 for quarters,
+        /// eighths *and* sixteenths, because all three are programmed on a sixteenth step grid
+        /// and differ only in which steps fire. Scoring a quarters rung on that resolution would
+        /// measure a task nobody was set, and it is what step 1's tempo ceilings are derived
+        /// against: the window is `0.4 × 60 / (bpm × subdivisions)`, so the subdivision here *is*
+        /// the thing the ceiling constrains.
         /// The offbeat drill is scored on eighths whatever else is set: the offbeat *is* the
         /// half-beat, and a finer grid would let a stray sixteenth count as neither the beat nor
         /// the offbeat and quietly shrink both counts.
         var gridSubdivisions: Int {
             if offbeatLevel != nil { return 2 }
-            return rung?.subdivisions ?? backing.arrangement.stepsPerBeat
+            return rung?.subdivisions ?? Self.freePlayingSubdivisions
         }
 
         /// The feel, restated for the band.

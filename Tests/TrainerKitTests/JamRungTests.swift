@@ -25,17 +25,22 @@ final class JamRungTests: XCTestCase {
         }
     }
 
-    /// The trap stated as a number. Three of the four ladder backings are programmed on the same
-    /// sixteenth step grid, so the backing cannot tell the rungs apart.
-    func testThreeRungsShareAStepResolutionAndAreStillScoredDifferently() {
-        let straight: [IntervalRung] = [.quarters, .eighths, .sixteenths]
-        let resolutions = straight.map { rung in
+    /// The trap stated as a number, and §7.29 step 1 sharpened it: **every** ladder backing now
+    /// reports the same step resolution, so the backing can tell nothing apart at all. Three of
+    /// four shared it before, because triplets were authored at 3 steps per beat; they are all
+    /// lifted to the common grid now, and the rung remains the only thing that says what the
+    /// player was asked for.
+    func testEveryRungSharesAStepResolutionAndIsStillScoredDifferently() {
+        let rungs: [IntervalRung] = [.quarters, .eighths, .tripletEighths, .sixteenths]
+        let resolutions = rungs.map { rung in
             TrainerEngine.JamConfig(rung: rung).backing.arrangement.stepsPerBeat
         }
-        XCTAssertEqual(resolutions, [4, 4, 4], "all three are programmed on sixteenth steps")
+        XCTAssertEqual(resolutions, Array(repeating: GrooveCore.Pattern.commonStepsPerBeat,
+                                          count: 4),
+                       "all four speak the common grid, so none of them identifies a rung")
 
-        let grids = straight.map { TrainerEngine.JamConfig(rung: $0).gridSubdivisions }
-        XCTAssertEqual(grids, [1, 2, 4], "but each is scored against its own rung")
+        let grids = rungs.map { TrainerEngine.JamConfig(rung: $0).gridSubdivisions }
+        XCTAssertEqual(grids, [1, 2, 3, 4], "but each is scored against its own rung")
     }
 
     /// A quarters rung on the backing's resolution would score against a 150 ms grid at 100 BPM,
@@ -88,8 +93,13 @@ final class JamRungTests: XCTestCase {
         XCTAssertNil(free.rung)
         XCTAssertEqual(free.backing.name, "jamBacking")
         XCTAssertEqual(free.backing.arrangement, GrooveLibrary.jamBacking)
-        XCTAssertEqual(free.gridSubdivisions, GrooveLibrary.jamBacking.stepsPerBeat)
         XCTAssertEqual(free.gridSubdivisions, 4, "the grid every take on disk was scored on")
+        // It used to also assert that this equalled the backing's step resolution. It no longer
+        // does and must not: §7.29 step 1 lifted the arrangement to twenty-four steps a beat,
+        // and the whole point of step 0 was that the score does not follow the drums.
+        XCTAssertNotEqual(free.gridSubdivisions, GrooveLibrary.jamBacking.stepsPerBeat,
+                          "these were the same number for the life of the project, which is why "
+                        + "no test could tell them apart until now")
     }
 
     /// `nil` means "no rung was prescribed", not "quarters" — they are different tasks and would

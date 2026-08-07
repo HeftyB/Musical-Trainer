@@ -89,6 +89,8 @@ final class OffbeatBackingTests: XCTestCase {
     func testABackingRunsForAsManyBarsAsAsked() {
         let backing = OffbeatBacking.backing(level: .backbeatOnly, bars: 16)
         XCTAssertEqual(backing.totalBars, 16)
-        XCTAssertEqual(backing.stepsPerBeat, 4)
+        // Authored at sixteenths, spoken on the common grid (§7.29 step 1).
+        XCTAssertEqual(backing.stepsPerBeat, Pattern.commonStepsPerBeat)
+        XCTAssertEqual(OffbeatBacking.pattern(level: .backbeatOnly, bar: 0).stepsPerBeat, 4)
     }
 }
