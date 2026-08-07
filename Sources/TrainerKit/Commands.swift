@@ -1237,7 +1237,7 @@ public enum Commands {
         guard (1...64).contains(bars) else { throw SpikeError("Bars must be 1–64.") }
 
         let fs = 44_100.0
-        let kit = DrumKit(sampleRate: fs)
+        let kit = BackingKit(sampleRate: fs)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         // The ceiling is a fact about *this* player, so it comes from their own takes rather
@@ -1261,7 +1261,10 @@ public enum Commands {
               LadderBackings.swungBacking(notesPerBeat: 2)),
              ("sixteenths-swung-1.5", .sixteenths, Feel(swingRatio: 1.5) ?? .straight,
               LadderBackings.swungBacking(notesPerBeat: 4)),
-             ("jam-backing", nil, .straight, GrooveLibrary.jamBacking)]
+             ("jam-backing", nil, .straight, GrooveLibrary.jamBacking),
+             // The bass, so it can be judged by ear before a style is built on it. Nothing
+             // frozen carries it (§7.29 step 2).
+             ("bass-demo", nil, .straight, GrooveLibrary.bassDemo)]
 
         print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
                      Int(bpm), bars, spreadMs,

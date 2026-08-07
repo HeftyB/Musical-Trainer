@@ -1,25 +1,49 @@
 import Foundation
 import GrooveCore
 
-/// Procedurally synthesised drum voices, rendered once to sample buffers at startup.
+/// Every voice the band plays, rendered once to sample buffers at startup.
+///
+/// `DrumSynth` is the drum half and keeps its name because that is what it does; the kit is
+/// named for the band because it holds whatever the band needs, which from M19 includes pitch.
 ///
 /// Synthesis, not sampled recordings: nothing to license or download, sample-accurate, and
 /// tempo-agile (resolves PLAN.md open question #4 by removing it). Each voice is a short
 /// one-shot; the player mixes copies of these buffers at scheduled positions, so the render
 /// thread never synthesises anything — it only adds pre-rendered samples.
-struct DrumKit {
+struct BackingKit {
     let sampleRate: Double
-    private(set) var buffers: [DrumVoice: [Float]] = [:]
+    private(set) var buffers: [BackingVoice: [Float]] = [:]
+    /// One buffer per bass note. Pre-rendered for the same reason the drums are: the render
+    /// callback may not allocate or synthesise (R2.3), so every sound it can be asked for has
+    /// to exist before it starts.
+    private(set) var bassBuffers: [Int: [Float]] = [:]
+
+    /// The bass range, E1 to E3. Wide enough for a root and a fifth in any key, and small
+    /// enough that pre-rendering it costs a couple of megabytes and a few milliseconds.
+    static let bassNotes = 28...52
 
     init(sampleRate: Double) {
         self.sampleRate = sampleRate
-        for voice in DrumVoice.allCases {
+        for voice in BackingVoice.allCases where !voice.isPitched {
             buffers[voice] = DrumSynth.render(voice, sampleRate: sampleRate)
+        }
+        for note in Self.bassNotes {
+            bassBuffers[note] = BassSynth.render(note: note, sampleRate: sampleRate)
         }
     }
 
-    func buffer(for voice: DrumVoice) -> [Float] { buffers[voice] ?? [] }
-    var maxVoiceLength: Int { buffers.values.map(\.count).max() ?? 0 }
+    /// The buffer a hit sounds. A pitched voice outside the rendered range is silent rather
+    /// than wrong: a bass note nobody rendered is a programming error, and playing the nearest
+    /// pitch instead would put a wrong note in the music without saying so.
+    func buffer(for voice: BackingVoice, note: Int? = nil) -> [Float] {
+        guard voice.isPitched else { return buffers[voice] ?? [] }
+        guard let note else { return [] }
+        return bassBuffers[note] ?? []
+    }
+
+    var maxVoiceLength: Int {
+        max(buffers.values.map(\.count).max() ?? 0, bassBuffers.values.map(\.count).max() ?? 0)
+    }
 }
 
 enum DrumSynth {
@@ -56,12 +80,16 @@ enum DrumSynth {
         }
     }
 
+    /// Soft saturation for the bass: gentler drive than a drum wants, because the harmonics it
+    /// adds are what make a low fundamental audible on a speaker that cannot reproduce it.
+    static func saturateBass(_ x: Float) -> Float { saturate(x, drive: 1.8) }
+
     /// Soft saturation — adds harmonics and density, i.e. punch, while bounding the level.
     private static func saturate(_ x: Float, drive: Float) -> Float {
         tanh(x * drive) / tanh(drive)
     }
 
-    static func render(_ voice: DrumVoice, sampleRate fs: Double) -> [Float] {
+    static func render(_ voice: BackingVoice, sampleRate fs: Double) -> [Float] {
         switch voice {
         case .kick:      return kick(fs: fs)
         case .snare:     return snare(fs: fs)
@@ -72,6 +100,10 @@ enum DrumSynth {
         case .tom:       return tom(fs: fs)
         case .crash:     return crash(fs: fs)
         case .ride:      return ride(fs: fs)
+        // Pitched, so it has no single buffer — `BackingKit` renders one per note through
+        // `BassSynth`. Returning empty here rather than trapping keeps a stray `.bass` in a
+        // drum-only context silent instead of fatal.
+        case .bass:      return []
         }
     }
 

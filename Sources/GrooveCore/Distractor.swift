@@ -53,7 +53,7 @@ public enum Distractor {
 
     /// Voices that read as texture rather than as a pulse. No kick and no crash: both are
     /// downbeat sounds, and either would be heard as a bar line even placed off-grid.
-    static let voices: [DrumVoice] = [.closedHat, .rimshot, .tom, .clap]
+    static let voices: [BackingVoice] = [.closedHat, .rimshot, .tom, .clap]
 
     /// Fill `[startSample, endSample)` with aperiodic hits.
     ///

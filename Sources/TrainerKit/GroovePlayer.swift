@@ -13,9 +13,18 @@ final class GroovePlayer {
     private var sourceNode: AVAudioSourceNode?
     private let state: UnsafeMutablePointer<RenderState>
 
-    private let voiceCount = DrumVoice.allCases.count
-    private let voiceIndexOf: [DrumVoice: Int]
-    private let kit: DrumKit
+    /// One slot per *sound* the band can make, not per voice: the drums take one each and the
+    /// bass takes one per note. The render callback still indexes a flat table, which is what
+    /// keeps it free of allocation and branching (R2.3) — pitch changes what is pre-rendered,
+    /// never what happens in the callback.
+    private let soundCount: Int
+    private let soundIndexOf: [SoundKey: Int]
+
+    private struct SoundKey: Hashable {
+        let voice: BackingVoice
+        let note: Int?
+    }
+    private let kit: BackingKit
     let outputSampleRate: Double
 
     /// Sonifies the player's MIDI so they can hear what they play while jamming. Held
@@ -53,17 +62,21 @@ final class GroovePlayer {
         outputSampleRate = engine.outputNode.inputFormat(forBus: 0).sampleRate
         guard outputSampleRate > 0 else { throw SpikeError("No usable audio output device.") }
 
-        kit = DrumKit(sampleRate: outputSampleRate)
+        kit = BackingKit(sampleRate: outputSampleRate)
         instrument = LiveInstrument(sampleRate: outputSampleRate)
-        voiceIndexOf = Dictionary(uniqueKeysWithValues:
-            DrumVoice.allCases.enumerated().map { ($1, $0) })
 
-        let voiceData = UnsafeMutablePointer<UnsafeMutablePointer<Float>?>.allocate(capacity: voiceCount)
-        let voiceLen = UnsafeMutablePointer<Int>.allocate(capacity: voiceCount)
-        voiceData.initialize(repeating: nil, count: voiceCount)
-        voiceLen.initialize(repeating: 0, count: voiceCount)
-        for (voice, index) in voiceIndexOf {
-            let samples = kit.buffer(for: voice)
+        var keys: [SoundKey] = BackingVoice.allCases.filter { !$0.isPitched }
+            .map { SoundKey(voice: $0, note: nil) }
+        keys += BackingKit.bassNotes.map { SoundKey(voice: .bass, note: $0) }
+        soundIndexOf = Dictionary(uniqueKeysWithValues: keys.enumerated().map { ($1, $0) })
+        soundCount = keys.count
+
+        let voiceData = UnsafeMutablePointer<UnsafeMutablePointer<Float>?>.allocate(capacity: soundCount)
+        let voiceLen = UnsafeMutablePointer<Int>.allocate(capacity: soundCount)
+        voiceData.initialize(repeating: nil, count: soundCount)
+        voiceLen.initialize(repeating: 0, count: soundCount)
+        for (key, index) in soundIndexOf {
+            let samples = kit.buffer(for: key.voice, note: key.note)
             let buffer = UnsafeMutablePointer<Float>.allocate(capacity: max(samples.count, 1))
             buffer.assign(from: samples, count: samples.count)
             voiceData[index] = buffer
@@ -90,7 +103,7 @@ final class GroovePlayer {
     private let masterGain: Float
 
     deinit {
-        for i in 0..<voiceCount { state.pointee.voiceData[i]?.deallocate() }
+        for i in 0..<soundCount { state.pointee.voiceData[i]?.deallocate() }
         state.pointee.voiceData.deallocate()
         state.pointee.voiceLen.deallocate()
         state.pointee.starts.deallocate()
@@ -120,12 +133,27 @@ final class GroovePlayer {
     /// Load the schedule. Must be called before `run`. Hits are sorted by sample.
     func schedule(_ hits: [ScheduledHit]) {
         precondition(!engine.isRunning, "schedule before starting playback")
-        let sorted = hits.sorted { $0.sample < $1.sample }
-        let count = min(sorted.count, capacity)
+        // Resolved and filtered *before* anything is written, because the three parallel arrays
+        // are read by index in the render callback: skipping one mid-loop would leave a start
+        // time beside whichever sound and gain the previous schedule left there, which is a
+        // wrong note played confidently rather than a missing one.
+        //
+        // A hit drops out only when its sound was never rendered — a bass note outside
+        // `BackingKit.bassNotes`. That is a programming error, and silence is the honest
+        // response: substituting the nearest pitch would put a wrong note in the music without
+        // saying so (§7.29 step 2).
+        let resolved: [(hit: ScheduledHit, index: Int)] = hits
+            .compactMap { hit in
+                let key = SoundKey(voice: hit.voice, note: hit.voice.isPitched ? hit.note : nil)
+                return soundIndexOf[key].map { (hit, $0) }
+            }
+            .sorted { $0.hit.sample < $1.hit.sample }
+
+        let count = min(resolved.count, capacity)
         for i in 0..<count {
-            let hit = sorted[i]
+            let (hit, index) = resolved[i]
             state.pointee.starts[i] = hit.sample
-            state.pointee.voiceIndex[i] = Int32(voiceIndexOf[hit.voice] ?? 0)
+            state.pointee.voiceIndex[i] = Int32(index)
             state.pointee.gains[i] = Float(hit.velocity) / 127 * masterGain
         }
         state.pointee.scheduledCount = count

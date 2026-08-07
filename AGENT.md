@@ -21,7 +21,9 @@ plus the offbeat drill. PLAN.md §7 has the milestone table with an "as built" s
 §7.13 is the roadmap through M22, plus M23 (jazz timing, deferred behind the instrument
 milestones for the reason given there) and M24 (voice — onsets from the microphone, no
 instrument, and the only milestone that can ask whether the "clock" this project measures is
-the timekeeper or partly the hands).
+the timekeeper or partly the hands) and M25 (harmony — its own milestone because a key and a
+progression are a different problem from rhythm, with the framework for it already in
+`Hit.note`).
 
 **M19 is in progress** (§7.29), ahead of M16 because a 32-bar phrase needs a backing that
 sustains 32 bars and M16.5's organ bubble needs the pattern format settled. Steps 0 and 1 are
@@ -29,6 +31,15 @@ done and changed no audio by design: the grid a free jam is scored on is a named
 than the drum programming's resolution, and every arrangement now speaks **one grid of 24 steps
 to the beat** so a triplet section and a straight one can share a piece of music. Patterns are
 still authored at whatever reads naturally and `Arrangement` lifts them.
+
+The band now has a **bass** — `BackingVoice.bass`, pitch on the hit, `BassSynth` — and nothing
+frozen carries one: `jamBacking` is the music every take was measured against and stays exactly
+as it is. Hear the voice with `render`, which writes `bass-demo`.
+
+**Renders are reproducible as of §7.29 step 2 and were not before.** `Pattern.make` sorted its
+hits by dictionary order, which Swift seeds per process, so the same backing rendered to
+different bytes run to run. Any byte-comparison of audio taken before that fix is worth less
+than it looks.
 
 **Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
 position before and after the lift, at three tempos and four feels, and a one-step drift fails it
@@ -126,7 +137,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 403 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 412 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (157 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -171,7 +182,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 560 tests, no hardware needed
+swift test                              # 569 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
