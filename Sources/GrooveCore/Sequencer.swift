@@ -1,16 +1,19 @@
 import Foundation
 
-/// A drum hit placed at an absolute output-sample position.
+/// One backing hit placed at an absolute output-sample position.
 public struct ScheduledHit: Equatable {
-    public let voice: DrumVoice
+    public let voice: BackingVoice
+    /// Carried through from the `Hit`. `nil` for every drum.
+    public let note: Int?
     /// Absolute sample index on the output timeline.
     public let sample: Int64
     public let velocity: Int
 
-    public init(voice: DrumVoice, sample: Int64, velocity: Int) {
+    public init(voice: BackingVoice, sample: Int64, velocity: Int, note: Int? = nil) {
         self.voice = voice
         self.sample = sample
         self.velocity = velocity
+        self.note = note
     }
 }
 
@@ -62,7 +65,7 @@ public struct Sequencer {
             let globalStep = bar * pattern.stepsPerBar + hit.step
             return ScheduledHit(voice: hit.voice,
                                 sample: sample(globalStep: globalStep, stepsPerBeat: pattern.stepsPerBeat),
-                                velocity: hit.velocity)
+                                velocity: hit.velocity, note: hit.note)
         }
     }
 

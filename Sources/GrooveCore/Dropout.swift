@@ -39,7 +39,7 @@ public enum DropoutLadder {
         let stepsPerBeat = groove.stepsPerBeat
         let beats = stepsPerBar / stepsPerBeat
 
-        func ref(_ steps: [Int], _ voice: DrumVoice = .closedHat) -> Pattern {
+        func ref(_ steps: [Int], _ voice: BackingVoice = .closedHat) -> Pattern {
             Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat,
                     hits: steps.map { Hit(voice: voice, step: $0, velocity: accentVelocity) })
         }

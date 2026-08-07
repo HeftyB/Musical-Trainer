@@ -214,10 +214,10 @@ public enum SelfTest {
     private static func grooveRendering() -> Bool {
         print("\nGroove rendering (synth + sequencer + dropout + mix)")
         let fs = 44100.0
-        let kit = DrumKit(sampleRate: fs)
+        let kit = BackingKit(sampleRate: fs)
         var ok = true
 
-        for voice in DrumVoice.allCases {
+        for voice in BackingVoice.allCases where !voice.isPitched {
             let b = kit.buffer(for: voice)
             let finite = b.allSatisfy { $0.isFinite }
             let peak = b.map { abs($0) }.max() ?? 0
@@ -225,6 +225,29 @@ public enum SelfTest {
                        !b.isEmpty && finite && peak > 0.01 && peak <= 1.2,
                        String(format: "%d samples, peak %.2f", b.count, peak)) && ok
         }
+
+        // The bass has one buffer per note rather than one per voice, so it is checked across
+        // its range: every note must sound, none may be silent or hotter than the drums, and
+        // the pitch must actually rise — a bass rendering one frequency for every note would
+        // pass a peak check and be musically useless.
+        var bassOK = true
+        var lastCentroid = 0.0
+        for note in BackingKit.bassNotes {
+            let b = kit.buffer(for: .bass, note: note)
+            let peak = b.map { abs($0) }.max() ?? 0
+            if b.isEmpty || !b.allSatisfy({ $0.isFinite }) || peak < 0.01 || peak > 1.2 {
+                bassOK = false
+            }
+            // Zero crossings stand in for pitch: cheap, and monotone in frequency.
+            let crossings = zip(b, b.dropFirst()).filter { ($0 < 0) != ($1 < 0) }.count
+            let centroid = Double(crossings) / max(Double(b.count), 1)
+            if centroid <= lastCentroid { bassOK = false }
+            lastCentroid = centroid
+        }
+        ok = check("bass renders every note in its range, rising in pitch", bassOK,
+                   "\(BackingKit.bassNotes.count) notes, "
+                 + "\(BassSynth.frequency(ofNote: BackingKit.bassNotes.lowerBound).rounded())"
+                 + "–\(BassSynth.frequency(ofNote: BackingKit.bassNotes.upperBound).rounded()) Hz") && ok
 
         // Four bars of full kit, then four bars of ladder-silence.
         let seq = Sequencer(bpm: 120, sampleRate: fs)

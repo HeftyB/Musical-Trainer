@@ -1194,6 +1194,25 @@ have to be characterised from scratch — an M0-style validation run of its own 
 number could be trusted. Better as an on-ramp for other players than as a way for this one to
 practise.
 
+### M25 — Harmony
+Settled with the player on 6 August, as a milestone rather than a parameter. M19's bass is
+**rhythmic only** — a root and a fifth locking with the kick — and that will get boring, which is
+the point at which most trainers reach for a chord widget and produce something musically
+incoherent.
+
+Harmony is a different problem from rhythm, not a smaller one: a key, a progression, voice
+leading, what a chord change does to a *timing* drill, and whether the player should be told the
+changes or made to hear them. It also touches measurement, because a chord change is a landmark
+and the form drill exists to remove landmarks — a progression that resolves every eight bars is
+doing the fill's job for it.
+
+**The framework it needs is already laid.** `Hit.note` is per hit and optional, so a chord is
+several hits at one step with different notes and nothing about the pattern format has to move.
+That was the whole reason for putting the note there rather than on the pattern (§7.29 step 2).
+
+*Falsifier:* if a progression makes the form drill easier in a way that cannot be separated from
+the player getting better, harmony belongs in free playing only and never under a measured take.
+
 ### M24 — Voice
 **The instrument comes out of the equation.** Onsets from the built-in microphone, produced by
 chanting, rhyming and spoken rhythm rather than by hands. Numbered after M23 because it was added
@@ -4354,8 +4373,61 @@ the window in between.
 
 ### What this cannot verify
 
-The bass, the style format and the generator are still ahead; nothing yet sounds different. Steps
-0 and 1 changed no audio by design, which is what made them safe to do first.
+### Step 2, as built — the band gets a bass, and the renders stop lying
+
+`BackingVoice.bass`, `Hit.note`, and `BassSynth`. Drums alone cannot make something worth playing
+over for half an hour; a figure locking with the kick is what gives a groove a contour to remember
+and a second thing to place your own playing against.
+
+**`DrumVoice` was renamed to `BackingVoice` first**, in its own commit. An enum called `DrumVoice`
+with a `bass` case in it is `LESSONS.md` shape 10 arriving by choice rather than by accident, and
+the rename was sixteen compiler-checked references while it was still cheap. `DrumKit` became
+`BackingKit` for the same reason; `DrumSynth` kept its name because drums are what it synthesises.
+
+**The note is per hit and optional**, which is the framework M25 needs: a chord is several hits at
+one step with different notes, and nothing about the pattern format has to move when harmony
+arrives. Putting the pitch on the *pattern* would have been simpler today and a rewrite later.
+
+**Pitch does not reach the render callback.** R2.3 forbids allocating or synthesising there, so
+the flat table the callback indexes became one slot per *sound* rather than per voice: nine drums
+and one per bass note across E1–E3. The callback is unchanged. A hit whose sound was never
+rendered is dropped rather than substituted — a wrong note played confidently is worse than a
+missing one, and it would be wrong musically rather than visibly.
+
+Writing that produced a real bug worth naming: the first version skipped such a hit with
+`continue` *inside* the fill loop, which would have left a start time beside whichever sound and
+gain the previous schedule had put at that index. Three parallel arrays read by index in a render
+callback do not tolerate a hole. They are resolved and filtered before anything is written now.
+
+**The level came from the gate, not from taste.** At the amplitude first written the demo peaked
+at 1.14 and clipped 127 samples, because the bass lands *with* the kick by design and the two
+stack. `render` already warned about exactly this. 0.40 leaves the demo at 0.93.
+
+#### The renders were never reproducible, and the gate had been lying
+
+Two consecutive runs of the same binary produced different bytes for some backings. `Pattern.make`
+takes a dictionary of voice-to-steps, Swift seeds its hashing per process, so `flatMap` yielded
+hits in a different order on every launch — and float addition is not associative, so two hits on
+one sample summed to a value differing in its last bit. Against R1.2.2 outright, inaudible, and it
+made **every byte-comparison gate in this milestone unreliable, including the one that certified
+step 1**.
+
+Found only because the bass demo made overlapping voices common enough to notice. `Pattern.make`
+sorts its hits now, three consecutive renders agree, and a test builds the same pattern fifty
+times and requires it identical.
+
+One sample of one backing — `sixteenths-swung-1.5` — differs from the pre-M19 baseline by one
+LSB, which is that fixed summation order landing on the other side of a rounding tie. Sorting a
+list cannot change which hits it contains, and `CommonGridTests` compares sample positions
+directly over 27,744 hits, so the *times* are provably unmoved. What changed is that from here
+the same music renders to the same bytes, which was not true before this milestone started.
+
+**Nothing frozen gained a bass.** `jamBacking` is the music every recorded take was played over
+and R3.5 keeps it exactly as it is; `bassDemo` exists to be heard through `render` and is
+scheduled by nothing. A test walks every frozen arrangement bar by bar and requires no bass hit
+in any of them.
+
+The style format and the generator are still ahead.
 
 ---
 

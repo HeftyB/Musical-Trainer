@@ -74,6 +74,25 @@ public enum GrooveLibrary {
     /// in the form without counting. Both sections keep the same rhythmic skeleton (eighths,
     /// kick on 1 and 3, backbeat), so the timing demand is constant across the take and only
     /// the colour changes.
+    /// A two-bar figure showing what the bass is *for*: it lands with the kick, answers on the
+    /// fifth, and leaves the second half of each bar open so the player has room.
+    ///
+    /// **Not part of any frozen backing.** `jamBacking` is the music every recorded take was
+    /// played over and R3.5 keeps it exactly as it is; this exists so the bass can be heard
+    /// before a style is built around it (§7.29 step 2).
+    public static let bassDemoFigure = Pattern.bass([
+        (step: 0, note: 40),      // E2, with the kick
+        (step: 6, note: 40),
+        (step: 10, note: 47),     // up a fifth on the "and" of three
+        (step: 14, note: 40),
+    ])
+
+    /// The demo figure over `basicRock`, for auditioning the bass voice alone.
+    public static let bassDemo = Arrangement(sections: [
+        Section(name: "bass demo", pattern: basicRock.adding(bassDemoFigure.hits), bars: 4,
+                fill: snareFill),
+    ])
+
     public static let jamBacking = Arrangement(sections: [
         Section(name: "A — hat",  pattern: basicRock,   bars: 8, fill: snareFill),
         Section(name: "B — ride", pattern: drivingRide, bars: 8, fill: tomFill),

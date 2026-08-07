@@ -22,12 +22,38 @@ public struct Pattern: Equatable {
     }
 
     /// Build a pattern from a compact per-voice step list.
+    ///
+    /// **The result is sorted, and that is a correctness fix rather than tidiness.** The input is
+    /// a dictionary, and Swift seeds its hashing per process, so `flatMap` over it produced hits
+    /// in a different order on every launch. Float addition is not associative, so two hits
+    /// landing on one sample summed to a value that differed in its last bit run to run: the
+    /// same backing rendered to different bytes twice in a row, against R1.2.2's "identical
+    /// inputs produce identical outputs".
+    ///
+    /// Inaudible, and it made every byte-comparison gate in M19 unreliable — including the one
+    /// that said step 1 moved nothing. Found because the bass demo made two overlapping voices
+    /// common enough to notice (§7.29 step 2).
     public static func make(stepsPerBar: Int = 16, stepsPerBeat: Int = 4,
-                            _ lines: [DrumVoice: [Int]], velocity: Int = 100) -> Pattern {
-        let hits = lines.flatMap { voice, steps in
-            steps.map { Hit(voice: voice, step: $0, velocity: velocity) }
-        }
+                            _ lines: [BackingVoice: [Int]], velocity: Int = 100) -> Pattern {
+        let hits = lines
+            .flatMap { voice, steps in
+                steps.map { Hit(voice: voice, step: $0, velocity: velocity) }
+            }
+            .sorted { ($0.step, $0.voice.rawValue) < ($1.step, $1.voice.rawValue) }
         return Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat, hits: hits)
+    }
+
+    /// A bass figure: steps paired with the note each one sounds.
+    ///
+    /// Separate from `make` because a drum line is a set of steps and a bass line is a set of
+    /// (step, note) pairs — collapsing them into one call would mean every drum pattern carrying
+    /// a column of `nil`s.
+    public static func bass(stepsPerBar: Int = 16, stepsPerBeat: Int = 4,
+                           _ figure: [(step: Int, note: Int)], velocity: Int = 100) -> Pattern {
+        Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat,
+                hits: figure.map {
+                    Hit(voice: .bass, step: $0.step, velocity: velocity, note: $0.note)
+                })
     }
 
     /// The same pattern with extra hits layered on top.
@@ -63,7 +89,8 @@ public struct Pattern: Equatable {
         let factor = target / stepsPerBeat
         return Pattern(stepsPerBar: stepsPerBar * factor, stepsPerBeat: target,
                        hits: hits.map {
-                           Hit(voice: $0.voice, step: $0.step * factor, velocity: $0.velocity)
+                           Hit(voice: $0.voice, step: $0.step * factor,
+                               velocity: $0.velocity, note: $0.note)
                        })
     }
 }
