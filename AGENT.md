@@ -32,9 +32,16 @@ than the drum programming's resolution, and every arrangement now speaks **one g
 to the beat** so a triplet section and a straight one can share a piece of music. Patterns are
 still authored at whatever reads naturally and `Arrangement` lifts them.
 
-The band now has a **bass** — `BackingVoice.bass`, pitch on the hit, `BassSynth` — and nothing
-frozen carries one: `jamBacking` is the music every take was measured against and stays exactly
-as it is. Hear the voice with `render`, which writes `bass-demo`.
+The band now has a **bass** — `BackingVoice.bass`, pitch on the hit, `BassSynth` — and a
+**style format**: layers that enter at an intensity, plus fills, `playerVoices` for M20 and
+`density` for M21/M24. `rock` and `motown` are authored. **Nothing frozen carries any of it** and
+no planner or drill can reach a style yet; `jamBacking` is the music every take was measured
+against and stays exactly as it is. Hear all of it with `render`, which writes `bass-demo` and
+every style at every intensity.
+
+**A style that clips is heard as bad playing, not as a bad gain.** `StyleHeadroomTests` mixes the
+real buffers at 100 and 160 BPM — a mix goes hot because voices stack, and a style that clears
+the rails at 100 can exceed them where sixteenths overlap.
 
 **Renders are reproducible as of §7.29 step 2 and were not before.** `Pattern.make` sorted its
 hits by dictionary order, which Swift seeds per process, so the same backing rendered to
@@ -137,7 +144,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 412 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 422 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (157 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -182,7 +189,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 569 tests, no hardware needed
+swift test                              # 582 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

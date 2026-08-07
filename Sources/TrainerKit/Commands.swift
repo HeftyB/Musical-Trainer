@@ -1265,6 +1265,15 @@ public enum Commands {
              // The bass, so it can be judged by ear before a style is built on it. Nothing
              // frozen carries it (§7.29 step 2).
              ("bass-demo", nil, .straight, GrooveLibrary.bassDemo)]
+            // Every style at every intensity, because intensity is the thing that has to be
+            // judged: a layer entering should sound like the music getting more sure of itself
+            // and not like a switch being thrown (§7.29 step 3).
+            + StyleLibrary.all.flatMap { style in
+                Style.intensityRange.map { intensity in
+                    ("\(style.name)-\(intensity)", nil as IntervalRung?, Feel.straight,
+                     style.auditionArrangement(intensity: intensity))
+                }
+            }
 
         print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
                      Int(bpm), bars, spreadMs,
