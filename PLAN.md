@@ -4427,7 +4427,70 @@ and R3.5 keeps it exactly as it is; `bassDemo` exists to be heard through `rende
 scheduled by nothing. A test walks every frozen arrangement bar by bar and requires no bass hit
 in any of them.
 
-The style format and the generator are still ahead.
+The style format is step 3 and the generator step 4.
+
+### Step 3, as built — a style is layers, and intensity is which of them play
+
+A style is a set of **layers**: a repeating figure and the intensity at which it enters. Rock's
+skeleton is a kick and a backbeat; eighths on the hat arrive at 1 with the bass; an open hat on
+the "and" of four at 2; ghost snares at 3. Asking for a bar merges the layers that have entered.
+
+**That shape is the whole discipline of this milestone in one place.** Intensity adds and removes
+layers and never moves a hit, because the backing is the ruler the player is measured against —
+so a loud bar is provably the quiet bar with more in it, and a test asserts every hit of a quieter
+intensity survives into a louder one. There is no jitter parameter anywhere and there must never
+be one.
+
+Layers cycle at their own length, so a one-bar hat and a two-bar bass figure sit in one style and
+repeat against each other. That is what makes a groove stop being a loop after four bars without
+anything generative being involved yet.
+
+#### Two styles, chosen to differ structurally
+
+`rock` is hat-led, medium density, a bass that answers on the fifth. `motown` fills the bar —
+sixteenths, a clap doubling the backbeat, a walking bass — and is marked `busy`. Two styles that
+differed only cosmetically would have proved nothing about the format.
+
+Three fields exist for milestones that have not started, and each costs a line now against a
+rewrite later:
+
+| Field | For |
+|---|---|
+| `playerVoices` | M20 inverts the roles; drum mode mutes exactly these and the player supplies them |
+| `density` | M21 and M24 need to ask for something that leaves the mid-range clear |
+| `intensityRange`, 0–3 | M17's adaptive difficulty gets one scale rather than one per drill |
+
+`carriesBass` is derived from the layers rather than declared, so it cannot drift from what the
+style actually plays.
+
+#### The headroom test, and where it belongs
+
+Motown clipped 68 samples the first time it was rendered: its clap doubles the backbeat, and a
+mix goes hot because voices *stack*, not because one is loud. `render` warns about it, which
+helps only if somebody reads the warning — so it is a test.
+
+The first version of that test summed velocities per step, and it failed two styles that
+measurably do not clip. A hat's buffer peaks far below a kick's and their peaks do not even align
+in time, so coincident velocity is not a proxy for level: `LESSONS.md` shape 16, a broken probe
+reporting a defect that is not there, caught because the rendered peaks said 0.89 while the test
+said 278. It mixes the real buffers now, and it lives in `TrainerKitTests` rather than beside the
+styles — peak level is a property of the synthesised mix, and `GrooveCore` knows nothing about
+how a voice sounds.
+
+It then found a real one. Motown cleared the rails at 100 BPM and peaked at 1.13 at 160, because
+sixteenths 93 ms apart overlap where a listener hears one steady shimmer. The hat sits at velocity
+46 for that reason, and the number came from the top of the tempo range rather than from how it
+looked at 100.
+
+#### Nothing plays these yet
+
+`render` writes every style at every intensity — eight new files — so the layers entering can be
+judged by ear before anything is built on them, which is §7.23's rule about rungs applied to
+music. No planner, no drill and no frozen backing can reach a style, and a test walks every
+arrangement takes have been measured against to prove it.
+
+The generator and the stored seed are step 4.
+
 
 ---
 
