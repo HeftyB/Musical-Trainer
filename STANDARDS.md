@@ -278,9 +278,25 @@ malformed packets must not index out of range.
 Branch for anything that is not a one-line fix. Name it `<type>/<short-description>` using the
 same types as §8.2: `feat/content-analysis`, `fix/form-instructions`, `build/woodpecker`.
 
-Open a pull request in Gitea against `main`. The verification pipeline runs on the PR and must
-be green before merge. Self-review is still review: read the diff in the PR view before
-merging — it catches things the editor does not.
+**A finished branch opens its own pull request.** `./scripts/open-pr.sh` pushes it and creates
+the PR from `temp/pr-message.md`, titled with the last commit's subject. The hand-over is one
+line, and review starts from a written argument rather than from a diff and a guess:
+
+```sh
+git add -A && git commit -F temp/current-git-commit-message.txt && ./scripts/open-pr.sh
+```
+
+`--dry-run` prints what it would send and touches nothing. `--base <branch>` targets a branch
+instead of `main`, which is what stacked work needs — a PR against `main` carries every unmerged
+commit beneath it, so a four-line change can arrive as a two-thousand-line diff and the review it
+was meant to streamline gets harder. The script says so when it detects the case rather than
+letting it surprise anyone.
+
+It refuses a dirty tree and an empty body: a PR that describes something never pushed, or that
+describes nothing, is worse than no PR.
+
+The verification pipeline runs on the PR and must be green before merge. Self-review is still
+review: read the diff in the PR view before merging — it catches things the editor does not.
 
 Merge with a merge commit, not a squash. The commits are already one-logical-change each, and
 squashing them destroys that.

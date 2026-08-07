@@ -523,7 +523,17 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
 5. **`./scripts/check.sh`** last, and `.githooks/commit-msg temp/current-git-commit-message.txt`
    — it takes a path and exits non-zero, so checking the message costs nothing and counting
    characters by eye does not work. The pre-commit hook runs only the fast half of the gate.
-6. **Hand over.** Andrew commits and pushes; leave the tree ready and give him the commands.
+6. **Write `temp/pr-message.md`** — the PR body, in the shape STANDARDS.md §8.2.3 sets out.
+   Part of the change like the commit message is, not an afterthought at merge time.
+7. **Hand over.** Andrew commits, pushes and opens the PR with one line:
+
+   ```sh
+   git add -A && git commit -F temp/current-git-commit-message.txt && ./scripts/open-pr.sh
+   ```
+
+   Give him that line, with `--base <parent-branch>` when the work is stacked so the PR shows
+   this change alone. Do not run it — pushing and opening a PR are his, and this machine has no
+   credentials for the remote in any case.
 
 **Run these to the end before starting the next change.** Every change updates PLAN.md and
 usually AGENT.md, so two uncommitted changes put both sets of edits in the same files — and
