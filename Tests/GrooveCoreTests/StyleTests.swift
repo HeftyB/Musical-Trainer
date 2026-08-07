@@ -40,7 +40,7 @@ final class StyleTests: XCTestCase {
     func testLayersOfDifferentLengthsCycleAtTheirOwnRate() {
         // Rock's bass is two bars against a one-bar hat, so bar 0 and bar 1 must differ while
         // bar 0 and bar 2 agree.
-        let style = StyleLibrary.rock
+        let style = StyleLibrary.driving
         XCTAssertNotEqual(style.pattern(atBar: 0, intensity: 3),
                           style.pattern(atBar: 1, intensity: 3))
         XCTAssertEqual(style.pattern(atBar: 0, intensity: 3),
@@ -96,9 +96,9 @@ final class StyleTests: XCTestCase {
     }
 
     func testDensityIsDeclaredAndBassIsDerived() {
-        XCTAssertEqual(StyleLibrary.rock.density, .medium)
-        XCTAssertEqual(StyleLibrary.motown.density, .busy,
-                       "a tambourine on every sixteenth is hard to hear a voice through (M24)")
+        XCTAssertEqual(StyleLibrary.driving.density, .medium)
+        XCTAssertEqual(StyleLibrary.pocket.density, .busy,
+                       "a tambourine on every eighth is hard to hear a voice through (M24)")
         for style in StyleLibrary.all {
             XCTAssertTrue(style.carriesBass,
                           "\(style.name): derived from the layers, so it cannot drift from them")
@@ -139,8 +139,14 @@ final class StyleTests: XCTestCase {
     /// The state of the library today, asserted so that flipping a style to auditioned is a
     /// deliberate edit that shows up in a diff rather than something that drifts.
     func testTheLibraryHoldsFourStylesAndNoneHasBeenApprovedYet() {
+        // Descriptive, not generic: none of these claims a genre, because none of them is one
+        // yet. The names come back when M26's kit earns them (§7.30).
         XCTAssertEqual(StyleLibrary.all.map(\.name).sorted(),
-                       ["funk", "half-time", "motown", "rock"])
+                       ["driving", "half-time", "pocket", "syncopated"])
+        XCTAssertTrue(StyleLibrary.all.allSatisfy { style in
+            !["rock", "motown", "funk", "jazz", "bossa", "reggae", "ska", "soul", "hip-hop"]
+                .contains(style.name)
+        }, "a genre name is a promise the kit cannot keep yet")
         XCTAssertTrue(StyleLibrary.auditioned.isEmpty,
                       "none of these has been listened to yet — when one has, this test is what "
                     + "records that it was a decision")

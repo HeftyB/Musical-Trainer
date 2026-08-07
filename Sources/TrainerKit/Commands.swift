@@ -1291,7 +1291,18 @@ public enum Commands {
                                       style: style, seed: identity.seed, bars: max(bars, 32))))
         }
 
-        let subjects: [Subject] = ladder + styleSubjects
+        // One file per voice, four bars of quarter notes. Nothing to do with grooves — it is
+        // how a sound gets *named*: "a rhythmic click like a metronome" is a description of a
+        // timbre, and no amount of guessing from a step list identifies which voice it is
+        // (§7.29 step 6).
+        let kitSubjects: [Subject] = BackingVoice.allCases.filter { !$0.isPitched }.map { voice in
+            (name: "kit-\(voice.rawValue)", rung: nil, feel: .straight,
+             arrangement: Arrangement(sections: [
+                Section(name: voice.rawValue,
+                        pattern: Pattern.make([voice: [0, 4, 8, 12]], velocity: 100), bars: 4)]))
+        }
+
+        let subjects: [Subject] = ladder + styleSubjects + kitSubjects
 
         print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
                      Int(bpm), bars, spreadMs,

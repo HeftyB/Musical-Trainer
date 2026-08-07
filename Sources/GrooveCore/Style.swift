@@ -99,6 +99,43 @@ public struct Style: Equatable {
         layers.contains { $0.bars.contains { $0.hits.contains { $0.voice == .bass } } }
     }
 
+    /// Timekeeping voices that are playing the *same steps* as another one.
+    ///
+    /// **Doubling, not interlocking.** A hat on the downbeats and a shaker on the offbeats are
+    /// one pulse shared between two hands, which is ordinary and good. A ride and a hat on the
+    /// same four steps are the same rhythm in two timbres, which reads as a bell ringing over a
+    /// hat rather than as either — that is what an ear caught in `half-time`, where the two were
+    /// literally identical, and in `motown`, where quarters on the ride sat inside sixteenths on
+    /// the hat.
+    ///
+    /// A voice counts as keeping time when it plays three or more times in a bar: a ride hit on
+    /// the downbeat is a colour, not a pulse, and the rule must not forbid ordinary music.
+    public func doubledTimekeepers(atIntensity intensity: Int) -> Set<BackingVoice> {
+        var stepsByVoice: [BackingVoice: Set<Int>] = [:]
+        for layer in layers where layer.entersAt <= intensity {
+            for bar in layer.bars {
+                var perBar: [BackingVoice: Set<Int>] = [:]
+                for hit in bar.hits where BackingVoice.timekeepers.contains(hit.voice) {
+                    perBar[hit.voice, default: []].insert(
+                        hit.step * (Pattern.commonStepsPerBeat / bar.stepsPerBeat))
+                }
+                for (voice, steps) in perBar where steps.count >= 3 {
+                    stepsByVoice[voice, default: []].formUnion(steps)
+                }
+            }
+        }
+        var doubled: Set<BackingVoice> = []
+        for (voice, steps) in stepsByVoice {
+            for (other, otherSteps) in stepsByVoice where other != voice {
+                if !steps.isDisjoint(with: otherSteps) {
+                    doubled.insert(voice)
+                    doubled.insert(other)
+                }
+            }
+        }
+        return doubled
+    }
+
     /// The bar this style plays at a given position and intensity.
     ///
     /// Deterministic and total: same arguments, same bar, for ever (R1.2.2). Choosing *which*

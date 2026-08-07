@@ -8,12 +8,24 @@ import Foundation
 /// `LESSONS.md` shape 10 arriving by choice rather than by accident.
 public enum BackingVoice: String, CaseIterable, Codable, Equatable {
     case kick, snare, closedHat, openHat, clap, rimshot, tom, crash, ride
+    // Hand percussion and the quieter articulations. Added in M19 because a kit of nine voices
+    // could build a groove and could not build an *identity*: every style came out sounding
+    // like the same electronic kit playing different steps (§7.29 step 6).
+    case tambourine, shaker, cowbell, sidestick
     /// The one pitched voice. A hit on it carries a `note`; every other voice ignores one.
     ///
     /// Drums alone cannot make something worth playing over for half an hour — a figure that
     /// locks with the kick is what gives a groove a contour to remember, and a second thing to
     /// place your own playing against (§7.29 step 2).
     case bass
+
+    /// Voices that can carry the pulse — the thing a listener counts along to.
+    ///
+    /// **At most one of these keeps time at once.** Two is not a fuller sound, it is two
+    /// drummers: a ride and a hat playing the same rhythm reads as a bell ringing over a hat
+    /// rather than as either, which is what the first `motown` and `half-time` did and what an
+    /// ear caught immediately. `Style` refuses it.
+    public static let timekeepers: Set<BackingVoice> = [.closedHat, .ride, .tambourine, .shaker]
 
     /// Whether a hit on this voice needs a `note` to mean anything.
     ///

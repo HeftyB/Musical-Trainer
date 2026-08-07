@@ -8,7 +8,7 @@ import Foundation
 public enum StyleLibrary {
 
     /// Everything authored, heard or not.
-    public static let all: [Style] = [rock, motown, funk, halfTime]
+    public static let all: [Style] = [driving, pocket, syncopated, halfTime]
 
     /// The styles the planner may schedule: the ones that have been listened to.
     ///
@@ -20,21 +20,27 @@ public enum StyleLibrary {
         all.first { $0.name == name }
     }
 
-    // MARK: - Rock
+    // MARK: - Driving
 
     /// Straight eighths, hat-led, room to spare. The reference point: if a style cannot be
     /// compared to this one it is probably not doing anything.
     ///
+    /// **Called `driving` rather than `rock` because it is not rock**, and a genre name is a
+    /// promise (§7.30). Heard as *"a Nine Inch Nails vibe"* at intensity 0 and *"the start of a
+    /// fire beat"* at 1 — good, and not the thing the old name claimed.
+    ///
     /// The bass sits on the root with the kick and answers on the fifth, which is the whole idea
     /// of M19's rhythmic-only bass — a contour to remember without a key to reason about (M25).
-    public static let rock = Style(
-        name: "rock",
+    public static let driving = Style(
+        name: "driving",
         layers: [
             // Skeleton: kick and backbeat. This alone is a usable click with a pulse.
             Layer(Pattern.make([.kick: [0, 10], .snare: [4, 12]]), entersAt: 0),
             // Eighths on the hat — what makes it rock rather than a metronome.
-            Layer(Pattern.make([.closedHat: [0, 2, 4, 6, 8, 10, 12, 14]], velocity: 78),
-                  entersAt: 1),
+            // Accented, not uniform: leaning on the beat and easing off between is the whole
+            // difference between a groove and a click track.
+            Layer(Pattern.line(.closedHat, [0, 2, 4, 6, 8, 10, 12, 14],
+                               velocities: [84, 54, 68, 54]), entersAt: 1),
             // The bass arrives with the drive, over two bars so it is a figure and not a pulse.
             Layer(bars: [
                 Pattern.bass([(step: 0, note: 40), (step: 6, note: 40), (step: 10, note: 47)]),
@@ -55,16 +61,19 @@ public enum StyleLibrary {
         playerVoices: [.kick, .snare, .closedHat, .openHat, .crash, .tom],
         density: .medium)
 
-    // MARK: - Motown
+    // MARK: - Pocket
 
-    /// Sixteenths on the tambourine, backbeat on the clap, and a bass that walks rather than
-    /// answers. Busier than rock on purpose — the format has to hold a style that fills the bar,
+    /// Eighths on the tambourine, backbeat on the clap, and a bass that walks rather than
+    /// answers.
+    ///
+    /// Named for what it does — sits in a steady pocket — rather than for Motown, which it was
+    /// heard not to be (§7.30). Busier than rock on purpose — the format has to hold a style that fills the bar,
     /// or "more styles" would only ever mean more of the same one.
     ///
     /// Marked `busy` because that is the honest reading for a vocal drill later: a tambourine on
     /// every sixteenth is lovely to play over and hard to hear a voice through (M24).
-    public static let motown = Style(
-        name: "motown",
+    public static let pocket = Style(
+        name: "pocket",
         layers: [
             // Quieter than rock's skeleton by design: the clap below lands on the same two
             // steps as the snare, and stacking voices is what makes a style clip rather than
@@ -73,6 +82,10 @@ public enum StyleLibrary {
             // The clap doubles the backbeat rather than replacing it — that stacking is the
             // sound, and it is why the style reads as motown and not as rock with a clap.
             Layer(Pattern.make([.clap: [4, 12]], velocity: 54), entersAt: 1),
+            // **The signature, and its absence was why this never read as Motown.** Eighths on
+            // the tambourine, leaning on the backbeat — the sound sits on that, not on a hat.
+            Layer(Pattern.line(.tambourine, [0, 2, 4, 6, 8, 10, 12, 14],
+                               velocities: [52, 40, 66, 40]), entersAt: 1),
             Layer(bars: [
                 Pattern.bass([(step: 0, note: 41), (step: 4, note: 41), (step: 8, note: 48),
                               (step: 12, note: 41)], velocity: 80),
@@ -80,32 +93,37 @@ public enum StyleLibrary {
                               (step: 12, note: 41)], velocity: 80),
             ], entersAt: 1),
             // Sixteenths, quietly. The reason this style is `busy`.
-            // Quiet, and quieter than it looks like it should be: sixteenths at 160 BPM are
-            // 93 ms apart, so their tails overlap and the mix stacks where a listener hears one
-            // steady shimmer. The number came from the headroom test at the top of the tempo
-            // range, not from how it looks at 100.
-            Layer(Pattern.make([.closedHat: Array(0..<16)], velocity: 46), entersAt: 2),
-            Layer(Pattern.make([.ride: [0, 4, 8, 12]], velocity: 70), entersAt: 3),
+            // A sidestick answering the backbeat rather than a second timekeeper. The hat and
+            // the ride that used to live here were both keeping time alongside the tambourine —
+            // three drummers, which is what an ear heard as "a bell with the hats going".
+            Layer(Pattern.make([.sidestick: [7, 15]], velocity: 48), entersAt: 2),
+            Layer(Pattern.make([.cowbell: [0, 8]], velocity: 44), entersAt: 3),
         ],
         fills: [
             Pattern.make([.snare: [12, 13, 14, 15], .crash: [0]], velocity: 84),
             Pattern.make([.tom: [10, 12, 14], .clap: [8], .crash: [0]], velocity: 84),
         ],
-        playerVoices: [.kick, .snare, .closedHat, .clap, .ride, .crash, .tom],
+        playerVoices: [.kick, .snare, .clap, .tambourine, .sidestick, .cowbell, .crash, .tom],
         density: .busy)
 
-    // MARK: - Funk
+    // MARK: - Syncopated
 
-    /// Syncopated kick, ghost snares, sixteenths on the hat. The busiest thing here and the one
-    /// that most rewards playing *around* rather than *on* — which is the point of having it: a
-    /// player who only ever practises over a straight backbeat is practising one skill.
-    public static let funk = Style(
-        name: "funk",
+    /// A kick that lands off the beat as often as on it, ghost snares, sixteenths on the hat.
+    ///
+    /// Named for the mechanism rather than for funk, which it was heard not to be (§7.30). The
+    /// busiest thing here and the one that most rewards playing *around* rather than *on* —
+    /// which is the point of having it: a player who only ever practises over a straight
+    /// backbeat is practising one skill.
+    public static let syncopated = Style(
+        name: "syncopated",
         layers: [
-            // The kick lands off the beat as often as on it, which is what makes it funk and
-            // not rock with more hats.
+            // The kick lands off the beat as often as on it, which is the whole character —
+            // without it this is a straight groove with more hats.
             Layer(Pattern.make([.kick: [0, 3, 10], .snare: [4, 12]], velocity: 82), entersAt: 0),
-            Layer(Pattern.make([.closedHat: Array(0..<16)], velocity: 44), entersAt: 1),
+            // Sixteenths with the beat leaning: unaccented sixteenths are the most metronomic
+            // thing a kit can do, and this style lives entirely in the accents.
+            Layer(Pattern.line(.closedHat, Array(0..<16),
+                               velocities: [58, 30, 40, 30]), entersAt: 1),
             Layer(bars: [
                 Pattern.bass([(step: 0, note: 33), (step: 3, note: 33), (step: 7, note: 40),
                               (step: 10, note: 33)], velocity: 82),
@@ -126,7 +144,8 @@ public enum StyleLibrary {
 
     // MARK: - Half-time
 
-    /// One snare, on beat three, and a great deal of air. The slowest-feeling thing here at any
+    /// One snare, on beat three, and a great deal of air. **The one name kept**, because
+    /// half-time is a description of a rhythm rather than a claim about a genre. The slowest-feeling thing here at any
     /// tempo, and the only `sparse` style — which is what M24's vocal drills will need, since a
     /// busy backing under an open microphone is unusable.
     ///
@@ -138,18 +157,22 @@ public enum StyleLibrary {
             Layer(Pattern.make([.kick: [0, 10], .snare: [8]], velocity: 92), entersAt: 0),
             // Quarters, not eighths. Doubling the hat here would throw away the space that is
             // the entire character of the style.
-            Layer(Pattern.make([.closedHat: [0, 4, 8, 12]], velocity: 62), entersAt: 1),
+            Layer(Pattern.line(.closedHat, [0, 4, 8, 12], velocities: [70, 50, 60, 50]),
+                  entersAt: 1),
             Layer(bars: [
                 Pattern.bass([(step: 0, note: 38), (step: 8, note: 38)], velocity: 86),
                 Pattern.bass([(step: 0, note: 38), (step: 8, note: 45)], velocity: 86),
             ], entersAt: 1),
-            Layer(Pattern.make([.ride: [0, 4, 8, 12]], velocity: 54), entersAt: 2),
+            // Was a ride on the *same four steps* as the hat above — the same rhythm in two
+            // timbres, which is the clearest form of the two-timekeeper mistake. A shaker
+            // filling the gaps is a texture rather than a second pulse.
+            Layer(Pattern.make([.shaker: [2, 6, 10, 14]], velocity: 38), entersAt: 2),
             Layer(Pattern.make([.kick: [6]], velocity: 74), entersAt: 3),
         ],
         fills: [
             Pattern.make([.snare: [12, 14], .crash: [0]], velocity: 88),
             Pattern.make([.tom: [8, 12], .snare: [14], .crash: [0]], velocity: 88),
         ],
-        playerVoices: [.kick, .snare, .closedHat, .ride, .crash, .tom],
+        playerVoices: [.kick, .snare, .closedHat, .shaker, .crash, .tom],
         density: .sparse)
 }

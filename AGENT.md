@@ -43,6 +43,77 @@ every style at every intensity.
 real buffers at 100 and 160 BPM — a mix goes hot because voices stack, and a style that clears
 the rails at 100 can exceed them where sixteenths overlap.
 
+**The kit is synthesised, ships no audio assets, and that is deliberate** — `DrumSynth` builds
+all thirteen voices procedurally, which is why the app is small, needs nothing installed, and
+renders byte-reproducibly from source alone. It is also why the first four styles were heard as
+*"beat #3 rather than oh, a Motown beat"*.
+
+**The styles are named for what they do, not for genres.** `driving`, `pocket`, `syncopated`,
+`half-time`. They were `rock`, `motown`, `funk` and `half-time`, and three of the four were
+claiming something the kit cannot deliver — a name is a promise, and this project does not let a
+label imply a measurement nobody made. **Do not name a new style after a genre.** The ambition is
+unchanged and it has two milestones behind it: **M26** makes the kit sound convincing, **M27**
+works out how to say what a genre *is* so the claim has a falsifier. Neither is part of M19.
+
+**Three rules an ear found that a step list cannot show:**
+
+- **No style may have two timekeepers on the same steps.** A ride and a hat playing one rhythm
+  reads as a bell over a hat rather than as either. A hat on the downbeats against a shaker on
+  the offbeats is *interlocking* and fine — the rule is about doubling, and the first version of
+  it wrongly forbade both.
+- **No layer may run at one velocity.** Eight identical hi-hat hits a bar is a metronome by
+  construction. Use `Pattern.line` and lean on the beat. Velocity only, never position.
+- **A one-shot must not stop mid-decay.** See the open defect below.
+
+**Open defect — every one-shot truncates, and the kick clicks.** A voice's buffer length is a
+constant and its envelope is exponential, so the signal steps to zero at whatever value it
+happened to hold. The kick ends at **−31.8 dBFS**, 0.320 s after every hit, which at 100 BPM is
+0.53 of a beat — a click sitting just past the offbeat, and it has been in every take ever
+recorded. Snare −38.7, clap −45.7, ride −47.8; the rest are inaudible. Found by ear, located with
+one file per voice, then measured off the rendered samples. Not fixed yet, and the fix is to fade
+the last milliseconds or let the length follow the decay.
+
+`render` writes `kit-<voice>` for every voice alone, which is how a sound gets *named* rather
+than theorised about. Use it before guessing.
+
+## Audio, and how it gets accepted
+
+Nothing here can be verified by a test, so the loop is: **render → listen → decide**.
+
+```sh
+./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
+```
+
+It writes the ladder backings, every style at every intensity, a seeded piece per style, and one
+file per kit voice. Two guards run automatically: `render` warns on any clipped sample, and
+`StyleHeadroomTests` mixes real buffers at 100 and 160 BPM because a mix goes hot where voices
+stack rather than where one is loud.
+
+**`Style.auditioned` is the gate.** It is `false` for all four styles, `StyleLibrary.auditioned`
+is what the planner may schedule, and it is empty. Nobody who writes a style can set it honestly —
+whether a groove is worth thirty minutes is not a property of its step list. Approving one means
+editing the flag *and* a test that asserts the library's state, so it lands as a decision with a
+diff.
+
+**Do not describe how something sounds.** An agent cannot listen. Render it, hand over the
+filenames, and record the verdict that comes back — every real finding in this milestone arrived
+that way.
+
+## Resources for the audio work
+
+| | |
+|---|---|
+| Roland TD-V6 | Many kits and sounds. MIDI out via the planned USB interface is the *measurement* path; its line out through the TS→USB adapter is audio |
+| GarageBand | Virtual instruments, and full recording via microphones and inputs |
+| External microphone | Owned, used for recording |
+| A professional ear | The player's older brother is a working musician and producer — available for the questions that need one |
+
+**Reference, not source.** Recording the TD-V6 or GarageBand and shipping the audio is a licence
+question about somebody else's terms, and the app's whole shape depends on carrying no assets.
+Capturing them to *measure* — spectra, envelopes, velocity behaviour — and tuning the synthesis
+to match is a different thing entirely: a timbre is not copyrightable, and it turns an asset
+problem into a measurement problem, which is what this project is good at. §7.30 has the argument.
+
 **Four styles are authored and none is approved.** `Style.auditioned` is `false` for all of
 them, `StyleLibrary.auditioned` is what the planner may schedule, and it is empty — so the planner
 falls back to the fixed `jamBacking` every take on record used. Listen to the renders, then flip
@@ -156,7 +227,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 438 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 443 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (157 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -201,7 +272,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 599 tests, no hardware needed
+swift test                              # 604 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -527,7 +598,10 @@ interval`.
 
 Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
 
-1. **Branch.** `<type>/<short-description>`, same types as the commit format.
+1. **Branch, for a coherent piece of work rather than for one commit.** `<type>/<short-description>`,
+   same types as the commit format. Commits stay granular; the branch is what broadens — a
+   milestone step, or a defect with the guard that closes it. A stream of one-commit branches is
+   a review queue nobody can hold in their head (STANDARDS.md §8.1).
 2. **Work.** Anything analysable goes in `TimingCore` or `GrooveCore` with a test that plants
    a known answer and recovers it.
 3. **Write the message as you go.** `temp/current-git-commit-message.txt` (gitignored) holds
@@ -544,7 +618,9 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    characters by eye does not work. The pre-commit hook runs only the fast half of the gate.
 6. **Write `temp/pr-message.md`** — the PR body, in the shape STANDARDS.md §8.2.3 sets out.
    Part of the change like the commit message is, not an afterthought at merge time.
-7. **Hand over.** Andrew commits, pushes and opens the PR with one line:
+7. **Hand over when the branch is finished, not when the first commit lands.** A PR is a request
+   to merge something whole, and every merge into `main` must be a state the repository could sit
+   in indefinitely. Andrew commits, pushes and opens the PR with one line:
 
    ```sh
    git add -A && git commit -F temp/current-git-commit-message.txt && ./scripts/open-pr.sh
