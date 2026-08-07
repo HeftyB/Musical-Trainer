@@ -4303,6 +4303,60 @@ trip it. Verified by planting the old expression and watching the gate report FA
 The tests hold the *value* rather than the decoupling, and they start proving the decoupling by
 themselves the moment step 1 makes the two numbers differ.
 
+### Step 1, as built — one grid, twenty-four steps to the beat
+
+`Arrangement` required every section to share a step resolution, so a triplet section and a
+straight one could never appear in the same piece of music. That was the format's hard limit on
+depth, and it would have blocked M16.5's triplet skank, every shuffle style and any 12/8.
+
+Sections are now **lifted** to `Pattern.commonStepsPerBeat` — twenty-four, the lowest common
+multiple of 2, 3, 4, 6, 8 and 12 — and the precondition relaxes from *same resolution* to *same
+beats per bar*, which is the constraint that actually matters because every drill counts phrases
+in bars. Patterns are still **authored** at whatever reads naturally, sixteenths for rock and
+twelfths for a shuffle, and `Arrangement` does the lifting. Nothing is transcribed by hand, so
+nothing is mis-transcribed. `Sequencer` iterates hits rather than steps, so the finer grid costs
+nothing to render.
+
+#### The gate, and the probe that lied about it
+
+Every hit of every pattern in the codebase, at three tempos and four feels — 27,744 comparisons —
+lands on the **same sample** before and after the lift. All nineteen WAVs `render` produces are
+byte-identical to the pre-change baseline.
+
+Getting there took a wrong turn worth recording. The first gate was an audio hash, and it
+reported two backings changed. They had not. **The probe changed between the baseline and the
+comparison** — an expression in its frame count — so the two runs were not measuring the same
+thing, and the "failure" was mine. Acting on it made things worse: restructuring `Sequencer` to
+compute beat-plus-fraction instead of step-times-duration moved a *third* backing, and was
+reverted.
+
+`LESSONS.md` shape 16, suspect the probe, and shape 4's *capture the old output before the
+change*, broken by the person who wrote the rule down two sections earlier. The hash was replaced
+by comparing scheduled sample positions directly, which needs no baseline capture, is exact
+rather than incidental, and is now a permanent test that fails 3,265 times on a one-step drift.
+
+#### Four tests were proxies, and the lift found them
+
+Updating expectations was not busywork. `testTheExistingJamBackingIsUntouched` asserted the
+arrangement's step *resolution* as a stand-in for "the music every recorded take was played over
+has not moved" — a proxy that would have passed had the lift been wrong, since the lift changes
+resolution by design. It now schedules the whole arrangement and compares sample positions
+against the authored patterns, which is the claim its name always made.
+`testThreeRungsShareAStepResolution` became `testEveryRungShares…`: all four backings now report
+the same resolution, so the trap it names is sharper than before.
+
+#### Step 0 became provable
+
+The two quantities separated. `FreePlayingGridTests` could only hold the *value* while both were
+4; the free-playing grid is 4 and the arrangement is 24, so reverting step 0 now fails five
+assertions outright instead of passing in silence. The `check.sh` grep stays — it is what covered
+the window in between.
+
+### What this cannot verify
+
+The bass, the style format and the generator are still ahead; nothing yet sounds different. Steps
+0 and 1 changed no audio by design, which is what made them safe to do first.
+
 ---
 
 ## 8. Project layout

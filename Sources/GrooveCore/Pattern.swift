@@ -36,6 +36,36 @@ public struct Pattern: Equatable {
     }
 
     public static let silence = Pattern(hits: [])
+
+    /// The one resolution every arrangement plays on: **24 steps to the beat**.
+    ///
+    /// The lowest common multiple of 2, 3, 4, 6, 8 and 12, so binary and ternary subdivisions
+    /// coexist on one grid — a triplet fill can sit inside a straight groove, a 12/8 section can
+    /// follow a 4/4 one, and M16.5's triplet skank is a pattern rather than a format change.
+    /// `Sequencer` iterates *hits*, never steps, so a finer grid costs nothing to render.
+    ///
+    /// Patterns are still **authored** at whatever resolution reads naturally — sixteenths for
+    /// rock, twelfths for a shuffle — and `Arrangement` lifts them here. Nothing is transcribed
+    /// by hand, so nothing is mis-transcribed.
+    public static let commonStepsPerBeat = 24
+
+    /// The same pattern, the same hit *times*, expressed on a finer grid.
+    ///
+    /// Exact by construction: the target must be a whole multiple of this pattern's resolution,
+    /// so every step index scales by an integer and no position is ever rounded. A pattern that
+    /// cannot be lifted exactly is a programming error rather than something to approximate —
+    /// approximating here would move a hit, and a moved hit in the backing is measurement error
+    /// attributed to the player.
+    public func rescaled(toStepsPerBeat target: Int) -> Pattern {
+        guard target != stepsPerBeat else { return self }
+        precondition(target % stepsPerBeat == 0,
+                     "\(target) steps per beat is not a whole multiple of \(stepsPerBeat)")
+        let factor = target / stepsPerBeat
+        return Pattern(stepsPerBar: stepsPerBar * factor, stepsPerBeat: target,
+                       hits: hits.map {
+                           Hit(voice: $0.voice, step: $0.step * factor, velocity: $0.velocity)
+                       })
+    }
 }
 
 /// A run of bars playing one pattern, optionally with a different pattern on the final bar
@@ -55,6 +85,12 @@ public struct Section: Equatable {
         self.bars = bars
         self.fill = fill
     }
+
+    /// This section with its pattern and fill lifted to a common grid.
+    func rescaled(toStepsPerBeat target: Int) -> Section {
+        Section(name: name, pattern: pattern.rescaled(toStepsPerBeat: target), bars: bars,
+                fill: fill?.rescaled(toStepsPerBeat: target))
+    }
 }
 
 /// An ordered set of sections. Resolves an absolute bar index to the pattern that plays.
@@ -64,14 +100,22 @@ public struct Arrangement: Equatable {
 
     public init(sections: [Section], loop: Bool = true) {
         precondition(!sections.isEmpty, "an arrangement needs at least one section")
-        // One grid resolution across the whole arrangement keeps bar lengths uniform.
-        let first = sections[0].pattern
-        for section in sections {
-            precondition(section.pattern.stepsPerBar == first.stepsPerBar
-                      && section.pattern.stepsPerBeat == first.stepsPerBeat,
-                         "all patterns in an arrangement must share the step grid")
+        // Sections used to have to *share* a resolution, which meant a triplet section and a
+        // straight one could never appear in the same arrangement — the format's hard limit on
+        // musical depth. They are now lifted to `Pattern.commonStepsPerBeat` instead, which is a
+        // whole multiple of every resolution anything here is authored at, so the lift is exact
+        // and the hit times do not move.
+        let lifted = sections.map { $0.rescaled(toStepsPerBeat: Pattern.commonStepsPerBeat) }
+
+        // Bars must still be the same *length*. A section in 3/4 beside one in 4/4 would make
+        // the bar index the sequencer walks mean two different things, and every drill counts
+        // phrases in bars.
+        let beats = lifted[0].pattern.beatsPerBar
+        for section in lifted {
+            precondition(section.pattern.beatsPerBar == beats,
+                         "all sections in an arrangement must have the same beats per bar")
         }
-        self.sections = sections
+        self.sections = lifted
         self.loop = loop
     }
 

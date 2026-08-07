@@ -24,10 +24,15 @@ instrument, and the only milestone that can ask whether the "clock" this project
 the timekeeper or partly the hands).
 
 **M19 is in progress** (§7.29), ahead of M16 because a 32-bar phrase needs a backing that
-sustains 32 bars and M16.5's organ bubble needs the pattern format settled. Step 0 is done: the
-grid a free jam is scored on is now a named constant and no longer the drum programming's step
-resolution. **Until M19 lands, do not re-voice any pattern without re-reading §7.29 step 0** —
-the two were the same number for the whole life of the project and no test can tell them apart.
+sustains 32 bars and M16.5's organ bubble needs the pattern format settled. Steps 0 and 1 are
+done and changed no audio by design: the grid a free jam is scored on is a named constant rather
+than the drum programming's resolution, and every arrangement now speaks **one grid of 24 steps
+to the beat** so a triplet section and a straight one can share a piece of music. Patterns are
+still authored at whatever reads naturally and `Arrangement` lifts them.
+
+**Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
+position before and after the lift, at three tempos and four feels, and a one-step drift fails it
+3,265 times. The nineteen WAVs `render` writes are the other half of that gate.
 
 **Anything can be tried from the CLI without corrupting a ladder.** `--probe`, anywhere on the
 line, records a take as a deliberate look at a setting that was not earned — form level 3, a rung
@@ -121,7 +126,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 396 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 403 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (157 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -166,7 +171,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 553 tests, no hardware needed
+swift test                              # 560 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

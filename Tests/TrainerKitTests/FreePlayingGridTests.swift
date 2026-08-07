@@ -26,23 +26,24 @@ final class FreePlayingGridTests: XCTestCase {
                        "every take on record was scored here; moving it re-scores all of them")
     }
 
-    /// **No test here can prove the decoupling, and pretending otherwise would be the defect.**
+    /// The decoupling, now provable.
     ///
-    /// The two quantities are both 4 today — `jamBacking` is written at four steps per beat and
-    /// a free take is scored at sixteenths — so reverting step 0 changes no observable value and
-    /// every assertion in this file still passes. That is `LESSONS.md` shape 9, a constant that
-    /// happens to match, and it is why the real guard is in `check.sh`: a grep asserting that
-    /// nothing in `TrainerKit` reads a pattern's `stepsPerBeat` at all. Verified by planting the
-    /// old expression and watching the gate report FAIL.
+    /// When step 0 landed, both quantities were 4 — `jamBacking` was written at four steps per
+    /// beat and a free take was scored at sixteenths — so reverting it changed no observable
+    /// value and no test could tell the two apart. That is `LESSONS.md` shape 9, a constant that
+    /// happens to match, and it is why the guard was a `check.sh` grep rather than an assertion.
     ///
-    /// What these tests do hold is the *value* — that a free take is scored at sixteenths and
-    /// that the rung and the offbeat drill still outrank it. They become able to prove the
-    /// decoupling the moment step 1 re-voices the backing, at which point the two numbers differ
-    /// and this assertion starts to bite on its own.
-    func testTheScoredGridIsSixteenthsAndTheAuthoredGridHappensToAgreeToday() {
-        XCTAssertEqual(config().gridSubdivisions, 4)
-        XCTAssertEqual(config().backing.arrangement.stepsPerBeat, 4,
-                       "when step 1 makes this 24, the assertion above is what holds the line")
+    /// Step 1 lifted every arrangement to twenty-four steps a beat and the numbers separated.
+    /// **This is the assertion step 0 could not write**, and reverting step 0 now fails it
+    /// outright rather than passing in silence.
+    func testTheScoredGridDoesNotFollowTheAuthoringGrid() {
+        XCTAssertEqual(config().gridSubdivisions, 4,
+                       "the grid every take on disk was scored on, unchanged")
+        XCTAssertEqual(config().backing.arrangement.stepsPerBeat,
+                       GrooveCore.Pattern.commonStepsPerBeat,
+                       "while the music is now written six times finer")
+        XCTAssertNotEqual(config().gridSubdivisions,
+                          config().backing.arrangement.stepsPerBeat)
     }
 
     func testAPrescribedRungStillWins() {
