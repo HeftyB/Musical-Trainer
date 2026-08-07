@@ -2,6 +2,59 @@ import Foundation
 import GrooveCore
 import TimingCore
 
+/// An axis along which two jam takes are not the same task.
+///
+/// **One list, two readouts.** `review conditions` asks whether two groups differ along an axis;
+/// `review tags` asks whether one pool mixes it. They were separate lists and they disagreed:
+/// the pooled summary knew about backings, tempos and output devices, the comparison also knew
+/// about the rung and the feel, and neither knew about the offbeat drill — so `tired` pooled a
+/// 2:1 and a 3:2 swung take and said nothing (§7.28).
+///
+/// A tag is a label the player applied, not a task the app chose, so the answer here is R3.4 —
+/// name the confound at the point of display — and not R3.5's split. Splitting a condition into
+/// sub-conditions would be answering a question nobody asked.
+struct TakeAxis {
+/// How the axis is named when two groups differ: "Backing differs (…)".
+let singular: String
+/// How it is named when one pool mixes it: "pools takes across different backings".
+let plural: String
+let value: (JamSession) -> String
+/// What stops being comparable, and what still is. Never just "these differ".
+let consequence: String
+
+/// The axes a single pool mixes. Empty means the takes are the same task.
+///
+/// Extracted so a test can reach it: the pooled summary prints, and a decision made inside a
+/// print function is a decision no suite can check (`LESSONS.md` shape 1).
+static func mixed(in takes: [JamSession]) -> [TakeAxis] {
+    all.filter { axis in Set(takes.map(axis.value)).count > 1 }
+}
+
+/// Everything that makes two takes a different task, in the order a reader cares.
+static let all: [TakeAxis] = [
+    TakeAxis(singular: "Backing", plural: "backings", value: { $0.grooveName },
+             consequence: "Spread and drift are not comparable across different music."),
+    TakeAxis(singular: "Feel", plural: "feels", value: { $0.feel.label },
+             consequence: "Where the offbeat is expected is not the same task, so placement "
+                        + "and spread are not comparable."),
+    // Rung and tempo are one axis in the end — both move the gap between notes — so a rung
+    // difference disqualifies a comparison exactly as a tempo one does (§7.23 trap 3).
+    TakeAxis(singular: "Subdivision", plural: "subdivisions", value: { $0.rung ?? "free" },
+             consequence: "The gap between notes is not the same task, so spread and "
+                        + "off-grid rate are not comparable — the matching window scales "
+                        + "with the rung."),
+    TakeAxis(singular: "Offbeat level", plural: "offbeat levels",
+             value: { $0.offbeatLevel.map { "level \($0)" } ?? "not the offbeat drill" },
+             consequence: "Holding a position the band never plays is a different task from "
+                        + "playing along, and how much of the downbeat is left changes it "
+                        + "again."),
+    TakeAxis(singular: "Tempo", plural: "tempos", value: { "\(Int($0.bpm)) BPM" },
+             consequence: "Timing spread scales with tempo."),
+    TakeAxis(singular: "Output device", plural: "output devices", value: { $0.device },
+             consequence: "Bias is not comparable; spread and r₁ are unaffected."),
+]
+}
+
 public enum Commands {
 
     // MARK: - Shared environment check
@@ -667,55 +720,32 @@ public enum Commands {
     /// part of it was simply different music. Anything that alters the task or the
     /// measurement is named here, so a confound announces itself instead of quietly becoming
     /// a conclusion.
-    private static func comparabilityNotes(_ groups: [(label: String, sessions: [JamSession])]) -> [String] {
+    static func comparabilityNotes(_ groups: [(label: String, sessions: [JamSession])]) -> [String] {
         guard groups.count >= 2 else { return [] }
         var notes: [String] = []
 
         /// Describe a per-group set of values, e.g. "relaxed: jamBacking, focused: basicRock".
-        func describe<T: Hashable & Comparable>(_ key: (JamSession) -> T,
-                                                _ format: (T) -> String) -> (differs: Bool, text: String) {
+        func describe(_ key: (JamSession) -> String) -> (differs: Bool, text: String) {
             let perGroup = groups.map { ($0.label, Set($0.sessions.map(key))) }
-            let all = perGroup.reduce(into: Set<T>()) { $0.formUnion($1.1) }
+            let all = perGroup.reduce(into: Set<String>()) { $0.formUnion($1.1) }
             let text = perGroup
-                .map { "\($0.0): \($0.1.sorted().map(format).joined(separator: "/"))" }
+                .map { "\($0.0): \($0.1.sorted().joined(separator: "/"))" }
                 .joined(separator: ", ")
             return (all.count > 1, text)
         }
 
-        let backing = describe({ $0.grooveName }, { $0 })
-        if backing.differs {
-            notes.append("Backing differs (\(backing.text)). Spread and drift are not "
-                       + "comparable across different music.")
+        var deviceDiffers = false
+        for axis in TakeAxis.all {
+            let result = describe(axis.value)
+            guard result.differs else { continue }
+            if axis.singular == "Output device" { deviceDiffers = true }
+            notes.append("\(axis.singular) differs (\(result.text)). \(axis.consequence)")
         }
 
-        // Rung and tempo are one axis — both move the gap between notes — so a rung difference
-        // is as disqualifying as a tempo one, and for the same reason (§7.23 trap 3).
-        let feel = describe({ $0.feel.label }, { $0 })
-        if feel.differs {
-            notes.append("Feel differs (\(feel.text)). Where the offbeat is expected is not the "
-                       + "same task, so placement and spread are not comparable.")
-        }
-
-        let rung = describe({ $0.rung ?? "free" }, { $0 })
-        if rung.differs {
-            notes.append("Subdivision differs (\(rung.text)). The gap between notes is not the "
-                       + "same task, so spread and off-grid rate are not comparable — the "
-                       + "matching window scales with the rung.")
-        }
-
-        let tempo = describe({ $0.bpm }, { "\(Int($0)) BPM" })
-        if tempo.differs {
-            // Asynchrony spread scales with the beat interval, so a tempo change moves the
-            // numbers on its own.
-            notes.append("Tempo differs (\(tempo.text)). Timing spread scales with tempo.")
-        }
-
-        let device = describe({ $0.device }, { $0 })
-        if device.differs {
-            notes.append("Output device differs (\(device.text)). Bias is not comparable; "
-                       + "spread and r₁ are unaffected.")
-        } else {
-            let calibrated = describe({ $0.calibrationConstantMs != nil ? "yes" : "no" }, { $0 })
+        // Only when the device is the same: a differing device already says bias is off, and
+        // two notes about the same number help nobody.
+        if !deviceDiffers {
+            let calibrated = describe { $0.calibrationConstantMs != nil ? "yes" : "no" }
             if calibrated.differs {
                 notes.append("Calibration differs (\(calibrated.text)). Bias is not comparable; "
                            + "spread and r₁ are unaffected.")
@@ -860,13 +890,14 @@ public enum Commands {
         // Pooling takes recorded under different conditions hides the confound inside a
         // single row, where no comparison step would ever surface it.
         for (tag, takes) in groups.sorted(by: { $0.key < $1.key }) {
-            var mixed: [String] = []
-            if Set(takes.map(\.grooveName)).count > 1 { mixed.append("backings") }
-            if Set(takes.map(\.bpm)).count > 1 { mixed.append("tempos") }
-            if Set(takes.map(\.device)).count > 1 { mixed.append("output devices") }
+            let mixed = TakeAxis.mixed(in: takes)
             if !mixed.isEmpty {
                 print("\n\(Console.yellow)Mixed pool:\(Console.reset) '\(tag)' pools takes across "
-                    + "different \(mixed.joined(separator: " and ")) — the pooled figures blend them.")
+                    + "different \(mixed.map(\.plural).joined(separator: " and ")) — the pooled "
+                    + "figures blend them.")
+                // The consequence, not just the fact. A reader who is told the pool mixes feels
+                // still has to be told which number that ruins.
+                for axis in mixed { Console.warn("  \(axis.consequence)") }
             }
         }
         print("\n\(Console.dim)Pooled across takes, 95% intervals covering both take-to-take "

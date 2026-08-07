@@ -52,7 +52,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 541 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 548 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -80,7 +80,7 @@ swift build -c release   # the console tool
 | `offbeat [bpm] [bars] [level]` | **M15.** Ska and reggae: play on every offbeat while the downbeat disappears underneath you. Levels 0–3 remove the kick, then the backbeat, then everything on a beat. Reports how much of your playing stayed off the beat and — separately — how tightly you placed it, because drifting onto the beat is a different failure from being loose. Default 100, 32, 0. |
 | `review [n]` / `review list` | Re-analyze a take (with 95% confidence intervals), or list all. **M15:** when enough notes land off the division, it also reports how you divide it — the swing ratio, and how tightly you place the swung note against how tightly you place the beat. An offbeat take instead gets its own readout back — where the notes went, and whether the feel slipped — recomputed from the raw taps like everything else. |
 | `review compare [i j]` | Two takes side by side; bootstraps each difference and labels it "real change" or "within noise". Defaults to the last two. |
-| `review tags` | Pooled summary of every tagged condition. |
+| `review tags` | Pooled summary of every tagged condition, and what each pool blends — a tag that mixes tempos, backings, subdivisions, feels or offbeat levels says so, and says which number that ruins. |
 | `review conditions <a> <b>` | Pooled comparison of two conditions — the experiment readout. |
 | `review feel` | Does your sense of a good take match the measurement? |
 | `review form` | Form-drill history — progress up the landmark ladder. A level marked `*` was a **probe**: a deliberate look at a rung you had not earned, which the ladder ignores. |
