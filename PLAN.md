@@ -4535,6 +4535,40 @@ one pattern for eight bars would flatten exactly the variation the layers exist 
 `render` writes a generated piece per style so the arc can be heard, which is the only way to
 judge it. Still nothing schedules a style: the planner is step 6.
 
+### Step 5, as built — four styles, and a gate that is a flag rather than a promise
+
+`funk` — syncopated kick, ghost snares, sixteenths — and `half-time`, one snare on beat three and
+a great deal of air. Four styles now, chosen to span rather than to fill a list: `half-time` is
+the only `sparse` one, which is what M24's vocal drills need, and `funk` is the busiest, which is
+what makes practising *around* the beat rather than on it possible at all.
+
+#### "Nothing enters the library unheard" is now enforced
+
+§7.23 made it a rule in prose in M14 — *a rung the player has not heard is a rung the planner must
+not promote them onto* — and prose is what a hurried afternoon ignores. `Style.auditioned` is a
+flag, `StyleLibrary.auditioned` is what the planner will be allowed to see, and it is **`false`
+for every style in the library right now**.
+
+Nobody who writes a style can set it honestly. Whether a groove is worth thirty minutes is not a
+property of its step list, and the only person who can answer is the one who has to play over it.
+A test asserts the current state — four authored, none approved — so flipping one is a deliberate
+edit that appears in a diff rather than something that drifts.
+
+The planner in step 6 therefore starts with **nothing it may schedule**, and has to cope with an
+empty list rather than reaching past the gate. That is the right shape: the fallback is the fixed
+`jamBacking` every take on record already used.
+
+#### The headroom test was not testing fills
+
+`peak` walked `style.pattern(atBar:intensity:)`, which never returns a fill — so the crash that
+lands on every phrase boundary, on top of the loudest bar it can follow, was the one thing in a
+style most likely to clip and the one thing unmeasured. It is covered now, at the top of the tempo
+range where the tails overlap worst.
+
+The window came down from eight bars to two at the same time. Every layer cycles in one or two, so
+a longer render reaches no combination the first two miss, and the suite runs unoptimised.
+
+
 
 
 ---

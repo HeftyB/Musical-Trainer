@@ -63,12 +63,25 @@ public struct Style: Equatable {
     public let playerVoices: Set<BackingVoice>
     public let density: Density
 
+    /// Whether the player has listened to this style and said yes.
+    ///
+    /// **A flag rather than a promise in a document.** §7.23's rule — do not promote a player
+    /// onto something nobody has heard — has been prose since M14, and prose is what a hurried
+    /// afternoon ignores. The planner schedules only styles that carry this, so a groove that
+    /// has never been through a pair of headphones cannot reach a take by anybody's oversight.
+    ///
+    /// It is `false` for a newly authored style and stays false until the person who has to play
+    /// over it changes it. Nobody who wrote the style can set it honestly: whether a groove is
+    /// worth thirty minutes is not a property of its step list.
+    public let auditioned: Bool
+
     /// Intensity runs 0–3 like every other ladder here, so `SessionPlanner` and M17's adaptive
     /// difficulty have one scale to reason about rather than one per drill.
     public static let intensityRange = 0...3
 
     public init(name: String, layers: [Layer], fills: [Pattern],
-                playerVoices: Set<BackingVoice>, density: Density) {
+                playerVoices: Set<BackingVoice>, density: Density,
+                auditioned: Bool = false) {
         precondition(!layers.isEmpty, "a style needs at least one layer")
         precondition(layers.contains { $0.entersAt == 0 },
                      "a style needs a skeleton — something that plays at intensity 0")
@@ -77,6 +90,7 @@ public struct Style: Equatable {
         self.fills = fills
         self.playerVoices = playerVoices
         self.density = density
+        self.auditioned = auditioned
     }
 
     /// Whether the band carries its own bass. Derived rather than declared, so it cannot drift

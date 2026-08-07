@@ -113,6 +113,46 @@ final class StyleTests: XCTestCase {
         XCTAssertNil(StyleLibrary.named("bossa"), "not yet authored, and it must not pretend")
     }
 
+    // MARK: - The audition gate
+
+    /// §7.23's rule — do not promote a player onto something nobody has heard — has been prose
+    /// since M14, and prose is what a hurried afternoon ignores. It is a flag now, and the
+    /// planner will schedule only styles that carry it.
+    ///
+    /// **Nothing sets it but the person who has to play over the groove.** Whether a style is
+    /// worth thirty minutes is not a property of its step list, so an author cannot honestly
+    /// mark their own work.
+    func testANewlyAuthoredStyleIsNotAuditioned() {
+        let fresh = Style(name: "test", layers: [Layer(Pattern.make([.kick: [0]]))],
+                          fills: [], playerVoices: [.kick], density: .sparse)
+        XCTAssertFalse(fresh.auditioned, "the default has to be no, or the gate is decorative")
+    }
+
+    func testTheAuditionedListIsASubsetOfTheAuthoredOne() {
+        XCTAssertTrue(Set(StyleLibrary.auditioned.map(\.name))
+            .isSubset(of: Set(StyleLibrary.all.map(\.name))))
+        for style in StyleLibrary.auditioned {
+            XCTAssertTrue(style.auditioned, style.name)
+        }
+    }
+
+    /// The state of the library today, asserted so that flipping a style to auditioned is a
+    /// deliberate edit that shows up in a diff rather than something that drifts.
+    func testTheLibraryHoldsFourStylesAndNoneHasBeenApprovedYet() {
+        XCTAssertEqual(StyleLibrary.all.map(\.name).sorted(),
+                       ["funk", "half-time", "motown", "rock"])
+        XCTAssertTrue(StyleLibrary.auditioned.isEmpty,
+                      "none of these has been listened to yet — when one has, this test is what "
+                    + "records that it was a decision")
+    }
+
+    func testTheLibraryCoversTheDensitiesTheRoadmapNeeds() {
+        let densities = Set(StyleLibrary.all.map(\.density))
+        XCTAssertTrue(densities.contains(.sparse),
+                      "M24's vocal drills need something a voice can be heard through")
+        XCTAssertTrue(densities.contains(.busy), "and something worth playing over")
+    }
+
     // MARK: - Nothing is scheduled yet
 
     /// Step 3 adds a format and two styles. Until the generator and the planner have had their

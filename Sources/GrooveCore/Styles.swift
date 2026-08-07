@@ -7,7 +7,14 @@ import Foundation
 /// nobody has listened to — applied to music rather than to a rung.
 public enum StyleLibrary {
 
-    public static let all: [Style] = [rock, motown]
+    /// Everything authored, heard or not.
+    public static let all: [Style] = [rock, motown, funk, halfTime]
+
+    /// The styles the planner may schedule: the ones that have been listened to.
+    ///
+    /// Empty is the correct answer for a library nobody has approved yet, and the planner has to
+    /// cope with that rather than reaching past it (§7.29 step 5).
+    public static var auditioned: [Style] { all.filter(\.auditioned) }
 
     public static func named(_ name: String) -> Style? {
         all.first { $0.name == name }
@@ -86,4 +93,63 @@ public enum StyleLibrary {
         ],
         playerVoices: [.kick, .snare, .closedHat, .clap, .ride, .crash, .tom],
         density: .busy)
+
+    // MARK: - Funk
+
+    /// Syncopated kick, ghost snares, sixteenths on the hat. The busiest thing here and the one
+    /// that most rewards playing *around* rather than *on* — which is the point of having it: a
+    /// player who only ever practises over a straight backbeat is practising one skill.
+    public static let funk = Style(
+        name: "funk",
+        layers: [
+            // The kick lands off the beat as often as on it, which is what makes it funk and
+            // not rock with more hats.
+            Layer(Pattern.make([.kick: [0, 3, 10], .snare: [4, 12]], velocity: 82), entersAt: 0),
+            Layer(Pattern.make([.closedHat: Array(0..<16)], velocity: 44), entersAt: 1),
+            Layer(bars: [
+                Pattern.bass([(step: 0, note: 33), (step: 3, note: 33), (step: 7, note: 40),
+                              (step: 10, note: 33)], velocity: 82),
+                Pattern.bass([(step: 0, note: 33), (step: 6, note: 40), (step: 10, note: 45),
+                              (step: 14, note: 40)], velocity: 82),
+            ], entersAt: 1),
+            // Ghosts fill the space between the backbeats. Quiet enough to be felt rather than
+            // counted, which is the whole idea.
+            Layer(Pattern.make([.snare: [2, 7, 10, 15]], velocity: 34), entersAt: 2),
+            Layer(Pattern.make([.openHat: [6, 14]], velocity: 56), entersAt: 3),
+        ],
+        fills: [
+            Pattern.make([.snare: [10, 11, 12, 14], .crash: [0]], velocity: 80),
+            Pattern.make([.tom: [8, 11, 13], .snare: [15], .crash: [0]], velocity: 80),
+        ],
+        playerVoices: [.kick, .snare, .closedHat, .openHat, .crash, .tom],
+        density: .busy)
+
+    // MARK: - Half-time
+
+    /// One snare, on beat three, and a great deal of air. The slowest-feeling thing here at any
+    /// tempo, and the only `sparse` style — which is what M24's vocal drills will need, since a
+    /// busy backing under an open microphone is unusable.
+    ///
+    /// It is also the hardest to sit inside: with a backbeat every other bar's worth of time,
+    /// there is nothing to lean on between the landmarks.
+    public static let halfTime = Style(
+        name: "half-time",
+        layers: [
+            Layer(Pattern.make([.kick: [0, 10], .snare: [8]], velocity: 92), entersAt: 0),
+            // Quarters, not eighths. Doubling the hat here would throw away the space that is
+            // the entire character of the style.
+            Layer(Pattern.make([.closedHat: [0, 4, 8, 12]], velocity: 62), entersAt: 1),
+            Layer(bars: [
+                Pattern.bass([(step: 0, note: 38), (step: 8, note: 38)], velocity: 86),
+                Pattern.bass([(step: 0, note: 38), (step: 8, note: 45)], velocity: 86),
+            ], entersAt: 1),
+            Layer(Pattern.make([.ride: [0, 4, 8, 12]], velocity: 54), entersAt: 2),
+            Layer(Pattern.make([.kick: [6]], velocity: 74), entersAt: 3),
+        ],
+        fills: [
+            Pattern.make([.snare: [12, 14], .crash: [0]], velocity: 88),
+            Pattern.make([.tom: [8, 12], .snare: [14], .crash: [0]], velocity: 88),
+        ],
+        playerVoices: [.kick, .snare, .closedHat, .ride, .crash, .tom],
+        density: .sparse)
 }

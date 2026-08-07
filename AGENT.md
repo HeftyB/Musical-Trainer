@@ -43,6 +43,12 @@ every style at every intensity.
 real buffers at 100 and 160 BPM — a mix goes hot because voices stack, and a style that clears
 the rails at 100 can exceed them where sixteenths overlap.
 
+**Four styles are authored and none is approved.** `Style.auditioned` is `false` for all of
+them, `StyleLibrary.auditioned` is what the planner may schedule, and it is empty — so the planner
+falls back to the fixed `jamBacking` every take on record used. Listen to the renders, then flip
+the flag; nobody who writes a style can set it honestly, because whether a groove is worth thirty
+minutes is not a property of its step list.
+
 `StyleArranger` turns a style into a piece from a **seed**, and `BackingIdentity` writes that seed
 into `grooveName` as `motown@000000005eed0001` — no schema change, and a name without an `@` is a
 fixed backing, which is every take before M19. **A generated backing that could not be rebuilt
@@ -150,7 +156,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 434 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 438 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (157 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -195,7 +201,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 594 tests, no hardware needed
+swift test                              # 599 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

@@ -25,10 +25,9 @@ final class StyleHeadroomTests: XCTestCase {
         let fs = Self.fs
         let sequencer = Sequencer(bpm: bpm, sampleRate: fs)
         var hits: [ScheduledHit] = []
-        // Four bars, not eight: the layers cycle in one or two, so a longer window renders more
-        // audio without reaching any combination the first four miss. The suite runs unoptimised
-        // and eight bars doubled its total runtime.
-        let bars = 4
+        // Two bars, because every layer cycles in one or two — a longer window renders more audio
+        // without reaching a combination these miss, and the suite runs unoptimised.
+        let bars = 2
         for bar in 0..<bars {
             hits += sequencer.schedule(pattern: style.pattern(atBar: bar, intensity: intensity),
                                        bar: bar)
@@ -36,6 +35,29 @@ final class StyleHeadroomTests: XCTestCase {
         let frames = Int(Double(bars) * 4 * 60 / bpm * fs) + Int(fs / 2)
         let audio = GrooveOfflineRender.mix(hits: hits, kit: Self.kit, frames: frames)
         return audio.map { abs($0) }.max() ?? 0
+    }
+
+    /// Fills were not covered at all until this was written: `peak` walks
+    /// `style.pattern(atBar:intensity:)`, which never returns one. A fill is where a crash lands,
+    /// and a crash on top of a full-intensity bar is the likeliest thing in a style to clip.
+    func testNoFillClips() {
+        let fs = Self.fs
+        for style in StyleLibrary.all {
+            for (index, fill) in style.fills.enumerated() {
+                let sequencer = Sequencer(bpm: 160, sampleRate: fs)
+                // The worst case a fill ever meets: the loudest bar it can follow, then itself.
+                var hits = sequencer.schedule(
+                    pattern: style.pattern(atBar: 0,
+                                           intensity: Style.intensityRange.upperBound), bar: 0)
+                hits += sequencer.schedule(
+                    pattern: fill.rescaled(toStepsPerBeat: Pattern.commonStepsPerBeat), bar: 1)
+                let frames = Int(2 * 4 * 60 / 160.0 * fs) + Int(fs / 2)
+                let audio = GrooveOfflineRender.mix(hits: hits, kit: Self.kit, frames: frames)
+                let p = audio.map { abs($0) }.max() ?? 0
+                XCTAssertLessThanOrEqual(p, 1.0,
+                    String(format: "%@ fill %d peaks at %.2f", style.name, index, p))
+            }
+        }
     }
 
     func testNoStyleClipsAtAnyIntensity() {
