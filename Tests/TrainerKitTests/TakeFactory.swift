@@ -55,13 +55,13 @@ enum TakeFactory {
             lag1Autocorrelation: Stats.finite(r.lag1Autocorrelation),
             driftMsPerBeat: Stats.finite(r.driftMsPerBeat),
             headline: r.headline, placement: placement(role: "benchmark"),
-            experiment: experiment,
+            experiment: experiment, wasProbe: nil,
             rawTimes: raw.map(\.time), rawNotes: raw.map(\.note),
             rawVelocities: raw.map(\.velocity))
     }
 
     static func form(marks: Int = 8, phraseBars: Int = 8, level: Int = 0,
-                     dayOffset: Int = 0) -> FormSession {
+                     dayOffset: Int = 0, wasProbe: Bool = false) -> FormSession {
         let g = grid(subdivisions: 4)
         let barSeconds = g.beatInterval * 4
         let markTimes = (0..<marks).map { g.startTime + Double($0 * phraseBars) * barSeconds + 0.01 }
@@ -78,7 +78,8 @@ enum TakeFactory {
             phaseErrorSDms: Stats.finite(r.phaseErrorSDms),
             slipBarsPerPhrase: Stats.finite(r.slipBarsPerPhrase),
             missedPhrases: r.missedPhrases, headline: r.headline,
-            placement: placement(role: "training"), experiment: nil)
+            placement: placement(role: "training"), experiment: nil,
+            wasProbe: wasProbe ? true : nil)
     }
 
     static func dropout(_ p: Performance = .steady, cycles: Int = 4, silentBars: Int = 4,

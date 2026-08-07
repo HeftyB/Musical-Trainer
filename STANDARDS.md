@@ -308,7 +308,32 @@ Refs: PLAN.md §<n>
 - A `fix:` body states the observable symptom in one line.
 - Never mention tooling, agents, or how the change was produced.
 
-Enforced by `.githooks/commit-msg`.
+Enforced by `.githooks/commit-msg`. Note the hook measures line length in **bytes**, so an
+em-dash or a `→` costs three against the 72 — wrap a little short rather than counting.
+
+**The reference message is `695478d`** (`build(build): clear the rolling commit message once it
+lands`). Read it before writing one. Its shape, which is the house style:
+
+- **Prose paragraphs, never bullet lists.** One paragraph per distinct part of the change.
+- **Open with the symptom, in the past tense, as something that happened** — not with the
+  mechanism, and not with "this commit". *"The message file kept its contents after the commit
+  that used it, so the next change inherited a message describing the previous one."*
+- **Back it with the instance and its evidence, immediately.** *"That is not hypothetical: the
+  §7.19 message was still in the file two changes later and was staged for a commit it did not
+  describe."* A body that could have been written before the work was done is too abstract.
+- **Then the mechanism, plainly**, including the one implementation detail a reader would
+  otherwise wonder about, and why it is that way — *"using `git stripspace` so the comparison
+  sees the message the way git stored it."*
+- **Every later paragraph names its part and carries its own justification** — *"§8.2.1 also
+  drops the `---` separator convention…"*, *"New §8.2.2: …"* — so the reader can stop at any
+  paragraph boundary and have a whole thought.
+- **Close on the cost that motivated it**, measured: *"which cost two rounds of exactly that
+  while landing §7.20 and this."*
+- Backticks for identifiers, `§` for sections, no headings, no bold, no "we".
+
+The rule against rationale essays still binds. The argument for *why the design is right* lives
+in `PLAN.md`; what belongs here is the symptom, the mechanism, and what it cost — the things a
+reader needs when the log is the only thing in front of them.
 
 ### 8.2.1 The rolling commit message
 
@@ -365,6 +390,29 @@ untangling two changes out of one document.
 `check.sh` warns when the tree is dirty and this file is missing or older than the most
 recently changed file. It is a warning, not a failure: the standard is a discipline, not a
 gate, and a gate here would only teach people to write the file badly.
+
+### 8.2.3 Pull request bodies
+
+Different job, different form. A commit message is read in a terminal beside forty others; a PR
+body is read once, in a browser, by someone deciding whether the change is safe. So a PR body
+**is** rich markdown — headings, tables, bold — where a commit message is plain prose.
+
+The shape that works here:
+
+- **Title**: the commit subject without its `type(scope):` prefix, capitalised.
+- **`## What this is`** — one paragraph, then a stat line: `1 commit · 6 files · +181 / −7 ·
+  489 → 494 tests`.
+- **The defect, then what it reported, then why the tests did not catch it.** Before-and-after
+  goes in a table with the wrong numbers in bold. Quote the readout's own words where they are
+  the tell.
+- **The fix and its guard**, naming what fails if the fix is reverted.
+- **What the data says now**, with the limits stated at least as loudly as the result — *"Read
+  no further into these than that."*
+- **`## Review notes`** last: the gate's output, what is byte-identical against what changed and
+  why that is correct, and what the change still does not cover.
+
+Write it in `temp/pr-message.md`, which is gitignored for the same reason the commit message
+file is.
 
 ### 8.3 Definition of done
 
@@ -448,10 +496,10 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 400 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 396 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
-**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 136 tests
+**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 145 tests
 run only in `./scripts/check.sh`, which the pre-commit hook enforces. A green pipeline therefore
 covers less than a green `check.sh`, and saying so is the point: the gap that destroyed a take
 existed because the split between tested and untested had stopped being visible.

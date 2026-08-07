@@ -52,7 +52,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 536 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 541 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -195,11 +195,15 @@ Levels remove the landmarks as you improve:
 
 The report tells you when you've earned the next one. `review form` shows your history.
 
-A planned session may also offer level 3 as a **probe** — a deliberate look at the top of the
-ladder before you have earned it, once, when several takes running say the promotion gate is not
-going to get you there. However it goes, the ladder stays where it was: the take is stored apart,
-marked `*` in your history, and nothing that decides what to practise next reads it. Play it for
-the reading rather than for the score.
+To try a level before you have earned it, add `--probe` from the command line:
+
+```sh
+./.build/release/TimingSpike form 100 64 8 3 --probe
+```
+
+The take is stored apart and marked `*` in your history, and nothing that decides what to
+practise next reads it — so a look at the top of the ladder cannot move the ladder. It works on
+`jam` and `offbeat` too, for a subdivision or an offbeat level you have not reached.
 
 ## Continuation drill — clock or hands?
 

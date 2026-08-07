@@ -27,10 +27,19 @@ the timekeeper or partly the hands).
 then **M19** (musical depth), then M16's span ladder. M19 moved ahead because a 32-bar phrase
 needs a backing that sustains 32 bars and M16.5's organ bubble needs the pattern format settled.
 
-**The next planned session will propose a level-3 form probe, and it is meant to.** Silence across
-the phrase boundary, never played before. It is stamped `probe`, not `training`: the ladder stays
-at level 2 however it goes, `review form` marks it `*`, and nothing that decides where the ladder
-stands reads it. Play it for the reading. **A bad probe is data, not a demotion.**
+**Anything can be tried from the CLI without corrupting a ladder.** `--probe`, anywhere on the
+line, records a take as a deliberate look at a setting that was not earned — form level 3, a rung
+above the ceiling, an offbeat level. Nothing that decides what to practise next reads one, and
+`review form` marks it `*`. **A bad probe is data, not a demotion.**
+
+```sh
+./.build/release/TimingSpike form 100 64 8 3 --probe
+```
+
+The planner deliberately does **not** propose probes. A testing affordance in the planner is a
+testing affordance in the business logic, changing what the app recommends to a player who is not
+testing anything; the first version of §7.26 did exactly that and was removed. Same reason the
+GUI has no probe control: the app is for playing.
 
 | Done | |
 |---|---|
@@ -105,8 +114,8 @@ that precondition is met without booking a live run.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
   browser step. CI is **Woodpecker**.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 400 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (136 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 396 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (145 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -150,7 +159,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 536 tests, no hardware needed
+swift test                              # 541 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

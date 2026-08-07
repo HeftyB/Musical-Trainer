@@ -260,7 +260,8 @@ public enum TrainerEngine {
     @discardableResult
     public static func save(_ outcome: JamOutcome, feelRating: Int?,
                             placement: SessionPlacement? = nil,
-                            experiment: ExperimentAssignment? = nil) throws -> URL {
+                            experiment: ExperimentAssignment? = nil,
+                            wasProbe: Bool = false) throws -> URL {
         let r = outcome.report
         let session = JamSession(
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
@@ -283,6 +284,7 @@ public enum TrainerEngine {
             lag1Autocorrelation: Stats.finite(r.lag1Autocorrelation),
             driftMsPerBeat: Stats.finite(r.driftMsPerBeat),
             headline: r.headline, placement: placement, experiment: experiment,
+            wasProbe: wasProbe ? true : nil,
             rawTimes: outcome.rawTaps.map(\.time),
             rawNotes: outcome.rawTaps.map(\.note),
             rawVelocities: outcome.rawTaps.map(\.velocity))
@@ -386,7 +388,8 @@ public enum TrainerEngine {
     @discardableResult
     public static func save(_ outcome: FormOutcome, feelRating: Int?,
                             placement: SessionPlacement? = nil,
-                            experiment: ExperimentAssignment? = nil) throws -> URL {
+                            experiment: ExperimentAssignment? = nil,
+                            wasProbe: Bool = false) throws -> URL {
         let r = outcome.report
         let session = FormSession(
             date: Date(), bpm: outcome.config.bpm, bars: outcome.config.bars,
@@ -400,7 +403,8 @@ public enum TrainerEngine {
             phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
             phaseErrorSDms: Stats.finite(r.phaseErrorSDms),
             slipBarsPerPhrase: Stats.finite(r.slipBarsPerPhrase), missedPhrases: r.missedPhrases,
-            headline: r.headline, placement: placement, experiment: experiment)
+            headline: r.headline, placement: placement, experiment: experiment,
+            wasProbe: wasProbe ? true : nil)
         return try SessionStore.save(session)
     }
 
@@ -1174,7 +1178,10 @@ public enum TrainerEngine {
         // Ladder takes are jams with a rung, and they are the only jams whose tempo the planner
         // is allowed to move — so they are handed over separately from the free ones rather than
         // filtered out of them downstream.
-        let ladders = allJams.compactMap { session -> PlannerInput.Ladder? in
+        // A probed rung is not a rung climbed. `nextRung` promotes one step from the highest
+        // ever played, so a single test take at sixteenths would raise the ceiling for good —
+        // the form ladder's trap on the other axis (§7.26).
+        let ladders = allJams.filter { $0.wasProbe != true }.compactMap { session -> PlannerInput.Ladder? in
             guard let raw = session.rung, let rung = IntervalRung(rawValue: raw),
                   let sd = Stats.finite(session.report().sdAsynchronyMs) else { return nil }
             return PlannerInput.Ladder(bpm: session.bpm, rung: rung, sdMs: sd)
@@ -1196,10 +1203,7 @@ public enum TrainerEngine {
                                      onFormRate: r.onFormRate,
                                      hasUnmarkedPhrases: !r.missedPhrases.isEmpty,
                                      markedEveryBars: r.markedEveryBars,
-                                     // Read off the stored placement, so a probe stays a probe
-                                     // on every later recompute (§7.26).
-                                     wasProbe: session.placement?.role
-                                         == BlockRole.probe.rawValue)
+                                     wasProbe: session.wasProbe == true)
         }
 
         let tempos = SessionStore.loadAllTempo().map { session -> PlannerInput.Tempo in

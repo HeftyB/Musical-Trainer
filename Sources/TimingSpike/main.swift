@@ -12,7 +12,7 @@ import TrainerKit
 //
 // See PLAN.md §4.2 for the measurement design and §7.1 for M0 results.
 
-let arguments = Array(CommandLine.arguments.dropFirst())
+let rawArguments = Array(CommandLine.arguments.dropFirst())
 
 func usage() {
     print("""
@@ -68,10 +68,25 @@ func usage() {
                         render each ladder backing to temp/renders as a WAV,
                         so a groove can be judged by ear without a live run
       show              print stored calibration
+
+    Flags, anywhere on the line:
+
+      --probe           record this take as a deliberate look at a setting you have
+                        not earned. Stored apart and ignored by everything that
+                        decides what to practise next, so trying form level 3 or a
+                        rung above your ceiling cannot move a ladder. Applies to
+                        jam, form and offbeat.
     """)
 }
 
 do {
+    // Flags come out first, so `--probe` may sit anywhere on the line and every positional
+    // argument below keeps counting from zero. An unknown flag throws rather than being
+    // dropped: a mistyped `--porbe` that quietly ran an ordinary take would record it as
+    // earned, which is the exact corruption the flag exists to prevent. Parsed **inside** the
+    // catch, or the refusal arrives as a Swift crash dump instead of a sentence.
+    let (flags, arguments) = try CommandFlags.parse(rawArguments)
+
     switch arguments.first {
     case "selftest":
         exit(SelfTest.run() ? 0 : 1)
@@ -99,14 +114,15 @@ do {
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
         try Commands.runJam(bpm: bpm, bars: bars, tag: arguments.dropFirst(3).first,
                             rung: arguments.dropFirst(4).first,
-                            swing: arguments.dropFirst(5).first)
+                            swing: arguments.dropFirst(5).first, flags: flags)
 
     case "form":
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 64
         let phrase = arguments.dropFirst(3).first.flatMap(Int.init) ?? 8
         let level = arguments.dropFirst(4).first.flatMap(Int.init) ?? 0
-        try Commands.runForm(bpm: bpm, bars: bars, phraseBars: phrase, level: level)
+        try Commands.runForm(bpm: bpm, bars: bars, phraseBars: phrase, level: level,
+                             flags: flags)
 
     case "dropout":
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
@@ -126,7 +142,7 @@ do {
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
         let level = arguments.dropFirst(3).first.flatMap(Int.init) ?? 0
-        try Commands.runOffbeat(bpm: bpm, bars: bars, level: level)
+        try Commands.runOffbeat(bpm: bpm, bars: bars, level: level, flags: flags)
 
     case "session":
         // `session plan [minutes]` prints the choices without committing the evening to them.
