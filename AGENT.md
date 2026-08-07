@@ -85,8 +85,10 @@ The three *planned* sessions written up are §7.17 (4 Aug 2026), §7.19 (5 Aug m
 (5 Aug afternoon) — one manifest each on disk. Read them before touching drills: between them
 they produced two instruction bugs, one reporting bug, and the project's only retracted finding
 — none of them maths. Takes recorded from the drill menu since then are in the data but not
-written up; 14 of the 27 jams carry no session placement, so they are invisible to
-`review cold`.
+written up; **17 of the 30 jams carry no session placement**. That does not hide them from
+`review cold`, which infers sittings from 45-minute gaps between takes and reports all 30 across
+10 sittings — what it costs is the distinction between a *controlled* cold probe and whatever
+happened to be played first, which is why that readout carries a warning saying so.
 
 ## Surfaces
 
@@ -112,7 +114,10 @@ that precondition is met without booking a live run.
 - **No Docker on this workstation.** Andrew runs containers on his Proxmox nodes. Do not start
   a local daemon; write pipeline config and hand it over.
 - **Git remote is self-hosted Gitea**, not GitHub. `gh` is not installed; pull requests are a
-  browser step. CI is **Woodpecker**.
+  browser step. CI is **Woodpecker**, and it runs: pipeline #42 went green on `main` in about a
+  minute (clone, verify, purity). The domain resolves only from Andrew's internal DNS, so an
+  agent cannot fetch it or read the remote — take his word for what merged, and look commits up
+  locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 396 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (152 tests) is macOS-only and runs in `check.sh` alone, so a
@@ -273,8 +278,9 @@ Types worth knowing before changing anything:
 - **`TimingReport`** — what a jam produced. `subdivisionStats` is **phase-conditional** (where in
   the beat a note landed), not a measure of note values played.
 - **`SessionPlacement`** — where a take sat in a planned evening, and the state the player
-  declared before it started. Optional; 14 of 21 jams have none.
-- **`Grid`** — index arithmetic, never accumulation. Indices stay uniform under a feel; only their *times* move, which is what keeps a feel from reaching past `Matching`. There is deliberately no `interval`: under a feel there is no single spacing, so ask `gap(around:)` about a point.
+  declared before it started. Optional; 17 of 30 jams have none, and what that costs is the
+  controlled cold probe rather than the sitting, which `WarmUpAnalysis.inferSessions` recovers
+  from timestamps.
 - **`Feel`** — the long-to-short ratio of the divided beat, and **a ratio of 1 is straight**.
   The identity falls out of the arithmetic, so nothing needs an `if straight` and `nil` in
   storage genuinely means straight — unlike `nil` rung. Swing applies to the finest *binary*
@@ -382,24 +388,26 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 ## What the data says about this player
 
-Current as of 69 takes across 9 sittings — 27 jams, 12 form, 12 continuation, 10 tempo, 8 recall,
-5 planned sessions. **Recompute rather than trusting any of this:** `review trend`,
-`review dropout`, `review feel`, `review cold`, `review content`.
+Current as of **72 takes across 10 sittings — 30 jams, 12 form, 12 continuation, 10 tempo,
+8 recall**, plus 5 planned-session manifests. **Recompute rather than trusting any of this:**
+`review trend`, `review dropout`, `review feel`, `review cold`, `review content`, `review
+interval`.
 
-- **r₁ is positive in all 27 jams (+0.13 … +0.47).** He *under-corrects* — placement floats and
-  wanders. He does not chase the click. Do not suggest counting harder; that is the documented
-  way to make this worse, and he already reports it feels worse. The lowest reading in the whole
-  set is +0.13, an untracked `relaxed` take on 3 Aug; the lowest in the *locked benchmark slot* —
-  the only one a trend may be read from — is +0.20 on 5 Aug (§7.21), which is the direction §10
-  defines as success. One take, in one slot.
-- **The benchmark jam is bouncing, not trending**: 24.1 → 17.4 → 22.0 ms across three sittings
-  at locked settings. §7.19 recorded the first step as a real tightening and it did not hold
-  (§7.21). Each pairwise comparison was measured correctly; none of them is a trend. The 21-take
-  jam trend remains flat on every metric.
+- **r₁ is positive in all 30 jams (+0.13 … +0.50), with no negative reading ever recorded.**
+  He *under-corrects* — placement floats and wanders. He does not chase the click. Do not suggest
+  counting harder; that is the documented way to make this worse, and he already reports it feels
+  worse. The lowest in the whole set is +0.13, an untracked `relaxed` take on 3 Aug; the lowest
+  in the *locked benchmark slot* — the only one a trend may be read from — is **+0.14 on 5 Aug**,
+  the most recent of the five, which is the direction §10 defines as success. One take, in one
+  slot, and the slot has bounced before.
+- **The benchmark jam is bouncing, not trending**: 24.1 → 17.4 → 22.0 → 21.7 → 24.9 ms across
+  five takes at locked settings, ending where it started. §7.19 recorded the first step as a real
+  tightening and it did not hold (§7.21). Each pairwise comparison was measured correctly; none
+  of them is a trend. The free-jam trend at 100 BPM is flat on every metric over 21 takes.
 - **A large placement shift held for one long sitting and then eased.** Bias went −5.9 ms on
   4 Aug to −22.6, −16.1, −20.8, −22.4 through the 5 Aug 01:00–04:30 sittings, then −15.1 and
-  −13.5 that morning. Unexplained either way. Bias is not failure (§2) and spread did not move
-  with it.
+  −13.5 that morning, and has sat between −7.6 and −24.8 since. Unexplained either way. Bias is
+  not failure (§2) and spread did not move with it.
 - **Clock is the looser half in every trustworthy split.** Do not pool across silence lengths:
   4-bar runs ~11–22 / 4–12 ms across five takes, 8-bar 29.6 / 9.6 and 24.1 / 15.4, 16-bar
   22.1 / 6.8. Longer is a harder task. The newest 4-bar take has the lowest motor figure
@@ -414,27 +422,34 @@ Current as of 69 takes across 9 sittings — 27 jams, 12 form, 12 continuation, 
   [−0.15, +0.10] **flat** at level 2 over 8-bar phrases. Both verdicts were the ladder, not the
   player. Only three groups now have the three points a fit needs, which is the honest cost.
 - **"Runs ~5% slow unaccompanied" is dead.** The last two 16-bar continuation takes produced
-  99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3% and are still
-  fitted flat; the −1.8% on 5 Aug was recorded *warm*, third in its sitting, and is not a fourth
-  cold point however much it looks like one.
-- **Feel tracks the measurement, but less well than it did**: r = −0.48 over the rated takes,
-  against −0.66 before the 5 Aug evening session. That sitting was played exhausted (§7.24) and
+  99 BPM (−1%) and 100 BPM (−0%). Controlled cold probes read −7.9%, −4.2%, −3.3%, −3.5% and
+  −2.3%, and `review cold` now fits them **improving** (−0.48%/sitting [−1.27, −0.13]) — the one
+  learning signal anywhere in this dataset. The −1.8% on 5 Aug was recorded *warm*, third in its
+  sitting, and is not a cold point however much it looks like one.
+- **Feel tracks the measurement, but less well than it did**: r = −0.42 over the rated takes,
+  against −0.48 a milestone ago and −0.66 before the 5 Aug evening session. That sitting was played exhausted (§7.24) and
   is the likeliest cause; §7.17 already recorded fatigue breaking the link once, with two jams of
   identical spread rated 4 and 1. Treat the correlation as soft until a rested sitting restores it.
-- **78.7% of every matched note ever recorded is a beat apart from the last one** — an eighth
-  14.7%, a sixteenth 0.5% (35 notes in 27 takes). So every headline figure this project quotes,
-  including "his ~20 ms spread", is *quarter-note placement in free playing*; the sixteenth-note
-  grid the takes are scored on is doing almost no work. M14 is therefore the first measurement
-  of most of the space, not an extension of a measured skill (§7.23 step 3b).
+- **78.4% of every matched note in a free jam is a beat apart from the last one** — an eighth
+  15.0%, a sixteenth 0.5% (still just 35 notes, now across 26 free takes and 7,390 notes). So
+  every headline figure this project quotes, including "his ~20 ms spread", is *quarter-note
+  placement in free playing*; the sixteenth-note grid those takes are scored on is doing almost
+  no work. Over all 30 jams the beat share is **70.2%** and the eighth share **23.9%**, and the
+  difference is entirely the three prescribed takes — two swung eighths and the skank. Quote the
+  free-jam figure when caveating a free-jam number and the all-takes figure when describing the
+  corpus; they are different populations and §7.23 step 3b's finding is about the first.
 - **His spread is a fixed number of milliseconds, not a fixed fraction of the interval.** Flat at
   ~22–26 ms from 273 ms to 1200 ms between notes; +0.21 ms per 100 ms [−1.41, +1.18], while the
-  percentage form moves for real (−0.71 pts). Recomputed on 27 jams; the finding held. Milliseconds are what compare across tempos and rungs for this
-  player — **do not normalise spread by the interval**, and do not assume "faster is tighter" is
-  arithmetic. That premise was stated as fact in §7.23 for three steps before it was checked.
+  percentage form moves for real. Recomputed on 30 jams over a 200–1200 ms range: absolute
+  −0.11 ms per 100 ms [−1.85, +0.63], within noise, against −1.07 points [−2.54, −0.69] for the
+  percentage, which is real. The finding has now survived three recomputes. Milliseconds are what
+  compare across tempos and rungs for this player — **do not normalise spread by the interval**,
+  and do not assume "faster is tighter" is arithmetic. That premise was stated as fact in §7.23 for three steps before it was checked.
 - **Tempo is not analysed anywhere.** It is only ever *controlled for* — trends split mixed-tempo
   groups and `review tags` warns about them. His stated hypothesis is that faster is easier to a
   point and that slow tempos make him rush, and no readout can currently ask it. The data cannot
-  either: 22 jams at 100 BPM, 4 at 110 (all one evening, six minutes apart), 1 at 120. M14 is
+  either: 25 jams at 100 BPM, 4 at 110 (all one evening, six minutes apart), 1 at 120. And 61%
+  of every matched note sits at one interval, 600 ms, which `review interval` now says out loud. M14 is
   where this gets built — see §7.23, including why raw spread cannot be compared across tempos.
 - **The recall drill's interference cost is not established.** §7.19 read it as the distractor
   *helping*; since the attrition rule landed (§7.20 finding 2), three of the four takes are
@@ -465,7 +480,8 @@ Current as of 69 takes across 9 sittings — 27 jams, 12 form, 12 continuation, 
 - When results look surprising, **check the raw data before reporting them**. Two "findings"
   so far were measurement artefacts, and both were visible in the taps within a minute.
 - **Say what you could not verify.** Hardware paths (audio, MIDI, the drill runners) have no
-  unit tests and neither pipeline has ever been executed. Naming the gap is part of the work;
+  unit tests. The verification pipeline *has* run — #42 green on `main` — but the release
+  pipeline never has, and neither covers `TrainerKit`. Naming the gap is part of the work;
   implying coverage that does not exist is worse than the gap itself.
 
 ## Procedure
