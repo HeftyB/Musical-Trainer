@@ -1195,7 +1195,11 @@ public enum TrainerEngine {
             return PlannerInput.Form(level: session.level, phraseBars: session.phraseBars,
                                      onFormRate: r.onFormRate,
                                      hasUnmarkedPhrases: !r.missedPhrases.isEmpty,
-                                     markedEveryBars: r.markedEveryBars)
+                                     markedEveryBars: r.markedEveryBars,
+                                     // Read off the stored placement, so a probe stays a probe
+                                     // on every later recompute (§7.26).
+                                     wasProbe: session.placement?.role
+                                         == BlockRole.probe.rawValue)
         }
 
         let tempos = SessionStore.loadAllTempo().map { session -> PlannerInput.Tempo in
