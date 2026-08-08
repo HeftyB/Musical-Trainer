@@ -5779,7 +5779,30 @@ histories; the live path is the same `runJam` that three CLI takes have now exer
 evening ending on a generated backing has not happened. R5.6, and it is the next live run worth
 booking.
 
-M19's remaining step 8 is documentation and `render` gaining a style argument.
+### Step 8, as built — reproducing a take's music, and closing the milestone
+
+`render --style driving@06965a16872036af` writes that one piece and nothing else. **The argument
+takes the name a take stores**, so reproducing the music a take was played over is a copy and a
+paste rather than a transcription — which is the audio half of R1.2.2, and the reason the seed was
+stored at all. `--style driving --seed 0696…` is the same thing spelled apart, and an explicit
+`--seed` wins over one embedded in the name because it is the more specific thing the player typed.
+
+**An unapproved style renders.** `render` is how a style gets listened to in the first place, and
+§7.29 step 5 exists to stop the *planner* promoting somebody onto music nobody has heard — refusing
+to let them hear it would invert the rule. `jam` still refuses without `--probe`.
+
+The resolution lives in `Commands.renderTarget` rather than inside `runRender`, which writes files:
+the same seam as `resolveStyle`, for the same reason, and a test reaches it.
+
+#### M19 is built, and it has not been played
+
+Steps 0–8 are complete. **No planned session has ended on a generated backing**, and nothing has
+been recorded from the app's picker — three CLI takes exist over styles, all `--probe`, all in the
+small hours of 8 August and tagged `tired`.
+
+So the milestone is closed on paper and its central claim — that a generated backing reaches a take
+intact through the planner — rests on planted histories (R5.6). `session 45` is the run that would
+settle it, and `temp/WORKING.md` names the three things to watch.
 
 ### The app catches up
 
@@ -5842,11 +5865,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   686 cases
+└── Tests/                   692 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     363 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     201 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     207 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

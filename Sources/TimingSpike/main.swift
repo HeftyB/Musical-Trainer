@@ -169,7 +169,7 @@ do {
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 8
         try Commands.runRender(bpm: bpm, bars: bars,
-                               into: URL(fileURLWithPath: "temp/renders"))
+                               into: URL(fileURLWithPath: "temp/renders"), flags: flags)
 
     case "show":
         try Commands.runShow()

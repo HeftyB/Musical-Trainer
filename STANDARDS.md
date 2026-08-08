@@ -669,7 +669,7 @@ looks like the player's own timing.
 | `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 485 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
-**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 201 tests
+**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 207 tests
 run only in `./scripts/check.sh`, which the pre-commit hook enforces. A green pipeline therefore
 covers less than a green `check.sh`, and saying so is the point: the gap that destroyed a take
 existed because the split between tested and untested had stopped being visible.
@@ -711,7 +711,43 @@ decode check. Those run in `./scripts/check.sh` locally, which the pre-commit ho
 Findings go in `PLAN.md` with the numbers that support them, the sample size, and what would
 falsify them. A finding without a sample size is an anecdote.
 
-### 9.7 Recording a failure shape
+### 9.6.1 The working itinerary
+
+`temp/WORKING.md` is the scratch pad: **gitignored on purpose, and blunt on purpose.** It holds what
+is in flight, what just landed, what comes next, and the questions waiting on an answer — so that a
+session can start without asking for direction, and an agent arriving cold can see the state of play
+in one read.
+
+Being outside the repository is what lets it be useful. It can name a half-formed idea, an
+unattractive option, or a doubt about work already merged. **Nothing in the tracked documents may
+depend on it**, and anything that turns out to matter is moved into `PLAN.md` in the form that
+belongs there. The public record stays professional; the scratch pad is where the thinking is
+allowed to be untidy.
+
+**It is rolled forward, not archived.** As a milestone closes, its finished items come out and the
+work between milestones goes in, so that by the time a milestone is genuinely done the next one
+already has a plan. A `WORKING.md` still listing last milestone's steps is a stale file, and a stale
+one is worse than none — the next reader acts on it.
+
+### 9.7 Keeping the templates current
+
+The cross-project templates in `temp/Guidelines & Standards/` are where this repository's rules
+become reusable somewhere else. They drift the moment a rule here changes and nobody carries it
+across.
+
+**When `STANDARDS.md`, `LESSONS.md` or `AGENT.md` changes materially, update the template in the
+same branch.** Materially means a rule added, removed or reversed; a new failure shape; a change to
+the document map or the procedures. Not a corrected figure, not a reworded sentence.
+
+The templates are generalised, not copied: the rule travels, this project's instances stay here.
+`LESSONS.md` is the model — the same shapes, with the specifics stripped out.
+
+> This is the one procedure here with no gate behind it. The templates live outside the tree, so
+> `check.sh` cannot see them, and until a project of their own exists this rule is enforced by
+> whoever is reading it. `LESSONS.md` shape 21 says what that is worth; saying so is better than
+> implying a guard that does not exist.
+
+### 9.8 Recording a failure shape
 
 When a defect is found, ask one question: **has this shape happened here before?**
 

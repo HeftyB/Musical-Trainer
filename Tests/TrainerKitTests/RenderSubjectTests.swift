@@ -73,6 +73,75 @@ final class RenderSubjectTests: XCTestCase {
                        "two subjects with one name would overwrite each other's file")
     }
 
+    // MARK: - Rendering one piece
+
+    private let clock = Date(timeIntervalSince1970: 1_770_000_000)
+
+    /// **The point of the argument**: a take stores `style@seed`, and pasting that back gets the
+    /// exact music it was played over. R1.2.2 says a result that cannot be reproduced from stored
+    /// data is not a result, and this is how the audio half of that is honoured.
+    func testATakesStoredNameReproducesItsMusic() throws {
+        let stored = "driving@06965a16872036af"
+        let target = try XCTUnwrap(
+            Commands.renderTarget(CommandFlags(style: stored), now: clock))
+        XCTAssertEqual(target.name, stored)
+
+        let subjects = Commands.renderSubjects(bars: 8, only: target)
+        XCTAssertEqual(subjects.count, 1, "one piece asked for, one file written")
+        XCTAssertEqual(subjects.first?.name, stored)
+        XCTAssertGreaterThanOrEqual(subjects.first?.bars ?? 0, StyleArranger.barsForAFullArc(),
+                                    "still long enough to contain its arc")
+
+        let style = try XCTUnwrap(StyleLibrary.named("driving"))
+        XCTAssertEqual(subjects.first?.arrangement,
+                       StyleArranger.arrangement(style: style, seed: 0x0696_5a16_8720_36af,
+                                                 bars: subjects.first?.bars ?? 0))
+    }
+
+    /// Both spellings, because a player who has the seed in a variable should not have to
+    /// concatenate it, and one who has the take's name should not have to split it.
+    func testBothSpellingsResolveToTheSamePiece() throws {
+        let joined = try XCTUnwrap(
+            Commands.renderTarget(CommandFlags(style: "pocket@000000005eed0001"), now: clock))
+        let split = try XCTUnwrap(
+            Commands.renderTarget(CommandFlags(style: "pocket", seed: 0x5EED_0001), now: clock))
+        XCTAssertEqual(joined, split)
+    }
+
+    /// An explicit `--seed` is the more specific thing the player typed, so it wins. A silent
+    /// preference for the embedded one would be a surprise found much later.
+    func testAnExplicitSeedBeatsOneEmbeddedInTheName() throws {
+        let target = try XCTUnwrap(
+            Commands.renderTarget(CommandFlags(style: "driving@00000000deadbeef", seed: 7),
+                                  now: clock))
+        XCTAssertEqual(target.seed, 7)
+    }
+
+    /// **An unapproved style renders.** `render` is how a style gets listened to in the first
+    /// place, and §7.29 step 5 exists to stop the *planner* promoting somebody onto music nobody
+    /// has heard — refusing to let them hear it would invert the rule. `jam` still refuses
+    /// without `--probe`, and `StyleRequestTests` holds that line.
+    func testRenderDoesNotAskWhetherAStyleWasApproved() throws {
+        for style in StyleLibrary.all {
+            XCTAssertNotNil(try Commands.renderTarget(CommandFlags(style: style.name),
+                                                       now: clock))
+        }
+    }
+
+    func testAnUnknownStyleIsRefusedWithTheListOfWhatExists() {
+        XCTAssertThrowsError(
+            try Commands.renderTarget(CommandFlags(style: "motown"), now: clock)
+        ) { error in
+            let message = (error as? SpikeError)?.message ?? "\(error)"
+            XCTAssertTrue(message.contains("half-time"), message)
+        }
+    }
+
+    func testNoStyleAskedForRendersTheWholeLibrary() throws {
+        XCTAssertNil(try Commands.renderTarget(CommandFlags(), now: clock))
+        XCTAssertGreaterThan(Commands.renderSubjects(bars: 8, only: nil).count, 40)
+    }
+
     /// `kit-bass` is the file whose absence kept the loudest truncation click in the kit out of
     /// §7.29 step 6b's table for a whole milestone. It walks the range, and the *lowest* note is
     /// the one that matters — it truncates loudest and its period is longest.

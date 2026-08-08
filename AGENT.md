@@ -29,9 +29,16 @@ the timekeeper or partly the hands) and M25 (harmony — its own milestone becau
 progression are a different problem from rhythm, with the framework for it already in
 `Hit.note`).
 
-**M19 is in progress** (§7.29), ahead of M16 because a 32-bar phrase needs a backing that
-sustains 32 bars and M16.5's organ bubble needs the pattern format settled. **Steps 0–6 are done;
-step 7 — the planner and the surfaces — is next and is the one step with measurement risk.**
+**M19 is built and has not been played.** Steps 0–8 are complete (§7.29, §7.33): the pattern
+format, the bass, four approved styles, the seeded generator, the planner picking a band for the
+closing jam, band pickers in the app, and `render --style` reproducing any take's music from the
+name it is stored under.
+
+**What it has never had is a live run.** No planned session has ended on a generated backing, and
+nothing has been recorded from the app's picker — three CLI takes exist over styles, all `--probe`
+and all tagged `tired`. The milestone's central claim, that a generated backing reaches a take
+intact through the planner, rests on planted histories (R5.6). `session 45` settles it, and
+`temp/WORKING.md` names what to watch.
 
 Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
 rather than the drum programming's resolution, and every arrangement now speaks **one grid of 24
@@ -256,7 +263,9 @@ Drills: `jam | form | dropout | tempo | memory | offbeat | session`.
 
 `render [bpm] [bars]` writes every ladder backing to `temp/renders` as a WAV. **A rung the
 player has not heard is a rung the planner must not promote them onto** (§7.23), and this is how
-that precondition is met without booking a live run.
+that precondition is met without booking a live run. `render --style driving@06965a16872036af`
+writes that one piece instead — paste a take's `grooveName` and hear exactly what it was played
+over. An unapproved style renders, because rendering is how a style gets heard in the first place.
 
 ## Environment constraints — check these before proposing a solution
 
@@ -269,7 +278,7 @@ that precondition is met without booking a live run.
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 485 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (201 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (207 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -313,7 +322,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 686 tests, no hardware needed
+swift test                              # 692 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -661,7 +670,7 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    the branch made untrue. Documenting each commit separately puts several changes' edits in one
    file and no `git add` can separate them (STANDARDS.md §8.2.2). **LESSONS.md only when the change
    was the second instance of a failure shape**, or a new one — one defect is a PLAN.md entry, a
-   pattern is a LESSONS.md one (STANDARDS.md §9.7). Re-derive any count or figure quoted in prose
+   pattern is a LESSONS.md one (STANDARDS.md §9.8). Re-derive any count or figure quoted in prose
    rather than trusting it; five separate accuracy passes have each found numbers copied forward
    unchecked, which is LESSONS.md shape 17. `check.sh`'s Documentation section catches the test
    counts and the shape citations and nothing else — the rest is yours.
