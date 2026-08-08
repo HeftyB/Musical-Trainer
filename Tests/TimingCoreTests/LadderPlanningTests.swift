@@ -67,6 +67,10 @@ final class LadderPlanningTests: XCTestCase {
                 XCTAssertEqual(p.bars, SessionPlanner.benchmarkBars, "history \(i)/\(minutes)")
                 XCTAssertEqual(p.tag, SessionPlanner.benchmarkTag, "history \(i)/\(minutes)")
                 XCTAssertNil(p.rung, "history \(i)/\(minutes): the benchmark gained a rung")
+                // R3.5 again, one milestone later. A generated backing here would be a take that
+                // quietly left the series it exists to extend, and no readout would say so.
+                XCTAssertNil(p.generatedBacking,
+                             "history \(i)/\(minutes): the benchmark gained a style")
             }
         }
     }
@@ -92,6 +96,7 @@ final class LadderPlanningTests: XCTestCase {
                 continue        // no experiment left to run is a legitimate outcome
             }
             XCTAssertNil(p.rung, "history \(i): the experiment take gained a rung")
+            XCTAssertNil(p.generatedBacking, "history \(i): the experiment take gained a style")
             XCTAssertEqual(p.bpm, SessionPlanner.referenceBpm, "history \(i)")
             XCTAssertEqual(p.bars, SessionPlanner.benchmarkBars, "history \(i)")
         }

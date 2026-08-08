@@ -80,12 +80,25 @@ public enum TrainerEngine {
         /// the player is asked to do and what the band states underneath differ. A fifth stored
         /// type carrying the same fields would be a schema to keep in step for no gain.
         public var offbeatLevel: OffbeatLevel?
+        /// The generated backing this take plays over, or `nil` for the fixed one.
+        ///
+        /// **This is the one conversion from a plan's `PlannedBacking` into music**, for the same
+        /// reason `swing` is the one conversion from a `Feel`: `TimingCore` and `GrooveCore`
+        /// cannot see each other (R1.1.3), so the identity crosses the boundary as data and
+        /// becomes an `Arrangement` here or nowhere. A style resolving differently in two places
+        /// would be `Feel`/`Swing`'s failure mode — a backing that disagrees with the take stored
+        /// beside it — and there is a test pinning them together.
+        ///
+        /// `nil` is the identity: every take on record played the fixed backing.
+        public var generatedBacking: BackingIdentity?
 
         public init(bpm: Double = 100, bars: Int = 32, tag: String? = nil,
                     rung: IntervalRung? = nil, feel: Feel = .straight,
-                    offbeatLevel: OffbeatLevel? = nil) {
+                    offbeatLevel: OffbeatLevel? = nil,
+                    generatedBacking: BackingIdentity? = nil) {
             self.bpm = bpm; self.bars = bars; self.tag = tag
             self.rung = rung; self.feel = feel; self.offbeatLevel = offbeatLevel
+            self.generatedBacking = generatedBacking
         }
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
 
@@ -98,6 +111,23 @@ public enum TrainerEngine {
             if let level = offbeatLevel {
                 return ("offbeat-\(level.rawValue)",
                         OffbeatBacking.backing(level: level, bars: max(1, bars)))
+            }
+            // A generated backing is free playing over a style, so it sits below the offbeat
+            // drill and above the fixed fallback but never beside a rung: a ladder groove exists
+            // to make its subdivision audible, and a style would not. The planner never sets both
+            // and `validate()` refuses the pair rather than silently preferring one.
+            //
+            // An identity naming a style the library no longer has falls back to `jamBacking`
+            // **and says so through the name**, rather than trapping or substituting a
+            // neighbouring style. R6.4: a manifest that cannot be honoured is reported, not
+            // swallowed — and a wrong groove played confidently is worse than a familiar one.
+            if rung == nil, let identity = generatedBacking {
+                if let style = StyleLibrary.named(identity.style) {
+                    return (identity.name,
+                            StyleArranger.arrangement(style: style, seed: identity.seed,
+                                                      bars: max(1, bars)))
+                }
+                return ("jamBacking", GrooveLibrary.jamBacking)
             }
             guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking) }
             // A feel gets its own groove, not the straight one with warped timing. Warping alone
@@ -193,6 +223,20 @@ public enum TrainerEngine {
             guard offbeatLevel == nil || feel.isStraight else {
                 throw SpikeError("The offbeat drill is straight: an offbeat is at half the beat, "
                                + "and swinging it would move the very point being held.")
+            }
+            // Two backings cannot both play. A rung's groove exists to make its division audible
+            // and a style's does not, so a take asking for both is a take nobody can say what was
+            // heard during — which makes the number it produces unattributable rather than merely
+            // odd. Refused at the boundary (R7.6) instead of resolved by precedence, because a
+            // silent preference is how the caller finds out months later.
+            guard generatedBacking == nil || rung == nil else {
+                throw SpikeError("A subdivision and a style are two different backings, and only "
+                               + "one can play. The ladder groove marks the division being asked "
+                               + "for; a style does not.")
+            }
+            guard generatedBacking == nil || offbeatLevel == nil else {
+                throw SpikeError("The offbeat drill states the beat with its own backing, which "
+                               + "is the thing being removed level by level. A style cannot.")
             }
         }
     }

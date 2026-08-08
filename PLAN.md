@@ -4890,6 +4890,56 @@ which is a live-run question (R5.6) and is what `Style.auditioned` is for. The g
 style reaching the *wrong* slot; it does not stop an unlistened style reaching the right one. That
 is a different flag and it is still `false` for all four.
 
+#### Step 7a, as built — a plan can name its backing, and a locked slot cannot
+
+Hazards 2 and 3 of the three above, built first and on their own, because R6.3's rule is that
+storage goes before the thing that uses it: **nothing sets the new field yet.** The planner is
+untouched, no surface exposes it, and every take this can produce is byte-identical to one it could
+produce before. That is what makes it a state the repository could sit in indefinitely (§8.1).
+
+**`PlannedBacking` on `JamPlan`, `BackingIdentity` on `JamConfig`, one conversion between them.**
+`TimingCore` sees `Foundation` and nothing else and `GrooveCore` depends on nothing (R1.1.3), so
+the identity crosses the boundary as data and becomes music in `SessionRunner.jamConfig(for:role:)`
+or nowhere. That is the shape `Feel` and `Swing` already have across the same seam, for the same
+reason, and `LockedSlotBackingTests` pins the two together the way `SwingAgreementTests` does —
+the name a take is stored under must rebuild exactly the arrangement that played, for every style.
+
+**One optional value rather than two optional fields, which is a change from the plan above.** §7.29
+step 7 specified `styleName: String?` beside `seed: UInt64?` with `JamPlan.init` refusing the
+half-set case. Building it showed the guard cannot hold: `JamPlan` is `Codable` and a stored
+manifest is *decoded*, not constructed, so `init` never runs and a file carrying one field without
+the other would decode into a plan nobody can replay — R1.2.2 broken by the one path that matters,
+since replaying a manifest is the whole reason the seed is stored. A single `PlannedBacking?` makes
+the illegal state unrepresentable instead of merely rejected, at the cost of one small type. The
+seed also stays a `UInt64` rather than becoming hex text, so `BackingIdentity.name` remains the
+only place that formatting lives.
+
+**Three layers, cheapest first, and each one verified by removing it.**
+
+| | Fails if reverted |
+|---|---|
+| The planner cannot express it — `XCTAssertNil(p.generatedBacking)` beside the existing `rung` assertion in `testTheBenchmarkIsAlwaysTheSameLockedTakeWhateverTheLadderDoes` | the benchmark and experiment planning tests |
+| `SessionRunner.lockedToTheFixedBacking` is **exhaustive over `BlockRole`**, so a role added later is a compiler error rather than a silent `false`, and `jamConfig(for:role:)` drops a generated backing from a locked slot rather than trusting the plan | `LockedSlotBackingTests`, **nine assertions** |
+| `JamConfig.validate()` refuses a style beside a rung or an offbeat level — two backings cannot both play, and a take whose music nobody can name is a take whose number nobody can attribute | two assertions |
+
+The middle layer is the one that is not redundant: **the planner is not the only thing that builds
+a block.** A stored manifest is replayed, and a manifest written by a future version is not
+something today's planner controls, so the refusal belongs where the music is chosen.
+
+**An unknown style falls back and says so.** A manifest naming a style the library no longer has
+resolves to `jamBacking` and stores that name — it does not trap, and it does not substitute a
+neighbouring style. R6.4, and the rename from `motown` to `pocket` has already happened once; a
+wrong groove played confidently is worse than a familiar one.
+
+`testNoStyleIsApprovedYetSoThePlannerStillHasNothingToSchedule` asserts the library is still
+unapproved, so **flipping `Style.auditioned` fails two tests and lands as a decision with a diff**,
+which is what step 5 built the flag for. The listens on 7 and 8 August were defect verification —
+does the click go, do the hats sound right, is the arc audible — and not an answer to whether a
+groove is worth thirty minutes. Those are different questions and only the player can answer the
+second.
+
+Still to build: hazard 1, the trend grouping, and then the planner and the surfaces.
+
 ---
 
 ## 7.30 Real genres, and what a synthesised kit would have to do
@@ -5365,11 +5415,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   624 cases
+└── Tests/                   632 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     332 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     170 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     178 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

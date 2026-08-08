@@ -135,7 +135,7 @@ final class OffbeatSurvivesTheTakeTests: StoreBackedTestCase {
     /// an ordinary jam, which is a take recorded under a task it never performed.
     func testAPlannedOffbeatBlockRunsAsTheOffbeatDrill() {
         let plan = JamPlan(bpm: 100, bars: 32, tag: "offbeat", offbeatLevel: 2)
-        let config = SessionRunner.jamConfig(for: plan)
+        let config = SessionRunner.jamConfig(for: plan, role: .training)
         XCTAssertEqual(config.offbeatLevel, .backbeatOnly)
         XCTAssertEqual(config.backing.name, "offbeat-2",
                        "the level has to reach the backing, or the band states a downbeat the "
@@ -147,7 +147,7 @@ final class OffbeatSurvivesTheTakeTests: StoreBackedTestCase {
 
     func testAPlannedOrdinaryJamIsUnchanged() {
         let plan = JamPlan(bpm: 100, bars: 64, tag: "benchmark", rung: .eighths, feel: .swung)
-        let config = SessionRunner.jamConfig(for: plan)
+        let config = SessionRunner.jamConfig(for: plan, role: .training)
         XCTAssertNil(config.offbeatLevel)
         XCTAssertEqual(config.rung, .eighths)
         XCTAssertEqual(config.feel, .swung)

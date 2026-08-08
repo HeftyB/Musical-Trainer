@@ -137,6 +137,23 @@ public final class SessionRunner {
 
     // MARK: - Running
 
+    /// Roles whose music is frozen for ever (R3.5).
+    ///
+    /// The cold probe, the benchmark and both experiment arms are the only longitudinal data this
+    /// project has — 21 free jams at 100 BPM and a five-point benchmark — and **the failure here
+    /// is silent**: a benchmark take over a generated backing is a perfectly good take that has
+    /// quietly left the series it exists to extend, and no readout would say so.
+    ///
+    /// Every role, not a list of the ones that matter, so a role added later has to be classified
+    /// before it compiles here — `lockedToTheFixedBacking` is exhaustive over `BlockRole` and a
+    /// new case is a compiler error rather than a silent `false`.
+    static func lockedToTheFixedBacking(_ role: BlockRole) -> Bool {
+        switch role {
+        case .cold, .benchmark, .experiment: return true
+        case .warmUp, .training, .closing: return false
+        }
+    }
+
     /// The config a planned jam block runs as.
     ///
     /// Everything the plan settles travels into the config, so what the block preview announced
@@ -148,10 +165,18 @@ public final class SessionRunner {
     ///
     /// Extracted from `runCurrent` because a decision inside a function that needs an audio
     /// device is a decision no test can reach, which is how this one shipped unnoticed.
-    static func jamConfig(for p: JamPlan) -> TrainerEngine.JamConfig {
+    ///
+    /// **It takes the role, and drops a generated backing from a locked slot rather than trusting
+    /// the plan.** Not redundant with the planner never setting one: the planner is not the only
+    /// thing that builds a block. A stored manifest is replayed, and a manifest written by a
+    /// future version is not something today's planner controls — so the refusal belongs at the
+    /// point the music is chosen, which is here.
+    static func jamConfig(for p: JamPlan, role: BlockRole) -> TrainerEngine.JamConfig {
         TrainerEngine.JamConfig(
             bpm: p.bpm, bars: p.bars, tag: p.tag, rung: p.rung, feel: p.feel,
-            offbeatLevel: p.offbeatLevel.flatMap(OffbeatLevel.init(rawValue:)))
+            offbeatLevel: p.offbeatLevel.flatMap(OffbeatLevel.init(rawValue:)),
+            generatedBacking: lockedToTheFixedBacking(role) ? nil
+                : p.generatedBacking.map { BackingIdentity(style: $0.style, seed: $0.seed) })
     }
 
     /// Play the current block. Blocks for its duration, so call it off the main thread.
@@ -172,7 +197,7 @@ public final class SessionRunner {
             return .unmeasured
 
         case .jam(let p):
-            return .jam(try TrainerEngine.runJam(Self.jamConfig(for: p),
+            return .jam(try TrainerEngine.runJam(Self.jamConfig(for: p, role: block.role),
                                                  progress: progress, cancellation: cancellation))
 
         case .form(let p):
