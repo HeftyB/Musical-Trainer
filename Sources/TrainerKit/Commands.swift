@@ -895,15 +895,34 @@ public enum Commands {
 
         row("Mean async", Bootstrap.meanStat, unit: "")
         row("Spread (SD)", Bootstrap.sdStat, unit: "")
-        // **r₁ is withheld from this comparison rather than shown wrong.** The block
-        // bootstrap attenuates it (see `Bootstrap.lag1Interval`), and the statistic it
-        // resamples is gap-blind besides — so it would answer a different question from the
-        // r₁ `review <n>` prints for the same take, which is one word meaning two things.
-        // R3.3.1: withhold at source. A difference of two normal-SE intervals is the fix
-        // and it is queued as its own change (§7.32).
-        Console.warn("r₁ is not compared here: its interval needs a method this readout "
-                   + "does not have yet, and a number bounded by the wrong one is worse "
-                   + "than a gap. `review <n>` reports it per take.")
+        // r₁ cannot go through `row`: that takes a statistic of an asynchrony series, and the
+        // gap-aware r₁ needs to know which notes were adjacent, which only the report knows.
+        // Two takes are independent samples, so the variances add — no resampling, and nothing
+        // that depends on either take's length the way a block bootstrap does (§7.32).
+        let reportA = a.report(), reportB = b.report()
+        let r1Diff = Bootstrap.lag1Difference(a: reportA.lag1Autocorrelation,
+                                              pairsA: reportA.lag1PairCount ?? 0,
+                                              b: reportB.lag1Autocorrelation,
+                                              pairsB: reportB.lag1PairCount ?? 0)
+        let r1Change: String
+        let r1Verdict: String
+        if let d = r1Diff {
+            r1Change = String(format: "%+.2f [%+.2f, %+.2f]", d.point, d.low, d.high)
+            r1Verdict = d.excludesZero ? "\(Console.bold)real change\(Console.reset)"
+                                       : "\(Console.dim)within noise\(Console.reset)"
+        } else { r1Change = "—"; r1Verdict = "—" }
+        func r1Text(_ r: Double?) -> String { r.map { String(format: "%+.2f", $0) } ?? "—" }
+        print("\(pad("r₁", 16))\(pad(r1Text(reportA.lag1Autocorrelation), 10))"
+            + "\(pad(r1Text(reportB.lag1Autocorrelation), 10))"
+            + "\(pad(r1Change, 22))\(r1Verdict)")
+
+        // A take played in short bursts has no run long enough to answer from, so it has no r₁ and
+        // therefore no comparison. Said rather than left as a dash (R3.3).
+        if reportA.lag1Autocorrelation == nil || reportB.lag1Autocorrelation == nil {
+            Console.warn("one of these takes has no continuous stretch of "
+                       + "\(Stats.minimumRunLength) notes, so it has no correction gain to "
+                       + "compare.")
+        }
 
         print("\n\(Console.dim)Mean/SD in ms. \"within noise\" = the 95% interval "
             + "for the change includes zero.\(Console.reset)")
@@ -961,12 +980,11 @@ public enum Commands {
             let events = series.reduce(0) { $0 + $1.count }
             let mean = Bootstrap.pooledInterval(series, statistic: Bootstrap.meanStat)
             let sd = Bootstrap.pooledInterval(series, statistic: Bootstrap.sdStat)
-            // The pooled path is worse still for r₁: `resamplePool` concatenates a
-            // block-resampled series *per take*, so every take boundary is a spurious
-            // adjacency on top of the block joins. R3.2's own table already says the right
-            // method — plain bootstrap over the per-take values — and that is the queued
-            // change (§7.32).
-            let r1: ConfidenceInterval? = nil
+            // **One value per take, resampled over takes.** That is R3.2's own prescription for
+            // a per-take quantity, and it is what `pooledInterval` is not: that concatenates a
+            // block-resampled series per take, adding a spurious adjacency at every take
+            // boundary on top of the block joins (§7.32).
+            let r1 = Bootstrap.pooledLag1Interval(takes.compactMap { $0.report().lag1Autocorrelation })
             if mean == nil { thin.append(tag) }
             func fmt(_ c: ConfidenceInterval?, _ digits: Int = 1) -> String {
                 guard let c else { return "—" }
@@ -1029,8 +1047,29 @@ public enum Commands {
         }
         row("Mean async", Bootstrap.meanStat)
         row("Spread (SD)", Bootstrap.sdStat)
-        // Withheld for the same reason as the comparison above.
-        Console.warn("r₁ is not pooled here — see `review compare`.")
+
+        // r₁ again cannot go through `row`, which resamples asynchronies. The unit of analysis
+        // here is the **take**, and `plainDifference` says so in its own doc comment — one value
+        // per take, resampled over takes. `pooledDifference` would concatenate a block-resampled
+        // series per take and add a spurious adjacency at every boundary (§7.32).
+        let r1A = a.compactMap { $0.report().lag1Autocorrelation }
+        let r1B = b.compactMap { $0.report().lag1Autocorrelation }
+        let r1Diff = Bootstrap.plainDifference(r1B, r1A)
+        let r1Change = r1Diff.map {
+            String(format: "%+.2f [%+.2f, %+.2f]", $0.point, $0.low, $0.high) } ?? "—"
+        let r1Verdict = r1Diff.map {
+            $0.excludesZero ? "\(Console.bold)real change\(Console.reset)"
+                            : "\(Console.dim)within noise\(Console.reset)" } ?? "—"
+        func meanText(_ v: [Double]) -> String {
+            v.isEmpty ? "—" : String(format: "%+.2f", Stats.mean(v))
+        }
+        print("\(pad("r₁", 16))\(pad(meanText(r1A), 10))\(pad(meanText(r1B), 10))"
+            + "\(pad(r1Change, 22))\(r1Verdict)")
+        if r1A.count < a.count || r1B.count < b.count {
+            Console.warn("\((a.count - r1A.count) + (b.count - r1B.count)) take(s) contribute no "
+                       + "r₁ — no continuous stretch of \(Stats.minimumRunLength) notes — so the "
+                       + "r₁ row rests on fewer takes than the rows above it.")
+        }
 
         let smaller = min(a.count, b.count)
         if smaller < Bootstrap.minimumTakes {
