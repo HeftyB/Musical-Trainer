@@ -34,6 +34,20 @@ static func mixed(in takes: [JamSession]) -> [TakeAxis] {
 static let all: [TakeAxis] = [
     TakeAxis(singular: "Backing", plural: "backings", value: { $0.grooveName },
              consequence: "Spread and drift are not comparable across different music."),
+    // A sharper reading of the same difference, and it fires on strictly less. Two seeds of one
+    // style differ as *backings* — different pieces — but not as *bands*: same tempo, density,
+    // instrumentation and backbeat. Pooling those is a claim worth flagging softly; pooling
+    // `driving` with `pocket`, or a generated backing with the fixed one, is a different band and
+    // reads as the harder problem it is.
+    //
+    // Every take recorded before M19 maps to the same value here, so this axis is silent on the
+    // whole existing corpus and `basicRock` beside `jamBacking` still reports exactly one mixed
+    // axis, as it always has.
+    TakeAxis(singular: "Style", plural: "styles",
+             value: { BackingIdentity.parse($0.grooveName)?.style ?? "a fixed backing" },
+             consequence: "A different band, not a different take of one — instrumentation, "
+                        + "density and where the backbeat sits all move, so nothing that "
+                        + "describes placement survives the pool."),
     TakeAxis(singular: "Feel", plural: "feels", value: { $0.feel.label },
              consequence: "Where the offbeat is expected is not the same task, so placement "
                         + "and spread are not comparable."),

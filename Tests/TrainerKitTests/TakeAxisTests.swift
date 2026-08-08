@@ -1,5 +1,6 @@
 import XCTest
 import TestSupport
+@testable import GrooveCore
 @testable import TimingCore
 @testable import TrainerKit
 
@@ -18,6 +19,11 @@ final class TakeAxisTests: XCTestCase {
         switch axis {
         case "Backing":
             return [TakeFactory.jam(), TakeFactory.jam(offbeatLevel: 0)]
+        case "Style":
+            // Two bands, not two takes of one. A pair of *seeds* would differ as backings and
+            // not as styles, which is the distinction this axis exists to draw.
+            return [TakeFactory.jam(generatedBacking: BackingIdentity(style: "driving", seed: 1)),
+                    TakeFactory.jam(generatedBacking: BackingIdentity(style: "pocket", seed: 1))]
         case "Feel":
             return [TakeFactory.jam(rung: .eighths, feel: .swung),
                     TakeFactory.jam(rung: .eighths,
@@ -40,7 +46,13 @@ final class TakeAxisTests: XCTestCase {
     func testEveryAxisIsSeenByBothReadouts() {
         for axis in TakeAxis.all where axis.singular != "Output device" {
             let takes = pair(differingOn: axis.singular)
-            XCTAssertFalse(takes.isEmpty, "no fixture for \(axis.singular)")
+            // `continue` rather than an assertion alone: without it a missing fixture traps on
+            // `takes[0]` and takes the whole run down, so the one thing this test exists to catch
+            // — an axis added without a fixture — reports as a crash instead of as a failure.
+            guard takes.count >= 2 else {
+                XCTFail("no fixture for \(axis.singular) — add one to `pair(differingOn:)`")
+                continue
+            }
 
             let mixed = TakeAxis.mixed(in: takes).map(\.singular)
             XCTAssertTrue(mixed.contains(axis.singular),

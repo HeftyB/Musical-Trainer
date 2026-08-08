@@ -1422,10 +1422,70 @@ public enum TrainerEngine {
         }
     }
 
+    /// Which band played, for the purpose of fitting a line through a series.
+    ///
+    /// **The split is fixed against generated, and the generated side keys on the style rather
+    /// than the seed.** `BackingIdentity.parse` already draws exactly that line — a name without
+    /// an `@` is a fixed backing, which is every take recorded before M19 — so this is not a new
+    /// concept and needs no schema change.
+    ///
+    /// Three ways to do it and this is the third. Keying on the full `grooveName` makes every seed
+    /// a group of one, and `TrendAnalysis.minimumPoints` is 3, so the 21-take free-jam series —
+    /// the longest in the project — would vanish along with the fixed group worth keeping.
+    /// Excluding generated takes keeps the history and throws away every future training take,
+    /// which is where most playing happens. This keeps the old series intact and lets `driving`
+    /// accumulate its own across sittings.
+    ///
+    /// **Every fixed backing is one bucket, deliberately.** `basicRock` and `jamBacking` pool
+    /// together exactly as they did before this change, with the same warning naming the mix.
+    /// Splitting them would be a defensible readout and a different one, and re-scoring the
+    /// project's headline series while building something else is how a finding gets attributed
+    /// to the wrong cause.
+    ///
+    /// Whether two seeds of one style pool honestly is argued in §7.29 step 7 and **not measured**:
+    /// no take over a generated backing exists yet. §9 open question 10 carries it, and the group
+    /// says so out loud rather than implying it is settled.
+    enum BackingGroup: Hashable, Comparable {
+        /// Every take recorded before M19, whichever fixed groove it played.
+        case fixed
+        /// A generated backing, keyed on the style. Two seeds land here together.
+        case style(String)
+
+        init(grooveName: String) {
+            self = BackingIdentity.parse(grooveName).map { .style($0.style) } ?? .fixed
+        }
+
+        /// Empty for `fixed`, so every title this project has ever printed is unchanged.
+        var label: String {
+            switch self {
+            case .fixed: return ""
+            case .style(let name): return ", \(name)"
+            }
+        }
+
+        static func < (a: BackingGroup, b: BackingGroup) -> Bool {
+            switch (a, b) {
+            case (.fixed, .fixed):            return false
+            case (.fixed, .style):            return true
+            case (.style, .fixed):            return false
+            case (.style(let x), .style(let y)): return x < y
+            }
+        }
+    }
+
     /// A group of jams comparable enough to fit one line through: same tempo, same rung.
     private struct GroupKey: Hashable, Comparable {
         let bpm: Int
         let rung: String?
+        /// Which band, at the resolution a trend can honestly use.
+        ///
+        /// A fourth confound axis beside tempo, rung, feel and the offbeat level, and it arrives
+        /// for the reason the other three did: §7.24 step 8 and §7.27 between them retracted three
+        /// verdicts that were the *task* changing rather than the player. Naming a confound is the
+        /// floor and separating it is the fix (R3.4 against R3.5, `LESSONS.md` shape 19) — and the
+        /// closing jam rotating its style between sittings would otherwise put a new backing into
+        /// this group every evening, with the warning growing an entry each time.
+        let backing: BackingGroup
         /// Feel joins tempo and rung as a confound axis: a swung take and a straight one at the
         /// same tempo and rung are different tasks, and a line fitted across the change would
         /// be measuring the change.
@@ -1445,7 +1505,7 @@ public enum TrainerEngine {
                 .map { ", \($0.label)" } ?? ""
             let offbeatPart = offbeatLevel.flatMap(OffbeatLevel.init(rawValue:))
                 .map { ", offbeat level \($0.rawValue) — \($0.label)" } ?? ""
-            return rungPart + feelPart + offbeatPart
+            return rungPart + feelPart + offbeatPart + backing.label
         }
 
         static func < (a: GroupKey, b: GroupKey) -> Bool {
@@ -1454,15 +1514,19 @@ public enum TrainerEngine {
             if (a.swingRatio ?? 1) != (b.swingRatio ?? 1) {
                 return (a.swingRatio ?? 1) < (b.swingRatio ?? 1)
             }
-            return (a.offbeatLevel ?? -1) < (b.offbeatLevel ?? -1)
+            if (a.offbeatLevel ?? -1) != (b.offbeatLevel ?? -1) {
+                return (a.offbeatLevel ?? -1) < (b.offbeatLevel ?? -1)
+            }
+            return a.backing < b.backing
         }
     }
 
     /// The group a take belongs to. One construction site, because two would let the set of
     /// groups and the filter that fills them disagree about what a group is.
     private static func groupKey(_ take: JamSession) -> GroupKey {
-        GroupKey(bpm: Int(take.bpm), rung: take.rung, swingRatio: take.swingRatio,
-                 offbeatLevel: take.offbeatLevel)
+        GroupKey(bpm: Int(take.bpm), rung: take.rung,
+                 backing: BackingGroup(grooveName: take.grooveName),
+                 swingRatio: take.swingRatio, offbeatLevel: take.offbeatLevel)
     }
 
     private static func jamTrends() -> [TrendSeries] {
@@ -1483,8 +1547,23 @@ public enum TrainerEngine {
             var warnings: [String] = []
             let backings = TrendAnalysis.distinct(takes.map(\.grooveName))
             if backings.count > 1 {
-                warnings.append("mixed backings (\(backings.joined(separator: ", "))) — "
-                              + "spread is not comparable across different music.")
+                switch key.backing {
+                case .fixed:
+                    warnings.append("mixed backings (\(backings.joined(separator: ", "))) — "
+                                  + "spread is not comparable across different music.")
+                case .style(let name):
+                    // A weaker claim than the one above and it has to read as weaker. Two seeds
+                    // of one style share the tempo, the density, the instrumentation and where
+                    // the backbeat sits; what differs is the intensity arc and which fill lands,
+                    // and the generator never invents or moves a hit. **That is an argument, not
+                    // a measurement** — no take over a generated backing existed when this was
+                    // written — so the readout says so rather than implying it is settled.
+                    // §9 open question 10 has what would settle it.
+                    warnings.append("pools \(backings.count) seeds of \(name) — the same band "
+                                  + "playing a different piece each time. Whether that moves "
+                                  + "spread has never been measured, so read this line as "
+                                  + "provisional (§9 open question 10).")
+                }
             }
             let devices = TrendAnalysis.distinct(takes.map(\.device))
             if devices.count > 1 {
