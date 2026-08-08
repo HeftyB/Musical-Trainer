@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import GrooveCore
 @testable import TimingCore
 import TestSupport
 @testable import TrainerKit
@@ -32,18 +33,27 @@ enum TakeFactory {
                     experiment: ExperimentAssignment? = nil,
                     grid customGrid: Grid? = nil,
                     rung: IntervalRung? = nil, feel: Feel = .straight,
-                    offbeatLevel: Int? = nil) -> JamSession {
+                    offbeatLevel: Int? = nil,
+                    generatedBacking: BackingIdentity? = nil,
+                    // A day apart, like the other four factories. Two takes sharing a timestamp
+                    // overwrite each other on disk (§7.22), so a trend needs distinct dates.
+                    dayOffset: Int = 0) -> JamSession {
         let g = customGrid ?? grid()
         let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
         let r = TimingAnalysis.analyze(taps: events, grid: g)
         return JamSession(
-            date: Date(timeIntervalSince1970: 1_770_000_000), bpm: g.bpm, device: "test-device",
+            date: Date(timeIntervalSince1970: 1_770_000_000 + Double(dayOffset) * 86_400),
+            bpm: g.bpm, device: "test-device",
             calibrationConstantMs: 2.58, calibrationSource: "measured",
             // The name the engine would have written, not a literal: an offbeat take is stored
             // under its backing, and a test that says "jamBacking" cannot see a confound the
             // real take carries.
-            grooveName: offbeatLevel.map { "offbeat-\($0)" } ?? "jamBacking",
+            // A generated backing overrides, because a take over a style is stored under
+            // `style@seed` and a test that says "jamBacking" cannot see the axis the real take
+            // carries — the same reason the offbeat name is derived rather than written.
+            grooveName: generatedBacking?.name
+                ?? offbeatLevel.map { "offbeat-\($0)" } ?? "jamBacking",
             bars: bars, subdivisions: g.subdivisions, rung: rung?.rawValue,
             swingRatio: feel.isStraight ? nil : feel.swingRatio,
             offbeatLevel: offbeatLevel, tag: tag, feelRating: 4,

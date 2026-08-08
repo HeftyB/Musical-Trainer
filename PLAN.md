@@ -4938,7 +4938,58 @@ does the click go, do the hats sound right, is the arc audible — and not an an
 groove is worth thirty minutes. Those are different questions and only the player can answer the
 second.
 
-Still to build: hazard 1, the trend grouping, and then the planner and the surfaces.
+Still to build: the planner and the surfaces.
+
+#### Step 7b, as built — the trend splits fixed from generated, and keys on the style
+
+`GroupKey` gains a fourth confound axis beside tempo, rung, feel and the offbeat level, and it
+arrives for the reason those three did: between them §7.24 step 8 and §7.27 retracted **three**
+verdicts that were the task changing rather than the player.
+
+```swift
+enum BackingGroup { case fixed; case style(String) }
+```
+
+`BackingIdentity.parse` already draws that line — a name without an `@` is a fixed backing, which
+is every take recorded before M19 — so the boundary is not a new concept and needs no schema
+change.
+
+**Every fixed backing stays one bucket, deliberately.** `basicRock` and `jamBacking` pool exactly
+as they did, with the same warning naming the mix. Splitting them is a defensible readout and a
+*different* one, and re-scoring the project's headline series while building something else is how
+a finding gets attributed to the wrong cause. The label for `.fixed` is the empty string, so every
+title this project has ever printed is unchanged.
+
+**Byte-identical on the real corpus, captured before the change rather than after** (`LESSONS.md`
+shape 4): `review trend`, `tags`, `list`, `cold` and `interval` over the 30 stored jams all diff
+clean. That is the whole claim of the preservation half, and it is the reason the fixed side is one
+bucket rather than the tidier alternative.
+
+Reverting the key to `.fixed` for everything fails `GeneratedBackingTrendTests` six ways. The end-
+to-end cases go through `TrainerEngine.trends(for:)` with takes written to a redirected store, so
+the path under test is the path that ships (`LESSONS.md` shape 1) — `TakeFactory.jam` gained
+`generatedBacking:` and, for symmetry with the other four factories, `dayOffset:`, since two takes
+sharing a timestamp overwrite each other (§7.22).
+
+**The seed pool says it is provisional.** Three sittings of `driving` on three seeds fit one line —
+which is the point of keying on the style, since keying on the seed would give three groups of one
+against a `minimumPoints` of 3 — and the group warns that it *"pools 3 seeds of driving … whether
+that moves spread has never been measured"*. R3.3: the argument in §7.29 step 7 is an argument, no
+take over a generated backing exists yet, and a readout that implied otherwise would be exactly the
+confident-wrong-number §3 forbids. §9 open question 10 has what would settle it.
+
+##### `TakeAxis` gains a style axis, and an existing guard caught the omission
+
+`review tags` can now say *"pools takes across different styles"* — a different band — apart from
+the backing axis's *"different music"*, which two seeds also trip. The style axis maps every take
+recorded before M19 to one value, so it is **silent on the entire existing corpus** and
+`basicRock` beside `jamBacking` still reports exactly one mixed axis.
+
+`TakeAxisTests.testEveryAxisIsSeenByBothReadouts` is parameterised over `TakeAxis.all` and failed
+the moment the axis was added, because it had no fixture — which is precisely what §7.28 built it
+for, one list read by two readouts and neither allowed to fall behind. It also *trapped* rather
+than failing, on `takes[0]` of an empty array, taking the whole run down with it; the missing
+fixture is added and the guard now reports a failure instead of a crash.
 
 ---
 
@@ -5415,11 +5466,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   632 cases
+└── Tests/                   643 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     332 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     178 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     189 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
