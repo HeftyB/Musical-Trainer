@@ -31,6 +31,9 @@ func usage() {
                         quarters, eighths, tripletEighths, sixteenths. Omit it to play free.
                         M15: a swing ratio (1-4) places the offbeat late. 1 is straight,
                         2 is the usual triplet feel. Needs a binary rung.
+                        M19: --style <name> plays over a generated backing instead of the
+                        fixed one, and --seed <hex> rebuilds an exact piece. A style
+                        nobody has played over yet needs --probe as well.
       form [bpm] [bars] [phraseBars] [level]
                         phrase-mark drill: hit a pad at each phrase top, no counting
                         (default 100, 64, 8, level 0; levels 0-3 remove the landmarks)

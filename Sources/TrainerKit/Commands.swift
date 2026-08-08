@@ -407,6 +407,50 @@ public enum Commands {
 
     // MARK: - M4 jam
 
+    /// What `--style` and `--seed` resolve to, decided before any audio device is opened.
+    ///
+    /// **Extracted from `runJam` for the reason that keeps recurring here**: `runJam` opens an
+    /// audio device and waits, so anything decided inside it can only be verified by playing a
+    /// take through the speakers — `LESSONS.md` shape 1, and §7.22 records a test that did exactly
+    /// that for two and a half minutes. Every refusal below is one a test can reach.
+    ///
+    /// - Parameter now: the clock, injected so the drawn seed is reproducible under test. A
+    ///   default seed has to differ between takes — variety is the point — and `nil` here would
+    ///   make a test either flaky or blind to the draw.
+    static func resolveStyle(_ flags: CommandFlags, rung: IntervalRung?,
+                             now: Date = Date()) throws -> BackingIdentity? {
+        guard let name = flags.style else { return nil }
+
+        guard let style = StyleLibrary.named(name) else {
+            let known = StyleLibrary.all.map(\.name).sorted().joined(separator: ", ")
+            throw SpikeError("No style called \(name). The library has: \(known).")
+        }
+        // Said here rather than left to `JamConfig.validate`, which throws the same refusal a
+        // layer down: the player typed two things that cannot both be true and deserves to be
+        // told which two, not a message about backings.
+        guard rung == nil else {
+            throw SpikeError("A rung and a style are two different backings and only one can "
+                           + "play: the ladder groove marks the division being asked for, and a "
+                           + "style does not. Drop one.")
+        }
+        // §7.29 step 5's gate, enforced rather than described. A style nobody has played over is
+        // a style nobody can say is worth thirty minutes, and `--probe` is already the way to
+        // take a deliberate look at a setting that was not earned — which is exactly what
+        // auditioning one is. The take is stored, marked, and read by nothing that decides what
+        // to practise next (§7.26).
+        guard style.auditioned || flags.isProbe else {
+            throw SpikeError("\(style.name) has not been auditioned — nobody has played over it "
+                           + "yet, so nothing may schedule it. Add --probe to try it anyway: the "
+                           + "take is recorded as a deliberate look and cannot move a ladder.")
+        }
+        // Drawn from the clock when none was given, and **printed and stored either way**, so
+        // "play me that one again" is answerable afterwards (R1.2.2). What is not reproducible is
+        // which piece you are handed, and that is the point of asking for variety.
+        return BackingIdentity(style: style.name,
+                               seed: flags.seed ?? UInt64(bitPattern: Int64(now.timeIntervalSince1970
+                                                                            * 1000)) &* 0x9E37_79B9)
+    }
+
     public static func runJam(bpm: Double, bars: Int, tag: String?, rung: String? = nil,
                               swing: String? = nil,
                               flags: CommandFlags = CommandFlags()) throws {
@@ -414,9 +458,11 @@ public enum Commands {
 
         let prescribed = try parseRung(rung)
         let swingFeel = try parseFeel(swing, rung: prescribed)
+        let generated = try resolveStyle(flags, rung: prescribed)
 
         let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: tag?.lowercased(),
-                                             rung: prescribed, feel: swingFeel)
+                                             rung: prescribed, feel: swingFeel,
+                                             generatedBacking: generated)
         let env = try TrainerEngine.environment()
 
         print("Output: \(env.outputName)")
@@ -432,6 +478,14 @@ public enum Commands {
         print("\n\(bars) bars at \(Int(bpm)) BPM"
             + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
         if let tag = config.tag { print("Condition: \(Console.bold)\(tag)\(Console.reset)") }
+        if let generated {
+            // The seed is printed because it is the only way back to this exact piece, and a
+            // player who liked one has no other route to asking for it again.
+            print("Band: \(Console.bold)\(generated.style)\(Console.reset)"
+                + "  \(Console.dim)stored as \(generated.name) — play it again with "
+                + "--style \(generated.style) --seed \(String(format: "%016llx", generated.seed))"
+                + "\(Console.reset)")
+        }
         if let prescribed {
             let feelPart = swingFeel.isStraight ? "" : ", \(swingFeel.label)"
             print("Rung: \(Console.bold)\(prescribed.label)\(feelPart)\(Console.reset)"
