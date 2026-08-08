@@ -5661,6 +5661,108 @@ comparison. `MusicalContent` is where that question would go.
 
 ---
 
+## 7.33 M19 step 7 — the planner picks a band
+
+The last piece of M19, and the first that changes what a planned session sounds like.
+
+### The styles are approved, 8 August 2026
+
+> *"I do formally approve all the styles."*
+
+`Style.auditioned` was `false` from the day it was written, and flipping it **failed three tests** —
+`StyleTests`, `LockedSlotBackingTests` and `StyleRequestTests` — which is what §7.29 step 5 built
+it for: an approval that arrives in a diff rather than drifting in unnoticed.
+
+**What each approval rests on is not the same, and the record says so rather than smoothing it:**
+
+| Style | Basis |
+|---|---|
+| `driving` | **Played over twice**, 32 bars and 128 bars. The long take is where the intensity arc first repeated |
+| `half-time` | **Played over once**, 128 bars — and rated lowest of the two, which is what §7.29 step 5 predicted for the sparsest style |
+| `pocket` | Listened to at every intensity and to its seeded piece. **Never played over** |
+| `syncopated` | The same |
+
+§7.29 step 5's argument is that whether a groove is worth thirty minutes is answered by playing over
+it, not by listening. Two of these four were approved on the weaker basis, which is the player's
+call and is recorded here so that a later disappointment with one of them is legible rather than
+mysterious.
+
+### The refusal became untestable, and that is a shape
+
+With every style approved, `resolveStyle`'s unauditioned branch had **nothing left to refuse** — so
+the guard that stops an unheard style reaching a take could no longer be exercised by any test, and
+the next style authored would have landed unguarded. `LESSONS.md` shape 1 arriving through a *data*
+change rather than a code one, which is a new way for it to happen here.
+
+`resolveStyle` takes the library as a parameter now, defaulting to `StyleLibrary.all`, and the test
+constructs an unapproved style to refuse. The complement is asserted too: all four approved styles
+go through without `--probe`, or the approval bought nothing.
+
+### One slot gets a band, and it is the closing jam
+
+§7.29's table says training blocks and the closing jam get deep music. In practice **the closing jam
+is the only free jam a planned session contains**: the ladder training block carries a rung, and a
+rung and a style are two backings that cannot both play — the ladder groove exists to make its
+division audible and a style does not. Everything else in a session is a different drill.
+
+So the closing jam it is, which is also the right one on its own terms: the musical payoff, and the
+longest stretch of playing in the evening.
+
+| | |
+|---|---|
+| Style | `nextStyle` — min-count over what has been played, ties broken by a seeded draw |
+| Seed | `sittingSeed` — one per sitting, so an evening has a single musical identity |
+| Locked slots | untouched: `nil`, for ever (R3.5) |
+| Nothing approved | `nil`, and the closing jam plays `jamBacking` — what every take on record used |
+
+**Min-count rather than a cycle**, for the reason `nextLadderTempo` and `ExperimentSchedule` both
+use it: a strict rotation puts each style at a fixed position in the sequence, so anything that
+varies with *where in a run* a take falls lands entirely on one style. A test drives four sittings
+and requires four different bands.
+
+**The seed comes from the history, not the clock.** The planner is pure (R1.1.4) — a plan that read
+the time could not be tested, and `session plan` would stop being an honest preview of `session`.
+Two plans from one history are the same plan, and a test says so.
+
+### Where the gate actually bites
+
+One line, in `TrainerEngine`:
+
+```swift
+auditionedStyles: StyleLibrary.auditioned.map(\.name)
+```
+
+`TimingCore` cannot see a `Style`, let alone its flag, so filtering *here* is what makes it
+impossible for the planner to reach past the gate — rather than a rule the planner is trusted to
+follow. The planner can only ever choose from the names it was handed, and a test asserts that
+handing it one leaves it scheduling only that one.
+
+### The plan says what it will play
+
+```
+9. Jam  closing · 100 BPM · 176 bars · 7 min
+   Finish by playing… Tonight the band is syncopated, one piece all evening —
+   syncopated@c8c135f2e61ba989.
+```
+
+The preview did not say this at first, and a session that cannot say what it is about to play is one
+the player has no way to disagree with — which is what every other `reason` in the planner exists
+for. The seed is named because it is the only route back to that exact piece.
+
+### What this does not cover
+
+**No planned session has been run with a band yet.** Every assertion here is against planted
+histories; the live path is the same `runJam` that three CLI takes have now exercised, but a whole
+evening ending on a generated backing has not happened. R5.6, and it is the next live run worth
+booking.
+
+The **app** has no style picker and no way to see which band a session chose — the surface gap
+§7.29 left, now one item longer. And `Play` mode still plays the fixed backing.
+
+M19's remaining step 8 is documentation and `render` gaining a style argument.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -5684,11 +5786,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   674 cases
+└── Tests/                   684 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     352 cases against synthetic ground truth
+    ├── TimingCoreTests/     361 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     200 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     201 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

@@ -1236,7 +1236,11 @@ public enum TrainerEngine {
             let r = session.report()
             return PlannerInput.Jam(bpm: session.bpm, sdMs: r.sdAsynchronyMs,
                                     absBiasMs: abs(r.meanAsynchronyMs),
-                                    lag1: r.lag1Autocorrelation)
+                                    lag1: r.lag1Autocorrelation,
+                                    // A name without an `@` is a fixed backing, which is every
+                                    // take recorded before M19 — so this is `nil` for all of them
+                                    // and the rotation starts from a clean count.
+                                    style: BackingIdentity.parse(session.grooveName)?.style)
         }
 
         // Ladder takes are jams with a rung, and they are the only jams whose tempo the planner
@@ -1297,7 +1301,12 @@ public enum TrainerEngine {
 
         return PlannerInput(jams: jams, continuations: continuations, forms: forms,
                             tempos: tempos, memories: memories, experiments: experiments,
-                            ladders: ladders)
+                            ladders: ladders,
+                            // **`auditioned`, never `all`.** This is the one line where the gate
+                            // bites: `TimingCore` cannot see a `Style` or its flag, so filtering
+                            // here is what makes it impossible for the planner to reach past it
+                            // — not a rule it is trusted to follow (§7.29 step 5).
+                            auditionedStyles: StyleLibrary.auditioned.map(\.name))
     }
 
     public static func planSession(targetMinutes: Int) -> SessionPlan {

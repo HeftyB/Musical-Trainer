@@ -40,10 +40,15 @@ are still authored at whatever reads naturally and `Arrangement` lifts them.
 
 The band now has a **bass** — `BackingVoice.bass`, pitch on the hit, `BassSynth` — and a
 **style format**: layers that enter at an intensity, plus fills, `playerVoices` for M20 and
-`density` for M21/M24. **Four styles are authored** — `driving`, `pocket`, `syncopated`,
-`half-time` — and `StyleArranger` turns any of them into a piece from a seed. **Nothing frozen
-carries any of it** and no planner or drill can reach a style yet; `jamBacking` is the music every
-take was measured against and stays exactly as it is. Hear all of it with `render`.
+`density` for M21/M24. **Four styles are authored and all four are approved** (8 August, §7.33) — `driving`, `pocket`,
+`syncopated`, `half-time` — and `StyleArranger` turns any of them into a piece from a seed.
+**Nothing frozen carries any of it**: `jamBacking` is the music every take was measured against and
+stays exactly as it is, and the cold probe, benchmark and experiment arms keep it for ever (R3.5).
+The **closing jam** is the one planned slot that gets a band, rotating style between sittings and
+holding one seed within one. Hear all of it with `render`.
+
+**What each approval rests on differs and §7.33 says so**: `driving` and `half-time` were played
+over, `pocket` and `syncopated` were only listened to. Two of the four have never been played.
 
 **A style that clips is heard as bad playing, not as a bad gain.** `StyleHeadroomTests` mixes the
 real buffers at 100 and 160 BPM — a mix goes hot because voices stack, and a style that clears
@@ -261,8 +266,8 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 474 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (200 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 483 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (201 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -306,7 +311,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 674 tests, no hardware needed
+swift test                              # 684 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
