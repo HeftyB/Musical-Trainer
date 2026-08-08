@@ -34,11 +34,17 @@ format, the bass, four approved styles, the seeded generator, the planner pickin
 closing jam, band pickers in the app, and `render --style` reproducing any take's music from the
 name it is stored under.
 
-**What it has never had is a live run.** No planned session has ended on a generated backing, and
-nothing has been recorded from the app's picker — three CLI takes exist over styles, all `--probe`
-and all tagged `tired`. The milestone's central claim, that a generated backing reaches a take
-intact through the planner, rests on planted histories (R5.6). `session 45` settles it, and
-`temp/WORKING.md` names what to watch.
+**M19 is proven as of 8 August** (§7.34). A full 45-minute session ran end to end: the band the
+plan announced reached both closing takes, both shared one seed, the locked slots kept `jamBacking`,
+and the two closing takes landed in their own trend group. Nothing has yet been recorded from the
+**app's** picker.
+
+**That session also found three things.** A **voice hung** mid-take and the keyboard went silent
+with it — the app creates its CoreMIDI client with a **nil notify block**, so a source disconnecting
+mid-take is invisible, and nothing can recover a stuck voice because `release(note:)` is the only
+path out of one. **Block 10 of that session is compromised and deliberately kept**, not excluded;
+its 33.1 ms spread is not a fact about the player. And `AppModel.feelAdvice` explains a disabled
+Feel picker by talking about triplets even when the rung is quarters.
 
 Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
 rather than the drum programming's resolution, and every arrangement now speaks **one grid of 24
@@ -489,6 +495,12 @@ Types worth knowing before changing anything:
 - **No numbers on screen during a take.** A live meter recruits exactly the analytical loop
   this project exists to quiet. One deliberate exception: the tempo drill, which *is* a
   feedback loop — and its feedback lands during click bars, never during a measured silence.
+  **A presence indicator is not a number** — the app's breathing circle says a take is live and
+  nothing else, and the console has no equivalent, which is why a take in progress reads as one
+  not yet started (§7.34). **A progress indicator is different again**: it locates you in time, so
+  it may never appear in the form drill, where knowing where you are *is* the skill, nor in the
+  continuation drill, where a steadily advancing bar is an external clock during the silence that
+  exists to remove one.
 - **Rate before results.** The player rates a take 1–5 *before* seeing any number. A rating
   shown after the measurement is a rationalisation of it.
 - **Bias is not failure.** Playing 20–40 ms ahead of a click is normal. Variance is the skill.
