@@ -4938,7 +4938,58 @@ does the click go, do the hats sound right, is the arc audible — and not an an
 groove is worth thirty minutes. Those are different questions and only the player can answer the
 second.
 
-Still to build: the planner and the surfaces.
+Still to build: the planner.
+
+#### Step 7c, as built — the surfaces come before the planner, and the reason is a dependency
+
+**Written as "planner and surfaces", built the other way round, because the dependency runs
+backwards from the plan.** `StyleLibrary.auditioned` is empty and stays empty until somebody has
+played over a style; the planner may schedule nothing until then; so a planner built first would be
+a code path nothing could exercise and a live run would show exactly what it shows today. There is
+also no way to play over a style *at all* — `render` produces something to listen to, and listening
+is not playing. Building the planner first would have meant asking for an audition that could not
+be performed.
+
+`jam --style <name> [--seed <hex>]`. Four refusals, all decided in `Commands.resolveStyle` before
+an audio device is opened:
+
+| | |
+|---|---|
+| A style nobody has auditioned | refused, and names `--probe` as the way through |
+| A style the library does not have | refused, listing what it has |
+| A style beside a rung | refused, naming the two things typed rather than talking about backings |
+| A seed that is not hexadecimal | refused, showing the form a take stores |
+
+**Auditioning is what `--probe` was built for.** §7.26's flag records a take as a deliberate look at
+a setting that was not earned, read by nothing that decides what to practise next — and a style
+nobody has played over is exactly that setting. So the gate is not a new mechanism; it is the
+existing one pointed at music. The take is stored, marked, and cannot move a ladder.
+
+Every refusal lives in `resolveStyle` rather than in `runJam`, which opens an audio device and
+waits. `LESSONS.md` shape 1, and §7.22 records a test that checked argument handling by playing a
+two-and-a-half-minute drill through the speakers.
+
+**The seed is printed as the flags that reproduce it.** A drawn seed varies with the clock, because
+variety is the point of asking for one, and it is stored in `grooveName` either way — so *"play me
+that one again"* is answerable after the fact, which is the whole reason R1.2.2 wanted it stored.
+
+`CommandFlags` gained value-taking flags, accepted as `--style driving` and `--style=driving` both.
+A flag missing its value **refuses rather than consuming the next flag**: `--style --probe` is a
+typo, and swallowing it would run a take over a style called `--probe` — or worse, an *unprobed*
+one, which is the corruption `--probe` exists to prevent arriving through a typo. That is the same
+reasoning that already makes an unknown flag an error rather than something ignored.
+
+##### What this leaves for a live run
+
+The happy path is deliberately unexercised here: it opens an audio device, so nothing above ran it
+(§7.22, and AGENT.md's rule about drill commands). **The first take over a generated backing has not
+been played**, and until it is, every grouping decision in step 7b is exercised against synthetic
+takes only.
+
+That run is also the audition. Four styles, none approved, and the question is not the one the
+listens on 7 and 8 August answered — *does the click go, do the hats sound right, is the arc
+audible* — but whether a groove is worth thirty minutes. Only the player can answer it, and
+flipping `Style.auditioned` fails two tests until `PLAN.md` records who listened and when.
 
 #### Step 7b, as built — the trend splits fixed from generated, and keys on the style
 
@@ -5466,11 +5517,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   643 cases
+└── Tests/                   654 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     332 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     189 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     200 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
