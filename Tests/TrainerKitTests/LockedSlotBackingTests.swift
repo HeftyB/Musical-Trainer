@@ -97,14 +97,16 @@ final class LockedSlotBackingTests: XCTestCase {
         }
     }
 
-    /// Nothing is scheduled yet, and that is the designed state: `Style.auditioned` is a flag
-    /// nobody who writes a style can set honestly, so the planner starts with an empty library and
-    /// has to cope rather than reaching past it (§7.29 step 5). This fails the moment a style is
-    /// approved, which is the point — approving one should be a deliberate edit that shows up in a
-    /// diff, here and in `StyleTests`.
-    func testNoStyleIsApprovedYetSoThePlannerStillHasNothingToSchedule() {
-        XCTAssertTrue(StyleLibrary.auditioned.isEmpty,
-                      "a style was approved — update this test and PLAN.md §7.29 step 5 with who "
-                    + "listened to it and when")
+    /// The library the planner may schedule from, and it is no longer empty (§7.33).
+    ///
+    /// It was empty by design until 8 August: `Style.auditioned` is a flag nobody who writes a
+    /// style can set honestly, so the planner started with nothing and had to cope rather than
+    /// reach past the gate. What matters now is the other half of that rule — **the planner sees
+    /// `auditioned`, never `all`** — so a style authored tomorrow cannot be scheduled by anything
+    /// until somebody says it may be.
+    func testThePlannerSchedulesFromTheApprovedLibraryAndNotTheWholeOne() {
+        XCTAssertFalse(StyleLibrary.auditioned.isEmpty)
+        XCTAssertTrue(StyleLibrary.auditioned.allSatisfy(\.auditioned))
+        XCTAssertTrue(StyleLibrary.auditioned.allSatisfy { StyleLibrary.all.contains($0) })
     }
 }

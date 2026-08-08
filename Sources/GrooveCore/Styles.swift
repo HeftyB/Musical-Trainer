@@ -59,7 +59,11 @@ public enum StyleLibrary {
         ],
         // A drummer sitting in would take the kit and leave the bass alone (M20).
         playerVoices: [.kick, .snare, .closedHat, .openHat, .crash, .tom],
-        density: .medium)
+        density: .medium,
+        // Played over twice on 8 August — 32 bars, then 128. The longer take is where the
+        // intensity arc first repeated, and the verdict was that it alternated subtly enough to
+        // stay interesting without pulling the player off it (§7.29 step 5).
+        auditioned: true)
 
     // MARK: - Pocket
 
@@ -104,7 +108,11 @@ public enum StyleLibrary {
             Pattern.make([.tom: [10, 12, 14], .clap: [8], .crash: [0]], velocity: 84),
         ],
         playerVoices: [.kick, .snare, .clap, .tambourine, .sidestick, .cowbell, .crash, .tom],
-        density: .busy)
+        density: .busy,
+        // **Listened to, not played over.** Approved on the renders — every intensity and the
+        // seeded piece — rather than on a take. That is a weaker basis than `driving`'s and it is
+        // recorded as such in §7.33 rather than smoothed over.
+        auditioned: true)
 
     // MARK: - Syncopated
 
@@ -140,7 +148,9 @@ public enum StyleLibrary {
             Pattern.make([.tom: [8, 11, 13], .snare: [15], .crash: [0]], velocity: 80),
         ],
         playerVoices: [.kick, .snare, .closedHat, .openHat, .crash, .tom],
-        density: .busy)
+        density: .busy,
+        // Listened to, not played over — see `pocket`.
+        auditioned: true)
 
     // MARK: - Half-time
 
@@ -174,5 +184,10 @@ public enum StyleLibrary {
             Pattern.make([.tom: [8, 12], .snare: [14], .crash: [0]], velocity: 88),
         ],
         playerVoices: [.kick, .snare, .closedHat, .shaker, .crash, .tom],
-        density: .sparse)
+        density: .sparse,
+        // Played over once, 128 bars on 8 August, and rated lowest of the two played — which is
+        // what §7.29 step 5 predicted for the sparsest style: with a backbeat every other bar's
+        // worth of time there is nothing to lean on between the landmarks. Approved as a style
+        // worth practising over, not as an easy one.
+        auditioned: true)
 }

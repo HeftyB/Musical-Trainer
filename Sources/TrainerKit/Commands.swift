@@ -417,12 +417,17 @@ public enum Commands {
     /// - Parameter now: the clock, injected so the drawn seed is reproducible under test. A
     ///   default seed has to differ between takes — variety is the point — and `nil` here would
     ///   make a test either flaky or blind to the draw.
+    /// - Parameter library: the styles that exist, injected so the **refusal** path stays
+    ///   reachable. Every style in `StyleLibrary` is approved as of §7.33, which would otherwise
+    ///   leave the unauditioned branch untestable — `LESSONS.md` shape 1 arriving through a data
+    ///   change rather than a code one, and the next style authored would land unguarded.
     static func resolveStyle(_ flags: CommandFlags, rung: IntervalRung?,
-                             now: Date = Date()) throws -> BackingIdentity? {
+                             now: Date = Date(),
+                             library: [Style] = StyleLibrary.all) throws -> BackingIdentity? {
         guard let name = flags.style else { return nil }
 
-        guard let style = StyleLibrary.named(name) else {
-            let known = StyleLibrary.all.map(\.name).sorted().joined(separator: ", ")
+        guard let style = library.first(where: { $0.name == name }) else {
+            let known = library.map(\.name).sorted().joined(separator: ", ")
             throw SpikeError("No style called \(name). The library has: \(known).")
         }
         // Said here rather than left to `JamConfig.validate`, which throws the same refusal a

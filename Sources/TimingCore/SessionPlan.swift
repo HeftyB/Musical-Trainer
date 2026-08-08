@@ -51,7 +51,7 @@ public struct GroovePlan: Codable, Equatable {
 ///
 /// A seed that could not rebuild its backing would make every take played over it unexplainable
 /// (R1.2.2), which is why this is not optional bookkeeping.
-public struct PlannedBacking: Codable, Equatable {
+public struct PlannedBacking: Codable, Equatable, Hashable {
     /// Lower-case and stable, matching `Style.name`. A raw `String` for the same reason
     /// `ExperimentAssignment.arm` and `SessionPlacement.role` are: renaming or retiring a style
     /// must never orphan a stored manifest, and the rename from `motown` to `pocket` has already
@@ -295,8 +295,14 @@ public struct PlannerInput: Equatable {
         public let sdMs: Double
         public let absBiasMs: Double
         public let lag1: Double?
-        public init(bpm: Double, sdMs: Double, absBiasMs: Double, lag1: Double?) {
+        /// The style this take was played over, or `nil` for the fixed backing — which is every
+        /// take recorded before M19. Carried so the planner can rotate away from what has been
+        /// played most, and a raw name because `TimingCore` cannot see `GrooveCore` (R1.1.3).
+        public let style: String?
+        public init(bpm: Double, sdMs: Double, absBiasMs: Double, lag1: Double?,
+                    style: String? = nil) {
             self.bpm = bpm; self.sdMs = sdMs; self.absBiasMs = absBiasMs; self.lag1 = lag1
+            self.style = style
         }
     }
 
@@ -379,13 +385,22 @@ public struct PlannerInput: Equatable {
     public let memories: [Memory]
     public let experiments: [Experiment]
     public let ladders: [Ladder]
+    /// The styles the planner may schedule: names only, and **only the approved ones**.
+    ///
+    /// The filtering happens where the library lives, so this module cannot reach past the gate
+    /// even by mistake — `TimingCore` has no way to see a `Style`, let alone its flag. Empty is
+    /// the correct answer for a library nobody has approved, and the planner falls back to the
+    /// fixed backing rather than reaching for one (§7.29 step 5).
+    public let auditionedStyles: [String]
 
     public init(jams: [Jam] = [], continuations: [Continuation] = [],
                 forms: [Form] = [], tempos: [Tempo] = [], memories: [Memory] = [],
-                experiments: [Experiment] = [], ladders: [Ladder] = []) {
+                experiments: [Experiment] = [], ladders: [Ladder] = [],
+                auditionedStyles: [String] = []) {
         self.jams = jams; self.continuations = continuations
         self.forms = forms; self.tempos = tempos; self.memories = memories
         self.experiments = experiments; self.ladders = ladders
+        self.auditionedStyles = auditionedStyles
     }
 }
 
@@ -599,15 +614,37 @@ public enum SessionPlanner {
             closing = (count, sizes.closingCapBars)     // still capped; try one more block
         }
 
+        // **The one slot in a planned session that gets a band.**
+        //
+        // §7.29's table says training blocks and the closing jam get deep music, and in practice
+        // the closing jam is the only *free* jam a session contains: the ladder training block
+        // carries a rung, and a rung and a style are two backings that cannot both play — the
+        // ladder groove exists to make its division audible and a style does not. Everything else
+        // is another drill entirely.
+        //
+        // One style and one seed for every closing block in the plan, so an evening sounds like
+        // one evening (§7.29). `nil` when nothing is approved, and then this is `jamBacking`,
+        // which is what every take on record already played over.
+        let band = Self.nextStyle(from: input).map {
+            PlannedBacking(style: $0, seed: Self.sittingSeed(from: input))
+        }
         for index in 0..<closing.count {
             blocks.append(SessionBlock(
                 role: .closing,
-                plan: .jam(JamPlan(bpm: referenceBpm, bars: closing.bars, tag: closingTag)),
-                reason: index == 0
+                plan: .jam(JamPlan(bpm: referenceBpm, bars: closing.bars, tag: closingTag,
+                                   generatedBacking: band)),
+                reason: (index == 0
                     ? "Finish by playing. Measured like any jam, but tagged apart from the "
                     + "benchmark — this one is played tired, and that difference is the point."
                     : "More playing, after a breather. Jams spread across the evening say more "
-                    + "about how the pulse holds up than one long one would."))
+                    + "about how the pulse holds up than one long one would.")
+                    // A session that cannot say what it is about to play is one the player has no
+                    // way to disagree with, which is what every other `reason` here exists for.
+                    // The seed is named too: it is the only route back to this exact piece.
+                    + (band.map {
+                        " Tonight the band is \($0.style), one piece all evening — "
+                        + String(format: "%@@%016llx.", $0.style, $0.seed)
+                      } ?? "")))
         }
 
         if input.jams.isEmpty && input.continuations.isEmpty && input.forms.isEmpty
@@ -741,6 +778,40 @@ public enum SessionPlanner {
         let candidates = ladderTempos.indices.filter { counts[$0] == fewest }
         var rng = SplitMix64(seed: 0x1A44E4 &+ UInt64(ladders.count))
         return ladderTempos[candidates[Int(rng.next() % UInt64(candidates.count))]]
+    }
+
+    /// The style the closing jam plays, rotated between sittings.
+    ///
+    /// Min-count over what has been played, exactly as `nextLadderTempo` does and for the same
+    /// reason: a strict cycle puts each style at a fixed position in the sequence, so anything
+    /// that varies with *where in a run* a take falls lands entirely on one style. Ties are broken
+    /// by a seeded draw (R1.2.1), so the order still shuffles.
+    ///
+    /// `nil` when nothing has been approved, and the closing jam then plays the fixed backing —
+    /// which is what every take on record already used, so an empty library costs nothing.
+    static func nextStyle(from input: PlannerInput) -> String? {
+        let candidates = input.auditionedStyles.sorted()
+        guard !candidates.isEmpty else { return nil }
+        var counts = [Int](repeating: 0, count: candidates.count)
+        for jam in input.jams {
+            if let style = jam.style, let i = candidates.firstIndex(of: style) { counts[i] += 1 }
+        }
+        let fewest = counts.min() ?? 0
+        let tied = candidates.indices.filter { counts[$0] == fewest }
+        var rng = SplitMix64(seed: 0x5B1A_11E5 &+ UInt64(input.jams.count))
+        return candidates[tied[Int(rng.next() % UInt64(tied.count))]]
+    }
+
+    /// One seed for the whole sitting, so an evening has a single musical identity and the next
+    /// evening is new (§7.29's settled decisions).
+    ///
+    /// Derived from the history rather than drawn from a clock, because the planner is pure — a
+    /// plan that read the time could not be tested, and R1.1.4 forbids it outright. Two plans
+    /// built from one history are the same plan, which is also what makes `session plan` an honest
+    /// preview of `session`.
+    static func sittingSeed(from input: PlannerInput) -> UInt64 {
+        var rng = SplitMix64(seed: 0x5EED_5177 &+ UInt64(input.jams.count))
+        return rng.next()
     }
 
     /// The hardest rung that is both scorable at this tempo and one step from what has been played.

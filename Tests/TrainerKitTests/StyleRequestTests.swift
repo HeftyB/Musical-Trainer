@@ -25,12 +25,33 @@ final class StyleRequestTests: XCTestCase {
     /// §7.29 step 5's gate, enforced rather than described. **This is the test that changes
     /// behaviour the day a style is approved**, which is the point: nothing may schedule music
     /// nobody has played over.
+    /// **The library is injected, and that is not test scaffolding.** Every style in
+    /// `StyleLibrary` is approved as of §7.33, so an unapproved one no longer exists to refuse —
+    /// and the branch that refuses it would have become unreachable by any test, which is
+    /// `LESSONS.md` shape 1 arriving through a data change rather than a code one. The next style
+    /// authored starts at `false`, and this is what still guards it.
+    private var unapproved: Style {
+        Style(name: "unheard", layers: [Layer(Pattern.make([.kick: [0, 8]]))],
+              fills: [], playerVoices: [.kick], density: .medium)
+    }
+
     func testAnUnauditionedStyleIsRefusedWithoutAProbe() {
+        XCTAssertFalse(unapproved.auditioned, "a newly authored style starts unapproved")
+        XCTAssertThrowsError(
+            try Commands.resolveStyle(flags(style: "unheard"), rung: nil, now: clock,
+                                      library: [unapproved])
+        ) { error in
+            let message = (error as? SpikeError)?.message ?? "\(error)"
+            XCTAssertTrue(message.contains("--probe"), message)
+        }
+    }
+
+    /// And the four that *are* approved go through without one, or the approval bought nothing.
+    func testAnApprovedStyleNeedsNoProbe() throws {
         for style in StyleLibrary.all {
-            XCTAssertFalse(style.auditioned, "\(style.name) was approved — see PLAN.md §7.29")
-            XCTAssertThrowsError(
-                try Commands.resolveStyle(flags(style: style.name), rung: nil, now: clock),
-                style.name)
+            XCTAssertTrue(style.auditioned, "\(style.name) — see PLAN.md §7.33")
+            XCTAssertNotNil(try Commands.resolveStyle(flags(style: style.name), rung: nil,
+                                                      now: clock))
         }
     }
 
@@ -39,8 +60,9 @@ final class StyleRequestTests: XCTestCase {
     /// and read by nothing that decides what to practise next.
     func testAProbeMayPlayOverAnUnauditionedStyle() throws {
         let identity = try XCTUnwrap(
-            Commands.resolveStyle(flags(style: "driving", probe: true), rung: nil, now: clock))
-        XCTAssertEqual(identity.style, "driving")
+            Commands.resolveStyle(flags(style: "unheard", probe: true), rung: nil, now: clock,
+                                  library: [unapproved]))
+        XCTAssertEqual(identity.style, "unheard")
     }
 
     func testAnUnknownStyleNamesWhatTheLibraryHas() {
