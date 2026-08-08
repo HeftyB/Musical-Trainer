@@ -5277,6 +5277,30 @@ where that is the reason, since a four-bar kit voice has nothing to do with an a
 Nothing clips at the new length and no peak moved, which is what the headroom test already
 predicted. **The §7.31 review is closed.**
 
+#### Heard, 8 August 2026 — and the verdict is the weakest of the three
+
+> *"Listened to the 5eed001 files and they sound pretty good."*
+
+**Recorded as given.** The two findings before this one came back *"sound good"* and *"all sound
+nice"*; this is *"pretty good"*, and the difference is not worth smoothing over, because the arc is
+the thing §7.29 step 4 staked a design decision on. The argument there was specific: intensity
+moves along one of five shapes rather than being sampled per phrase, because **independent random
+intensity sounds like somebody nudging a fader** — nothing is built to, there is no arrival, and a
+listener cannot tell a section from an accident. "Pretty good" is acceptance of the mechanism, not
+evidence that the shapes are the right five.
+
+Do not read further into one listen than that (and the four files share a seed, so they are one
+draw of the arc, not four). What it does establish is that the arc is now *auditable at all*, which
+it was not before this change. Two things it leaves open, for M26 or for the professional ear
+rather than for M19:
+
+- **Whether five shapes is the right vocabulary**, or whether a piece wants something the table
+  cannot express — a longer build, or an arrival that lands on a fill rather than beside one.
+- **Whether the arc is doing the work or the kit is limiting it.** §7.29 step 6 already found the
+  synthesised kit reads as *"beat #3"* rather than as a genre, and a lukewarm verdict on a shape is
+  hard to separate from a lukewarm verdict on the sounds carrying it. That is M26's question and it
+  should not be re-litigated as an arc problem.
+
 ### 4–7. Documentation
 
 | # | Finding | |
