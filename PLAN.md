@@ -5756,10 +5756,43 @@ histories; the live path is the same `runJam` that three CLI takes have now exer
 evening ending on a generated backing has not happened. R5.6, and it is the next live run worth
 booking.
 
-The **app** has no style picker and no way to see which band a session chose — the surface gap
-§7.29 left, now one item longer. And `Play` mode still plays the fixed backing.
-
 M19's remaining step 8 is documentation and `render` gaining a style argument.
+
+### The app catches up
+
+**A band picker on Jam and Play**, offering `StyleLibrary.auditioned` and nothing else. The CLI can
+reach an unapproved style with `--probe`; the app deliberately cannot, because a picker is not a
+deliberate look at something unearned — §7.26's distinction, applied to a surface rather than a
+flag. When nothing is approved the row does not appear at all: a control whose only option is
+"Fixed" is a control that does nothing, and the honest reading of an unapproved library is that
+there is no choice to make.
+
+**The two pickers clamp each other.** A rung and a style are two backings and `JamConfig.validate`
+refuses the pair, so choosing a band clears the subdivision and choosing a subdivision clears the
+band — the same discipline as `clampFeelToRung`, and for the same reason: a picker that can ask for
+something the engine will refuse is a failure deferred to Start.
+
+**`Play` gets a band too**, and it is the one mode where a style costs nothing to get wrong: it
+measures nothing, so no locked slot and no trend can be touched by what it plays. `GrooveConfig`
+resolves it exactly as `JamConfig` does, so Play and Jam cannot disagree about what a style sounds
+like.
+
+**Both surfaces name the band from one place.** `BlockPlan.settingsLabel` gained it, which is the
+only mapping from a plan to its summary line — so the app's session view and the console's plan
+preview cannot describe the same block differently, the same reason `DrillInstructions.forBlock` is
+one function and not two. The *reason* explains the choice; the label says what it is:
+
+```
+9. Jam  closing · 100 BPM · 176 bars · syncopated · 7 min
+3. Jam  benchmark · 100 BPM · 64 bars
+```
+
+A locked slot has no band to name, and does not.
+
+**The seed is drawn when the band is chosen** and re-drawn whenever it changes, so two takes in a
+row are two pieces of music and a take left set up is the same one it was. `bandAdvice` names it on
+screen for the same reason the CLI prints it: it is the only route back to a piece the player
+liked.
 
 ---
 
@@ -5786,9 +5819,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   684 cases
+└── Tests/                   686 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     361 cases against synthetic ground truth
+    ├── TimingCoreTests/     363 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     201 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.

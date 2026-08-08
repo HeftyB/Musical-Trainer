@@ -244,7 +244,9 @@ Both front ends drive `TrainerEngine`; neither contains measurement logic.
 **App** (`./build-app.sh`): Session (a planned evening), six single-take modes — Jam, Form,
 Alone, Tempo, Recall, Play — and History. Jam, Alone and Tempo carry a **subdivision picker**
 that offers only the rungs the chosen tempo can score honestly, and a Jam on a binary rung can
-also be **swung**. The offbeat drill is CLI-only so far.
+also be **swung**. Jam and Play carry a **band picker** offering the approved styles only — the two
+clamp each other, since a rung and a style cannot both play. The offbeat drill is CLI-only so far,
+and it is now the one surface gap left.
 
 **CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
 and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
@@ -266,7 +268,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 483 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 485 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (201 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -311,7 +313,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 684 tests, no hardware needed
+swift test                              # 686 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
