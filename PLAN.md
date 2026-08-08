@@ -5849,6 +5849,141 @@ liked.
 
 ---
 
+## 7.34 The first session with a band — 8 August
+
+Forty-five minutes asked for, forty-seven played, ten of ten blocks completed. The first planned
+session ever to end on generated music, and the live run M19 had been closed without.
+
+> *"It was great, much more interesting than what we had before. It is a very good start."*
+
+### M19 is verified
+
+The three things §7.33 said to watch, all from the stored takes rather than from the screen:
+
+| | |
+|---|---|
+| The band the plan announced reached the take | `syncopated@c8c135f2e61ba989` — the seed the preview printed |
+| Both closing blocks share one seed | both `syncopated@c8c135f2e61ba989`, 176 bars each |
+| The locked slots kept the fixed backing | benchmark and experiment both `jamBacking` |
+
+`review trend` puts the two closing takes in their own group and leaves *"Jams at 100 BPM"* holding
+23 takes of `jamBacking` and `basicRock`. The trend split of §7.32 and the planner of §7.33 both
+work on real data, which until now they had only done against planted histories (R5.6).
+
+### A voice hung, and the take it spoiled is kept rather than dropped
+
+During the tenth block a note *"hung and just continued to ring out like I was just holding the key
+down… no audible response from the keys after that, just the one tone steadily going."* The drums
+and the app were unaffected.
+
+The cost is visible in the data. Two closing takes, same length, same backing, minutes apart:
+
+| | matched | extras | rated |
+|---|---|---|---|
+| Block 9 | 955 | 250 | 3 |
+| Block 10 | **684** | 157 | **1** |
+
+Twenty-eight per cent fewer notes over identical bars — the shape of a player who stopped because
+he could not hear himself.
+
+#### Four candidates, and what separates them
+
+| | Explains the hung tone | Explains the silence after |
+|---|---|---|
+| A dropped note-off from CoreMIDI | yes | **no** |
+| **The source disconnecting mid-take** | yes | **yes** |
+| The event ring filling and dropping events | yes | yes, but needs 512 events between two render calls |
+| Voice exhaustion at 16 voices | no — stealing replaces the oldest, it does not silence the keyboard | no |
+
+**The second is the only one that explains both symptoms**, and there is a structural reason to
+suspect it: `MIDIClientCreateWithBlock` is called with a **nil notify block**, so the app receives
+no CoreMIDI notifications at all — not `kMIDIMsgObjectRemoved`, not `kMIDIMsgSetupChanged`. Sources
+are connected in `begin()` and never re-examined. A keyboard that drops off the bus mid-take is
+invisible: no further note-ons, no further note-offs, and whatever was held at that moment sustains
+for ever.
+
+That is a gap whether or not it caused this incident, and `midimon` during a session is what would
+distinguish the candidates.
+
+#### And nothing can recover a stuck voice
+
+Independent of the cause: `LiveInstrument.release(note:)` is the only path out of a sounding voice.
+There is no all-notes-off, no maximum sustain, and no periodic reconciliation — so a voice that
+misses its note-off rings until the engine stops. **The cheap half of the fix is a ceiling on how
+long any one voice may sound**, which converts "for ever" into "a few seconds" regardless of which
+candidate is right.
+
+#### The take stays in the corpus
+
+Block 10 is compromised and it is **not** being excluded. This project's own rule is that data is
+never quietly dropped and that any exclusion is declared *before* collection, not after — a take
+thrown out because its number is inconvenient is the failure that rule exists to prevent, and
+"inconvenient" and "explained" look identical in hindsight. R6.2 says the same from the storage
+side.
+
+So it is recorded here instead, and anything reading that take should read this with it: **block 10
+of 8 August is a take played for part of its length on a silent instrument.** The spread it reports
+(33.1 ms) is not a fact about the player.
+
+**What is missing is a way to say so on the take itself.** `tag` is the only field that could carry
+it and it is set before a take runs, not after. A field written afterwards would be exactly the
+post-hoc exclusion mechanism the rule forbids — so the honest options are a note in this document,
+which is what this is, or a *declared-in-advance* incident field. That is a real design question and
+it is not settled here.
+
+### The offbeat drill is not in the app, and the app does not say so
+
+*"I tried to do the offbeat from the app and I could not because the selector was disabled no matter
+what I did."*
+
+There is no offbeat mode in the app — it has been CLI-only since M15 and §7.24 records that as the
+milestone's one surface gap. What the player found instead was the **Feel** picker, which is
+disabled unless a binary rung is chosen, and which said the wrong thing about why.
+
+`AppModel.feelAdvice` returns *"Triplets are the division swing borrows from, so there is no pair to
+swing"* for **any** rung that cannot swing — including quarter notes, where triplets have nothing to
+do with it. Visible in the player's own screenshot: Subdivision reads *Quarter Notes* and the advice
+talks about triplets. A control that is disabled and explains itself wrongly is worse than one that
+is merely disabled, because the reader trusts the explanation and goes looking for the wrong thing.
+
+Two separate fixes: the advice must branch on *why* the rung cannot swing, and the offbeat drill
+needs a mode in the app.
+
+### Mid-take feedback: two requests, two different answers
+
+> *"In the middle of a take there is no indication you are being measured. It just continues to say
+> press enter… On the longer takes it is easy to lose track of time."*
+
+These read as one request and are not.
+
+**Presence — yes, everywhere, and it is not a §2 question.** §2 forbids *numbers* on screen because
+a live meter recruits the analytical loop the project exists to quiet. "You are being recorded"
+evaluates nothing and locates nothing. The app already has this: `TakeView`'s breathing circle,
+which says the take is live and nothing else. **The console has no equivalent at all** — it prints
+the instructions, waits for return, and then goes quiet for up to seven minutes, which is why a take
+in progress reads as a take not yet started.
+
+**Position — yes, but not in two of the drills, and that is the whole of the design.**
+
+| Drill | Progress indicator | Why |
+|---|---|---|
+| Jam, offbeat, recall, play | fine | They train placement or a held feel; how far through the take you are says nothing about either |
+| **Form** | **never** | Knowing where you are in the piece *is* the skill. `TakeView`'s own comment names it: a progress indicator "would replace the felt sense of the phrase with a visual count" |
+| **Continuation** | **never** | The drill measures holding a pulse with no external reference during a measured silence. **A steadily advancing bar is an external time reference** — it is a clock, and the clock is the thing being tested |
+
+The continuation case is the one that would have been missed. It is not about self-monitoring at
+all: an advancing indicator is *information the drill exists to remove*.
+
+Where it is shown, the shape matters. **Time remaining, coarse, and never beat-locked** — "about two
+minutes left" rather than a percentage that ticks, because anything advancing smoothly enough to
+count against is something a player will count against. That is the same reasoning that keeps the
+tempo drill's feedback in the click bars and out of the measured silence.
+
+None of this is built. It is a change to a stated non-negotiable and wants the player's agreement on
+the two exclusions before anything moves.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
