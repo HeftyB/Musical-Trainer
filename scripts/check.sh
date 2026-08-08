@@ -97,6 +97,18 @@ expect_empty "only tests redirect the session store" \
 expect_empty "the analysis grid is never read off a pattern's step resolution" \
     bash -c "grep -rn '\.stepsPerBeat' Sources/TrainerKit --include='*.swift' | grep -vE ':[[:space:]]*(///|//)'"
 
+# A block-resampling bootstrap must never be handed an autocorrelation. Every join between two
+# resampled blocks is a pair that was never adjacent, so r₁ comes back attenuated by about 1/L —
+# a nominal 95% interval covered the truth 25% of the time at r₁ = 0.64, and it was wrong in four
+# call sites for thirty takes (PLAN.md §7.32).
+#
+# `SeriesStatistic` is the real guard: it has no autocorrelation case, so the pairing cannot be
+# spelled. This is the backstop for the symbol itself — a `lag1Stat`-shaped constant reappearing
+# beside the others is how the closed set would get quietly reopened.
+expect_empty "no autocorrelation is offered to a block-resampling bootstrap" \
+    grep -rnE '(lag1Stat|autocorrelationStat|case +lag1|case +autocorrelation)' \
+        Sources/TimingCore/Bootstrap.swift
+
 # ── 4. Privacy and supply chain (STANDARDS §7) ───────────────────────────────────
 head2 "Privacy and supply chain"
 
