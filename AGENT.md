@@ -261,7 +261,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 454 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 466 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (200 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -306,7 +306,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 654 tests, no hardware needed
+swift test                              # 666 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -537,7 +537,10 @@ Current as of **72 takes across 10 sittings — 30 jams, 12 form, 12 continuatio
 `review trend`, `review dropout`, `review feel`, `review cold`, `review content`, `review
 interval`.
 
-- **r₁ is positive in all 30 jams (+0.13 … +0.50), with no negative reading ever recorded.**
+- **r₁ is positive in 31 of 32 jams (+0.14 … +0.63).** One take now reads −0.06 — take 15, and
+  the first negative in the corrected corpus — which is a small number either side of zero rather
+  than a finding. **These figures moved in §7.32** and anything quoting the old range is quoting a
+  statistic that paired notes across rests; the median take shifted 0.04 and the largest 0.24.
   He *under-corrects* — placement floats and wanders. He does not chase the click. Do not suggest
   counting harder; that is the documented way to make this worse, and he already reports it feels
   worse. The lowest in the whole set is +0.13, an untracked `relaxed` take on 3 Aug; the lowest

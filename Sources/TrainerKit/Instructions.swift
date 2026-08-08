@@ -19,17 +19,33 @@ public struct DrillInstructions {
     /// What the drill reports back.
     public let measures: String
 
+    /// A free jam prescribes nothing about *what* to play, and the text has to say so.
+    ///
+    /// **It did not.** "Aim every note at a beat or an off-beat" describes quarters and eighths,
+    /// and the analysis has always scored a free jam on a sixteenth grid; "don't stop and start"
+    /// forbids a rest, which costs nothing measurable and is most of what makes a phrase a phrase.
+    /// R3.6 says instructions come from the configuration that will actually run, and these were
+    /// narrower than it — so the drill was quietly asking for a steadier, plainer performance than
+    /// it needed, which is a thing the player would hear as a rule (§7.32).
+    ///
+    /// The pitfalls that remain are the two that are genuinely true: a note aimed between grid
+    /// points really is discarded, and a take with no continuous stretch in it really does lose
+    /// its correction gain.
     public static let jam = DrillInstructions(
         goal: "Measures how accurately you place notes against a beat you can hear.",
         steps: [
             "A two-bar count-in plays, then a drum groove starts.",
             "Play along for the whole take — chords, single notes, a riff, whatever you like.",
-            "Aim every note at a beat or an off-beat, not somewhere between them.",
+            "Mix note lengths freely: quarters, eighths and sixteenths all score, and so do rests. "
+                + "Play a phrase, leave a gap, come back in.",
+            "Aim each note at the beat, the off-beat, or the sixteenth between them — land on the "
+                + "grid rather than between its points.",
             "Keep playing to the end. There is nothing to read on screen while you play.",
         ],
         pitfalls: [
             "Don't play free or rubato — notes that don't aim at the grid are counted as off-grid and discarded.",
-            "Don't stop and start. Steady, continuous playing gives the most usable notes.",
+            "Breaks are fine, but one long stretch of playing is what the correction-gain number "
+                + "needs; a take made only of short bursts reports none.",
         ],
         measures: "Whether you sit ahead of or behind the beat, how much you scatter around it, "
                 + "and whether you correct each error or let it drift.")

@@ -39,6 +39,14 @@ public struct TimingReport: Equatable {
     /// (PLAN.md §5.1). ≈0 is an autonomous timekeeper (flow); strongly negative is chasing
     /// the click; positive is uncorrected drift. nil when the series is too short or flat.
     public let lag1Autocorrelation: Double?
+    /// Adjacencies r₁ was actually summed over, which is not `matchedCount − 1` once the player
+    /// leaves a rest. It is the `n` any interval on r₁ has to use.
+    public let lag1PairCount: Int?
+    /// Adjacencies dropped because a beat or more passed between the two notes.
+    ///
+    /// Reported rather than merely applied: an exclusion nobody can see is indistinguishable from
+    /// quietly dropping the data that spoiled the answer (§7.25).
+    public let lag1DroppedPairs: Int
 
     /// Slope of asynchrony against beat position, in ms per beat. Positive = progressively
     /// later (slowing). nil when there are too few points to fit.
@@ -75,7 +83,24 @@ public enum TimingAnalysis {
         let mean = Stats.mean(asynchronies)
         let sd = Stats.sd(asynchronies)
         let median = Stats.median(asynchronies)
-        let lag1 = Stats.autocorrelation(asynchronies, lag: 1)
+        // **Only notes that are consecutive in the stream are paired.**
+        //
+        // r₁ asks whether the last error predicted this one, which presumes the second note is
+        // close enough to be a response to the first. Across a rest it is not: a plain
+        // autocorrelation pairs two notes either side of four beats of silence as though they
+        // were adjacent, and the free jam deliberately invites exactly that — mixed note values
+        // and breaks are what the instructions now say to play (§7.32).
+        //
+        // A beat is the threshold because the beat *is* the pulse being tracked, and 78.4% of
+        // every matched note in a free jam sits one beat from the last. Anything closer —
+        // eighths, sixteenths, a run — is a stream and pairs normally; anything wider means at
+        // least one beat passed with nothing played.
+        let gappy = Stats.gappyLag1(asynchronies) { i in
+            match.matched[i + 1].gridIndex - match.matched[i].gridIndex <= grid.subdivisions
+        }
+        let lag1 = gappy?.r
+        let lag1Pairs = gappy.flatMap { $0.r == nil ? nil : $0.pairs }
+        let lag1Dropped = gappy?.dropped ?? 0
 
         // Drift: regress asynchrony on beat position (grid index in beats).
         var driftMsPerBeat: Double?
@@ -109,6 +134,8 @@ public enum TimingAnalysis {
             sdAsynchronyMs: sd,
             medianAsynchronyMs: median,
             lag1Autocorrelation: lag1,
+            lag1PairCount: lag1Pairs,
+            lag1DroppedPairs: lag1Dropped,
             driftMsPerBeat: driftMsPerBeat,
             effectiveBpmError: bpmError,
             subdivisionStats: subdivisionStats,

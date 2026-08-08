@@ -578,7 +578,8 @@ public enum Commands {
         let async = report.asynchroniesMs
         let meanCI = Bootstrap.interval(async, statistic: Bootstrap.meanStat)
         let sdCI = Bootstrap.interval(async, statistic: Bootstrap.sdStat)
-        let r1CI = Bootstrap.interval(async, statistic: Bootstrap.lag1Stat)
+        let r1CI = Bootstrap.lag1Interval(r: report.lag1Autocorrelation,
+                                          pairs: report.lag1PairCount ?? 0)
 
         let biasNote = uncalibrated ? "  \(Console.yellow)(uncalibrated)\(Console.reset)" : ""
         let rushDrag = report.meanAsynchronyMs < 0 ? "ahead / rushing" : "behind / dragging"
@@ -589,7 +590,23 @@ public enum Commands {
 
         if let r = report.lag1Autocorrelation {
             let ciStr = r1CI.map { String(format: "  95%% CI [%+.2f, %+.2f]", $0.low, $0.high) } ?? ""
-            print(String(format: "Correction gain:  r₁ = %+.2f%@   %@", r, ciStr, chasingWord(r)))
+            // Said out loud when the player left rests, because an exclusion nobody can see is
+            // indistinguishable from quietly dropping the data that spoiled the answer (§7.25).
+            let rests = report.lag1DroppedPairs > 0
+                ? String(format: "  %@(%d break%@ not counted)%@", Console.dim,
+                         report.lag1DroppedPairs,
+                         report.lag1DroppedPairs == 1 ? "" : "s", Console.reset)
+                : ""
+            print(String(format: "Correction gain:  r₁ = %+.2f%@   %@%@",
+                         r, ciStr, chasingWord(r), rests))
+        } else if report.lag1DroppedPairs > 0 {
+            // R3.3: when a measurement cannot be trusted, say so *and say why*. Playing in short
+            // bursts is a legitimate thing to do; it just leaves no stretch long enough to ask
+            // whether one note's error predicted the next.
+            Console.warn("no correction gain: you played in \(report.lag1DroppedPairs + 1) "
+                       + "stretches and none ran \(Stats.minimumRunLength) notes unbroken. r₁ "
+                       + "needs a continuous run — a shorter one would report a number biased "
+                       + "toward the very thing it is meant to detect.")
         }
         if let drift = report.driftMsPerBeat, let bpmErr = report.effectiveBpmError {
             print(String(format: "Drift:            %+.2f ms/beat  (≈ %+.1f BPM)", drift, bpmErr))
@@ -878,7 +895,15 @@ public enum Commands {
 
         row("Mean async", Bootstrap.meanStat, unit: "")
         row("Spread (SD)", Bootstrap.sdStat, unit: "")
-        row("r₁", Bootstrap.lag1Stat, unit: "")
+        // **r₁ is withheld from this comparison rather than shown wrong.** The block
+        // bootstrap attenuates it (see `Bootstrap.lag1Interval`), and the statistic it
+        // resamples is gap-blind besides — so it would answer a different question from the
+        // r₁ `review <n>` prints for the same take, which is one word meaning two things.
+        // R3.3.1: withhold at source. A difference of two normal-SE intervals is the fix
+        // and it is queued as its own change (§7.32).
+        Console.warn("r₁ is not compared here: its interval needs a method this readout "
+                   + "does not have yet, and a number bounded by the wrong one is worse "
+                   + "than a gap. `review <n>` reports it per take.")
 
         print("\n\(Console.dim)Mean/SD in ms. \"within noise\" = the 95% interval "
             + "for the change includes zero.\(Console.reset)")
@@ -936,7 +961,12 @@ public enum Commands {
             let events = series.reduce(0) { $0 + $1.count }
             let mean = Bootstrap.pooledInterval(series, statistic: Bootstrap.meanStat)
             let sd = Bootstrap.pooledInterval(series, statistic: Bootstrap.sdStat)
-            let r1 = Bootstrap.pooledInterval(series, statistic: Bootstrap.lag1Stat)
+            // The pooled path is worse still for r₁: `resamplePool` concatenates a
+            // block-resampled series *per take*, so every take boundary is a spurious
+            // adjacency on top of the block joins. R3.2's own table already says the right
+            // method — plain bootstrap over the per-take values — and that is the queued
+            // change (§7.32).
+            let r1: ConfidenceInterval? = nil
             if mean == nil { thin.append(tag) }
             func fmt(_ c: ConfidenceInterval?, _ digits: Int = 1) -> String {
                 guard let c else { return "—" }
@@ -999,7 +1029,8 @@ public enum Commands {
         }
         row("Mean async", Bootstrap.meanStat)
         row("Spread (SD)", Bootstrap.sdStat)
-        row("r₁", Bootstrap.lag1Stat)
+        // Withheld for the same reason as the comparison above.
+        Console.warn("r₁ is not pooled here — see `review compare`.")
 
         let smaller = min(a.count, b.count)
         if smaller < Bootstrap.minimumTakes {

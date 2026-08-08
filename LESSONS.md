@@ -158,6 +158,13 @@ the other. The numbers stay plausible throughout.
   as **3.5× worse** — penalising him for the thing being trained. `SwingReport` derives the ratio
   from mean offbeat phase and reports consistency in **milliseconds**, and the test computes what
   the rejected unit would have said.
+- **A confidence interval whose error grows with the thing it bounds** (§7.32). The moving-block
+  bootstrap attenuates a lag-1 autocorrelation by about `1/L`, because every join between two
+  resampled blocks is a pair that was never adjacent. Against planted AR(1) series a nominal 95%
+  interval covered the truth **94% of the time at r₁ = 0.15 and 25% at r₁ = 0.64** — honest at one
+  end of the axis and useless at the other. Thirty takes went by without it showing, because this
+  player's r₁ had never left 0.13–0.50; the first take to reach 0.64 reported an interval
+  excluding its own point estimate.
 - **Normalising spread by the inter-onset interval** (§7.23 step 3b). The premise that spread
   scales with the interval was stated as fact in `PLAN.md` for three steps before anyone measured
   it. **It is false for this player**: absolute spread is flat at −0.11 ms per 100 ms
@@ -419,6 +426,13 @@ and the first figure had been quoted in `AGENT.md` as this player's 8-bar result
 
 Found by reading a readout while re-deriving figures for a documentation pass. **Nothing was
 looking for it and no test could have been.**
+
+**Second instance, same algebra problem one statistic over** (§7.32): r₁ is a sum of products of
+*adjacent* pairs, and nothing enforced the adjacency. A plain autocorrelation pairs element *n*
+with *n+1* whatever sat between them, so two notes either side of four beats of rest counted as a
+correction. The fix is the same shape as §7.25's — split at the gap, sum within runs, never across
+them — and it exposed a second-order version of itself: centring the runs on one global mean lets a
+*placement shift* between them read as correlation, +0.27 against a true zero.
 
 **Guard:** match the guard to the *algebra* of what it protects. A count or a fraction protects a
 count; a variance, a least-squares slope or anything else quadratic needs the outlier removed, not
