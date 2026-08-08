@@ -155,7 +155,76 @@ force_unwraps() {
 }
 expect_empty "no force-unwrap or try! in Sources" force_unwraps
 
-# ── 6. Build and test (STANDARDS §5) ─────────────────────────────────────────────
+# ── 6. Documentation (STANDARDS §0, §8.3 item 4) ─────────────────────────────────
+head2 "Documentation"
+
+# Documentation is a closing step of every change, and figures quoted in prose are claims like any
+# other. That has been the rule since §8.3 was written and **five** separate accuracy passes have
+# each found counts copied forward unchecked — `LESSONS.md` shape 17, the failure mode of a project
+# that documents well. Prose alone has now failed five times, so the mechanically checkable subset
+# is checked here.
+#
+# This is deliberately *only* the subset a script can settle. A figure it cannot reach is still
+# yours to re-derive; the rule is "prefer writing claims a script can check", not "the script has
+# it covered".
+
+for doc in PLAN.md AGENT.md STANDARDS.md LESSONS.md README.md; do
+    [ -f "$doc" ] || { fail "$doc is missing — STANDARDS.md §0 names five documents"; }
+done
+[ -f PLAN.md ] && [ -f AGENT.md ] && [ -f STANDARDS.md ] && [ -f LESSONS.md ] && [ -f README.md ] \
+    && pass "all five documents in the map exist"
+
+count_tests() { grep -rE '^[[:space:]]*func test' "Tests/$1" --include='*.swift' | wc -l | tr -d ' '; }
+TC=$(count_tests TimingCoreTests)
+GC=$(count_tests GrooveCoreTests)
+KIT=$(count_tests TrainerKitTests)
+PURE=$((TC + GC))
+TOTAL=$((PURE + KIT))
+
+# quoted <file> <string>  — the file must contain this exact derived claim.
+# Brittle on purpose: rewording trips it, and being made to re-derive the number while rewording
+# is the whole point. `swift test`'s own summary is the arbiter of whether these counts are right —
+# it reports the same total below, and the two disagreeing means one of them is stale.
+DOC_BAD=""
+quoted() { grep -qF "$2" "$1" || DOC_BAD="$DOC_BAD
+        $1 does not say '$2'"; }
+
+quoted AGENT.md      "$TOTAL tests"
+quoted AGENT.md      "($KIT tests)"
+quoted AGENT.md      "$PURE pure-module tests"
+quoted STANDARDS.md  "$PURE pure-module tests"
+quoted STANDARDS.md  "its $KIT tests"
+quoted README.md     "$TOTAL cases"
+quoted PLAN.md       "$TOTAL cases"
+quoted PLAN.md       "$TC cases"
+quoted PLAN.md       "$GC cases"
+quoted PLAN.md       "$KIT cases"
+
+if [ -z "$DOC_BAD" ]; then
+    pass "quoted test counts match the suite ($TOTAL = $TC + $GC pure + $KIT kit)"
+else
+    fail "a document quotes a stale test count"
+    printf '%s%s%s\n' "$DIM" "$DOC_BAD" "$OFF"
+fi
+
+# `LESSONS.md` is cited by number from code comments and from the other documents, which makes the
+# numbering an interface (STANDARDS §0). A citation naming a shape the file does not define is a
+# comment pointing at nothing — which is what every citation was until LESSONS.md was tracked at
+# all, since the only copy lived in gitignored temp/.
+SHAPES=$(grep -oE '^## [0-9]+\.' LESSONS.md 2>/dev/null | grep -oE '[0-9]+')
+DANGLING=""
+for n in $(grep -rhoE 'LESSONS\.md[^0-9]{0,14}shape [0-9]+' \
+               Sources Tests PLAN.md AGENT.md STANDARDS.md README.md 2>/dev/null \
+           | grep -oE '[0-9]+$' | sort -nu); do
+    echo "$SHAPES" | grep -qx "$n" || DANGLING="$DANGLING $n"
+done
+if [ -z "$DANGLING" ]; then
+    pass "every LESSONS.md shape citation resolves ($(echo "$SHAPES" | wc -l | tr -d ' ') defined)"
+else
+    fail "LESSONS.md has no shape$DANGLING, but something cites it"
+fi
+
+# ── 7. Build and test (STANDARDS §5) ─────────────────────────────────────────────
 head2 "Build and test"
 
 # Each command runs once and its output is captured. Piping straight into `grep -q` looks
@@ -235,7 +304,7 @@ else
     printf '  %sSKIP%s  release build, selftest and decode check (--fast)\n' "$DIM" "$OFF"
 fi
 
-# ── 7. Workflow (STANDARDS §8.2.1) ───────────────────────────────────────────────
+# ── 8. Workflow (STANDARDS §8.2.1) ───────────────────────────────────────────────
 head2 "Workflow"
 
 MSG="temp/current-git-commit-message.txt"

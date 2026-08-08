@@ -4397,7 +4397,8 @@ nothing to render.
 #### The gate, and the probe that lied about it
 
 Every hit of every pattern in the codebase, at three tempos and four feels — 27,744 comparisons —
-lands on the **same sample** before and after the lift. All nineteen WAVs `render` produces are
+lands on the **same sample** before and after the lift. All nineteen WAVs `render` produced at the
+time — it writes 43 now, since styles and the per-voice kit files were added in steps 3–6 — are
 byte-identical to the pre-change baseline.
 
 Getting there took a wrong turn worth recording. The first gate was an audio hash, and it
@@ -4748,6 +4749,147 @@ somewhere", one file per voice turned that into "the kick", and arithmetic on th
 turned that into a number.** No test would have caught it, because nothing was wrong with the
 step list.
 
+### Step 7 — the three things that have to be settled before the planner sees a style
+
+Step 7 is the only step in this milestone with measurement risk, and the risk is not that a
+generated backing sounds bad. It is that **the failure is silent**: a take over the wrong music is
+a perfectly good take that has quietly left the series it exists to extend, and nothing in any
+readout would say so. The 21-take free-jam trend and the five-point benchmark are the only
+longitudinal data this project has.
+
+Three problems, settled here rather than discovered while wiring.
+
+#### 1. The jam trend group does not include the backing, and the seed would splinter it
+
+`TrainerEngine.groupKey` is `(bpm, rung, swingRatio, offbeatLevel)`. The backing appears only in a
+warning string built from `TrendAnalysis.distinct(takes.map(\.grooveName))`. Today `Jams at 100
+BPM` holds 21 takes over two backings — `basicRock` and `jamBacking` — and fits a line with a
+warning under it.
+
+Step 7's settled decision is that **the closing jam rotates its style between sittings and keeps
+one seed within a sitting**, so every sitting contributes takes under a *new* `grooveName`. After
+ten sittings the warning names ten backings and grows without bound, and the fit spans ten pieces
+of music sharing nothing but a tempo.
+
+**This is a defect this project has already retracted verdicts for, twice.** §7.24 step 8 measured
+it on real data: one offbeat take pooled into `Jams at 100 BPM` moved that group's |bias| from flat
+to **+0.29/take [+0.01, +0.62] worsening**, and the mixed-backings warning fired correctly the
+entire time. §7.27 then retracted two more. `LESSONS.md` shape 19 is the generalisation: **naming a
+confound is the floor, not the fix** — R3.4 versus R3.5.
+
+Three ways out, and the third is the one:
+
+| | Cost |
+|---|---|
+| Add `grooveName` to `GroupKey` | Every seed becomes a group of one. `TrendAnalysis.minimumPoints` is 3, so the free-jam series — the longest in the project — disappears, and so does the fixed group, which is the part worth keeping |
+| Exclude generated backings from trends | Keeps the history and throws away every future training take. The closing jam is where most playing happens; a trend that sees only the benchmark is a trend over five takes a fortnight |
+| **Split at the fixed/generated boundary, and key the generated side on the style rather than the seed** | The 21-take series is untouched, `driving` accumulates its own series across sittings, and the boundary already exists |
+
+`BackingIdentity.parse` draws exactly that line already — a name without an `@` is a fixed backing,
+which is every take recorded before M19 — so this is not a new concept and needs no schema change.
+
+**Whether two seeds of one style pool honestly is a claim, and it is not yet measured.** It
+contradicts `TakeAxis`, which treats any `grooveName` difference as a confound, so it has to be
+argued and then checked rather than assumed:
+
+- `TakeAxis` answers a different question. It asks whether two *named groups* differ, where a
+  backing difference is a plausible rival explanation for a difference that was found. A trend asks
+  whether one task is moving, and the task is "play freely over a `driving` groove" — the seed
+  varies the intensity arc and which fill lands, not the tempo, the density, the instrumentation or
+  where the backbeat sits.
+- That is bounded by construction rather than by intention: `density` and `carriesBass` are
+  properties of the style, and a test already walks every bar of several seeded pieces and requires
+  each to be a bar the style produces at some intensity or one of its fills. **The generator adds
+  nothing.**
+
+But no take over a generated backing exists, so the between-seed variance is unmeasured. The honest
+shape is therefore: group by style, warn that the pool mixes seeds, name what that costs, and
+**say the between-seed variance has never been measured** — the same discipline as `unusableReason`
+and `splitIsReliable`. Once a style has takes on two or more seeds it becomes directly estimable,
+and it is the same two-stage question `Bootstrap` already answers for takes within a condition
+(R3.2, row 3). If it comes back comparable to the between-take spread, seeds pool and the warning
+comes off; if it is larger, the seed goes into `GroupKey` and the cost is accepted. **Open question,
+recorded in §9 rather than settled here.**
+
+`TakeAxis` gains a **style** axis rather than losing its backing one, so `review tags` can say
+*"pools takes across different styles"* — a genuinely different task — apart from *"pools seeds of
+one style"*, which is a weaker claim. One more entry in `TakeAxis.all`, which §7.28 made the single
+list precisely so two readouts cannot disagree about what makes a task different.
+
+**What must not move is the fixed group.** R3.5's locked slots keep `jamBacking`, so the benchmark
+series and the 21-take free-jam series stay exactly as recorded. The guard is a test that the
+pre-M19 corpus produces identical trend output either side of the change.
+
+#### 2. `JamPlan` cannot hold a `Style`, and that is the module boundary working
+
+`JamPlan` lives in `TimingCore/SessionPlan.swift`. `TimingCore` imports `Foundation` and nothing
+else; `Style` lives in `GrooveCore`, which by R1.1.3 depends on nothing, not even `TimingCore`.
+**Neither module may import the other, so a plan cannot name a style by its type.** That is not an
+obstacle to route around: `SessionPlanner` decides what to practise from measured history, and it
+must not be able to reach a pattern.
+
+So the plan carries the *identity* and `TrainerKit` — the one module importing both — resolves it:
+
+```swift
+public let styleName: String?     // nil is the fixed backing, which every locked slot is
+public let seed: UInt64?
+```
+
+Four consequences, all decided before the code rather than after:
+
+- **Both fields are `Optional` and stay so** (R6.1). `JamPlan` is `Codable`, five `session-`
+  manifests are on disk, and every one must keep decoding. Here `nil` genuinely *is* the identity —
+  every plan ever written meant the fixed backing — which makes this the opposite case from `rung`,
+  where absent means *no rung was prescribed* and never quarters. `LESSONS.md` shape 13 says decide
+  which kind each optional is and write the reason beside the field; this is that decision.
+- **A raw `String`, not an enum**, for the same reason as `ExperimentAssignment.arm` and
+  `SessionPlacement.role`: adding or renaming a style must never orphan a stored manifest. The
+  rename from `motown` to `pocket` has already happened once.
+- **`StyleLibrary.named(_:)` returns `nil` and the caller needs an answer.** A manifest naming a
+  style that no longer exists falls back to `jamBacking` **and says so** — never traps, never
+  silently substitutes. R6.4: a decode failure that gets swallowed is how a schema change quietly
+  erases history.
+- **The two fields travel together or not at all.** A style with no seed is not reproducible
+  (R1.2.2); a seed with no style means nothing. `JamPlan.init` refuses the half-set case rather than
+  letting one path write a manifest nobody can replay — validation at the boundary (R7.6).
+
+**Where the resolution goes is already decided.** `SessionRunner.jamConfig(for:)` exists *because*
+§7.24 step 8 found the offbeat level failing to reach the backing from a decision made inside a
+function that opens an audio device (`LESSONS.md` shape 1). It is the same seam, it is already
+testable, and a test asserts the arrangement that comes out of it.
+
+#### 3. Nothing structurally stops a style reaching a locked slot
+
+`JamConfig.backing` has three branches — offbeat, rung, fixed — and step 7 adds a fourth. A comment
+is not a guard, and neither is a planner that happens not to set the field. Three layers, cheapest
+first:
+
+1. **The planner cannot express it.** The locked blocks are built from `referenceBpm`,
+   `benchmarkBars` and `benchmarkTag`, and the style fields are simply not set there.
+   `testTheBenchmarkIsAlwaysTheSameLockedTakeWhateverTheLadderDoes` already asserts those
+   absolutely rather than against a reference plan; it gains `XCTAssertNil(p.styleName)` beside the
+   existing `XCTAssertNil(p.rung)`. One line, in the test that exists for exactly this class of
+   leak.
+2. **A test walks every role.** For every `BlockRole` in `allCases`, at 20, 30 and 45 minutes,
+   across the nine planning histories: `cold`, `benchmark` and `experiment` resolve to a
+   `grooveName` of `jamBacking`. Roles rather than block indices, so a block that moves cannot move
+   out from under the assertion — and `allCases` means **a role added later fails this test until
+   somebody decides which side of the line it is on**, which is the property worth having.
+3. **The resolution refuses it.** `SessionRunner.jamConfig(for:)` ignores the style fields for a
+   locked role rather than trusting the plan, with a comment naming what breaks. Not redundant: the
+   planner is not the only thing that builds a block. A stored manifest is replayed, and a manifest
+   written by a future version is not something today's planner controls.
+
+**The same rule reaches the CLI.** `--probe` exists so anything can be tried without corrupting a
+ladder, and a style on a free `jam` is exactly what it is for. What must not exist is a way to put
+a style on a *benchmark-tagged* take from the command line — the tag is what `WarmUpAnalysis` and
+the trend grouping key on, so that guard belongs beside the tag rather than beside the style.
+
+**What none of this verifies** is that generated music is worth playing over for thirty minutes,
+which is a live-run question (R5.6) and is what `Style.auditioned` is for. The gate above stops a
+style reaching the *wrong* slot; it does not stop an unlistened style reaching the right one. That
+is a different flag and it is still `false` for all four.
+
 ---
 
 ## 7.30 Real genres, and what a synthesised kit would have to do
@@ -4845,35 +4987,159 @@ range where the tails overlap worst.
 The window came down from eight bars to two at the same time. Every layer cycles in one or two, so
 a longer render reaches no combination the first two miss, and the suite runs unoptimised.
 
+---
 
+## 7.31 Third codebase review — seven findings, three of them audible
 
+A full pass over the tree before M19 step 7, on the same principle as §7.20: the planner wiring
+inherits every weakness of the music underneath it, and step 7 is the only step in this milestone
+that can corrupt a measurement.
+
+**The gate was green throughout and is green now**: 604 tests, 41 selftest checks, a warning-free
+release build, every stored take decoding, a clean tree, no `TODO` anywhere in `Sources` or
+`Tests`. The take counts quoted in `AGENT.md` re-derive exactly — 30 jams, 12 form, 12
+continuation, 10 tempo, 8 recall, 72 takes and 5 session manifests — as does 443 pure-module tests.
+So none of this is a crash or a broken build. Three findings are defects in the kit, one is a
+diagnostic that cannot see the thing it was built to find, and three are the documentation drifting
+from the code.
+
+### 1. The bass truncates five times louder than the kick, and `render` cannot show it
+
+§7.29 step 6b measured the kick's truncation click at −31.8 dBFS and tabulated every voice that
+does it. **The table has no bass in it, and the bass is the worst one.**
+
+```swift
+let count = Int(decay * 1.6 * fs)      // BassSynth
+let body  = exp(-t / decay)
+```
+
+The body envelope stands at `exp(-1.6)` = **20.2% of peak** when the buffer ends. The kick's stands
+at `exp(-3.2)` = 4.1% — §7.29 step 6b's own figure. Reimplementing `BassSynth` exactly and
+measuring the last sample across E1–E3 puts it **15–20 dB below the buffer's own peak**, −17 to
+−22 dBFS, against the kick's −31.8. Every note in the rendered range steps to a non-zero value; the
+only quiet one is note 41, where the phase happens to land near a zero crossing.
+
+**The reason it was missed is structural and is the interesting half.** `runRender` writes its
+per-voice files from `BackingVoice.allCases.filter { !$0.isPitched }`, so there is no `kit-bass`
+file at any pitch. The method §7.29 step 6b is rightly proud of — *an ear said "there is a click
+somewhere", one file per voice turned that into "the kick", arithmetic turned that into a number* —
+**has a filter in it that excludes the voice with the loudest click.** That is `LESSONS.md` shape 3,
+a filter that hides real hits, applied to a rendering pass rather than to a grep, and the result
+went into `PLAN.md` as a complete table.
+
+Blast radius: **no take on record**. Nothing frozen carries a bass and a test walks every frozen
+arrangement to keep it that way. But every style carries one, so this arrives the moment step 7
+schedules a style — which makes it a step-7 prerequisite rather than an M26 item.
+
+Measured off a reimplementation of `BassSynth`, not off a rendered file, because no rendered file
+of the bass alone exists. The 20.2% is read directly off the two lines above and is exact.
+
+### 2. `driving` and `syncopated` play the closed and open hat on the same step
+
+| Style | Intensity | Shared steps |
+|---|---|---|
+| `driving` | ≥ 2 | 14 |
+| `syncopated` | 3 | 6, 14 |
+
+A hi-hat cannot be open and closed at one instant. The open hat on the "and" of four is supposed to
+**replace** the closed hat — that is what the gesture *is* — and instead both buffers sum, a 45 ms
+"tss" laid over a 1.2-second wash.
+
+`Style.doubledTimekeepers` cannot catch it, and the reason is exactly the narrowing that made that
+rule correct: `openHat` is not in `BackingVoice.timekeepers`, and with one or two hits a bar it
+falls below the three-hit threshold that stops a ride hit on the downbeat reading as a second
+pulse. The rule describes *doubling a pulse*; this is *doubling an instrument*, and they need
+separate checks.
+
+Same shape as §7.29 step 6's two-timekeeper finding — a physical impossibility that reads on the
+page as a reasonable step list — and the second instance of it, which is what makes it worth a
+structural guard rather than two edits.
+
+### 3. `render`'s seeded pieces do not contain their own intensity arc
+
+`runRender` builds the arrangement at `max(bars, 32)` and then writes `for bar in 0..<bars`. At the
+documented invocation — `render 100 8`, the one in `AGENT.md` — the file is **8 bars: one phrase,
+one intensity**. The comment above the loop says the piece is *"long enough to hear the intensity
+arc move across phrases"*.
+
+Verified rather than reasoned: `driving@000000005eed0001-100bpm.wav` is 1,746,404 bytes, identical
+to `driving-2-100bpm.wav`, and peaks at the same 0.96. The arc — the part §7.29 step 4 argues
+hardest for, five shapes chosen so a piece has somewhere to go — has never been rendered at the
+default and therefore has never been heard.
+
+At `render 160 32`, where four phrases and four fills do land in the file, nothing clips: the
+loudest seeded piece peaks at 0.93. So the headroom claim survives; only the audition was empty.
+
+### 4–7. Documentation
+
+| # | Finding | |
+|---|---|---|
+| 4 | **`LESSONS.md` was not in the repository.** Ten code comments and eleven passages across the other documents cite a shape by number, and the only copy lived in gitignored `temp/`. A fresh clone had none: every `LESSONS.md shape 10` pointed at nothing | Fixed here — it is a tracked fifth document, `STANDARDS.md` §0 has its row and §9.7 the procedure, and `check.sh` fails when a citation names a shape that does not exist |
+| 5 | `AGENT.md` said M19 steps 0 and 1 were done. Steps 0–6 are | Fixed |
+| 6 | `AGENT.md` said "`rock` and `motown` are authored" **thirteen lines above** the paragraph explaining that those names came off in §7.30. It also carried the `Style.auditioned` paragraph twice, near-verbatim | Fixed |
+| 7 | `TrainerKitTests` quoted at 157 in `AGENT.md` and `STANDARDS.md` §9.4.2; it is 161. `render` quoted at nineteen WAVs; it writes 43. `PLAN.md` §8's tree omitted two of the four test targets | Fixed, and the test counts are now checked by `check.sh` rather than by discipline |
+
+Findings 4–7 are all `LESSONS.md` shape 17, and this is the **fifth** documentation pass to find
+counts copied forward unchecked. Four passes of "re-derive the figures" did not stop the fifth from
+finding more, which is the argument for the mechanical check rather than another instruction:
+`check.sh` now derives the per-target test counts and compares them against every number quoted in
+the three documents that quote them, and verifies every shape citation resolves. Both rules were
+verified by planting a violation (R5.7).
+
+### What this review did not cover
+
+`GroovePlayer`, `MIDIInput`, `AudioIO` and calibration were not read closely; they are unchanged
+since M15 and remain untested by anything but a live run (R5.6). Nothing in the analysis path was
+re-derived beyond confirming `selftest` and the stored-take counts. **And the three kit findings
+are all things an ear would have found faster than a review did** — findings 1 and 2 are both
+audible, and finding 1 exists as a *number* only because §7.29 step 6b built the method for turning
+"something clicks" into a measurement.
+
+### Fix order
+
+| Step | Fixes | Where |
+|---|---|---|
+| 0 ✅ | 4–7 — `LESSONS.md` into the repository, every stale figure, the enforcement | the five documents, `scripts/check.sh` |
+| 1 | 1 — fade every one-shot, and give `render` a `kit-bass` file so the fix is audible | `TrainerKit/DrumSynth.swift`, `BassSynth.swift`, `Commands.swift` |
+| 2 | 2 — the open hat replaces the closed hat, with a `Style` check for impossible simultaneity | `GrooveCore/Style.swift`, `Styles.swift` |
+| 3 | 3 — render a seeded piece at its generated length | `TrainerKit/Commands.swift` |
+| then | M19 step 7, with §7.29's three hazards settled | |
+
+Finding 1 goes first because it is the one thing here affecting takes recorded today, and because
+fixing it changes the sound of `jamBacking` — the music every take on record was played over. That
+is a change to frozen material, and the discontinuity gets recorded with its date when it lands.
 
 ---
 
 ## 8. Project layout
 
-Swift Package Manager, five targets. The split is not cosmetic: the two pure modules are what
-make the numbers testable, and the rule that keeps them honest is that **anything analysable
-goes in `TimingCore` or `GrooveCore`**, because only those run under `swift test` against data
-whose answer is known by construction.
+Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
+two pure modules are what make the numbers testable, and the rule that keeps them honest is that
+**anything analysable goes in `TimingCore` or `GrooveCore`**, because only those run under
+`swift test` against data whose answer is known by construction.
 
 ```
 Musical Trainer/
 ├── Sources/
 │   ├── TimingCore/          pure analysis. Grid, matching, W-K split, autocorrelation,
 │   │                        bootstrap, form, tempo calibration, tempo memory, trends,
-│   │                        warm-up decomposition, the session planner.
+│   │                        warm-up decomposition, feel and swing, the offbeat drill,
+│   │                        the interval ladder, experiments, the session planner.
 │   │                        No AVFoundation, no CoreMIDI, no CoreAudio, no UI.
 │   ├── GrooveCore/          pure groove generation. Patterns, sequencer, arrangements,
-│   │                        dropout ladder, form backings, the aperiodic distractor.
+│   │                        dropout ladder, form and offbeat backings, the aperiodic
+│   │                        distractor, styles and the seeded arranger.
 │   │                        Same purity rule; depends on nothing, not even TimingCore.
 │   ├── TrainerKit/          audio, MIDI, synthesis, calibration, storage, the drill
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/
-    ├── TimingCoreTests/     synthetic ground truth
-    └── GrooveCoreTests/
+└── Tests/                   604 cases
+    ├── TestSupport/         shared generators — not a test target
+    ├── TimingCoreTests/     332 cases against synthetic ground truth
+    ├── GrooveCoreTests/     111 cases — patterns, sequencer, styles
+    └── TrainerKitTests/     161 cases — storage, config, sessions. macOS only, so
+                             `check.sh` runs them and Woodpecker cannot.
 ```
 
 `TrainerKit` exists because two front ends need one engine: `TrainerEngine.runJam` / `runForm`
@@ -4904,6 +5170,7 @@ than a dozen shared lines.
 7. ~~**Launchkey Mini MK2 key-scan latency is unknown.**~~ **Resolved** — jitter ≤ 0.63 ms, comfortably good enough. See §7.1.
 8. **Multi-instrument does not have to wait on hardware.** M20's drum mode uses the pads and keys already on the Launchkey, so it exercises the input-mapping and backing seams that M21 and M22 need — without a purchase. Worth doing before either.
 9. **Computer-keyboard timing quality is unknown** (M22). HID event timestamps are not driver-level MIDI timestamps, and key repeat and rollover both interfere. It would need its own M0-style validation before a single number from it could be trusted; assume nothing until that run exists.
+10. **Whether two seeds of one style pool honestly in a trend is unmeasured** (M19 step 7, §7.29). The argument that they should is structural — the generator selects among bars the style already defines and never invents or moves a hit, and `density` and `carriesBass` belong to the style rather than the seed — but no take over a generated backing exists, so the between-seed variance has never been observed. Until it has, the generated side of the trend groups by style and **says the pool mixes seeds and that the cost is unquantified**. Once a style has takes on two or more seeds it is directly estimable, and it is the same two-stage question `Bootstrap` answers for takes within a condition (R3.2, row 3): comparable to the between-take spread and seeds pool honestly, larger and the seed goes into `GroupKey`.
 
 ---
 

@@ -39,15 +39,18 @@ Plug the keyboard in before or after launch — sources are re-scanned before ev
 ## Contributing
 
 [STANDARDS.md](STANDARDS.md) holds the engineering rules — architecture, real-time safety,
-measurement integrity, security, and the commit format. `./scripts/check.sh` enforces what can
-be enforced; run `./scripts/install-hooks.sh` once so it runs before every commit.
+measurement integrity, security, and the commit format. [LESSONS.md](LESSONS.md) is the catalogue
+of ways this project has gone wrong, each with the instance and the guard; read it before a
+review. `./scripts/check.sh` enforces what can be enforced; run `./scripts/install-hooks.sh` once
+so it runs before every commit.
 
 ## Layout
 
 - `Sources/TimingCore` — pure timing analysis (grid, matching, Wing–Kristofferson, drift,
-  autocorrelation, bootstrap CIs, form analysis). No audio/MIDI; runs under `swift test`.
-- `Sources/GrooveCore` — pure groove generation (patterns, sequencer, dropout ladder, form
-  backings).
+  autocorrelation, bootstrap CIs, form analysis, feel and swing, the offbeat drill, the interval
+  ladder, experiments, the session planner). No audio/MIDI; runs under `swift test`.
+- `Sources/GrooveCore` — pure groove generation (patterns, sequencer, arrangements, dropout
+  ladder, form and offbeat backings, styles and the seeded arranger).
 - `Sources/TrainerKit` — audio, MIDI, synthesis, calibration, sessions, and the drill
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
