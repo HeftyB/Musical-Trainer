@@ -5089,6 +5089,21 @@ lives, which is what the table above is measured from.
 closes the filter that caused the finding in the first place, and it is what makes the fix audible
 rather than merely asserted.
 
+#### Heard, 7 August 2026
+
+> *"I listened to the new files kit-kick-100bpm and kit-bass-100bpm and they sound good."*
+
+**That is the half of this that no test could supply.** `OneShotTailTests` proves the buffers no
+longer step to zero; it cannot say the click is gone to a listener, and a fix that removed the step
+while leaving something else audible would pass every assertion in the file. The verdict above is
+what closes it, and it is recorded here rather than summarised because the person who can hear it
+is the only one who can give it — the same reason `Style.auditioned` is a flag nobody who writes a
+style may set.
+
+The bass file is the one that mattered, since it walks down to E1 where the truncation was loudest
+and the period longest. Both were listened to against the pre-fix renders that had been sitting in
+`temp/renders` since the review.
+
 #### The discontinuity, and its date
 
 **On 7 August 2026 the sound of `jamBacking` changed.** Every take recorded before that date was
@@ -5133,6 +5148,68 @@ separate checks.
 Same shape as §7.29 step 6's two-timekeeper finding — a physical impossibility that reads on the
 page as a reasonable step list — and the second instance of it, which is what makes it worth a
 structural guard rather than two edits.
+
+#### Fixed — step 2, by resolving rather than by forbidding
+
+`BackingVoice.articulationGroups` lists voices that are **one physical instrument in different
+states**, in precedence order, and `Style.pattern` reduces each instrument to one articulation per
+step as it merges the layers. The open hat wins: the foot lifts, the stick hits, and what a closed
+hat underneath it would add is a second hi-hat.
+
+**Resolved, not forbidden, and the distinction is the whole design.** The obvious alternative is a
+check that refuses a style authoring the collision — but *"eighths on the hat, and this one is
+open"* is the natural way to write the figure, and the alternative is punching a hole in the hat
+layer. That hole would have to open and close with the intensity, since the open hat enters at 2
+and the hat line it displaces enters at 1, and **the layer format cannot express that** — a layer
+is a figure and an entry threshold, with no way to say "unless". Forbidding the collision would
+mean either a worse format or a worse groove.
+
+It goes in `Style.pattern` rather than in `Pattern`, because merging is what *creates* the
+impossibility: every authored layer is playable on its own, and no frozen backing has both hats at
+all — `basicRock` and `halfTime` use the closed hat, `fourOnFloor` the open one, never both. So
+this cannot reach the music any recorded take was played over, and `jam-backing` still renders at
+peak 0.59.
+
+**Why `doubledTimekeepers` could not be widened to cover it.** That rule is about two voices
+keeping the same *pulse*, and it ignores a voice with fewer than three hits in a bar precisely so
+an occasional ride hit is not mistaken for a second drummer (§7.29 step 6). An open hat is exactly
+that occasional hit. Doubling a pulse and doubling an instrument are different mistakes, they need
+different thresholds, and merging them would either re-forbid ordinary percussion or stop catching
+the thing the first rule exists for.
+
+#### It broke an invariant's test, and the invariant was right
+
+`testIntensityOnlyEverAddsToWhatWasAlreadyPlaying` failed on three assertions — `driving` at step
+84, `syncopated` at 36 and 84. That test holds §7.29 step 3's discipline, the most important
+property in this milestone: **intensity adds and removes layers and never moves a hit, because the
+backing is the ruler the player is measured against.**
+
+The invariant is right and the assertion was stronger than it. It required the louder bar to
+contain each quieter hit *identically*, when what the invariant forbids is a hit **moving** — and
+an open hat replacing a closed one is the same step, the same instrument, the same sample, a louder
+articulation. Nothing about where the pulse sits changed. `LESSONS.md` shape 4: the assertion was a
+proxy for the claim its own name makes, and this is the second time in M19 that a proxy has had to
+be replaced by the property (`testTheExistingJamBackingIsUntouched` was the first).
+
+It is asserted per **instrument and step** now, which is stronger in the direction that matters — a
+step that sounded at a lower intensity may not fall *silent* at a higher one, whatever voice it was
+written for — and `testOnlyAnArticulationOfTheSameInstrumentMayBeSuperseded` holds the other half:
+anything that is not an articulation of something else survives byte-identically, so only a hi-hat
+may ever be superseded.
+
+**Weakening a test to accommodate a change is the failure this project is most careful about**, so
+the argument is recorded here rather than made silently in a diff.
+
+Seven tests, and reverting the one call in `Style.pattern` fails `ArticulationTests` **eleven
+ways**. Every style's peak is unchanged at every intensity — resolution only ever removes, so a mix
+can only get quieter — and `testResolutionOnlyEverRemoves` asserts that no hit is invented or
+moved, which is the property that keeps the backing a ruler.
+
+**The snare drum is deliberately not in the table.** `snare`, `sidestick` and `rimshot` are one
+drum struck three ways and the same rule applies, but no authored style plays two of them on a
+step, and which articulation wins is a musical decision nobody has had to make. Adding it is a row
+in `articulationGroups`, not a change to anything that reads it — which is what makes leaving it
+out cheap rather than a debt.
 
 ### 3. `render`'s seeded pieces do not contain their own intensity arc
 
@@ -5180,7 +5257,7 @@ audible, and finding 1 exists as a *number* only because §7.29 step 6b built th
 |---|---|---|
 | 0 ✅ | 4–7 — `LESSONS.md` into the repository, every stale figure, the enforcement | the five documents, `scripts/check.sh` |
 | 1 ✅ | 1 — fade every one-shot, and give `render` a `kit-bass` file so the fix is audible | `TrainerKit/DrumSynth.swift`, `BassSynth.swift`, `Commands.swift` |
-| 2 | 2 — the open hat replaces the closed hat, with a `Style` check for impossible simultaneity | `GrooveCore/Style.swift`, `Styles.swift` |
+| 2 ✅ | 2 — the open hat supersedes the closed hat as the layers merge | `GrooveCore/Voices.swift`, `Style.swift` |
 | 3 | 3 — render a seeded piece at its generated length | `TrainerKit/Commands.swift` |
 | then | M19 step 7, with §7.29's three hazards settled | |
 
@@ -5213,10 +5290,10 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   608 cases
+└── Tests/                   615 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     332 cases against synthetic ground truth
-    ├── GrooveCoreTests/     111 cases — patterns, sequencer, styles
+    ├── GrooveCoreTests/     118 cases — patterns, sequencer, styles
     └── TrainerKitTests/     165 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
