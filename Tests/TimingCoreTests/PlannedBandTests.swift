@@ -124,6 +124,33 @@ final class PlannedBandTests: XCTestCase {
         XCTAssertNil(SessionPlanner.nextStyle(from: input(styles: [])))
     }
 
+    /// **Both surfaces name the band from one place.** `settingsLabel` is the only mapping from a
+    /// plan to its summary line, so the app's session view and the console's plan preview cannot
+    /// describe the same block differently — the same reason `DrillInstructions.forBlock` is one
+    /// function and not two.
+    func testTheSummaryLineNamesTheBand() {
+        let plan = SessionPlanner.plan(targetMinutes: 45, from: input())
+        let closing = plan.blocks.first { $0.role == .closing }
+        let label = closing?.plan.settingsLabel ?? ""
+        XCTAssertTrue(approved.contains { label.hasSuffix("· \($0)") },
+                      "the closing block's summary should end with its band: \(label)")
+
+        let benchmark = plan.blocks.first { $0.role == .benchmark }?.plan.settingsLabel ?? ""
+        XCTAssertFalse(approved.contains { benchmark.contains($0) },
+                       "a locked slot has no band to name: \(benchmark)")
+    }
+
+    func testTheSummaryLineNamesNoBandWhenNoneIsApproved() {
+        let plan = SessionPlanner.plan(targetMinutes: 45, from: input(styles: []))
+        let label = plan.blocks.first { $0.role == .closing }?.plan.settingsLabel ?? ""
+        // The property, not a literal: the bar count comes from the session length and the time
+        // left after the drills, and pinning it here would make this test fail for reasons that
+        // have nothing to do with bands.
+        XCTAssertFalse(label.isEmpty)
+        XCTAssertFalse(approved.contains { label.contains($0) }, label)
+        XCTAssertFalse(label.contains("·  "), "no empty slot left where a band would go: \(label)")
+    }
+
     /// The planner can only ever choose from what it was given, which is where the approval gate
     /// actually bites: `TrainerKit` passes `StyleLibrary.auditioned`, never `all`.
     func testOnlyTheStylesHandedInCanBeScheduled() {

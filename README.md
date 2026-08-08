@@ -24,7 +24,9 @@ shows exactly what it expects of you before you begin. Jam, Alone and Tempo can 
 **subdivision** — quarters, eighths, triplet eighths or sixteenths — and score against it; the
 picker offers only the ones your chosen tempo can measure honestly, and the Jam defaults to free
 playing. A Jam on a binary subdivision can also be **swung**, from a shuffle to a full 2:1, with
-the band swinging with you. The take screen is
+the band swinging with you. Jam and Play can also pick a **band** — a generated backing built from
+a style and a seed, so no two evenings play the same piece. The seed is stored with the take, so a
+piece you liked can be asked for again. The take screen is
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
 
@@ -55,7 +57,7 @@ so it runs before every commit.
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 684 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 686 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh

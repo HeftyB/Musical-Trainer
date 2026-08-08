@@ -88,6 +88,29 @@ struct SetupView: View {
                     }
                 }
 
+                // Jam and Play are the two modes that may choose a band. Neither feeds a locked
+                // slot: Play measures nothing at all, and a free jam from this screen is not the
+                // benchmark, which only the planner schedules (R3.5).
+                //
+                // Offered only when something is approved. An empty picker with one row saying
+                // "Fixed" would be a control that does nothing, and the honest reading of an
+                // unapproved library is that there is no choice to make (§7.29 step 5).
+                if (model.mode == .jam || model.mode == .groove), !AppModel.bandChoices.isEmpty {
+                    Divider()
+                    LabeledContent("Band") {
+                        Picker("", selection: $model.band) {
+                            Text("Fixed — the usual groove").tag(String?.none)
+                            ForEach(AppModel.bandChoices, id: \.self) { name in
+                                Text(name.capitalized).tag(String?.some(name))
+                            }
+                        }
+                        .labelsHidden().frame(width: 220)
+                    }
+                    Text(model.bandAdvice)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 // Jam, Alone and Tempo are the three drills scored against a note value.
                 if model.mode == .jam || model.mode == .dropout || model.mode == .tempo {
                     Divider()
