@@ -5494,6 +5494,133 @@ is a change to frozen material, and the discontinuity is recorded above with its
 
 ---
 
+## 7.32 An honest correction gain
+
+The first take over a generated backing was played on 8 August and reported
+**`r₁ = +0.64  95% CI [+0.36, +0.63]`** — a point estimate outside its own interval. Checking six
+other takes showed every r₁ interval skewed low, by more the larger r₁ was. Two separate defects
+sat underneath, and a third thing standing in the way of the playing that exposed them.
+
+### 1. The interval bounded a statistic the block bootstrap cannot estimate
+
+`Bootstrap.interval` resamples contiguous blocks, which is right for the mean and the SD and
+**self-defeating for r₁**: every join between two blocks is a pair that was never adjacent, so a
+fraction ≈ `1/L` of the products are spurious and the resampled statistic is attenuated by about
+that much. This file's own doc comment claimed the intervals "stay honest for the mean, the SD, and
+r₁ alike". They do not.
+
+Measured against AR(1) series with the correlation planted by construction — a nominal 95%
+interval, and the fraction of trials that covered the truth:
+
+| true r₁ | n | block bootstrap | large-sample SE |
+|---|---|---|---|
+| 0.15 | 122 | 94% | 94% |
+| 0.40 | 122 | **80%** | 96% |
+| 0.40 | 492 | **72%** | 95% |
+| 0.64 | 122 | **25%** | 93% |
+| 0.64 | 492 | **24%** | 94% |
+
+The observed attenuation, 0.70–0.85× the true value, matches `1 − 1/L` from the block joins.
+**It hid for thirty takes because this player's r₁ had never left 0.13–0.50**, and the failure is
+invisible at the bottom of that range — `LESSONS.md` shape 6, a derived quantity that is honest at
+one end of its axis and misleading at the other.
+
+`Bootstrap.lag1Interval` uses `√((1 − r²) / n)` with `n` the pairs actually summed. Coverage holds
+across the whole range, and reverting fails `CorrectionGainIntervalTests`.
+
+### 2. r₁ paired notes either side of a rest
+
+`Stats.autocorrelation` pairs element *n* with *n+1* and asks nothing about what sat between them.
+The correction gain asks *did the last error predict this one*, which presumes the second note is
+close enough to be a response to the first — and two notes either side of four beats of silence are
+not. Same shape as §7.25, where a gap broke the x-axis a slope was fitted against.
+
+`Stats.gappyLag1` splits at any gap wider than a beat. A beat is the threshold because the beat
+*is* the pulse being tracked and 78.4% of every matched note in a free jam sits one beat from the
+last; eighths and sixteenths are a stream and pair normally.
+
+#### Centring per run, and the measurement that decided it
+
+The first implementation used one global mean and dropped only the seam products. A deliberately
+broken fixture exposed the flaw — `LESSONS.md` shape 16, the probe failing rather than the code,
+and useful anyway: with a global mean, **a placement shift across a rest reads as correlation**.
+Every note in a run sits the same side of a mean lying between the runs, so the products are large
+and positive whatever the player did.
+
+Simulated at his own 23 ms spread, with the correlation planted at zero:
+
+| runs of | global mean, 15 ms shift | per-run mean, any shift |
+|---|---|---|
+| 10 | **+0.265** | −0.106 |
+| 25 | +0.242 | −0.042 |
+| 60 | +0.217 | **−0.012** |
+
+Global centring invents a quarter of a correction gain out of a player who corrected nothing, and
+take-to-take bias in this project already ranges −7.6 to −24.8 ms, so a shift of that size across a
+rest is ordinary rather than pathological.
+
+Per-run centring is immune to it and costs roughly `1/n` of downward bias instead — **and that bias
+points at r₁ ≈ 0, which §10 defines as success.** A method that drifts toward its own success
+criterion is the more dangerous direction, so the floor is set where the drift stops mattering:
+`Stats.minimumRunLength` is 30, between the −0.042 and −0.012 rows. A take with no run that long
+reports **no r₁ at all** and says why, which is R3.3.1 rather than a number nobody should read.
+
+#### What it did to the corpus
+
+Every take recomputes from raw taps (R3.1), so all thirty-two moved. Most by little; the largest
+are the takes with the most breaks in them.
+
+| | |
+|---|---|
+| Median absolute change | 0.04 |
+| Largest | take 7, +0.20; take 15, −0.24; take 30, +0.12 |
+| Takes losing r₁ entirely | **none** — every take has a run of 30 |
+| Sign changes | **one** |
+
+**Take 15 now reads −0.06, and it is the first negative r₁ in the corrected corpus.** Read nothing
+into it: its interval is `[+0.03, +0.27]` under the old method and it is a small number either
+side of zero. What it does mean is that `AGENT.md`'s "positive in all 30 jams, with no negative
+reading ever recorded" is no longer true and has been corrected there.
+
+The trend verdicts did not move: `review trend` still reports r₁ flat on every group.
+
+### 3. The instructions asked for less than the drill allows
+
+*"Aim every note at a beat or an off-beat"* describes quarters and eighths, and a free jam has been
+scored on a **sixteenth** grid since M4. *"Don't stop and start"* forbids a rest, which costs
+nothing measurable. R3.6 says instructions are generated from the configuration that will actually
+run, and these were narrower than it — the drill was quietly asking for a plainer performance than
+it needed, in the one place the app speaks to a player who cannot look at the screen.
+
+The player put it plainly: *"when jamming I really want to add a quick break / silence or a mixture
+of different length notes, it really changes the feel and keeps things spicy."* Nothing in the
+analysis was stopping that. The text was.
+
+Both remaining pitfalls are the ones that are true: a note aimed between grid points really is
+discarded, and a take made only of short bursts really does lose its correction gain.
+
+### Withheld rather than shown wrong
+
+`review compare` and `review conditions` still bounded r₁ with the block bootstrap, and the pooled
+path is worse still — `resamplePool` concatenates a block-resampled series *per take*, so every take
+boundary is a spurious adjacency on top of the block joins. Both now **withhold r₁ and say so**
+rather than print a figure that answers a different question from the one `review <n>` prints for
+the same take (R3.3.1).
+
+Fixing them is a difference of two large-sample intervals and, for the pooled case, the plain
+bootstrap over per-take values that R3.2's own table already prescribes. It is queued as its own
+change rather than folded in here: three readouts, three guards, and this branch is already two
+analysis changes deep.
+
+### What this does not settle
+
+The r₁ **point estimate** is what moved; nothing here revisits what it means. Whether a jam played
+with deliberate breaks produces a different correction gain from one played straight is now
+*askable* and unmeasured — the corpus has one take (32) with 22 breaks in it and no controlled
+comparison. `MusicalContent` is where that question would go.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -5517,9 +5644,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   654 cases
+└── Tests/                   666 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     332 cases against synthetic ground truth
+    ├── TimingCoreTests/     344 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     200 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.

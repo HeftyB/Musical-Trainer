@@ -124,6 +124,13 @@ says "real change" or "within noise". Using the wrong bootstrap is a defect, not
 | Independent trials (drill rounds, minutes apart) | plain |
 | Anything pooled across takes or sittings | **two-stage: resample takes, then blocks within each** |
 | One value per take, compared across conditions | plain, over the per-take values |
+| **A lag-1 autocorrelation** | **not a block bootstrap** — `Bootstrap.lag1Interval` |
+
+> The block bootstrap is self-defeating for r₁: every join between two resampled blocks is a pair
+> that was never adjacent, so the statistic is attenuated by about `1/L` and the interval sits
+> below the point estimate. Measured against planted AR(1) series, a nominal 95% interval covered
+> the truth 25% of the time at r₁ = 0.64 — and 94% at r₁ = 0.15, which is why thirty takes went by
+> without it showing. See PLAN.md §7.32.
 
 > The third row shipped wrong for three milestones. Resampling only within takes leaves each
 > take's mean frozen in every iteration, so the interval is blind to between-take variation —
@@ -652,7 +659,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 454 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 466 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 **`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 200 tests
