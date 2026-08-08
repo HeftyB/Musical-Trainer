@@ -4,6 +4,7 @@
 #
 #   ./scripts/open-pr.sh                 # push, then open a PR against main
 #   ./scripts/open-pr.sh --base <branch> # ...against a branch instead, for stacked work
+#   ./scripts/open-pr.sh --single-commit # declare that one commit is the whole branch
 #   ./scripts/open-pr.sh --dry-run       # print what would be sent, send nothing
 #
 # The title is the last commit's subject and the body is temp/pr-message.md, which is written
@@ -33,11 +34,13 @@ BODY_FILE="temp/pr-message.md"
 
 BASE="main"
 DRY_RUN=0
+SINGLE_OK=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --base) BASE="${2:-}"; shift 2 || true ;;
         --dry-run) DRY_RUN=1; shift ;;
-        *) echo "usage: $0 [--base <branch>] [--dry-run]" >&2; exit 1 ;;
+        --single-commit) SINGLE_OK=1; shift ;;
+        *) echo "usage: $0 [--base <branch>] [--single-commit] [--dry-run]" >&2; exit 1 ;;
     esac
 done
 
@@ -78,6 +81,44 @@ fi
 
 AHEAD="$(git rev-list --count "$REF..$BRANCH")"
 [ "$AHEAD" -gt 0 ] || { echo "$BRANCH has nothing $REF does not." >&2; exit 1; }
+
+# **A branch is a coherent piece of work, and one commit is rarely one** (STANDARDS §8.1).
+#
+# The rule has been written down since the standard was, and it was broken nine times running —
+# PRs #23 to #31, every one of them a single commit. Prose is what a hurried afternoon ignores,
+# which is the same reason `Style.auditioned` is a flag and the same reason `check.sh` checks the
+# quoted test counts rather than asking nicely.
+#
+# So this refuses rather than warns, and `--single-commit` is the acknowledgement. A retraction, a
+# one-file fix and a lone dependency bump are all legitimately one commit; what is not legitimate
+# is arriving at one commit by default and calling it a branch.
+if [ "$AHEAD" -eq 1 ] && [ "$SINGLE_OK" -eq 0 ]; then
+    # `${DRY_RUN:+...}` would expand on the string "0" as readily as on "1", so the suffix is
+    # built explicitly. A hint that tells you to drop --dry-run is worse than no hint.
+    DRY_HINT=""
+    [ "$DRY_RUN" -eq 1 ] && DRY_HINT=" --dry-run"
+    cat >&2 <<EOF
+$BRANCH is one commit ahead of $REF, and a branch is meant to be a coherent piece of work
+rather than a single change (STANDARDS.md §8.1).
+
+  $(git log -1 --pretty='%s')
+
+If more of this work belongs here, keep going and open the PR when the branch is finished.
+If this genuinely is the whole thing — a retraction, a one-file fix — say so:
+
+  $0 --single-commit$DRY_HINT
+EOF
+    exit 1
+fi
+
+# §8.2.3 sets the shape of a PR body and closes it with the review notes: what the gate said, what
+# is byte-identical against what changed, and what the change still does not cover. A warning
+# rather than a refusal, because the shape is a discipline and a gate here would only teach people
+# to paste the heading.
+if ! grep -q '^## Review notes' "$BODY_FILE"; then
+    echo "Note: $BODY_FILE has no '## Review notes' section — see STANDARDS.md §8.2.3." >&2
+    echo ""  >&2
+fi
 
 TITLE="$(git log -1 --pretty=%s)"
 
