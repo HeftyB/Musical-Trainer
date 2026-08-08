@@ -8,7 +8,7 @@ import XCTest
 /// data is not a result. See PLAN.md §7.29 step 4.
 final class StyleArrangerTests: XCTestCase {
 
-    private let style = StyleLibrary.rock
+    private let style = StyleLibrary.driving
 
     // MARK: - Reproducible
 
@@ -36,10 +36,10 @@ final class StyleArrangerTests: XCTestCase {
     /// A take's music has to be reconstructible from what was stored, years later, without the
     /// generator having to be frozen in amber.
     func testAPieceIsReproducibleFromTheNameAloneOnTheTake() throws {
-        let identity = BackingIdentity(style: "rock", seed: 0x8F3A_21C4)
+        let identity = BackingIdentity(style: "driving", seed: 0x8F3A_21C4)
 
         let parsed = try XCTUnwrap(BackingIdentity.parse(identity.name))
-        XCTAssertEqual(parsed.style, "rock")
+        XCTAssertEqual(parsed.style, "driving")
         XCTAssertEqual(parsed.seed, 0x8F3A_21C4)
 
         let rebuilt = StyleArranger.arrangement(style: try XCTUnwrap(StyleLibrary.named(parsed.style)),
@@ -58,7 +58,7 @@ final class StyleArrangerTests: XCTestCase {
 
     func testTheNameRoundTripsAtEveryExtreme() {
         for seed in [0, 1, UInt64.max, 0x0000_0000_0000_00FF] as [UInt64] {
-            let identity = BackingIdentity(style: "motown", seed: seed)
+            let identity = BackingIdentity(style: "pocket", seed: seed)
             XCTAssertEqual(BackingIdentity.parse(identity.name), identity, "\(seed)")
         }
     }

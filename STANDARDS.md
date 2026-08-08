@@ -275,8 +275,23 @@ malformed packets must not index out of range.
 
 `main` is always green — `check.sh` passes at every commit.
 
-Branch for anything that is not a one-line fix. Name it `<type>/<short-description>` using the
-same types as §8.2: `feat/content-analysis`, `fix/form-instructions`, `build/woodpecker`.
+**A branch covers a coherent piece of work, not a single commit.** Commits stay granular, one
+logical change each (§8.2.2); *branches* are what broaden. A milestone step, a defect and the
+guard that closes it, a format and the two things that prove it — those are branches. A stream of
+one-commit branches is not granularity, it is a review queue nobody can hold in their head, and
+it makes the history read as though nothing was ever planned.
+
+Name it `<type>/<short-description>` using the same types as §8.2: `feat/content-analysis`,
+`fix/form-instructions`, `build/woodpecker`. Name it for the *work*, not for the first commit.
+
+**Open the pull request when the work is finished, not when the first commit lands.** A PR is a
+request to merge something whole. Single-commit PRs are fine where the change genuinely is one
+thing — a retraction, a one-file fix — and they should not be the norm.
+
+**Every merge into `main` must be non-breaking on its own.** Not merely green: a branch may not
+leave a half-built feature reachable from a surface the player uses. Land the parts that stand
+alone, gate the parts that do not, and say which is which in the PR. Where a milestone needs
+several branches, each one has to be a state the repository could sit in indefinitely.
 
 **A finished branch opens its own pull request.** `./scripts/open-pr.sh` pushes it and creates
 the PR from `temp/pr-message.md`, titled with the last commit's subject. The hand-over is one
@@ -512,7 +527,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 434 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 443 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 **`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 157 tests

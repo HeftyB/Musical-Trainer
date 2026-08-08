@@ -89,6 +89,82 @@ enum DrumSynth {
         tanh(x * drive) / tanh(drive)
     }
 
+    /// Jingles: a dense band of high noise with a fast attack and a rattling tail.
+    ///
+    /// Distinguished from a closed hat by *length* rather than by brightness — a hat stops dead
+    /// and a tambourine keeps ringing for a fifth of a second, which is what makes eighth notes
+    /// on it read as a groove rather than as a click.
+    private static func tambourine(fs: Double) -> [Float] {
+        let count = Int(0.22 * fs)
+        var out = [Float](repeating: 0, count: count)
+        var band = BandNoise(low: 4_500, high: 11_000, fs: fs)
+        for i in 0..<count {
+            let t = Double(i) / fs
+            // Two decays: the strike, then the jingles settling.
+            let env = Float(exp(-t / 0.012) * 0.7 + exp(-t / 0.10) * 0.5)
+            out[i] = band.next() * env * 0.75
+        }
+        return out
+    }
+
+    /// A softer, longer rattle with no strike — the sound that fills space without marking it.
+    ///
+    /// Deliberately *unaccented*: a shaker that could be accented would become a second snare,
+    /// and its job is to be the surface a groove sits on.
+    private static func shaker(fs: Double) -> [Float] {
+        let count = Int(0.13 * fs)
+        var out = [Float](repeating: 0, count: count)
+        var band = BandNoise(low: 5_000, high: 9_000, fs: fs)
+        for i in 0..<count {
+            let t = Double(i) / fs
+            // Slow attack, so it swells rather than hits. This is the whole character.
+            let attack = Float(min(t / 0.012, 1))
+            let env = attack * Float(exp(-t / 0.045))
+            out[i] = band.next() * env * 0.55
+        }
+        return out
+    }
+
+    /// Two inharmonic partials, hard attack, medium ring. Pitched enough to be a landmark and
+    /// clangy enough not to be mistaken for a note.
+    private static func cowbell(fs: Double) -> [Float] {
+        let count = Int(0.30 * fs)
+        var out = [Float](repeating: 0, count: count)
+        var p1 = 0.0, p2 = 0.0
+        let f1 = 540.0, f2 = 800.0
+        for i in 0..<count {
+            let t = Double(i) / fs
+            let env = exp(-t / 0.09)
+            var sample = sin(p1) * 0.6 + sin(p2) * 0.4
+            p1 += 2 * .pi * f1 / fs
+            p2 += 2 * .pi * f2 / fs
+            sample = tanh(sample * 1.6) / tanh(1.6)
+            out[i] = Float(sample * env) * 0.5
+        }
+        return out
+    }
+
+    /// The stick on the rim: a short wooden knock with no snare rattle behind it.
+    ///
+    /// What a drummer plays instead of a backbeat when the music wants quiet, so a style can have
+    /// a two and four without the snare dominating everything above it.
+    private static func sidestick(fs: Double) -> [Float] {
+        let count = Int(0.09 * fs)
+        var out = [Float](repeating: 0, count: count)
+        var noise = Noise()
+        var lp = OnePole(cutoff: 3_200, fs: fs)
+        var phase = 0.0
+        for i in 0..<count {
+            let t = Double(i) / fs
+            let env = Float(exp(-t / 0.011))
+            let wood = sin(phase) * 0.5
+            phase += 2 * .pi * 1_700 / fs
+            let click = Double(lp.lowpass(noise.next())) * 0.6
+            out[i] = Float(wood + click) * env * 0.6
+        }
+        return out
+    }
+
     static func render(_ voice: BackingVoice, sampleRate fs: Double) -> [Float] {
         switch voice {
         case .kick:      return kick(fs: fs)
@@ -100,6 +176,10 @@ enum DrumSynth {
         case .tom:       return tom(fs: fs)
         case .crash:     return crash(fs: fs)
         case .ride:      return ride(fs: fs)
+        case .tambourine: return tambourine(fs: fs)
+        case .shaker:    return shaker(fs: fs)
+        case .cowbell:   return cowbell(fs: fs)
+        case .sidestick: return sidestick(fs: fs)
         // Pitched, so it has no single buffer — `BackingKit` renders one per note through
         // `BassSynth`. Returning empty here rather than trapping keeps a stray `.bass` in a
         // drum-only context silent instead of fatal.

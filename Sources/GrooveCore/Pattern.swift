@@ -43,6 +43,26 @@ public struct Pattern: Equatable {
         return Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat, hits: hits)
     }
 
+    /// One voice, with a velocity per step, cycling.
+    ///
+    /// **This is what stops a hi-hat sounding like a metronome.** Every step at one velocity is
+    /// a click track: a real hand leans on the beat and eases off between, and the ear reads
+    /// that difference as a groove rather than as timing. It was the first thing an ear caught
+    /// about M19's styles (§7.29 step 6).
+    ///
+    /// Velocity, never position — the backing is the ruler the player is measured against, and
+    /// accenting is loudness only.
+    public static func line(_ voice: BackingVoice, stepsPerBar: Int = 16, stepsPerBeat: Int = 4,
+                           _ steps: [Int], velocities: [Int]) -> Pattern {
+        precondition(!velocities.isEmpty, "an accent pattern needs at least one velocity")
+        let hits = steps.enumerated().map { index, step in
+            Hit(voice: voice, step: step, velocity: velocities[index % velocities.count])
+        }
+        return Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat,
+                       hits: hits.sorted { ($0.step, $0.voice.rawValue)
+                                        < ($1.step, $1.voice.rawValue) })
+    }
+
     /// A bass figure: steps paired with the note each one sounds.
     ///
     /// Separate from `make` because a drum line is a set of steps and a bass line is a set of

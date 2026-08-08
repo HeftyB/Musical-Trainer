@@ -63,12 +63,25 @@ public struct Style: Equatable {
     public let playerVoices: Set<BackingVoice>
     public let density: Density
 
+    /// Whether the player has listened to this style and said yes.
+    ///
+    /// **A flag rather than a promise in a document.** §7.23's rule — do not promote a player
+    /// onto something nobody has heard — has been prose since M14, and prose is what a hurried
+    /// afternoon ignores. The planner schedules only styles that carry this, so a groove that
+    /// has never been through a pair of headphones cannot reach a take by anybody's oversight.
+    ///
+    /// It is `false` for a newly authored style and stays false until the person who has to play
+    /// over it changes it. Nobody who wrote the style can set it honestly: whether a groove is
+    /// worth thirty minutes is not a property of its step list.
+    public let auditioned: Bool
+
     /// Intensity runs 0–3 like every other ladder here, so `SessionPlanner` and M17's adaptive
     /// difficulty have one scale to reason about rather than one per drill.
     public static let intensityRange = 0...3
 
     public init(name: String, layers: [Layer], fills: [Pattern],
-                playerVoices: Set<BackingVoice>, density: Density) {
+                playerVoices: Set<BackingVoice>, density: Density,
+                auditioned: Bool = false) {
         precondition(!layers.isEmpty, "a style needs at least one layer")
         precondition(layers.contains { $0.entersAt == 0 },
                      "a style needs a skeleton — something that plays at intensity 0")
@@ -77,12 +90,50 @@ public struct Style: Equatable {
         self.fills = fills
         self.playerVoices = playerVoices
         self.density = density
+        self.auditioned = auditioned
     }
 
     /// Whether the band carries its own bass. Derived rather than declared, so it cannot drift
     /// away from what the layers actually contain.
     public var carriesBass: Bool {
         layers.contains { $0.bars.contains { $0.hits.contains { $0.voice == .bass } } }
+    }
+
+    /// Timekeeping voices that are playing the *same steps* as another one.
+    ///
+    /// **Doubling, not interlocking.** A hat on the downbeats and a shaker on the offbeats are
+    /// one pulse shared between two hands, which is ordinary and good. A ride and a hat on the
+    /// same four steps are the same rhythm in two timbres, which reads as a bell ringing over a
+    /// hat rather than as either — that is what an ear caught in `half-time`, where the two were
+    /// literally identical, and in `motown`, where quarters on the ride sat inside sixteenths on
+    /// the hat.
+    ///
+    /// A voice counts as keeping time when it plays three or more times in a bar: a ride hit on
+    /// the downbeat is a colour, not a pulse, and the rule must not forbid ordinary music.
+    public func doubledTimekeepers(atIntensity intensity: Int) -> Set<BackingVoice> {
+        var stepsByVoice: [BackingVoice: Set<Int>] = [:]
+        for layer in layers where layer.entersAt <= intensity {
+            for bar in layer.bars {
+                var perBar: [BackingVoice: Set<Int>] = [:]
+                for hit in bar.hits where BackingVoice.timekeepers.contains(hit.voice) {
+                    perBar[hit.voice, default: []].insert(
+                        hit.step * (Pattern.commonStepsPerBeat / bar.stepsPerBeat))
+                }
+                for (voice, steps) in perBar where steps.count >= 3 {
+                    stepsByVoice[voice, default: []].formUnion(steps)
+                }
+            }
+        }
+        var doubled: Set<BackingVoice> = []
+        for (voice, steps) in stepsByVoice {
+            for (other, otherSteps) in stepsByVoice where other != voice {
+                if !steps.isDisjoint(with: otherSteps) {
+                    doubled.insert(voice)
+                    doubled.insert(other)
+                }
+            }
+        }
+        return doubled
     }
 
     /// The bar this style plays at a given position and intensity.

@@ -52,7 +52,7 @@ be enforced; run `./scripts/install-hooks.sh` once so it runs before every commi
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 594 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 604 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -90,7 +90,7 @@ swift build -c release   # the console tool
 | `review content` | **M12.** Does what you play change how you time it? Correlates musical content against timing spread within each take. |
 | `review cold` | **M10.** Is it warming up, or getting better? Separates improvement inside a sitting from improvement in the cold take across sittings. |
 | `review experiment` | **M13.** What the A/B experiments have collected. Arms are assigned before you play and balanced against what has already run; nothing is compared until every arm reaches the number of takes declared up front. Three are queued: two where the arms differ in what you are *told*, and **M14's** `slow-vs-fast` where they differ in tempo. |
-| `render [bpm] [bars]` | **M19** adds `bass-demo`, so the band's new bass voice can be judged by ear. **M14.** Renders every ladder backing — quarters, eighths, triplet eighths, sixteenths — plus the jam backing to WAV files in `temp/renders`, so a groove can be judged by ear without a live run. **M15** adds swung eighths and sixteenths. Flags anything above its tempo ceiling, which a swing lowers. Default 100, 8. |
+| `render [bpm] [bars]` | **M19** adds `bass-demo`, every style at every intensity, a seeded piece per style, and `kit-<voice>` for each of the thirteen kit voices alone — so a groove, an intensity arc or a single sound can be judged by ear. Warns on any clipped sample. **M14.** Renders every ladder backing — quarters, eighths, triplet eighths, sixteenths — plus the jam backing to WAV files in `temp/renders`, so a groove can be judged by ear without a live run. **M15** adds swung eighths and sixteenths. Flags anything above its tempo ceiling, which a swing lowers. Default 100, 8. |
 | `review interval` | **M14.** Does the gap between notes change how you play? Two readouts. Across takes, buckets them by the interval each was asked for and refuses to fit until tempo has actually been varied. Then, on the notes themselves, bins every note by how far it sat from the one before it and reports whether your spread is a fixed number of milliseconds or a fixed fraction of the gap — which decides what may be compared with what. |
 | `show` | Prints stored calibration and the constant for each device. |
 

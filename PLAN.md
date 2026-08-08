@@ -900,10 +900,12 @@ Direction set with the player: **training depth** over new instruments or packag
 **20–30 minute structured sessions**; **research built in as a first-class feature** rather
 than run by hand. Ordered by dependency and value, not difficulty.
 
-Four entries were added after the original M9–M22 list and sit out of numeric order below,
-where their dependencies put them: **M16.5** (the skank family), the **M20 note**, **M23**
-(jazz time, deferred with its argument), and **M24** (voice, which depends on M21's onset
-detection rather than on M23).
+Seven entries were added after the original M9–M22 list and sit out of numeric order below, where
+their dependencies put them: **M16.5** (the skank family), the **M20 note**, **M23** (jazz time,
+deferred with its argument), **M24** (voice, which depends on M21's onset detection rather than
+on M23), **M25** (harmony), **M26** (the kit — the synthesis work that makes a genre name
+sound true, §7.30) and **M27** (what makes a genre that genre — the classification problem
+underneath the name).
 
 **M19 now runs ahead of M16**, decided with the player on 6 August. M16's span ladder grows the
 phrase to 32 bars and there is no backing that sustains 32 bars, so the ladder would be built on
@@ -1193,6 +1195,62 @@ HID timestamps are not driver-level MIDI timestamps all mean the *measurement qu
 have to be characterised from scratch — an M0-style validation run of its own before a single
 number could be trusted. Better as an on-ramp for other players than as a way for this one to
 practise.
+
+### M27 — What makes a genre that genre
+**The half of the problem M26 does not touch**, and the reason the styles are named
+`driving`, `pocket`, `syncopated` and `half-time` rather than for genres today (§7.30).
+
+A kit that sounds convincing is necessary and nowhere near sufficient. Naming a style `motown`
+is a claim, and there is currently no way to state what the claim *is*, let alone check it. That
+is a classification problem and it runs deeper than timbre and a step list:
+
+| Axis | Example of what it decides |
+|---|---|
+| Instrumentation | Tambourine on eighths, or it is not Motown |
+| Rhythmic placement | Where the backbeat sits, how far behind the beat the snare lies |
+| Feel | Straight, swung, and how deeply — already modelled by `Feel` |
+| Dynamics | The relationship between ghost and accent, not just their presence |
+| Form | Where turnarounds fall, how long a section runs before it moves |
+| Harmony and bass motion | Walking, static, or a root-and-fifth pulse — M25's territory |
+| Tempo range | A groove that only works between 88 and 104 is a different claim |
+| Register and arrangement | What occupies the mid-range, and what is deliberately empty |
+
+**What this milestone owes:** a vocabulary for those axes, a way to write a genre's requirements
+down, and a check that a style meets them — so "this is a Motown groove" becomes a statement with
+a falsifier rather than a label somebody typed.
+
+Until then a style is named for what it demonstrably *does*. That is not a retreat: it is the same
+discipline as `unusableReason` and `splitIsReliable` — say the true thing, and do not let a label
+imply a measurement nobody made.
+
+*Depends on:* M26 for the kit, M25 for harmony, and probably a professional ear for the reference
+recordings that define what each requirement actually sounds like.
+
+### M26 — The kit
+**The synthesis work that makes a genre name true**, settled with the player on 7 August and
+argued in full in §7.30. The direction is explicit: keep the genre names, and make the kit good
+enough to deserve them. No shortcuts.
+
+Five things, in order of what each buys:
+
+1. **Velocity layers** — a drum hit harder is a different spectrum, not the same one louder. One
+   buffer scaled by gain is why a ghost note sounds like a fader move.
+2. **A kit as a parameter set** — a Motown snare is tuned high and damped, a rock snare is fatter
+   and rings. `Style` carries kit parameters; `BackingKit` takes them. Architectural, not tuning.
+3. **Room** — the kit is bone dry, and dryness is most of what reads as "electronic".
+4. **Deterministic variation** — every hit is byte-identical to the last, which no acoustic
+   instrument is. Seeded, because R1.2.2 is not negotiable for a bit of realism.
+5. **The bass** — a sine and an octave with a pluck, and the least convincing thing after the kick.
+
+**No samples.** The app ships no audio assets, which is why it is small and why a render is
+reproducible from source alone; every asset is content somebody else's licence governs, and
+hardware ROM and DAW instrument libraries are usually most restrictive about exactly the thing a
+release would do. The player's TD-V6 and GarageBand get used as a **reference** instead — record
+them, measure spectra and envelopes, tune the synthesis to match. A timbre is not copyrightable
+and a measurement problem is one this project is equipped for.
+
+*Falsifier:* if a synthesised kit tuned against real references still cannot be told from "beat
+#3" by a professional ear, the genre names come off and the styles get named for what they are.
 
 ### M25 — Harmony
 Settled with the player on 6 August, as a milestone rather than a parameter. M19's bass is
@@ -4534,6 +4592,259 @@ one pattern for eight bars would flatten exactly the variation the layers exist 
 
 `render` writes a generated piece per style so the arc can be heard, which is the only way to
 judge it. Still nothing schedules a style: the planner is step 6.
+
+### Step 5, as built — four styles, and a gate that is a flag rather than a promise
+
+`funk` — syncopated kick, ghost snares, sixteenths — and `half-time`, one snare on beat three and
+a great deal of air. Four styles now, chosen to span rather than to fill a list: `half-time` is
+the only `sparse` one, which is what M24's vocal drills need, and `funk` is the busiest, which is
+what makes practising *around* the beat rather than on it possible at all.
+
+#### "Nothing enters the library unheard" is now enforced
+
+§7.23 made it a rule in prose in M14 — *a rung the player has not heard is a rung the planner must
+not promote them onto* — and prose is what a hurried afternoon ignores. `Style.auditioned` is a
+flag, `StyleLibrary.auditioned` is what the planner will be allowed to see, and it is **`false`
+for every style in the library right now**.
+
+Nobody who writes a style can set it honestly. Whether a groove is worth thirty minutes is not a
+property of its step list, and the only person who can answer is the one who has to play over it.
+A test asserts the current state — four authored, none approved — so flipping one is a deliberate
+edit that appears in a diff rather than something that drifts.
+
+The planner in step 6 therefore starts with **nothing it may schedule**, and has to cope with an
+empty list rather than reaching past the gate. That is the right shape: the fallback is the fixed
+`jamBacking` every take on record already used.
+
+### Step 6 — what an ear found that no test could
+
+The first four styles were rendered and listened to, and the verdict was not close. Recorded in
+full because it is the most useful feedback this milestone has had:
+
+> *"They sound like someone is making their very first beats in GarageBand… the tracks sound good,
+> just not Motown vibe at all. Same thing with the funk collection."*
+
+Three separate defects, one limitation, and one opportunity.
+
+#### Two things keeping time — a real error, and a test now
+
+*"The ride sounds kind of like a bell with the hats going as well. Usually you keep rhythm on the
+ride or the hats, never both at the same time."*
+
+Correct, and worse than described. `motown` played quarters on the ride inside sixteenths on the
+hat; `half-time` played the hat and the ride on the **same four steps** — the same rhythm in two
+timbres. Two timekeepers is not a fuller sound, it is two drummers.
+
+`Style.doubledTimekeepers(atIntensity:)` catches it and a test walks every style at every
+intensity. The rule took two attempts: the first forbade *any* two timekeeping voices, which also
+forbids a hat on the downbeats against a shaker on the offbeats — one pulse shared between two
+hands, which is ordinary percussion. It is scoped to voices that share **steps** now, so it
+describes the defect rather than the genre.
+
+#### A hat at one velocity is a click track
+
+*"There was a rhythmic like click that sounded like a metronome noticeable in some of the
+tracks."*
+
+Every layer was written with a single velocity for all its steps, so eight identical hi-hat hits
+per bar were eight copies of one buffer at one level. That is a metronome by construction. A hand
+leans on the beat and eases off between it, and the ear reads the difference as groove rather
+than as timing. `Pattern.line` gives a layer a velocity per step, and the hats in every style are
+accented now.
+
+**Velocity only, never position.** Accenting is loudness; the backing stays the ruler.
+
+Which voice the click actually *is* remains unidentified, and guessing from a step list is how a
+wrong fix gets shipped. `render` writes one file per voice — `kit-kick`, `kit-snare`, and the
+rest, four bars of quarter notes each — so the sound can be named rather than theorised about.
+
+#### The kit is electronic, and a genre name is a promise
+
+*"Drums sound great and I could and would use them to produce music, but the electronic set
+brings a kind of vibe… it was more of a 'beat #3' situation rather than 'oh, a Motown beat'."*
+
+This is the finding that matters most, and it is not a bug. `DrumSynth` synthesises everything
+procedurally with zero dependencies (R7.2) and no samples, which is why the app is 2 MB and needs
+nothing installed — and it is also why it will never produce a 1965 Funk Brothers session. **A
+style named for an acoustic genre is making a promise the kit cannot keep.**
+
+Four voices were added because the kit could build a groove and could not build an *identity*:
+`tambourine`, `shaker`, `cowbell`, `sidestick`. The tambourine in particular was a real omission
+— eighths on a tambourine *is* the Motown signature, and there was no tambourine.
+
+Whether that closes the gap or merely narrows it is a question for an ear.
+
+**Decided on 7 August: the genre names stay as a goal and come off these four tracks.** They are
+`driving`, `pocket`, `syncopated` and `half-time` now — named for what each demonstrably does.
+`half-time` was the only one already honest, because it describes a rhythm rather than claiming a
+genre.
+
+That is not a retreat from the ambition, which is unchanged and recorded as M26: keep the genre
+names, make the kit deserve them, no shortcuts. It is a refusal to let a label imply a
+measurement nobody made — the same discipline as `unusableReason` and `splitIsReliable`.
+
+And it exposed the harder half. A convincing kit is necessary and nowhere near sufficient:
+naming something `motown` is a claim, and there is no vocabulary here for stating what the claim
+*is*, let alone checking it. Instrumentation, where the backbeat sits, the ghost-to-accent
+relationship, form, bass motion, tempo range, what occupies the mid-range and what is
+deliberately empty — that is a classification problem, it is deeper than a kit and a rhythm, and
+it is now **M27** on the roadmap rather than something to be improvised the next time a style
+gets written.
+
+#### Where these two belong
+
+*"These two progressions would work very well in our vocal section for when it is time to 'spit
+bars'."*
+
+Recorded as a finding, not a consolation. `motown` and `funk` as they stand are good beats to rap
+over, which is exactly what M24's vocal drills need — chanting, rhyming and spoken rhythm want a
+backing with a strong pocket and no melodic claim on the ear. M24 should look here first rather
+than authoring its own.
+
+### Step 6b — the click, found and measured
+
+*"The click I am pretty sure is coming from the kick, it's got a 'closing' quality at the end.
+Playing `kit-kick-100bpm.wav` sounds kind of techno-like with the rhythmic opposite of the kick."*
+
+Exactly right, and it is a defect rather than a taste. Measured from the rendered file:
+
+| | |
+|---|---|
+| Kick buffer length | 14,112 samples — 0.320 s, fixed |
+| Body envelope at that point | `exp(-0.32 / 0.10)` = **4% of peak**, plainly audible |
+| Last sample before the buffer ends | −841 of 32,768 |
+| Next sample | 0 |
+
+**The buffer stops mid-cycle and the signal steps to zero.** A step discontinuity is a broadband
+impulse — a click — and it lands at exactly 0.320 s after *every* kick. Against a 0.6 s beat that
+is 0.53 of a beat, which is why it reads as a rhythmic event of its own rather than as part of
+the kick: "the rhythmic opposite" is a precise description of a click sitting just past the
+offbeat.
+
+At −31.8 dBFS it is far too loud to hide. Four voices do it:
+
+| Voice | Level at truncation | |
+|---|---|---|
+| **kick** | **−31.8 dBFS** | six decibels worse than anything else |
+| snare | −38.7 dBFS | |
+| clap | −45.7 dBFS | |
+| ride | −47.8 dBFS | |
+| closedHat, cowbell, rimshot, shaker, sidestick, tambourine, tom | −51 dBFS and below | inaudible |
+
+The cause is the same everywhere: a one-shot's length is a constant, its envelope is exponential,
+and an exponential never reaches zero. Whichever value it happens to hold at the last sample is
+the size of the step.
+
+**This has been in every take ever recorded.** `basicRock` has kicked on every bar since M3, so
+every jam, every benchmark and every ladder take was played over a backing with a faint click a
+third of a second after each kick. It is not a measurement error — the grid comes from
+`TimingCore` and never from the audio — but it is a thing the player has been hearing, at a fixed
+offset from the pulse, near the offbeat. Worth holding in mind when reading the offbeat drill's
+one take.
+
+The fix is not the interesting part: fade the last few milliseconds of every one-shot, or make the
+length follow the decay. What the finding is worth is the method — **an ear said "there is a click
+somewhere", one file per voice turned that into "the kick", and arithmetic on the rendered samples
+turned that into a number.** No test would have caught it, because nothing was wrong with the
+step list.
+
+---
+
+## 7.30 Real genres, and what a synthesised kit would have to do
+
+Settled with the player on 7 August, in answer to §7.29 step 6's open question:
+
+> *"We should absolutely keep the genre names in general. I really would like to make some
+> different genres happen for real, no shortcuts. With enough effort and refining we can
+> absolutely synthesize any sound we want and I am game."*
+
+So the direction is not "rename the styles to something the kit can honestly claim". It is to
+make the kit good enough that the claim is true. That is a bigger undertaking than the rest of
+M19 put together and it deserves its own reckoning.
+
+### What actually separates a synthesised kit from a genre
+
+The current synth is one buffer per voice, played back at a gain proportional to velocity. Five
+things are missing, in rough order of how much each would buy:
+
+1. **Velocity layers.** A drum hit harder is not the same sound louder — the spectrum shifts, the
+   attack sharpens, the decay changes. A ghost snare at velocity 34 and a backbeat at 100 are
+   different instruments, and rendering both from one buffer is why quiet hits sound like a fader
+   move. This is the single largest gap.
+2. **A kit is a parameter set, not a constant.** A Motown snare is tuned high and damped; a rock
+   snare is fatter and rings. Same synthesis, different tuning, decay and noise balance. `Style`
+   should carry kit parameters and `BackingKit` should take them, which is an architectural change
+   rather than a tuning one.
+3. **Room.** The kit is bone dry, and dryness is most of what reads as "electronic". Early
+   reflections and a short tail would do more for believability than any amount of spectral work
+   on the voices themselves.
+4. **Deterministic variation.** Every hit is byte-identical to the last, which no acoustic
+   instrument is. Round-robin sample selection or small seeded parameter jitter would break the
+   machine quality — **seeded**, because R1.2.2 and the reproducibility the whole milestone rests
+   on are not negotiable for a bit of realism.
+5. **The bass.** A sine and an octave with a pluck. A real bass has string noise, finger attack
+   and a pitch-dependent tone; it is the least convincing thing in the mix after the kick.
+
+None of these is exotic. All of them are work, and the order above is the order of return.
+
+### Samples: the offer, the constraint, and a third path
+
+The player has a Roland TD-V6 with many kits, GarageBand's virtual instruments, microphones and
+inputs, and asked what the position is on capturing those sounds.
+
+**Against sampling, and it is stronger than it first looks:**
+
+- R7.2 is zero third-party dependencies, and the reasoning generalises: every asset is content
+  somebody else's licence governs. The app currently ships **no audio assets at all**, which is
+  why it is small, why it needs nothing installed, and why a render is byte-reproducible from
+  source alone.
+- The licensing of a hardware module's ROM samples or a DAW's instrument library is a question
+  about *someone else's terms*, and the honest answer is that it varies, it is often restrictive
+  about redistribution specifically, and this is not the place for a confident reading of it.
+- Purely local use by one player is a very different question from anything distributable, and
+  this app has release tooling. The distinction would have to be maintained deliberately.
+
+**The third path, and the recommendation: record them as a *reference*, not as a source.**
+
+A timbre is not copyrightable; a recording is. So capture the TD-V6 and GarageBand kits, look at
+their spectra, envelopes and velocity behaviour, and **tune the synthesis to match**. That uses
+the hardware for exactly what it is good for — telling us what the target sounds like — while the
+app keeps shipping nothing but code. It also produces something a sample never could: a kit that
+can be re-tuned per style, at any velocity, without a gigabyte of assets.
+
+That is a measurement problem, which this project is well equipped for, rather than an asset
+problem, which it is not.
+
+### The ear this project has been missing
+
+*"My older brother is in the music business professionally as a musician / producer."*
+
+Worth recording as a resource rather than an aside. Every acceptance question in this milestone
+has come down to whether something *sounds* like what it claims, and that has been answered by
+one amateur listener and by me, who cannot listen at all. A professional producer is precisely
+the missing instrument: not for building anything, but for saying "that is not a Motown snare, it
+is tuned too low and there is no room on it" — which is the sentence that turns a vague
+dissatisfaction into a parameter.
+
+### What this does to the roadmap
+
+M19 finishes on its current scope: the format, the generator, the planner wiring, and styles that
+are honest about being what they are. **The synthesis work above is not M19.** It is large enough,
+separable enough and valuable enough to be its own milestone, and folding it into M19 would mean
+M19 never lands.
+
+Recorded as **M26 — the kit**, in §7.13.
+
+#### The headroom test was not testing fills
+
+`peak` walked `style.pattern(atBar:intensity:)`, which never returns a fill — so the crash that
+lands on every phrase boundary, on top of the loudest bar it can follow, was the one thing in a
+style most likely to clip and the one thing unmeasured. It is covered now, at the top of the tempo
+range where the tails overlap worst.
+
+The window came down from eight bars to two at the same time. Every layer cycles in one or two, so
+a longer render reaches no combination the first two miss, and the suite runs unoptimised.
+
 
 
 
