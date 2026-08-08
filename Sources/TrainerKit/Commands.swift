@@ -1226,6 +1226,104 @@ public enum Commands {
 
     // MARK: - Rendering a backing to a file
 
+    /// One thing `render` writes: a name, the music, and **how many bars of it**.
+    ///
+    /// A tuple with a bar count rather than a bare arrangement, because a seeded piece has to be
+    /// long enough to contain its own intensity arc while a kit voice needs four bars and a ladder
+    /// backing needs whatever was asked for (§7.31 finding 3).
+    typealias Subject = (name: String, rung: IntervalRung?, feel: Feel,
+                         arrangement: Arrangement, bars: Int)
+
+    /// Everything `render` will write, before any of it is rendered.
+    ///
+    /// **Split out of `runRender` so a test can reach it.** The decision that a seeded piece is
+    /// rendered at `StyleArranger.barsForAFullArc()` lived inside a function that writes files to
+    /// disk, which is `LESSONS.md` shape 1 — the path under test not being the path that ships —
+    /// and it is exactly how the defect it fixes survived: the piece was generated at 32 bars and
+    /// written at the command's, and nothing anywhere could observe the difference.
+    static func renderSubjects(bars: Int) -> [Subject] {
+        let ladder: [Subject] =
+            [("quarters", .quarters, .straight, LadderBackings.backing(notesPerBeat: 1), bars),
+             ("eighths", .eighths, .straight, LadderBackings.backing(notesPerBeat: 2), bars),
+             ("triplet-eighths", .tripletEighths, .straight, LadderBackings.backing(notesPerBeat: 3), bars),
+             ("sixteenths", .sixteenths, .straight, LadderBackings.backing(notesPerBeat: 4), bars),
+             ("eighths-swung-1.5", .eighths, Feel(swingRatio: 1.5) ?? .straight,
+              LadderBackings.swungBacking(notesPerBeat: 2), bars),
+             ("eighths-swung-2.0", .eighths, .swung,
+              LadderBackings.swungBacking(notesPerBeat: 2), bars),
+             ("eighths-swung-3.0", .eighths, Feel(swingRatio: 3) ?? .straight,
+              LadderBackings.swungBacking(notesPerBeat: 2), bars),
+             ("sixteenths-swung-1.5", .sixteenths, Feel(swingRatio: 1.5) ?? .straight,
+              LadderBackings.swungBacking(notesPerBeat: 4), bars),
+             ("jam-backing", nil, .straight, GrooveLibrary.jamBacking, bars),
+             // The bass, so it can be judged by ear before a style is built on it. Nothing
+             // frozen carries it (§7.29 step 2).
+             ("bass-demo", nil, .straight, GrooveLibrary.bassDemo, bars)]
+
+        // Every style at every intensity, because intensity is the thing that has to be judged:
+        // a layer entering should sound like the music getting more sure of itself and not like
+        // a switch being thrown (§7.29 step 3).
+        var styleSubjects: [Subject] = []
+        for style in StyleLibrary.all {
+            for intensity in Style.intensityRange {
+                styleSubjects.append((name: "\(style.name)-\(intensity)", rung: nil,
+                                      feel: .straight,
+                                      arrangement: style.auditionArrangement(intensity: intensity),
+                                      bars: bars))
+            }
+        }
+
+        // A generated piece per style, long enough to hear the intensity arc move across
+        // phrases. That arc is the part a step list cannot judge: it either sounds like the
+        // music going somewhere or like a fader being nudged (§7.29 step 4).
+        //
+        // **Generated and rendered at the same length**, which they were not: the piece was built
+        // at 32 bars and written at the command's, so `render 100 8` — the invocation in
+        // `AGENT.md` — produced one 8-bar phrase at one fixed intensity, and the arc had never
+        // been heard by anyone. The floor comes from `StyleArranger` rather than a literal 32, so
+        // a longer arc lengthens the audition instead of being truncated by it.
+        for style in StyleLibrary.all {
+            let identity = BackingIdentity(style: style.name, seed: 0x5EED_0001)
+            let pieceBars = max(bars, StyleArranger.barsForAFullArc())
+            styleSubjects.append((name: identity.name, rung: nil, feel: .straight,
+                                  arrangement: StyleArranger.arrangement(
+                                      style: style, seed: identity.seed, bars: pieceBars),
+                                  bars: pieceBars))
+        }
+
+        // One file per voice, four bars of quarter notes. Nothing to do with grooves — it is
+        // how a sound gets *named*: "a rhythmic click like a metronome" is a description of a
+        // timbre, and no amount of guessing from a step list identifies which voice it is
+        // (§7.29 step 6).
+        var kitSubjects: [Subject] = BackingVoice.allCases.filter { !$0.isPitched }.map { voice in
+            (name: "kit-\(voice.rawValue)", rung: nil, feel: .straight,
+             arrangement: Arrangement(sections: [
+                Section(name: voice.rawValue,
+                        pattern: Pattern.make([voice: [0, 4, 8, 12]], velocity: 100), bars: 4)]),
+             bars: 4)
+        }
+
+        // **The bass, which this pass could not see and which was the worst offender.** Filtering
+        // on `!isPitched` above is what kept the loudest truncation click in the kit out of
+        // §7.29 step 6b's table for a whole milestone — `LESSONS.md` shape 3, a filter that hides
+        // real hits, applied to a rendering pass rather than to a grep (§7.31 finding 1).
+        //
+        // One file rather than twenty-five: the notes walk the range so the extremes are audible,
+        // and the **lowest** is what matters, since it truncates loudest and its period is longest.
+        kitSubjects.append((
+            name: "kit-bass", rung: nil, feel: .straight,
+            arrangement: Arrangement(sections: [
+                Section(name: "bass", pattern: Pattern.bass([
+                    (step: 0, note: BackingKit.bassNotes.lowerBound),
+                    (step: 4, note: 40),
+                    (step: 8, note: BackingKit.bassNotes.upperBound),
+                    (step: 12, note: 40),
+                ]), bars: 4)]),
+            bars: 4))
+
+        return ladder + styleSubjects + kitSubjects
+    }
+
     /// Render every ladder rung, plus the jam backing, to WAV files that can be listened to.
     ///
     /// Auditioning a groove used to mean a live run. A rung the player has never heard is a rung
@@ -1249,92 +1347,23 @@ public enum Commands {
         // ear or not at all. A step list cannot say whether 1.5:1 sounds like a shuffle or like
         // a mistake, and §7.23's rule — do not promote onto a rung nobody has heard — applies to
         // a feel at least as strongly.
-        typealias Subject = (name: String, rung: IntervalRung?, feel: Feel,
-                             arrangement: Arrangement)
+        let subjects = renderSubjects(bars: bars)
 
-        let ladder: [Subject] =
-            [("quarters", .quarters, .straight, LadderBackings.backing(notesPerBeat: 1)),
-             ("eighths", .eighths, .straight, LadderBackings.backing(notesPerBeat: 2)),
-             ("triplet-eighths", .tripletEighths, .straight, LadderBackings.backing(notesPerBeat: 3)),
-             ("sixteenths", .sixteenths, .straight, LadderBackings.backing(notesPerBeat: 4)),
-             ("eighths-swung-1.5", .eighths, Feel(swingRatio: 1.5) ?? .straight,
-              LadderBackings.swungBacking(notesPerBeat: 2)),
-             ("eighths-swung-2.0", .eighths, .swung, LadderBackings.swungBacking(notesPerBeat: 2)),
-             ("eighths-swung-3.0", .eighths, Feel(swingRatio: 3) ?? .straight,
-              LadderBackings.swungBacking(notesPerBeat: 2)),
-             ("sixteenths-swung-1.5", .sixteenths, Feel(swingRatio: 1.5) ?? .straight,
-              LadderBackings.swungBacking(notesPerBeat: 4)),
-             ("jam-backing", nil, .straight, GrooveLibrary.jamBacking),
-             // The bass, so it can be judged by ear before a style is built on it. Nothing
-             // frozen carries it (§7.29 step 2).
-             ("bass-demo", nil, .straight, GrooveLibrary.bassDemo)]
-
-        // Every style at every intensity, because intensity is the thing that has to be judged:
-        // a layer entering should sound like the music getting more sure of itself and not like
-        // a switch being thrown (§7.29 step 3).
-        var styleSubjects: [Subject] = []
-        for style in StyleLibrary.all {
-            for intensity in Style.intensityRange {
-                styleSubjects.append((name: "\(style.name)-\(intensity)", rung: nil,
-                                      feel: .straight,
-                                      arrangement: style.auditionArrangement(intensity: intensity)))
-            }
-        }
-
-        // A generated piece per style, long enough to hear the intensity arc move across
-        // phrases. That arc is the part a step list cannot judge: it either sounds like the
-        // music going somewhere or like a fader being nudged (§7.29 step 4).
-        for style in StyleLibrary.all {
-            let identity = BackingIdentity(style: style.name, seed: 0x5EED_0001)
-            styleSubjects.append((name: identity.name, rung: nil, feel: .straight,
-                                  arrangement: StyleArranger.arrangement(
-                                      style: style, seed: identity.seed, bars: max(bars, 32))))
-        }
-
-        // One file per voice, four bars of quarter notes. Nothing to do with grooves — it is
-        // how a sound gets *named*: "a rhythmic click like a metronome" is a description of a
-        // timbre, and no amount of guessing from a step list identifies which voice it is
-        // (§7.29 step 6).
-        var kitSubjects: [Subject] = BackingVoice.allCases.filter { !$0.isPitched }.map { voice in
-            (name: "kit-\(voice.rawValue)", rung: nil, feel: .straight,
-             arrangement: Arrangement(sections: [
-                Section(name: voice.rawValue,
-                        pattern: Pattern.make([voice: [0, 4, 8, 12]], velocity: 100), bars: 4)]))
-        }
-
-        // **The bass, which this pass could not see and which was the worst offender.** Filtering
-        // on `!isPitched` above is what kept the loudest truncation click in the kit out of
-        // §7.29 step 6b's table for a whole milestone — `LESSONS.md` shape 3, a filter that hides
-        // real hits, applied to a rendering pass rather than to a grep (§7.31 finding 1).
-        //
-        // One file rather than twenty-five: the notes walk the range so the extremes are audible,
-        // and the **lowest** is what matters, since it truncates loudest and its period is longest.
-        kitSubjects.append((
-            name: "kit-bass", rung: nil, feel: .straight,
-            arrangement: Arrangement(sections: [
-                Section(name: "bass", pattern: Pattern.bass([
-                    (step: 0, note: BackingKit.bassNotes.lowerBound),
-                    (step: 4, note: 40),
-                    (step: 8, note: BackingKit.bassNotes.upperBound),
-                    (step: 12, note: 40),
-                ]), bars: 4)])))
-
-        let subjects: [Subject] = ladder + styleSubjects + kitSubjects
-
-        print(String(format: "%d BPM · %d bars each · ceilings from your own spread of %.1f ms%@",
+        print(String(format: "%d BPM · %d bars unless a subject needs more · ceilings from your "
+                           + "own spread of %.1f ms%@",
                      Int(bpm), bars, spreadMs,
                      spreads.isEmpty ? " (no takes yet — assumed)" : ""))
         print("")
-        for (name, rung, feel, arrangement) in subjects {
+        for (name, rung, feel, arrangement, subjectBars) in subjects {
             // The same conversion the engine makes, so what is rendered is what would be played.
             let swing = Swing(ratio: feel.swingRatio, notesPerBeat: rung?.subdivisions ?? 1)
             let sequencer = Sequencer(bpm: bpm, sampleRate: fs, swing: swing)
             var hits: [ScheduledHit] = []
-            for bar in 0..<bars {
+            for bar in 0..<subjectBars {
                 hits += sequencer.schedule(pattern: arrangement.pattern(atBar: bar), bar: bar)
             }
             // A beat of tail so the last hit is not cut off mid-decay.
-            let frames = Int((Double(bars) * 4 + 1) * 60 / bpm * fs)
+            let frames = Int((Double(subjectBars) * 4 + 1) * 60 / bpm * fs)
             let samples = GrooveOfflineRender.mix(hits: hits, kit: kit, frames: frames)
 
             let url = directory.appendingPathComponent("\(name)-\(Int(bpm))bpm.wav")
@@ -1353,6 +1382,14 @@ public enum Commands {
                     note = String(format: "  %@above its %.0f BPM ceiling%@", Console.yellow,
                                   ceiling, Console.reset)
                 }
+            }
+            // Said out loud whenever a subject is not the length that was asked for, because a
+            // file of an unexpected length is otherwise something you find out by accident. The
+            // reason is only stated where it *is* the reason: a kit voice is four bars because a
+            // single sound needs four bars, which has nothing to do with an arc.
+            if subjectBars != bars {
+                let why = subjectBars > bars ? " — a whole arc" : ""
+                note += "  \(Console.dim)\(subjectBars) bars\(why)\(Console.reset)"
             }
             print("  \(pad(name, 22))\(pad(String(format: "peak %.2f", peak), 12))"
                 + "\(pad(url.lastPathComponent, 30))\(note)")

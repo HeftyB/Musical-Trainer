@@ -33,6 +33,24 @@ public enum StyleArranger {
         [2, 2, 3, 3],       // two gears
     ]
 
+    /// Phrases before an intensity arc repeats.
+    ///
+    /// Derived from `arcs` rather than written as `4`, so adding a five-phrase shape lengthens
+    /// what an audition has to render instead of silently truncating one — `LESSONS.md` shape 9,
+    /// two places holding the same value for different reasons.
+    public static let arcPhrases = arcs.map(\.count).max() ?? 1
+
+    /// The shortest piece that contains a whole intensity arc.
+    ///
+    /// **A piece shorter than this is one intensity and nothing else**, which is what made
+    /// `render`'s seeded audition useless: it generated at 32 bars and wrote the command's 8, so
+    /// the arc — the part of this milestone a step list cannot judge, and the reason intensity
+    /// moves along a shape rather than being sampled per phrase — was never in the file anybody
+    /// listened to (§7.31 finding 3).
+    public static func barsForAFullArc(phraseBars: Int = defaultPhraseBars) -> Int {
+        phraseBars * arcPhrases
+    }
+
     /// A piece of `bars` bars in `style`, reproducible from `seed`.
     ///
     /// One `Section` per bar, because a style's layers cycle at their own lengths and a section
