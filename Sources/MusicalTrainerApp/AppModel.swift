@@ -79,12 +79,26 @@ final class AppModel: ObservableObject {
     /// `nil` is the default and it is not "quarters": free playing prescribes nothing, which is
     /// what every take on record is. Applies to Jam, Alone and Tempo — the three drills whose
     /// analysis is scored against a note value (§7.23 steps 4b and 4e).
-    @Published var rung: IntervalRung? { didSet { clampFeelToRung() } }
+    @Published var rung: IntervalRung? { didSet { clampFeelToRung(); clampBandToRung() } }
     /// How the division is placed. Straight is the identity, so this needs no "none" case.
     ///
     /// Jam only. The continuation drill refuses a swing outright — Wing–Kristofferson needs an
     /// isochronous series and a swung one alternates by design (see `DropoutConfig.feel`).
     @Published var swingRatio: Double = 1
+    /// The band, by name, or `nil` for the fixed backing every take on record played over.
+    ///
+    /// **Only the approved styles are offered**, because `bandChoices` reads
+    /// `StyleLibrary.auditioned` — the same list the planner gets, and the same reason: a style
+    /// nobody has played over is one nothing may promote you onto (§7.29 step 5). The CLI can
+    /// reach an unapproved one with `--probe`; the app deliberately cannot, because a picker is
+    /// not a deliberate look at something unearned.
+    ///
+    /// Jam and Play only. A rung and a style are two backings and cannot both play, so choosing a
+    /// band clears the rung — see `clampRungToBand`.
+    @Published var band: String? { didSet { clampRungToBand() } }
+    /// Drawn once when a band is chosen so the take is reproducible from what is stored (R1.2.2),
+    /// and re-drawn whenever the band changes so two takes in a row are two pieces of music.
+    @Published private(set) var bandSeed: UInt64 = 0
     @Published var phraseBars: Int = 8 { didSet { setBars(bars) } }
     @Published var formLevel: FormLevel = .fillAndAccent
 
@@ -217,10 +231,11 @@ final class AppModel: ObservableObject {
         let jamConfig = TrainerEngine.JamConfig(
             bpm: bpm, bars: bars,
             tag: tag.trimmingCharacters(in: .whitespaces).isEmpty ? nil : tag,
-            rung: rung, feel: feel)
+            rung: rung, feel: feel, generatedBacking: generatedBacking)
         let formConfig = TrainerEngine.FormConfig(bpm: bpm, bars: bars,
                                                   phraseBars: phraseBars, level: formLevel)
-        let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars)
+        let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars,
+                                                      generatedBacking: generatedBacking)
         let dropConfig = dropoutConfig
         let tempConfig = tempoConfig
         let memConfig = memoryConfig
@@ -367,6 +382,46 @@ final class AppModel: ObservableObject {
     static let swingChoices: [(ratio: Double, label: String)] = [
         (1, "Straight"), (1.5, "Shuffle (3:2)"), (2, "Swung (2:1)"),
     ]
+
+    /// What choosing a band means, said where the choice is made.
+    ///
+    /// Names the seed, because it is the only route back to a piece the player liked — the same
+    /// reason the CLI prints it and the planner's `reason` carries it.
+    var bandAdvice: String {
+        guard let band else {
+            return "The fixed groove every take on record was played over. Trends compare across "
+                 + "it, so this is the one to leave alone if you want tonight to line up with "
+                 + "what came before."
+        }
+        return String(format: "A piece generated from %@, stored as %@@%016llx — the seed is how "
+                    + "you ask for this exact one again. Choosing a band clears the subdivision: "
+                    + "a ladder groove marks the division being asked for and a style does not, "
+                    + "so only one of them can play.", band, band, bandSeed)
+    }
+
+    /// The bands the app may offer: the approved library, and nothing else.
+    static var bandChoices: [String] { StyleLibrary.auditioned.map(\.name).sorted() }
+
+    /// The identity a take is stored under, or `nil` for the fixed backing.
+    var generatedBacking: BackingIdentity? {
+        band.map { BackingIdentity(style: $0, seed: bandSeed) }
+    }
+
+    /// A rung and a style are two backings and only one can play — `JamConfig.validate` refuses
+    /// the pair, so the picker must not be able to ask for it. Choosing a band clears the rung
+    /// rather than failing at Start, which is the same discipline as `clampFeelToRung`.
+    /// And the other way round, so the two pickers can never both be set.
+    private func clampBandToRung() {
+        if rung != nil { band = nil }
+    }
+
+    private func clampRungToBand() {
+        if band != nil {
+            rung = nil
+            // A fresh piece each time the band changes, and a stable one while it does not.
+            bandSeed = UInt64.random(in: 1...UInt64.max)
+        }
+    }
 
     /// Drop a swing the chosen rung cannot carry, so the picker and the take never disagree.
     func clampFeelToRung() {
