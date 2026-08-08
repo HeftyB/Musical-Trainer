@@ -173,7 +173,7 @@ final class StyleTests: XCTestCase {
 
     /// The state of the library today, asserted so that flipping a style to auditioned is a
     /// deliberate edit that shows up in a diff rather than something that drifts.
-    func testTheLibraryHoldsFourStylesAndNoneHasBeenApprovedYet() {
+    func testTheLibraryHoldsFourStylesAndAllFourAreApproved() {
         // Descriptive, not generic: none of these claims a genre, because none of them is one
         // yet. The names come back when M26's kit earns them (§7.30).
         XCTAssertEqual(StyleLibrary.all.map(\.name).sorted(),
@@ -182,9 +182,16 @@ final class StyleTests: XCTestCase {
             !["rock", "motown", "funk", "jazz", "bossa", "reggae", "ska", "soul", "hip-hop"]
                 .contains(style.name)
         }, "a genre name is a promise the kit cannot keep yet")
-        XCTAssertTrue(StyleLibrary.auditioned.isEmpty,
-                      "none of these has been listened to yet — when one has, this test is what "
-                    + "records that it was a decision")
+        // **Approved on 8 August 2026, and this assertion is the record that it was a decision.**
+        // The flag was false from the day it was written; flipping it failed three tests, which is
+        // what §7.29 step 5 built it for — an approval that arrives in a diff rather than drifting.
+        //
+        // What each rests on differs and §7.33 says so: `driving` and `half-time` were played over,
+        // `pocket` and `syncopated` were listened to at every intensity and never played. A style
+        // added later starts at `false` again and this test fails until somebody says otherwise.
+        XCTAssertEqual(StyleLibrary.auditioned.count, 4,
+                       "approving or retiring a style is a deliberate edit, and this is where it "
+                     + "shows up")
     }
 
     func testTheLibraryCoversTheDensitiesTheRoadmapNeeds() {
