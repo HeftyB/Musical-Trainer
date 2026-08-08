@@ -202,7 +202,12 @@ public enum BlockPlan: Codable, Equatable {
         case .jam(let p):
             let rung = p.rung.map { " · \($0.label)" } ?? ""
             let feel = p.feel.isStraight ? "" : " · \(p.feel.label)"
-            return "\(Int(p.bpm)) BPM · \(p.bars) bars\(rung)\(feel)"
+            // The band belongs here beside the rung, and here rather than in either front end:
+            // this is the one mapping from a plan to its summary line, so the app's session view
+            // and the console's plan preview cannot describe the same block differently. The
+            // *reason* explains the choice; this is what it is, at a glance.
+            let band = p.generatedBacking.map { " · \($0.style)" } ?? ""
+            return "\(Int(p.bpm)) BPM · \(p.bars) bars\(rung)\(feel)\(band)"
         case .form(let p):    return "level \(p.level) · \(p.phraseBars)-bar phrases · \(p.bars) bars"
         case .dropout(let p): return "\(p.pacedBars)+\(p.silentBars) bars × \(p.cycles)"
         case .tempo(let p):
