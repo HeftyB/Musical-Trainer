@@ -228,6 +228,45 @@ public enum Bootstrap {
         return sample
     }
 
+    /// Interval for a lag-1 autocorrelation, which the block bootstrap **cannot** provide.
+    ///
+    /// Resampling contiguous blocks preserves short-range structure, which is why it is right for
+    /// the mean and the SD. For r₁ it is self-defeating: every join between two blocks is a pair
+    /// that was never adjacent, so a fraction ≈ `1/L` of the products are spurious and the
+    /// resampled statistic is attenuated by about that much. The interval then sits below the
+    /// point estimate, by more the larger the correlation is — and this file's own doc comment
+    /// claimed the intervals "stay honest for the mean, the SD, and r₁ alike", which was wrong.
+    ///
+    /// Measured against AR(1) series with the correlation planted by construction, a nominal 95%
+    /// interval covered the truth:
+    ///
+    /// | true r₁ | n | block bootstrap | this |
+    /// |---|---|---|---|
+    /// | 0.15 | 122 | 94% | 94% |
+    /// | 0.40 | 492 | **72%** | 95% |
+    /// | 0.64 | 122 | **25%** | 93% |
+    ///
+    /// It went unnoticed for thirty takes because this player's r₁ had never left 0.13–0.50, and
+    /// the failure is invisible at the bottom of that range. The take that exposed it reported
+    /// `r₁ = +0.64` with an interval of `[+0.36, +0.63]` — excluding its own point estimate.
+    ///
+    /// The replacement is the large-sample standard error, `√((1 − r²) / n)`, with `n` the pairs
+    /// actually summed — which for a series with rests is not the note count (§7.32).
+    ///
+    /// - Returns: `nil` when there is no r₁ to bound, rather than an interval around nothing.
+    public static func lag1Interval(r: Double?, pairs: Int,
+                                    level: Double = 0.95) -> ConfidenceInterval? {
+        guard let r, pairs >= 8, abs(r) < 1 else { return nil }
+        // 1.96 for the conventional 95%; the level is a parameter for symmetry with the other
+        // intervals here, and anything else is not used today.
+        let z = level >= 0.99 ? 2.576 : (level >= 0.95 ? 1.96 : 1.645)
+        let se = ((1 - r * r) / Double(pairs)).squareRoot()
+        return ConfidenceInterval(point: r,
+                                  low: Swift.max(-1, r - z * se),
+                                  high: Swift.min(1, r + z * se),
+                                  level: level)
+    }
+
     // Common statistics, ready to pass in.
     public static let meanStat: ([Double]) -> Double = { Stats.mean($0) }
     public static let sdStat: ([Double]) -> Double = { Stats.sd($0) }
