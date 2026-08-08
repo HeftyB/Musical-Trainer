@@ -661,6 +661,15 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    this change alone. Do not run it — pushing and opening a PR are his, and this machine has no
    credentials for the remote in any case.
 
+   **Always that line, never a bare `git push`, including for a second commit on a branch that
+   already has a pull request.** Whether one is open is a fact about the server, and nothing here
+   can answer it: `git fetch` fails on this machine with `Permission denied (publickey)`, so
+   `origin/main` and every other `origin/*` ref is only as fresh as Andrew's last pull. A branch
+   that looks unmerged here may have been merged twenty minutes ago — that has happened, and the
+   `git push` handed over on the strength of it updated a branch whose PR was already closed, so
+   nothing was pending and the PR had to be opened by hand. `open-pr.sh` is right either way: it
+   opens one if none exists and says so if one does. See `LESSONS.md` shape 16.
+
 **Run these to the end before starting the next change.** Every change updates PLAN.md and
 usually AGENT.md, so two uncommitted changes put both sets of edits in the same files — and
 `git add PLAN.md` cannot then stage one without the other. Splitting them afterwards means

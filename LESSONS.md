@@ -351,10 +351,22 @@ fix.**
   278. It mixes the real buffers now.
 - **An onset detector that fired on energy *tripling*** found nothing after the first event of a
   bar, which looked exactly like a feature never reaching the output. The feature was fine.
+- **`git log origin/main` said a branch was unmerged.** It had been merged on the server twenty
+  minutes earlier. `origin/main` is a *cache* that only a fetch updates, and this workstation
+  cannot fetch that remote at all — `Permission denied (publickey)` — so every `origin/*` ref here
+  is only as fresh as the last pull. On that reading the hand-over said `git push` instead of
+  `./scripts/open-pr.sh`, which pushed a branch whose pull request was already merged and closed:
+  nothing was pending, and the PR had to be opened by hand. The same staleness made `open-pr.sh`
+  count **three commits ahead instead of two**, listing a commit already on `main`.
 
 **Guard:** validate the probe against a case whose answer you already know, before trusting it
 about a case you do not. When a probe says "nothing happened", suspect the probe first. And do not
 change the probe between the baseline and the comparison — capture the old output first (shape 4).
+
+**A cached view of a remote system is a probe, not the system.** `origin/*`, a stored summary, a
+memoised lookup: if answering the question needs the other end, either reach it or say you cannot.
+`open-pr.sh` fetches its base before counting now, and falls back with the assumption stated out
+loud when the fetch is impossible.
 
 ---
 
