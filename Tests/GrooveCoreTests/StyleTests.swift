@@ -13,18 +13,53 @@ final class StyleTests: XCTestCase {
     /// Intensity adds and removes layers. It never moves a hit, and it never may: the backing is
     /// the ruler the player is measured against, so a bar that is louder must be the *same* bar
     /// with more in it.
+    ///
+    /// **Asserted per instrument and step rather than per hit, and that is a correction rather
+    /// than a relaxation.** The first version required the louder bar to contain each quieter
+    /// hit *identically*, which is stronger than the invariant above and forbids something the
+    /// invariant permits: an open hat entering on a step the hat line already plays replaces the
+    /// closed hat there, because a hi-hat cannot be open and closed at once (§7.31 finding 2).
+    /// Nothing moves — same step, same instrument, same sample, louder articulation — so the
+    /// ruler is unchanged and the bar is still the quiet bar with more in it.
+    ///
+    /// The rewritten form is stronger in the direction that matters: a step that sounded quietly
+    /// may not fall *silent* when the music gets louder, whatever voice it was written for.
+    /// `LESSONS.md` shape 4 — the assertion was a proxy for the claim its own name makes.
     func testIntensityOnlyEverAddsToWhatWasAlreadyPlaying() {
+        // A hit's instrument: its articulation group where it has one, so an open hat and a
+        // closed hat on one step count as the same hi-hat rather than as two voices.
+        func instrument(_ hit: Hit) -> String {
+            BackingVoice.articulation(of: hit.voice).map { "group \($0.group)" } ?? hit.voice.rawValue
+        }
         for style in StyleLibrary.all {
             for intensity in Style.intensityRange.dropLast() {
                 let quiet = style.pattern(atBar: 0, intensity: intensity)
                 let loud = style.pattern(atBar: 0, intensity: intensity + 1)
+                let sounding = Set(loud.hits.map { "\($0.step):\(instrument($0))" })
                 for hit in quiet.hits {
-                    XCTAssertTrue(loud.hits.contains(hit),
-                                  "\(style.name): raising the intensity dropped \(hit.voice) at "
+                    XCTAssertTrue(sounding.contains("\(hit.step):\(instrument(hit))"),
+                                  "\(style.name): raising the intensity silenced \(hit.voice) at "
                                 + "step \(hit.step), so the two bars are different music rather "
                                 + "than the same music with more of it")
                 }
                 XCTAssertGreaterThanOrEqual(loud.hits.count, quiet.hits.count, style.name)
+            }
+        }
+    }
+
+    /// The other half of the same invariant, and the one the rewrite above must not have lost:
+    /// a hit that is *not* an articulation of something else survives a rise in intensity
+    /// unchanged — same voice, same step, same velocity. Only a hi-hat may be superseded.
+    func testOnlyAnArticulationOfTheSameInstrumentMayBeSuperseded() {
+        for style in StyleLibrary.all {
+            for intensity in Style.intensityRange.dropLast() {
+                let quiet = style.pattern(atBar: 0, intensity: intensity)
+                let loud = style.pattern(atBar: 0, intensity: intensity + 1)
+                for hit in quiet.hits where BackingVoice.articulation(of: hit.voice) == nil {
+                    XCTAssertTrue(loud.hits.contains(hit),
+                                  "\(style.name): \(hit.voice) at step \(hit.step) is not an "
+                                + "articulation of anything and must survive untouched")
+                }
             }
         }
     }

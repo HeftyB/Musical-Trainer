@@ -154,8 +154,14 @@ public struct Style: Equatable {
         // found in `Pattern.make`.
         let hits = lifted.flatMap(\.hits)
             .sorted { ($0.step, $0.voice.rawValue) < ($1.step, $1.voice.rawValue) }
+        // **Merging layers is what creates a physical impossibility, so this is where it goes.**
+        // Each layer is playable on its own; it is only when an open hat enters over a hat line
+        // already playing that step that the kit is asked to be open and closed at once. No
+        // authored pattern collides with itself, and nothing frozen has both hats at all, so the
+        // rule belongs here and not in `Pattern` (§7.31 finding 2).
         return Pattern(stepsPerBar: lifted[0].stepsPerBar,
-                       stepsPerBeat: lifted[0].stepsPerBeat, hits: hits)
+                       stepsPerBeat: lifted[0].stepsPerBeat,
+                       hits: BackingVoice.resolvingArticulations(hits))
     }
 }
 

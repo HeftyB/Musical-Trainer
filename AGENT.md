@@ -70,8 +70,9 @@ works out how to say what a genre *is* so the claim has a falsifier. Neither is 
 - **No layer may run at one velocity.** Eight identical hi-hat hits a bar is a metronome by
   construction. Use `Pattern.line` and lean on the beat. Velocity only, never position.
 - **One hi-hat, one state.** An open hat on a step the closed hat already plays is not a louder
-  hat, it is two hats — a thing no drummer can do. The open hat on the "and" of four *replaces*
-  the closed one. Open defect below.
+  hat, it is two hats — a thing no drummer can do. Fixed — `BackingVoice.articulationGroups` lists
+  the voices that are one instrument in two states, and `Style.pattern` keeps one per step as it
+  merges. Author the figure naturally; the open hat supersedes the closed one.
 - **A one-shot must not stop mid-decay.** Fixed — `DrumSynth.fadedOut`, and there is a test.
 
 **Every one-shot now ends on a release fade**, so nothing steps to zero mid-decay. The fade is
@@ -80,19 +81,22 @@ so the 50 ms rimshot is not swallowed by it, and raised-cosine rather than linea
 the fade is not itself a corner. **The number is derived from `BackingKit.bassNotes.lowerBound`
 and a test fails if that widens without it.** `OneShotTailTests` asserts every drum voice and all
 twenty-five bass notes end below −80 dBFS; reverting either `fadedOut` call fails it fourteen
-ways. See §7.31 finding 1 — including the discontinuity it puts in `jamBacking` on 7 August 2026.
+ways. **Heard and confirmed on 7 August 2026** — the test proves the step is gone, only a listener
+can say the click is. See §7.31 finding 1, including the discontinuity it puts in `jamBacking` on
+that date and why the first take after it must not be read as an effect.
 
-### Open defects, both in the kit and neither in the measurement
+**Two rules, not one, and do not merge them.** `doubledTimekeepers` is about two voices keeping
+the same *pulse* and deliberately ignores a voice with fewer than three hits a bar, so an occasional
+ride hit is not mistaken for a second drummer — which is exactly why it could not see an open hat
+landing on one step. `articulationGroups` is about one instrument in two states. Different
+thresholds, different mistakes; merging them either re-forbids ordinary percussion or stops
+catching what the first rule exists for.
 
-Two left from the §7.31 review. Neither affects any stored number — the grid comes from
-`TimingCore` and never from audio.
+### Open defect — one left from the §7.31 review
 
-**1. `driving` and `syncopated` sound both hats at once.** `driving` at intensity ≥ 2 plays the
-closed hat on step 14 and the open hat on step 14; `syncopated` at intensity 3 does it on steps 6
-and 14. `Style.doubledTimekeepers` cannot catch it — `openHat` is not in `BackingVoice.timekeepers`
-and has too few hits a bar to count as keeping time.
+It does not affect any stored number; the grid comes from `TimingCore` and never from audio.
 
-**2. `render`'s seeded pieces do not contain their own intensity arc.** `runRender` generates at
+**`render`'s seeded pieces do not contain their own intensity arc.** `runRender` generates at
 `max(bars, 32)` and then writes `0..<bars`, so at the documented `render 100 8` the file is one
 8-bar phrase at one intensity. `driving@000000005eed0001-100bpm.wav` is byte-for-byte the same
 length as `driving-2-100bpm.wav`. Use `render 100 32` until it is fixed.
@@ -248,7 +252,7 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 443 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 450 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (165 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -293,7 +297,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 608 tests, no hardware needed
+swift test                              # 615 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

@@ -549,7 +549,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 443 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 450 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 **`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 165 tests
