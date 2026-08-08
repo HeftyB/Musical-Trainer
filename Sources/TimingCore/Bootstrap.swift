@@ -267,6 +267,57 @@ public enum Bootstrap {
                                   level: level)
     }
 
+    /// Interval for the *difference* between two takes' correction gains, `b − a`.
+    ///
+    /// Two takes are independent samples, so the variances add: `√(SEa² + SEb²)` with each SE the
+    /// large-sample form `lag1Interval` uses. No resampling is involved, which is the point —
+    /// the block bootstrap attenuates both sides and by different amounts, since the attenuation
+    /// depends on the block length and therefore on each take's own length (§7.32).
+    ///
+    /// `nil` when either take has no r₁ to compare. A difference against a missing number is not
+    /// a smaller difference, it is no comparison (R3.3.1).
+    public static func lag1Difference(a: Double?, pairsA: Int,
+                                      b: Double?, pairsB: Int,
+                                      level: Double = 0.95) -> ConfidenceInterval? {
+        guard let a, let b, pairsA >= 8, pairsB >= 8, abs(a) < 1, abs(b) < 1 else { return nil }
+        let z = level >= 0.99 ? 2.576 : (level >= 0.95 ? 1.96 : 1.645)
+        let se = ((1 - a * a) / Double(pairsA) + (1 - b * b) / Double(pairsB)).squareRoot()
+        return ConfidenceInterval(point: b - a, low: b - a - z * se, high: b - a + z * se,
+                                  level: level)
+    }
+
+    /// Interval for a correction gain pooled across takes, from **one value per take**.
+    ///
+    /// R3.2's table already prescribes this shape — *"one value per take, compared across
+    /// conditions: plain, over the per-take values"* — and r₁ is exactly that. What it must not
+    /// be is `pooledInterval`, which concatenates a block-resampled series per take: that adds a
+    /// spurious adjacency at every take boundary on top of the block joins, so a pooled r₁ was
+    /// attenuated twice over (§7.32).
+    ///
+    /// Between-take variation is most of the variation here, which is why the takes are what get
+    /// resampled. A condition of one take gets nothing, for the reason §7.20 finding 1 established:
+    /// the only variation inside a single take is within-take variation, and offering it as a
+    /// condition's uncertainty is the same defect in a smaller form (R3.2.1).
+    public static func pooledLag1Interval(_ perTake: [Double],
+                                          iterations: Int = defaultIterations,
+                                          level: Double = 0.95,
+                                          seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
+        guard perTake.count >= minimumTakes else { return nil }
+        var rng = SplitMix64(seed: seed)
+        var means: [Double] = []
+        means.reserveCapacity(iterations)
+        for _ in 0..<iterations {
+            var sum = 0.0
+            for _ in perTake.indices { sum += perTake[Int(rng.next() % UInt64(perTake.count))] }
+            means.append(sum / Double(perTake.count))
+        }
+        let alpha = (1 - level) / 2
+        return ConfidenceInterval(point: Stats.mean(perTake),
+                                  low: Stats.percentile(means, alpha),
+                                  high: Stats.percentile(means, 1 - alpha),
+                                  level: level)
+    }
+
     // Common statistics, ready to pass in.
     public static let meanStat: ([Double]) -> Double = { Stats.mean($0) }
     public static let sdStat: ([Double]) -> Double = { Stats.sd($0) }

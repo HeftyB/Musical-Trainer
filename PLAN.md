@@ -5608,9 +5608,49 @@ rather than print a figure that answers a different question from the one `revie
 the same take (R3.3.1).
 
 Fixing them is a difference of two large-sample intervals and, for the pooled case, the plain
-bootstrap over per-take values that R3.2's own table already prescribes. It is queued as its own
-change rather than folded in here: three readouts, three guards, and this branch is already two
+bootstrap over per-take values that R3.2's own table already prescribes. It was queued as its own
+change rather than folded in: three readouts, three guards, and that branch was already two
 analysis changes deep.
+
+#### The queued change, as built
+
+Three readouts, three methods, and **none of them a block bootstrap**.
+
+| Readout | Unit | Method |
+|---|---|---|
+| `review compare` | two takes | `Bootstrap.lag1Difference` — independent samples, so the variances add |
+| `review tags` | takes within one condition | `Bootstrap.pooledLag1Interval` — one value per take, resampled over takes |
+| `review conditions` | two conditions of takes | `Bootstrap.plainDifference` over per-take r₁ |
+
+The third needed no new function: `plainDifference`'s own doc comment already said it was *"the
+right tool for comparing conditions when the unit of analysis is the take"*, and r₁ is exactly
+that. What it had been given instead was `pooledDifference`, which concatenates a block-resampled
+series per take — a spurious adjacency at every take boundary on top of the block joins.
+
+**The guard is a false-positive rate, not an example.** Two takes drawn from the *same* planted
+correlation but deliberately different lengths — 120 notes against 480 — must be called "within
+noise" about as often as the level says. The old method could not do that in principle: it
+attenuates each side by an amount depending on that take's own block length, so two equal takes of
+unequal length differ by construction. Over 200 pairs the new method calls a real change under 12%
+of the time, against a nominal 5%, and finds a genuine 0.10-against-0.60 difference every time.
+
+The pooled interval's guard is the one §7.20 finding 1 established: four takes agreeing and four
+scattered around the *same* mean must not produce the same interval. The scattered set's is more
+than three times wider.
+
+**A take with no r₁ is named rather than silently dropped.** A comparison where either side has no
+continuous run says so; a condition where some takes contribute none says how many, because the r₁
+row then rests on fewer takes than the rows above it (R3.3).
+
+#### What it shows now
+
+`review conditions relaxed focused` reports r₁ +0.32 against +0.35, change +0.02 [−0.05, +0.11],
+within noise — and the tempo confound above it is still the reason not to read even that. The two
+style takes compare at +0.41 against +0.55, change +0.13 [−0.18, +0.45], within noise, under two
+comparability notes naming the backing *and* the style.
+
+Nothing here changes a point estimate. All three intervals were absent an hour ago and wrong
+before that.
 
 ### What this does not settle
 
@@ -5644,9 +5684,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   666 cases
+└── Tests/                   674 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     344 cases against synthetic ground truth
+    ├── TimingCoreTests/     352 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     200 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
