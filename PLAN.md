@@ -907,10 +907,17 @@ on M23), **M25** (harmony), **M26** (the kit — the synthesis work that makes a
 sound true, §7.30) and **M27** (what makes a genre that genre — the classification problem
 underneath the name).
 
-**M19 now runs ahead of M16**, decided with the player on 6 August. M16's span ladder grows the
-phrase to 32 bars and there is no backing that sustains 32 bars, so the ladder would be built on
-music that cannot carry it; M16.5's organ bubble needs a triplet skank backing, and M19 is where
-the pattern format is settled. Building M19 second would mean revisiting both.
+**M19 ran ahead of M16**, decided with the player on 6 August. M16's span ladder grows the
+phrase to 32 bars and there was no backing that sustains 32 bars, so the ladder would have been
+built on music that cannot carry it; M16.5's organ bubble needs a triplet skank backing, and M19 is
+where the pattern format is settled. Building M19 second would have meant revisiting both.
+
+**That dependency is discharged: M19 is built (§7.33) and M16 is next.** What M19 did *not* settle
+is whether the form drill's own backing should draw on a style — `FormBacking` builds its own
+patterns and has no sectional variety, so a 32-bar phrase over it is hypnotic well before the
+boundary arrives, and a player who has stopped listening is not being measured on form. That is
+M16's first open question rather than an assumption to inherit, and whatever a style contributes
+has to sit under §2's invariant: nothing louder than the groove except on the beat being marked.
 
 **What does not wait for M19 is M16's other axis.** The decision below splits form into a
 spatial ladder and a temporal one, and only the spatial one needs longer music — levels 0→3 at a
