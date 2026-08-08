@@ -4,10 +4,15 @@
 #
 #   ./scripts/open-pr.sh                 # push, then open a PR against main
 #   ./scripts/open-pr.sh --base <branch> # ...against a branch instead, for stacked work
-#   ./scripts/open-pr.sh --dry-run       # print what would be sent, touch nothing
+#   ./scripts/open-pr.sh --dry-run       # print what would be sent, send nothing
 #
 # The title is the last commit's subject and the body is temp/pr-message.md, which is written
 # as part of the change like the commit message is (STANDARDS.md §8.1, §8.2.3).
+#
+# **This is the hand-over line, always — never a bare `git push`.** Whether a pull request is
+# already open is a fact about the server, and nothing in this clone can answer it: `git log
+# origin/main` reads a cache, not the remote. Run this either way. If a PR is open it says so and
+# exits; if none is — including after an earlier one was merged and closed — it opens one.
 #
 # The token is read from the macOS keychain, falling back to $GITEA_TOKEN, and is never echoed
 # or passed as an argument — arguments are visible to any user via `ps`. Same handling as
@@ -54,8 +59,25 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
     exit 1
 }
 
-AHEAD="$(git rev-list --count "$BASE..$BRANCH")"
-[ "$AHEAD" -gt 0 ] || { echo "$BRANCH has nothing $BASE does not." >&2; exit 1; }
+# **Measure against the server's base, not this clone's.**
+#
+# `origin/<base>` is a cache that only a fetch updates, so a clone that has not pulled since the
+# last merge measures against a base the server no longer has. That is not hypothetical: while
+# landing §7.31 a branch whose first commit had already been merged read as **two commits ahead
+# instead of one**, and the note below would have named a commit that was already on `main`. Gitea
+# diffs against the server's base whatever this clone believes, so the count has to come from the
+# same place. Read-only, and it runs before `--dry-run` returns so the preview is honest too.
+REF="$BASE"
+if git fetch -q origin "$BASE" 2>/dev/null; then
+    REF="origin/$BASE"
+else
+    echo "Could not fetch $BASE from origin, so this counts against the local $BASE, which may" >&2
+    echo "be behind. Anything listed below may already be on the server." >&2
+    echo "" >&2
+fi
+
+AHEAD="$(git rev-list --count "$REF..$BRANCH")"
+[ "$AHEAD" -gt 0 ] || { echo "$BRANCH has nothing $REF does not." >&2; exit 1; }
 
 TITLE="$(git log -1 --pretty=%s)"
 
@@ -63,8 +85,8 @@ TITLE="$(git log -1 --pretty=%s)"
 # every unmerged commit beneath it, so a four-line change can arrive as a two-thousand-line diff
 # and the review it was meant to streamline gets harder. Say so rather than let it surprise.
 if [ "$AHEAD" -gt 1 ] && [ "$BASE" = "main" ]; then
-    echo "Note: $BRANCH is $AHEAD commits ahead of $BASE, so this PR will contain all of them:"
-    git log --oneline "$BASE..$BRANCH" | sed 's/^/    /'
+    echo "Note: $BRANCH is $AHEAD commits ahead of $REF, so this PR will contain all of them:"
+    git log --oneline "$REF..$BRANCH" | sed 's/^/    /'
     echo "    If the earlier ones belong to their own PRs, merge those first, or use"
     echo "    --base <parent-branch> to review this change alone."
     echo ""

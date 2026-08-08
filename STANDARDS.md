@@ -320,7 +320,15 @@ was meant to streamline gets harder. The script says so when it detects the case
 letting it surprise anyone.
 
 It refuses a dirty tree and an empty body: a PR that describes something never pushed, or that
-describes nothing, is worse than no PR.
+describes nothing, is worse than no PR. It fetches the base before counting how far ahead the
+branch is, because `origin/<base>` is a cache and a clone that has not pulled since the last merge
+measures against a base the server no longer has — that misreported a branch as three commits ahead
+instead of two, listing one already on `main`.
+
+**Use it for every hand-over, never a bare `git push`** — including for a second commit on a branch
+that already had a pull request. Whether one is open is a fact about the server; a merged PR is
+closed, so a push after it lands leaves nothing pending and the next PR has to be opened by hand.
+`open-pr.sh` opens one if none exists and says so if one does, which is right in both cases.
 
 The verification pipeline runs on the PR and must be green before merge. Self-review is still
 review: read the diff in the PR view before merging — it catches things the editor does not.
