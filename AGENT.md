@@ -72,43 +72,34 @@ works out how to say what a genre *is* so the claim has a falsifier. Neither is 
 - **One hi-hat, one state.** An open hat on a step the closed hat already plays is not a louder
   hat, it is two hats — a thing no drummer can do. The open hat on the "and" of four *replaces*
   the closed one. Open defect below.
-- **A one-shot must not stop mid-decay.** Open defect below.
+- **A one-shot must not stop mid-decay.** Fixed — `DrumSynth.fadedOut`, and there is a test.
 
-### Open defects, all in the kit and none in the measurement
+**Every one-shot now ends on a release fade**, so nothing steps to zero mid-decay. The fade is
+50 ms — two cycles of E1, the lowest note the band can sound — clamped to a quarter of the buffer
+so the 50 ms rimshot is not swallowed by it, and raised-cosine rather than linear so the start of
+the fade is not itself a corner. **The number is derived from `BackingKit.bassNotes.lowerBound`
+and a test fails if that widens without it.** `OneShotTailTests` asserts every drum voice and all
+twenty-five bass notes end below −80 dBFS; reverting either `fadedOut` call fails it fourteen
+ways. See §7.31 finding 1 — including the discontinuity it puts in `jamBacking` on 7 August 2026.
 
-Three, found in the §7.31 review. None affects any stored number — the grid comes from
-`TimingCore` and never from audio — and the first is in every take ever recorded.
+### Open defects, both in the kit and neither in the measurement
 
-**1. Every one-shot truncates; the kick clicks and the bass clicks louder.** A voice's buffer
-length is a constant and its envelope is exponential, so the signal steps to zero at whatever
-value it happened to hold. A step discontinuity is a broadband impulse.
+Two left from the §7.31 review. Neither affects any stored number — the grid comes from
+`TimingCore` and never from audio.
 
-| Voice | Envelope at truncation | Measured |
-|---|---|---|
-| **bass** | `exp(-1.6)` = **20.2% of peak** | 15–20 dB below its own peak, across E1–E3 |
-| kick | `exp(-3.2)` = 4.1% of peak | **−31.8 dBFS**, 0.320 s after every hit |
-| snare / clap / ride | — | −38.7 / −45.7 / −47.8 dBFS |
-| everything else | — | below −51 dBFS, inaudible |
-
-At 100 BPM the kick's lands 0.53 of a beat after the hit — a click just past the offbeat, in
-every take on record since `basicRock` started kicking in M3. **The bass is five times worse and
-was never measured**, because `render`'s per-voice pass filters on `!isPitched` and writes no
-`kit-bass` file: the diagnostic that turned "there is a click somewhere" into "it is the kick"
-structurally cannot see the one voice that is worst. Nothing frozen carries a bass, so no stored
-take is affected — but every style does, so it lands the moment step 7 schedules one.
-
-**2. `driving` and `syncopated` sound both hats at once.** `driving` at intensity ≥ 2 plays the
+**1. `driving` and `syncopated` sound both hats at once.** `driving` at intensity ≥ 2 plays the
 closed hat on step 14 and the open hat on step 14; `syncopated` at intensity 3 does it on steps 6
 and 14. `Style.doubledTimekeepers` cannot catch it — `openHat` is not in `BackingVoice.timekeepers`
 and has too few hits a bar to count as keeping time.
 
-**3. `render`'s seeded pieces do not contain their own intensity arc.** `runRender` generates at
+**2. `render`'s seeded pieces do not contain their own intensity arc.** `runRender` generates at
 `max(bars, 32)` and then writes `0..<bars`, so at the documented `render 100 8` the file is one
 8-bar phrase at one intensity. `driving@000000005eed0001-100bpm.wav` is byte-for-byte the same
 length as `driving-2-100bpm.wav`. Use `render 100 32` until it is fixed.
 
 `render` writes `kit-<voice>` for every voice alone, which is how a sound gets *named* rather
-than theorised about. Use it before guessing — and note the gap above: it writes no bass.
+than theorised about. Use it before guessing. **`kit-bass` is one of them now** — its absence is
+what kept the loudest click in the kit out of §7.29 step 6b's table for a whole milestone.
 
 ## Audio, and how it gets accepted
 
@@ -118,9 +109,10 @@ Nothing here can be verified by a test, so the loop is: **render → listen → 
 ./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
 ```
 
-It writes **43 files**: ten ladder and demo backings, four styles × four intensities, one seeded
-piece per style, and thirteen `kit-<voice>` files — one for each non-pitched voice, which is why
-there is no bass among them. Two guards run automatically: `render` warns on any clipped sample,
+It writes **44 files**: ten ladder and demo backings, four styles × four intensities, one seeded
+piece per style, thirteen `kit-<voice>` files, and `kit-bass` — which walks E1 to E3 in one file
+rather than taking twenty-five, since the lowest note is the one that matters. Two guards run
+automatically: `render` warns on any clipped sample,
 and `StyleHeadroomTests` mixes real buffers at 100 and 160 BPM because a mix goes hot where voices
 stack rather than where one is loud.
 
@@ -162,7 +154,7 @@ than it looks.
 
 **Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
 position before and after the lift, at three tempos and four feels, and a one-step drift fails it
-3,265 times. The 43 WAVs `render` writes are the other half of that gate.
+3,265 times. The 44 WAVs `render` writes are the other half of that gate.
 
 **Anything can be tried from the CLI without corrupting a ladder.** `--probe`, anywhere on the
 line, records a take as a deliberate look at a setting that was not earned — form level 3, a rung
@@ -257,7 +249,7 @@ that precondition is met without booking a live run.
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 443 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (161 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (165 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -301,7 +293,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 604 tests, no hardware needed
+swift test                              # 608 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

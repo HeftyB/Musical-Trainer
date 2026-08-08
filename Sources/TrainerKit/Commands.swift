@@ -1295,12 +1295,29 @@ public enum Commands {
         // how a sound gets *named*: "a rhythmic click like a metronome" is a description of a
         // timbre, and no amount of guessing from a step list identifies which voice it is
         // (§7.29 step 6).
-        let kitSubjects: [Subject] = BackingVoice.allCases.filter { !$0.isPitched }.map { voice in
+        var kitSubjects: [Subject] = BackingVoice.allCases.filter { !$0.isPitched }.map { voice in
             (name: "kit-\(voice.rawValue)", rung: nil, feel: .straight,
              arrangement: Arrangement(sections: [
                 Section(name: voice.rawValue,
                         pattern: Pattern.make([voice: [0, 4, 8, 12]], velocity: 100), bars: 4)]))
         }
+
+        // **The bass, which this pass could not see and which was the worst offender.** Filtering
+        // on `!isPitched` above is what kept the loudest truncation click in the kit out of
+        // §7.29 step 6b's table for a whole milestone — `LESSONS.md` shape 3, a filter that hides
+        // real hits, applied to a rendering pass rather than to a grep (§7.31 finding 1).
+        //
+        // One file rather than twenty-five: the notes walk the range so the extremes are audible,
+        // and the **lowest** is what matters, since it truncates loudest and its period is longest.
+        kitSubjects.append((
+            name: "kit-bass", rung: nil, feel: .straight,
+            arrangement: Arrangement(sections: [
+                Section(name: "bass", pattern: Pattern.bass([
+                    (step: 0, note: BackingKit.bassNotes.lowerBound),
+                    (step: 4, note: 40),
+                    (step: 8, note: BackingKit.bassNotes.upperBound),
+                    (step: 12, note: 40),
+                ]), bars: 4)])))
 
         let subjects: [Subject] = ladder + styleSubjects + kitSubjects
 

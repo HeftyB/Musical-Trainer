@@ -5014,10 +5014,31 @@ let body  = exp(-t / decay)
 ```
 
 The body envelope stands at `exp(-1.6)` = **20.2% of peak** when the buffer ends. The kick's stands
-at `exp(-3.2)` = 4.1% — §7.29 step 6b's own figure. Reimplementing `BassSynth` exactly and
-measuring the last sample across E1–E3 puts it **15–20 dB below the buffer's own peak**, −17 to
-−22 dBFS, against the kick's −31.8. Every note in the rendered range steps to a non-zero value; the
-only quiet one is note 41, where the phase happens to land near a zero crossing.
+at `exp(-3.2)` = 4.1% — §7.29 step 6b's own figure. Both are read straight off the source and are
+exact.
+
+**Corrected on measuring it properly.** This finding was first written from a reimplementation of
+`BassSynth`, quoting the bass at −17 to −22 dBFS against the kick's −31.8 — and those two numbers
+are **not on the same basis**. §7.29 step 6b measured off a rendered WAV, which is the mix: scaled
+by `masterGain` 0.6 and by velocity, 6.5 dB below the buffer at velocity 100. The reimplementation
+measured the buffer. Comparing them made the gap look larger than it is, which is `LESSONS.md`
+shape 6 committed while documenting shape 3. The fix's own revert-check measures every voice on one
+basis, off the buffers the app actually plays:
+
+| Voice | Last sample | Buffer dBFS | In a velocity-100 mix |
+|---|---|---|---|
+| **bass, worst note** | 0.152 | **−16.3** | −22.8 |
+| bass, quietest note | 0.079 | −22.0 | −28.5 |
+| kick | 0.054 | −25.3 | **−31.8** — step 6b's figure, confirmed |
+| snare | 0.025 | −32.2 | −38.7 |
+| clap / crash / ride | 0.011 / 0.008 / 0.009 | −39.2 / −42.0 / −41.2 | −45.7 / −48.5 / −47.7 |
+| hats, tom, cowbell, shaker, tambourine | ≤ 0.006 | −44.7 and below | −51.2 and below |
+| rimshot, sidestick | ≤ 0.0003 | −69.9 and below | inaudible |
+
+So the bass is **9 dB worse than the kick, not fifteen**, and step 6b's table was right about every
+voice in it. The claim that survives is the one that mattered: the loudest truncation in the kit
+was in the one voice the diagnostic could not render, and it is 4.9× the kick's as a fraction of
+its own peak.
 
 **The reason it was missed is structural and is the interesting half.** `runRender` writes its
 per-voice files from `BackingVoice.allCases.filter { !$0.isPitched }`, so there is no `kit-bass`
@@ -5031,8 +5052,66 @@ Blast radius: **no take on record**. Nothing frozen carries a bass and a test wa
 arrangement to keep it that way. But every style carries one, so this arrives the moment step 7
 schedules a style — which makes it a step-7 prerequisite rather than an M26 item.
 
-Measured off a reimplementation of `BassSynth`, not off a rendered file, because no rendered file
-of the bass alone exists. The 20.2% is read directly off the two lines above and is exact.
+#### Fixed — step 1, and it changes frozen music
+
+Every voice now ends on a release fade, applied in `DrumSynth.render` and at the end of
+`BassSynth.render` rather than in `BackingKit`, so **there is no way to obtain a buffer that still
+truncates**: `raw(_:sampleRate:)` is private and the fade is on the only path out of each
+synthesiser. A caller adding a fourteenth voice gets the fix for free rather than reintroducing the
+defect one call site away.
+
+**Fading, not lengthening.** An exponential never reaches zero, so a buffer long enough to stop
+honestly would run 2.4 s for the bass — and `BassSynth`'s own doc comment says the note has to be
+over inside a beat so it reads as a pulse rather than a pad. Lengthening it would fix the click by
+changing the music, which is the one thing a fix here may not do.
+
+Three numbers, each derived rather than chosen:
+
+| | |
+|---|---|
+| **50 ms** | Two cycles of E1 at 41.2 Hz, the lowest note the band can sound. A fade shorter than one cycle of the fundamental acts inside a single swing of the waveform and leaves most of the step. It comes from `BackingKit.bassNotes.lowerBound`, and `testTheFadeCoversTwoCyclesOfTheLowestNote` fails if that widens downward without it |
+| **a quarter of the buffer, at most** | The rimshot is 50 ms long altogether and already ended at −69.9 dBFS. Without the clamp a fix for the loud voices would gut the short ones |
+| **raised cosine** | A linear fade is flat nowhere: it leaves a corner in the first derivative where it begins, which is a weaker discontinuity of the same kind as the one being removed |
+
+`OneShotTailTests` asserts the property against the buffers `BackingKit` actually hands the render
+callback — the path that ships, not a reimplementation of it (`LESSONS.md` shape 1). Reverting
+either `fadedOut` call fails it **fourteen ways**: every voice above except the rimshot and the
+sidestick, plus all twenty-five bass notes. The other three cases are the ones that stop the fix
+being a way to make the kit quiet — every voice still peaks above 0.01, every peak lands *outside*
+its own fade region, and no short voice is mostly fade.
+
+**And it is the probe that got retired, which is the point.** §7.31 quoted this defect off a
+reimplementation of `BassSynth`, and `LESSONS.md` shape 16 says suspect the probe. The answer to a
+finding resting on one is not to check the probe again; it is to assert the property where the app
+lives, which is what the table above is measured from.
+
+`kit-bass` now renders, walking E1 → E2 → E3 in one file rather than taking twenty-five. That
+closes the filter that caused the finding in the first place, and it is what makes the fix audible
+rather than merely asserted.
+
+#### The discontinuity, and its date
+
+**On 7 August 2026 the sound of `jamBacking` changed.** Every take recorded before that date was
+played over a kick with a −31.8 dBFS click 0.320 s after every hit; every take after it was not.
+R3.5 freezes the *music* in the locked slots and this does not move a single hit — `CommonGridTests`
+compares 27,744 scheduled sample positions and none moved, every rendered peak is unchanged to two
+decimals, and `selftest`'s groove RMS shifts 0.0932 → 0.0930, which is the tails being 50 ms
+shorter. But §2's invariant table records a changed backing producing a "real" 8 ms spread change
+that was partly just different music, so this is written down rather than waved through.
+
+Recorded here so that a future trend across the boundary can be read with it in view. Two reasons
+to expect nothing:
+
+- The click is at a **fixed offset from the pulse** — 0.53 of a beat at 100 BPM — so if it did
+  anything it acted as a faint extra timekeeper near the offbeat, and removing it should if
+  anything loosen rather than tighten. It is not a plausible source of a *narrowing*.
+- The grid comes from `TimingCore` and never from the audio, so nothing measured could have moved
+  mechanically. Only the player could.
+
+**What to watch**: the benchmark jam, which is the only locked longitudinal slot. Its last five
+takes ran 24.1 → 17.4 → 22.0 → 21.7 → 24.9 ms, so it bounces by about 7 ms on its own — a step
+smaller than that after 7 August says nothing either way, and it would take several takes to say
+anything at all. **Do not read the first post-fix take as an effect.**
 
 ### 2. `driving` and `syncopated` play the closed and open hat on the same step
 
@@ -5100,14 +5179,14 @@ audible, and finding 1 exists as a *number* only because §7.29 step 6b built th
 | Step | Fixes | Where |
 |---|---|---|
 | 0 ✅ | 4–7 — `LESSONS.md` into the repository, every stale figure, the enforcement | the five documents, `scripts/check.sh` |
-| 1 | 1 — fade every one-shot, and give `render` a `kit-bass` file so the fix is audible | `TrainerKit/DrumSynth.swift`, `BassSynth.swift`, `Commands.swift` |
+| 1 ✅ | 1 — fade every one-shot, and give `render` a `kit-bass` file so the fix is audible | `TrainerKit/DrumSynth.swift`, `BassSynth.swift`, `Commands.swift` |
 | 2 | 2 — the open hat replaces the closed hat, with a `Style` check for impossible simultaneity | `GrooveCore/Style.swift`, `Styles.swift` |
 | 3 | 3 — render a seeded piece at its generated length | `TrainerKit/Commands.swift` |
 | then | M19 step 7, with §7.29's three hazards settled | |
 
-Finding 1 goes first because it is the one thing here affecting takes recorded today, and because
+Finding 1 went first because it is the one thing here affecting takes recorded today, and because
 fixing it changes the sound of `jamBacking` — the music every take on record was played over. That
-is a change to frozen material, and the discontinuity gets recorded with its date when it lands.
+is a change to frozen material, and the discontinuity is recorded above with its date.
 
 ---
 
@@ -5134,11 +5213,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   604 cases
+└── Tests/                   608 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     332 cases against synthetic ground truth
     ├── GrooveCoreTests/     111 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     161 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     165 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

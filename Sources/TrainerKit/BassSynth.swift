@@ -55,6 +55,15 @@ enum BassSynth {
             // clipped groove is heard as bad playing rather than as a bad gain.
             out[i] = DrumSynth.saturateBass(Float(sample) * 0.40)
         }
-        return out
+        // **The worst truncation in the kit, and the one nothing had measured.** The buffer is
+        // `decay * 1.6` long against an `exp(-t / decay)` envelope, so it ended at `exp(-1.6)` —
+        // 20.2% of peak, against the kick's 4.1% — and stepped straight to zero from there. It
+        // never appeared in §7.29 step 6b's table of clicking voices because `render` writes one
+        // file per *non-pitched* voice, so the diagnostic that found the kick had the loudest
+        // offender filtered out of it (PLAN.md §7.31 finding 1).
+        //
+        // Lengthening the buffer instead would need 2.4 s to reach −60 dB and would turn the note
+        // into a pad, which is exactly what the comment above says it must not be.
+        return DrumSynth.fadedOut(out, sampleRate: fs)
     }
 }

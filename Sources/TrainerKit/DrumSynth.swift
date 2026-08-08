@@ -165,7 +165,54 @@ enum DrumSynth {
         return out
     }
 
+    /// Seconds of fade at the end of every one-shot.
+    ///
+    /// **Two cycles of the lowest note the band can sound**, which is E1 at 41.2 Hz — a period of
+    /// 24.3 ms. Shorter and the fade acts inside a fraction of a cycle of the bass fundamental,
+    /// which leaves most of the step it exists to remove. The number therefore comes from
+    /// `BackingKit.bassNotes.lowerBound` rather than from taste, and it has to move if that does.
+    static let fadeSeconds = 0.05
+    /// A voice shorter than four fades keeps its character instead: the rimshot is 50 ms long
+    /// altogether and truncates at 0.2% of peak, so it needs no help and would be gutted by one.
+    static let maximumFadeFraction = 0.25
+
+    /// Every voice, with the last few milliseconds faded out.
+    ///
+    /// **The buffer used to stop mid-decay and the signal stepped to zero from whatever value it
+    /// happened to hold.** A step discontinuity is a broadband impulse, and it landed at a fixed
+    /// offset after every hit: the kick at −31.8 dBFS 0.320 s later, which at 100 BPM is 0.53 of a
+    /// beat — an audible click sitting just past the offbeat, in every take recorded since M3. The
+    /// bass was five times worse still and nobody had measured it, because `render` wrote no file
+    /// for a pitched voice. See PLAN.md §7.29 step 6b and §7.31 finding 1.
+    ///
+    /// Fading rather than lengthening the buffer, because an exponential never reaches zero: the
+    /// bass would need 2.4 s to decay to −60 dB, and `BassSynth` wants a note that is over inside
+    /// a beat so it reads as a pulse rather than a pad. Making it long enough to stop honestly
+    /// would change the music, which is the one thing a fix here may not do.
+    ///
+    /// **Raised cosine, not linear.** A linear fade leaves a corner in the first derivative where
+    /// it begins — a weaker discontinuity than the one being removed, but the same kind. This one
+    /// is flat at both ends, so nothing steps anywhere.
+    static func fadedOut(_ buffer: [Float], sampleRate fs: Double) -> [Float] {
+        let fade = min(Int(fadeSeconds * fs), Int(Double(buffer.count) * maximumFadeFraction))
+        guard fade > 1 else { return buffer }
+        var out = buffer
+        let first = buffer.count - fade
+        for i in first..<buffer.count {
+            let t = Double(i - first) / Double(fade - 1)
+            out[i] *= Float(0.5 * (1 + cos(.pi * t)))
+        }
+        return out
+    }
+
     static func render(_ voice: BackingVoice, sampleRate fs: Double) -> [Float] {
+        fadedOut(raw(voice, sampleRate: fs), sampleRate: fs)
+    }
+
+    /// The voice before its release fade. Private, so there is no way to obtain a buffer that
+    /// still truncates — the defect this file exists to have fixed was one call site away from
+    /// coming back the moment somebody added a synthesiser.
+    private static func raw(_ voice: BackingVoice, sampleRate fs: Double) -> [Float] {
         switch voice {
         case .kick:      return kick(fs: fs)
         case .snare:     return snare(fs: fs)
