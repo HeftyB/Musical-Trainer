@@ -1384,7 +1384,47 @@ public enum Commands {
     /// disk, which is `LESSONS.md` shape 1 — the path under test not being the path that ships —
     /// and it is exactly how the defect it fixes survived: the piece was generated at 32 bars and
     /// written at the command's, and nothing anywhere could observe the difference.
-    static func renderSubjects(bars: Int) -> [Subject] {
+    /// The identity `render` was asked for, from either spelling.
+    ///
+    /// `--style driving --seed 0696…` and `--style driving@06965a16872036af` both work, and the
+    /// second is the point: that is exactly what a take prints and stores, so reproducing the
+    /// music a take was played over is a copy and a paste rather than a transcription.
+    ///
+    /// **An unapproved style renders.** `render` is how a style gets listened to, and §7.29 step 5
+    /// exists to stop the *planner* promoting somebody onto music nobody has heard — refusing to
+    /// let them hear it would invert the rule. `jam` still refuses without `--probe`.
+    ///
+    /// A missing seed is drawn, so `--style driving` alone means "any piece of driving".
+    static func renderTarget(_ flags: CommandFlags, now: Date = Date()) throws -> BackingIdentity? {
+        guard let requested = flags.style else { return nil }
+        let parsed = BackingIdentity.parse(requested)
+        let name = parsed?.style ?? requested
+
+        guard StyleLibrary.named(name) != nil else {
+            let known = StyleLibrary.all.map(\.name).sorted().joined(separator: ", ")
+            throw SpikeError("No style called \(name). The library has: \(known).")
+        }
+        // An explicit --seed wins over one embedded in the name: it is the more specific thing
+        // the player typed, and a silent preference for the other would be a surprise.
+        let seed = flags.seed ?? parsed?.seed
+            ?? UInt64(bitPattern: Int64(now.timeIntervalSince1970 * 1000)) &* 0x9E37_79B9
+        return BackingIdentity(style: name, seed: seed)
+    }
+
+    /// - Parameter only: render just this one piece rather than the whole library. That is what
+    ///   makes a take's own backing reproducible from the name it is stored under (R1.2.2).
+    static func renderSubjects(bars: Int, only: BackingIdentity? = nil) -> [Subject] {
+        if let only, let style = StyleLibrary.named(only.style) {
+            let pieceBars = max(bars, StyleArranger.barsForAFullArc())
+            return [(name: only.name, rung: nil, feel: .straight,
+                     arrangement: StyleArranger.arrangement(style: style, seed: only.seed,
+                                                            bars: pieceBars),
+                     bars: pieceBars)]
+        }
+        return allRenderSubjects(bars: bars)
+    }
+
+    private static func allRenderSubjects(bars: Int) -> [Subject] {
         let ladder: [Subject] =
             [("quarters", .quarters, .straight, LadderBackings.backing(notesPerBeat: 1), bars),
              ("eighths", .eighths, .straight, LadderBackings.backing(notesPerBeat: 2), bars),
@@ -1472,7 +1512,8 @@ public enum Commands {
     /// Auditioning a groove used to mean a live run. A rung the player has never heard is a rung
     /// the planner should not be promoting them onto, and PLAN §7.23 makes that a precondition
     /// for the ladder — so hearing one has to be cheaper than booking a session.
-    public static func runRender(bpm: Double, bars: Int, into directory: URL) throws {
+    public static func runRender(bpm: Double, bars: Int, into directory: URL,
+                                flags: CommandFlags = CommandFlags()) throws {
         Console.heading("Rendering backings")
         guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
         guard (1...64).contains(bars) else { throw SpikeError("Bars must be 1–64.") }
@@ -1490,7 +1531,8 @@ public enum Commands {
         // ear or not at all. A step list cannot say whether 1.5:1 sounds like a shuffle or like
         // a mistake, and §7.23's rule — do not promote onto a rung nobody has heard — applies to
         // a feel at least as strongly.
-        let subjects = renderSubjects(bars: bars)
+        let target = try renderTarget(flags)
+        let subjects = renderSubjects(bars: bars, only: target)
 
         print(String(format: "%d BPM · %d bars unless a subject needs more · ceilings from your "
                            + "own spread of %.1f ms%@",
