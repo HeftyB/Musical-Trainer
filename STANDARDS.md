@@ -124,7 +124,9 @@ says "real change" or "within noise". Using the wrong bootstrap is a defect, not
 | Independent trials (drill rounds, minutes apart) | plain |
 | Anything pooled across takes or sittings | **two-stage: resample takes, then blocks within each** |
 | One value per take, compared across conditions | plain, over the per-take values |
-| **A lag-1 autocorrelation** | **not a block bootstrap** — `Bootstrap.lag1Interval` |
+| **A lag-1 autocorrelation, one take** | **not a block bootstrap** — `Bootstrap.lag1Interval` |
+| A lag-1 autocorrelation, two takes | `Bootstrap.lag1Difference` — independent, so the variances add |
+| A lag-1 autocorrelation, pooled or compared across takes | one value per take, resampled over takes |
 
 > The block bootstrap is self-defeating for r₁: every join between two resampled blocks is a pair
 > that was never adjacent, so the statistic is attenuated by about `1/L` and the interval sits
@@ -659,7 +661,7 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 466 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 474 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
 **`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 200 tests
