@@ -287,23 +287,76 @@ malformed packets must not index out of range.
 
 `main` is always green — `check.sh` passes at every commit.
 
-**A branch covers a coherent piece of work, not a single commit.** Commits stay granular, one
-logical change each (§8.2.2); *branches* are what broaden. A milestone step, a defect and the
-guard that closes it, a format and the two things that prove it — those are branches. A stream of
-one-commit branches is not granularity, it is a review queue nobody can hold in their head, and
-it makes the history read as though nothing was ever planned.
+**The branch is the unit of work.** It is what gets planned, what gets reviewed, what gets rolled
+out, and what the documentation is brought level with. Commits are the steps inside it. Getting
+this backwards — treating the commit as the unit and the branch as its wrapper — produces a review
+queue nobody can hold in their head and a history that reads as though nothing was ever planned.
 
-Name it `<type>/<short-description>` using the same types as §8.2: `feat/content-analysis`,
+> **This rule was in this document and broken nine times running**, PRs #23 to #31, every one of
+> them a single commit. It was written as advice, and advice is what a productive afternoon
+> ignores. `open-pr.sh` refuses a one-commit branch now unless `--single-commit` says it was meant
+> — the same move as `Style.auditioned` being a flag and `check.sh` checking the quoted test
+> counts. See `LESSONS.md` shape 21.
+
+#### 8.1.1 Planning a branch
+
+Before the first commit, decide three things and write them in `temp/pr-message.md` as you go:
+
+1. **What whole thing this branch delivers.** Not "the next change" — a capability, a defect and
+   the guard that closes it, a format and the two things that prove it, one milestone step. If it
+   cannot be said in a sentence without "and also", it is two branches.
+2. **The commits it will take, in order.** Two to six is the usual shape. Each is one logical
+   change (§8.2.2), each leaves the gate green, and each is separately revertible.
+3. **How it lands without breaking anything** — §8.1.2.
+
+A branch is **too small** when its subject and its PR title are the same sentence, when the only
+thing in "what this does not cover" is the rest of the same idea, or when the next branch has to
+start by explaining the previous one. A branch is **too large** when a reviewer cannot hold its
+argument in one sitting, when the commits stop being separately revertible, or when it has been
+open long enough that `main` has moved underneath it.
+
+Name it `<type>/<short-description>` using the same types as §8.2 — `feat/content-analysis`,
 `fix/form-instructions`, `build/woodpecker`. Name it for the *work*, not for the first commit.
 
-**Open the pull request when the work is finished, not when the first commit lands.** A PR is a
-request to merge something whole. Single-commit PRs are fine where the change genuinely is one
-thing — a retraction, a one-file fix — and they should not be the norm.
+**Open the pull request when the branch is finished, not when the first commit lands.**
 
-**Every merge into `main` must be non-breaking on its own.** Not merely green: a branch may not
-leave a half-built feature reachable from a surface the player uses. Land the parts that stand
-alone, gate the parts that do not, and say which is which in the PR. Where a milestone needs
-several branches, each one has to be a state the repository could sit in indefinitely.
+**One commit is a declared exception, not a default.** A retraction, a one-file fix, a lone
+dependency bump: legitimate, and `open-pr.sh --single-commit` is where that judgement is recorded.
+Arriving at one commit because the work was cut to fit is the thing this rule exists to stop.
+
+#### 8.1.2 Rollout
+
+**Every merge into `main` is a state the repository could sit in indefinitely.** Not merely green:
+a branch may not leave a half-built feature reachable from a surface the player uses, and it may
+not leave stored data in a shape nothing can read back.
+
+Work that cannot land in one safe piece lands in several, in this order:
+
+| Order | Lands | Why first |
+|---|---|---|
+| 1 | **Storage and identity** — new fields, optional, written by nothing | R6.3: a take recorded without a field is lost to that question for good, and an unused optional breaks nothing |
+| 2 | **Analysis and grouping** — how the new data will be read | It has to be right *before* data exists, or the first takes are scored by a rule that then changes |
+| 3 | **The mechanism** — the thing that produces the data | Now everything downstream of it already handles it |
+| 4 | **The surfaces** — CLI, then app | Last, because a surface is what makes it reachable |
+
+M19 step 7 is the worked example: `PlannedBacking` before the trend split, the trend split before
+the CLI could produce a take, and the planner last of all. Each merge changed no behaviour the
+player could see until the one that was supposed to.
+
+Three rules for the parts that cannot be finished:
+
+- **Gate rather than hide.** An unfinished capability is reachable only behind an explicit flag —
+  `Style.auditioned`, `--probe` — and the flag's default is the safe answer. A capability that is
+  merely undocumented is not gated.
+- **State the gate in the PR.** "What this does not cover" is a required section, and it names what
+  is unreachable and what turns it on.
+- **Never leave a measurement half-wired.** A drill that records a take under a task it did not
+  perform is worse than a drill that does not exist (§7.24 step 8). Either the whole path stores
+  what it played, or none of it ships.
+
+**Rolling back is part of planning it.** Each commit is separately revertible, so state in the PR
+what reverting the branch would cost — usually nothing, sometimes stored takes that would no longer
+decode, which is the case R6.1 exists to prevent arising.
 
 **A finished branch opens its own pull request.** `./scripts/open-pr.sh` pushes it and creates
 the PR from `temp/pr-message.md`, titled with the last commit's subject. The hand-over is one
@@ -313,7 +366,10 @@ line, and review starts from a written argument rather than from a diff and a gu
 git add -A && git commit -F temp/current-git-commit-message.txt && ./scripts/open-pr.sh
 ```
 
-`--dry-run` prints what it would send and touches nothing. `--base <branch>` targets a branch
+`--single-commit` declares that one commit really is the whole branch; without it a one-commit
+branch is refused, and the refusal names the commit so the judgement is made against the actual
+work rather than in the abstract. `--dry-run` prints what it would send and touches nothing.
+`--base <branch>` targets a branch
 instead of `main`, which is what stacked work needs — a PR against `main` carries every unmerged
 commit beneath it, so a four-line change can arrive as a two-thousand-line diff and the review it
 was meant to streamline gets harder. The script says so when it detects the case rather than
@@ -330,8 +386,18 @@ that already had a pull request. Whether one is open is a fact about the server;
 closed, so a push after it lands leaves nothing pending and the next PR has to be opened by hand.
 `open-pr.sh` opens one if none exists and says so if one does, which is right in both cases.
 
+It also notes a PR body with no `## Review notes` section, which §8.2.3 requires last: a warning
+rather than a refusal, because the shape is a discipline and a gate here would only teach people to
+paste the heading.
+
 The verification pipeline runs on the PR and must be green before merge. Self-review is still
 review: read the diff in the PR view before merging — it catches things the editor does not.
+
+**Delete a branch once it is merged.** `./scripts/prune-branches.sh` lists every branch fully
+merged into `main` and deletes them with `--delete`, locally and on the remote. Listing is the
+default because a branch deleted by surprise is somebody's unpushed work, and it uses `git branch
+-d` rather than `-D`, so a branch git disagrees about is kept and reported. Twenty-five accumulated
+over M19 alone; a merged branch that still exists reads as work still in flight.
 
 Merge with a merge commit, not a squash. The commits are already one-logical-change each, and
 squashing them destroys that.
@@ -404,27 +470,45 @@ commit itself is the record.
 - Commit with `git commit -F temp/current-git-commit-message.txt` so the file that was reviewed
   is the message that lands.
 
-**More than one commit.** `git commit -F` reads the whole file, so several messages cannot
-share one. When a change genuinely has to land as two commits, add
-`temp/current-git-commit-message-2.txt`, numbered in the order they will be committed. Each
-file holds one message and nothing else — no `git add` lines, no separators, nothing that
-would end up in the log if the file were used as-is. The hook clears whichever one matched.
+**More than one commit, which is the normal case.** `git commit -F` reads the whole file, so
+several messages cannot share one. A branch that lands as three commits has
+`temp/current-git-commit-message.txt`, `-2.txt` and `-3.txt`, numbered in the order they will be
+committed. Each file holds one message and nothing else — no `git add` lines, no separators,
+nothing that would end up in the log if the file were used as-is. The hook clears whichever one
+matched.
 
-**Only when absolutely needed.** A second file is a prompt to re-read "one logical change per
-commit" above and check the split is real: usually it is one change described badly, or the
-documentation half of a change that belongs with the change. The case it exists for is work
-where the first commit stands on its own without the second — a review recorded before the
-first fix it queues, say. If both halves have to land together to make sense, they are one
-commit.
+Write each one **when its commit is ready**, not all of them up front: a message you cannot write
+yet is a commit whose boundary you have not found. If two of them say nearly the same thing, the
+split is not real and they are one commit; if one of them needs "and also", it is two.
 
-### 8.2.2 One change at a time
+The commits stay one logical change each (§8.2.2) and the branch is what broadens (§8.1) — so a
+handful of message files is the shape of a well-planned branch, not a warning sign. What *is* a
+warning sign is a single file on a branch that took a week.
 
-**Take a change all the way to commit-ready before starting the next one.** Commit-ready means
-§8.3: the gate passes, all five documents are level, and the message file describes it.
+### 8.2.2 One branch at a time, and where the documentation goes
 
-The reason is mechanical and it is not obvious until it bites. Every change here updates
-`PLAN.md` and usually `AGENT.md` — that is §8.3 item 4, and it is not optional. Do two changes
-before committing either and both sets of edits are sitting in the same files, at which point
+**Take a branch all the way to merge-ready before starting the next one.** Merge-ready means §8.3:
+the gate passes, all five documents are level, the message files describe the commits, and
+`temp/pr-message.md` makes the argument.
+
+**Within a branch, the documentation lands with the commit that completes it, not with each
+commit.** That is what makes a multi-commit branch practical here: `PLAN.md` and `AGENT.md` are
+touched by nearly every change, so documenting each commit separately puts several changes' edits
+in one file and no `git add` can separate them. Documenting the *branch* once, at the end, is one
+coherent set of edits describing one coherent piece of work — which is what §8.1 says a branch is.
+
+The code commits before it stay green and separately revertible; what they do not carry is prose
+about a thing that is not finished yet.
+
+> Three times while landing §7.31 a listening verdict had to ride along in an unrelated commit,
+> because it arrived after the branch it belonged to had merged and the next branch was already
+> editing the same section of `PLAN.md`. Each was named in the PR rather than passed off, and each
+> was avoidable by the rule above: the verdict belonged to the branch still open, not to the one
+> after it.
+
+The mechanical reason is not obvious until it bites. Every change here updates
+`PLAN.md` and usually `AGENT.md` — that is §8.3 item 4, and it is not optional. Do two *branches*
+before merging either and both sets of edits are sitting in the same files, at which point
 `git add PLAN.md` cannot stage one without the other. The commits can no longer be separated by
 file, and splitting them means either hunk surgery or rewriting one change's documentation out
 of the file, committing, and putting it back.
@@ -434,9 +518,9 @@ of the file, committing, and putting it back.
 > fix's as-built subsection were interleaved in one `PLAN.md`, and the same again for the fix
 > and the hook you are reading about. Both were separable only by hand.
 
-So: finish, commit, then start. If a second change is genuinely urgent mid-flight, branch for
-it rather than layering it on top — the cost of a branch is nothing next to the cost of
-untangling two changes out of one document.
+So: finish the branch, merge it, then start the next. If something genuinely urgent arrives
+mid-branch, branch for it off `main` rather than layering it on top — the cost of a branch is
+nothing next to the cost of untangling two pieces of work out of one document.
 
 `check.sh` warns when the tree is dirty and this file is missing or older than the most
 recently changed file. It is a warning, not a failure: the standard is a discipline, not a
@@ -450,9 +534,14 @@ body is read once, in a browser, by someone deciding whether the change is safe.
 
 The shape that works here:
 
-- **Title**: the commit subject without its `type(scope):` prefix, capitalised.
-- **`## What this is`** — one paragraph, then a stat line: `1 commit · 6 files · +181 / −7 ·
+- **Title**: what the *branch* delivers, which on a multi-commit branch is not any one commit's
+  subject. `open-pr.sh` defaults it to the last commit's subject; override it in the browser when
+  that is narrower than the work.
+- **`## What this is`** — one paragraph, then a stat line: `3 commits · 6 files · +181 / −7 ·
   489 → 494 tests`.
+- **`## How this lands`** on anything that arrives in stages — the commits in order, what each one
+  leaves reachable, and what stays gated until a later branch (§8.1.2). One line per commit is
+  usually enough; the point is that a reviewer can see the rollout rather than infer it.
 - **The defect, then what it reported, then why the tests did not catch it.** Before-and-after
   goes in a table with the wrong numbers in bold. Quote the readout's own words where they are
   the tell.
@@ -460,17 +549,19 @@ The shape that works here:
 - **What the data says now**, with the limits stated at least as loudly as the result — *"Read
   no further into these than that."*
 - **`## Review notes`** last: the gate's output, what is byte-identical against what changed and
-  why that is correct, and what the change still does not cover.
+  why that is correct, what reverting the branch would cost, and what the change still does not
+  cover. `open-pr.sh` says so when this heading is missing.
 
 Write it in `temp/pr-message.md`, which is gitignored for the same reason the commit message
 file is.
 
 ### 8.3 Definition of done
 
-A change is done when all of the following are true:
+**Done is a property of the branch.** A commit inside it is done when the gate passes and its
+message describes it; the branch is done when all of the following are true:
 
-1. `./scripts/check.sh` passes.
-2. New analysable behaviour has tests that would fail without it.
+1. `./scripts/check.sh` passes — at every commit, not only the last.
+2. New analysable behaviour has tests that would fail without it, checked by reverting it.
 3. Any hardware path is exercised by a live run, or the gap is stated explicitly.
 4. **Documentation is brought level with the code — this is a closing step, every time.**
    Walk all five documents and correct anything the change made untrue:
@@ -492,6 +583,10 @@ A change is done when all of the following are true:
    a figure a script cannot check is still yours to re-derive. Prefer writing claims a script
    *can* check.
 5. `temp/current-git-commit-message.txt` describes exactly what is about to be committed.
+6. `temp/pr-message.md` makes the argument for the branch as a whole (§8.2.3), including how it
+   rolls out and what it deliberately leaves unreachable (§8.1.2).
+7. The branch is a coherent piece of work rather than one change with a branch around it (§8.1.1).
+   If it is genuinely one commit, `open-pr.sh --single-commit` records that judgement.
 
 ---
 

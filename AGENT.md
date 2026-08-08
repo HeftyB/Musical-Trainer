@@ -8,7 +8,7 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 - **[PLAN.md](PLAN.md)** — design, rationale, findings, roadmap. **The reasoning lives here.**
 - **[STANDARDS.md](STANDARDS.md)** — binding engineering rules and the procedures that enforce
   them. Read it before writing code.
-- **[LESSONS.md](LESSONS.md)** — the twenty failure *shapes* this project has produced, each with
+- **[LESSONS.md](LESSONS.md)** — the twenty-one failure *shapes* this project has produced, each with
   its instance and its guard. **Read it before any review**, and look for these shapes rather than
   for code smells. Every one of them shipped, or nearly did, with a green gate. Code comments cite
   it by number; `check.sh` fails if a citation names a shape that does not exist.
@@ -632,10 +632,13 @@ interval`.
 
 Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
 
-1. **Branch, for a coherent piece of work rather than for one commit.** `<type>/<short-description>`,
-   same types as the commit format. Commits stay granular; the branch is what broadens — a
-   milestone step, or a defect with the guard that closes it. A stream of one-commit branches is
-   a review queue nobody can hold in their head (STANDARDS.md §8.1).
+1. **Plan the branch before the first commit.** `<type>/<short-description>`, same types as the
+   commit format. Decide what whole thing it delivers, the two-to-six commits it will take, and
+   how it lands without breaking anything — STANDARDS.md §8.1.1 and §8.1.2. **The branch is the
+   unit of work**: it is what gets reviewed, rolled out and documented, and the commits are steps
+   inside it. `open-pr.sh` refuses a one-commit branch unless `--single-commit` declares that one
+   really was the whole thing; hand that flag over only when it is true, not to get past the
+   refusal. This rule was broken nine times running before it was enforced (`LESSONS.md` shape 21).
 2. **Work.** Anything analysable goes in `TimingCore` or `GrooveCore` with a test that plants
    a known answer and recovers it.
 3. **Write the message as you go.** `temp/current-git-commit-message.txt` (gitignored) holds
@@ -643,8 +646,10 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    A change you cannot describe yet is usually two changes. The `post-commit` hook empties it
    once that message lands, so a stale one never gets committed unread. If a change genuinely
    needs two commits, add `-2.txt` alongside it — STANDARDS.md §8.2.1, and rarely.
-4. **Update the documentation — always a closing step.** Walk PLAN.md, AGENT.md, STANDARDS.md
-   and README.md and correct anything the change made untrue. **LESSONS.md only when the change
+4. **Update the documentation — a closing step of the *branch*, in the commit that finishes it,
+   not once per commit.** Walk PLAN.md, AGENT.md, STANDARDS.md and README.md and correct anything
+   the branch made untrue. Documenting each commit separately puts several changes' edits in one
+   file and no `git add` can separate them (STANDARDS.md §8.2.2). **LESSONS.md only when the change
    was the second instance of a failure shape**, or a new one — one defect is a PLAN.md entry, a
    pattern is a LESSONS.md one (STANDARDS.md §9.7). Re-derive any count or figure quoted in prose
    rather than trusting it; five separate accuracy passes have each found numbers copied forward
@@ -662,6 +667,11 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    ```sh
    git add -A && git commit -F temp/current-git-commit-message.txt && ./scripts/open-pr.sh
    ```
+
+   On a branch of several commits, each has its own message file — `-2.txt`, `-3.txt` — written
+   when its commit is ready rather than all up front, and the hand-over is one `git add`/`commit`
+   per file before the single `open-pr.sh` at the end. **Delete the branch once it is merged**:
+   `./scripts/prune-branches.sh` lists what is fully merged and removes it with `--delete`.
 
    Give him that line, with `--base <parent-branch>` when the work is stacked so the PR shows
    this change alone. Do not run it — pushing and opening a PR are his, and this machine has no

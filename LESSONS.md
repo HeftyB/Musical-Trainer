@@ -477,17 +477,52 @@ that is the input you most wanted to keep.
 
 ---
 
+## 21. A rule nobody is stopped from breaking
+
+A rule that is correct, written down, agreed — and enforced by nothing. It holds while somebody is
+paying attention and stops the first time an afternoon gets productive.
+
+**Instances, and the project keeps rediscovering this one:**
+
+- **"Do not promote a player onto a rung nobody has heard"** was prose in §7.23 from M14. It became
+  `Style.auditioned` in §7.29 step 5 with the reasoning stated outright: *prose is what a hurried
+  afternoon ignores*. A flag that has to be edited, beside a test asserting the library's state, is
+  a decision that arrives in a diff.
+- **"Re-derive figures quoted in prose"** was §8.3 item 4 through **five** documentation passes,
+  each of which found counts copied forward unchecked (shape 17). The fifth added `check.sh`'s
+  Documentation section rather than a sixth reminder.
+- **"A branch covers a coherent piece of work, not a single commit"** was §8.1 from the day the
+  standard was written, and was broken **nine times running** — PRs #23 to #31, every one a single
+  commit. Nobody noticed while it was happening, because nothing was watching. `open-pr.sh` now
+  refuses a one-commit branch unless `--single-commit` declares it.
+
+**The tell is uniform**: the rule reads as advice, the cost of ignoring it is diffuse and lands
+later, and whoever breaks it is being productive rather than careless. That is precisely the
+combination discipline does not survive.
+
+**Guard:** when a rule matters, ask what stops it being broken — and if the answer is "remembering",
+build the smallest thing that says no. A flag whose default is the safe answer, a gate rule, a
+refusal with the acknowledging option beside it. Where a rule genuinely cannot be mechanised, say
+so where the rule is written, so its readers know they are the enforcement.
+
+**And the acknowledgement is the design.** None of the three forbids the thing outright: a style
+can be auditioned, a figure can be quoted, a branch can be one commit. What each removes is doing
+it *by default* — the exception costs a deliberate act that shows up in a diff or a command line.
+
+---
+
 ## Adding to this file
 
 When something goes wrong, ask whether it is an instance of a shape above or a new one. If new,
 add it with: the shape in one line, the real instance with its numbers, and the guard. If it is an
 instance of an existing shape, **add it there** — a shape with four instances is a much louder
-warning than four separate entries, and shapes 1, 2, 9 and 16 earned their place by recurring.
+warning than four separate entries, and shapes 1, 2, 9, 16 and 21 earned their place by
+recurring.
 
-Shapes 1–17 are shared with the generalised template. **18, 19 and 20 are this project's own**,
-and they are here because a milestone found each one and no existing shape described it: a guard
-whose algebra does not match what it protects, a confound named instead of separated, and an error
-path that throws away the failure it was meant to record.
+Shapes 1–17 are shared with the generalised template. **18 to 21 are this project's own**, and
+they are here because a milestone found each one and no existing shape described it: a guard whose
+algebra does not match what it protects, a confound named instead of separated, an error path that
+throws away the failure it was meant to record, and a rule enforced by nothing but memory.
 
 **Never renumber.** Code comments and `PLAN.md` cite these by number, and `check.sh` checks that
 every citation resolves to a heading here. A shape that turns out to be wrong gets its heading
