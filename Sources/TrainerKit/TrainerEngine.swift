@@ -1731,8 +1731,30 @@ public enum TrainerEngine {
     public struct GrooveConfig {
         public var bpm: Double
         public var bars: Int
-        public init(bpm: Double = 100, bars: Int = 32) { self.bpm = bpm; self.bars = bars }
+        /// The band, or `nil` for the fixed backing.
+        ///
+        /// Play measures nothing — it is somewhere to noodle — so no locked slot and no trend can
+        /// be touched by what it plays, which makes it the one mode where a style costs nothing to
+        /// get wrong. §7.29's slot table lists `Play` under deep music for exactly that reason.
+        public var generatedBacking: BackingIdentity?
+
+        public init(bpm: Double = 100, bars: Int = 32,
+                    generatedBacking: BackingIdentity? = nil) {
+            self.bpm = bpm; self.bars = bars; self.generatedBacking = generatedBacking
+        }
         public var durationSeconds: Double { Double(bars + 1) * 4 * 60 / bpm }
+
+        /// The music this plays. One resolution, mirroring `JamConfig.backing`, so Play and Jam
+        /// cannot disagree about what a style sounds like — and an identity naming a style the
+        /// library no longer has falls back rather than trapping (R6.4).
+        var backing: (name: String, arrangement: Arrangement) {
+            guard let identity = generatedBacking,
+                  let style = StyleLibrary.named(identity.style) else {
+                return ("jamBacking", GrooveLibrary.jamBacking)
+            }
+            return (identity.name, StyleArranger.arrangement(style: style, seed: identity.seed,
+                                                             bars: max(1, bars)))
+        }
     }
 
     /// Play the backing with live monitoring and no measurement — just somewhere to noodle.
@@ -1742,7 +1764,7 @@ public enum TrainerEngine {
         guard (40...260).contains(config.bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
         let player = try GroovePlayer()
         let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate)
-        let backing = GrooveLibrary.jamBacking
+        let backing = config.backing.arrangement
 
         var perBar: [Pattern] = [DropoutLadder.pattern(level: .hatsEveryBeat, bar: 0,
                                                        groove: GrooveLibrary.basicRock)]
