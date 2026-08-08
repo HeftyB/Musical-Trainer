@@ -32,10 +32,61 @@ public struct GroovePlan: Codable, Equatable {
     public init(bpm: Double, bars: Int) { self.bpm = bpm; self.bars = bars }
 }
 
+/// A generated backing a plan is asking for: which style, and the seed that rebuilds it.
+///
+/// **Deliberately not `GrooveCore.BackingIdentity`, and it cannot be.** `TimingCore` imports
+/// `Foundation` and nothing else, `GrooveCore` depends on nothing at all (R1.1.3), and neither may
+/// import the other — the planner decides what to practise from measured history and must not be
+/// able to reach a pattern. So the plan carries the *identity* and `TrainerKit`, the one module
+/// that sees both, resolves it into music. That is exactly the shape `Feel` and `Swing` already
+/// have across the same boundary, down to there being one conversion and a test pinning the two
+/// together.
+///
+/// **One optional value rather than two optional fields**, which is a change from §7.29 step 7 as
+/// written: the plan there was `styleName: String?` beside `seed: UInt64?` with `init` refusing the
+/// half-set case. A `precondition` cannot hold that line, because `Codable` bypasses `init` and a
+/// stored manifest is decoded rather than constructed — so a file with one field and not the other
+/// would have decoded into a plan nobody can replay. Making the pair a single value costs one type
+/// and makes the illegal state unrepresentable instead of merely rejected.
+///
+/// A seed that could not rebuild its backing would make every take played over it unexplainable
+/// (R1.2.2), which is why this is not optional bookkeeping.
+public struct PlannedBacking: Codable, Equatable {
+    /// Lower-case and stable, matching `Style.name`. A raw `String` for the same reason
+    /// `ExperimentAssignment.arm` and `SessionPlacement.role` are: renaming or retiring a style
+    /// must never orphan a stored manifest, and the rename from `motown` to `pocket` has already
+    /// happened once.
+    public let style: String
+    public let seed: UInt64
+
+    public init(style: String, seed: UInt64) {
+        self.style = style
+        self.seed = seed
+    }
+}
+
 public struct JamPlan: Codable, Equatable {
     public let bpm: Double
     public let bars: Int
     public let tag: String?
+    /// The generated backing this block asks for, or `nil` for the fixed one.
+    ///
+    /// Named for what it is rather than `backing`, because `JamConfig` has a `backing` already —
+    /// the *music* a config resolves to — and one word meaning both the request and the resolution
+    /// is `LESSONS.md` shape 10 invited in on purpose. The two sides of the conversion share this
+    /// name so the seam reads the same from either end.
+    ///
+    /// **`nil` is the identity here, and that is the opposite of `rung` two fields down.** Every
+    /// plan ever written meant the fixed `jamBacking`, so an absent value describes them exactly
+    /// rather than standing in for something nobody chose. `rung`'s absence means *no rung was
+    /// prescribed* and is emphatically not quarters. `LESSONS.md` shape 13 says decide which kind
+    /// each optional is and write the reason beside the field; this is that decision.
+    ///
+    /// **Every locked slot leaves it `nil` for ever** (R3.5). A generated backing in the cold
+    /// probe, the benchmark or an experiment arm would be a perfectly good take that had quietly
+    /// left the series it exists to extend, and no readout would say so — which is why the guard
+    /// is three-deep rather than a comment. See §7.29 step 7.
+    public let generatedBacking: PlannedBacking?
     /// The subdivision the player is asked to produce, or `nil` for free playing.
     ///
     /// **`nil` is not "quarters".** It means no rung was prescribed at all — play whatever you
@@ -53,10 +104,12 @@ public struct JamPlan: Codable, Equatable {
     public let offbeatLevel: Int?
 
     public init(bpm: Double, bars: Int, tag: String?, rung: IntervalRung? = nil,
-                feel: Feel = .straight, offbeatLevel: Int? = nil) {
+                feel: Feel = .straight, offbeatLevel: Int? = nil,
+                generatedBacking: PlannedBacking? = nil) {
         self.bpm = bpm; self.bars = bars; self.tag = tag; self.rung = rung
         self.swingRatio = feel.isStraight ? nil : feel.swingRatio
         self.offbeatLevel = offbeatLevel
+        self.generatedBacking = generatedBacking
     }
 
     public var feel: Feel { swingRatio.flatMap { Feel(swingRatio: $0) } ?? .straight }
