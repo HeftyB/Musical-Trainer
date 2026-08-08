@@ -5211,6 +5211,14 @@ step, and which articulation wins is a musical decision nobody has had to make. 
 in `articulationGroups`, not a change to anything that reads it — which is what makes leaving it
 out cheap rather than a debt.
 
+#### Heard, 8 August 2026
+
+> *"I listened to driving 2, 3 and syncopated 3 — all sound nice."*
+
+The three bars where the collision lived, and the only ones the fix changes. As with finding 1,
+the test proves the two articulations no longer sound together and only a listener can say the
+result is music.
+
 ### 3. `render`'s seeded pieces do not contain their own intensity arc
 
 `runRender` builds the arrangement at `max(bars, 32)` and then writes `for bar in 0..<bars`. At the
@@ -5225,6 +5233,49 @@ default and therefore has never been heard.
 
 At `render 160 32`, where four phrases and four fills do land in the file, nothing clips: the
 loudest seeded piece peaks at 0.93. So the headroom claim survives; only the audition was empty.
+
+#### Fixed — step 3, and the length becomes a property of the subject
+
+**Bars belong to the subject, not to the command.** `render` rendered everything at one length,
+which is wrong three different ways at once: a kit voice wants four bars of quarter notes, a ladder
+backing wants whatever was asked for, and a seeded piece wants however long its arc is. The
+`Subject` tuple carries a bar count now, and the render loop uses it for both the schedule and the
+frame count.
+
+The floor comes from `StyleArranger.barsForAFullArc()` rather than the literal `32` that was
+already sitting in the generator call. That number is `defaultPhraseBars × arcPhrases`, and
+`arcPhrases` is derived from the arc table itself — so **adding a five-phrase shape lengthens the
+audition instead of being silently truncated by it**, which is `LESSONS.md` shape 9, two places
+holding one value for different reasons. `barsForAFullArc(phraseBars:)` takes the phrase length as
+a parameter for the same reason `StyleArranger.arrangement` does: M16 grows the phrase to 16 and 32
+bars, and a test drives that case.
+
+#### The decision was inside a function that writes files, which is how it survived
+
+`runRender` builds its subject list, renders it and writes WAVs in one function, so "the seeded
+piece is generated at 32 bars and rendered at 8" was a discrepancy **nothing anywhere could
+observe** — `LESSONS.md` shape 1, and the reason this defect lived through a milestone of people
+reading the code around it.
+
+`Commands.renderSubjects(bars:)` is split out and `RenderSubjectTests` asserts against it.
+`testTheRenderedLengthMatchesTheGeneratedLength` rebuilds each piece from its stored seed and
+requires the arrangement to be equal, which is the defect stated exactly: not "the piece is short"
+but "the piece is long and the render is short, and the two disagree silently". Reinstating the old
+expression fails the suite **twenty ways**.
+
+Two properties beyond the fix itself, because a floor for one subject must not become a floor for
+all of them: everything that is not a seeded piece still renders at the length requested, and a kit
+voice still renders at four. The console says so where they differ — and says *"a whole arc"* only
+where that is the reason, since a four-bar kit voice has nothing to do with an arc.
+
+| | before | after |
+|---|---|---|
+| `driving@000000005eed0001-100bpm.wav` at `render 100 8` | 1,746,404 bytes — identical to the 8-bar audition | **6,826,724 bytes, 32 bars, four phrases** |
+| Peak | 0.96 | 0.96 |
+| Files written | 44 | 44 |
+
+Nothing clips at the new length and no peak moved, which is what the headroom test already
+predicted. **The §7.31 review is closed.**
 
 ### 4–7. Documentation
 
@@ -5258,7 +5309,7 @@ audible, and finding 1 exists as a *number* only because §7.29 step 6b built th
 | 0 ✅ | 4–7 — `LESSONS.md` into the repository, every stale figure, the enforcement | the five documents, `scripts/check.sh` |
 | 1 ✅ | 1 — fade every one-shot, and give `render` a `kit-bass` file so the fix is audible | `TrainerKit/DrumSynth.swift`, `BassSynth.swift`, `Commands.swift` |
 | 2 ✅ | 2 — the open hat supersedes the closed hat as the layers merge | `GrooveCore/Voices.swift`, `Style.swift` |
-| 3 | 3 — render a seeded piece at its generated length | `TrainerKit/Commands.swift` |
+| 3 ✅ | 3 — render a seeded piece at its generated length | `GrooveCore/StyleArranger.swift`, `TrainerKit/Commands.swift` |
 | then | M19 step 7, with §7.29's three hazards settled | |
 
 Finding 1 went first because it is the one thing here affecting takes recorded today, and because
@@ -5290,11 +5341,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   615 cases
+└── Tests/                   624 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     332 cases against synthetic ground truth
-    ├── GrooveCoreTests/     118 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     165 cases — storage, config, sessions. macOS only, so
+    ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
+    └── TrainerKitTests/     170 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

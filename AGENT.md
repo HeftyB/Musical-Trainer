@@ -92,14 +92,17 @@ landing on one step. `articulationGroups` is about one instrument in two states.
 thresholds, different mistakes; merging them either re-forbids ordinary percussion or stops
 catching what the first rule exists for.
 
-### Open defect — one left from the §7.31 review
+**The §7.31 review is closed — no open kit defects.** All three findings are fixed, and each was
+listened to and confirmed rather than merely asserted: the release fade on 7 August, the hat
+articulation and the arc on 8 August.
 
-It does not affect any stored number; the grid comes from `TimingCore` and never from audio.
-
-**`render`'s seeded pieces do not contain their own intensity arc.** `runRender` generates at
-`max(bars, 32)` and then writes `0..<bars`, so at the documented `render 100 8` the file is one
-8-bar phrase at one intensity. `driving@000000005eed0001-100bpm.wav` is byte-for-byte the same
-length as `driving-2-100bpm.wav`. Use `render 100 32` until it is fixed.
+**A render subject carries its own bar count.** A kit voice is four bars, a ladder backing is
+whatever was asked for, and a seeded piece is `StyleArranger.barsForAFullArc()` — the length that
+contains a whole intensity arc, derived from the arc table so a longer shape lengthens the audition
+rather than being truncated by it. `render` rendered everything at the command's length, so a piece
+generated at 32 bars was written at 8 and the arc had never been heard by anyone (§7.31 finding 3).
+`Commands.renderSubjects(bars:)` is split out of `runRender` for the reason that defect survived a
+milestone: a decision inside a function that writes files is a decision no suite can observe.
 
 `render` writes `kit-<voice>` for every voice alone, which is how a sound gets *named* rather
 than theorised about. Use it before guessing. **`kit-bass` is one of them now** — its absence is
@@ -252,8 +255,8 @@ that precondition is met without booking a live run.
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 450 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (165 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 454 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (170 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -297,7 +300,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 615 tests, no hardware needed
+swift test                              # 624 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
