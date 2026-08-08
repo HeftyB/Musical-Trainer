@@ -59,7 +59,7 @@ public enum Bootstrap {
 
     /// Percentile confidence interval for a statistic of one sample.
     public static func interval(_ x: [Double],
-                                statistic: ([Double]) -> Double,
+                                statistic: SeriesStatistic,
                                 iterations: Int = defaultIterations,
                                 level: Double = 0.95,
                                 seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
@@ -68,10 +68,10 @@ public enum Bootstrap {
         var rng = SplitMix64(seed: seed)
         var stats = [Double](); stats.reserveCapacity(iterations)
         for _ in 0..<iterations {
-            stats.append(statistic(blockResample(x, blockLength: L, using: &rng)))
+            stats.append(statistic.of(blockResample(x, blockLength: L, using: &rng)))
         }
         let alpha = (1 - level) / 2
-        return ConfidenceInterval(point: statistic(x),
+        return ConfidenceInterval(point: statistic.of(x),
                                   low: Stats.percentile(stats, alpha),
                                   high: Stats.percentile(stats, 1 - alpha),
                                   level: level)
@@ -81,7 +81,7 @@ public enum Bootstrap {
     /// `statistic(a) − statistic(b)`. If it excludes zero, the two takes really differ on
     /// that statistic at the given level.
     public static func difference(_ a: [Double], _ b: [Double],
-                                  statistic: ([Double]) -> Double,
+                                  statistic: SeriesStatistic,
                                   iterations: Int = defaultIterations,
                                   level: Double = 0.95,
                                   seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
@@ -91,12 +91,12 @@ public enum Bootstrap {
         var rng = SplitMix64(seed: seed)
         var deltas = [Double](); deltas.reserveCapacity(iterations)
         for _ in 0..<iterations {
-            let sa = statistic(blockResample(a, blockLength: la, using: &rng))
-            let sb = statistic(blockResample(b, blockLength: lb, using: &rng))
+            let sa = statistic.of(blockResample(a, blockLength: la, using: &rng))
+            let sb = statistic.of(blockResample(b, blockLength: lb, using: &rng))
             deltas.append(sa - sb)
         }
         let alpha = (1 - level) / 2
-        return ConfidenceInterval(point: statistic(a) - statistic(b),
+        return ConfidenceInterval(point: statistic.of(a) - statistic.of(b),
                                   low: Stats.percentile(deltas, alpha),
                                   high: Stats.percentile(deltas, 1 - alpha),
                                   level: level)
@@ -136,7 +136,7 @@ public enum Bootstrap {
     /// `WarmUpAnalysis.withinSessionFit` has resampled whole sittings from the day it was
     /// written, for this reason. The pooled path simply never got the same treatment.
     public static func pooledInterval(_ groups: [[Double]],
-                                      statistic: ([Double]) -> Double,
+                                      statistic: SeriesStatistic,
                                       iterations: Int = defaultIterations,
                                       level: Double = 0.95,
                                       seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
@@ -145,10 +145,10 @@ public enum Bootstrap {
         var rng = SplitMix64(seed: seed)
         var stats = [Double](); stats.reserveCapacity(iterations)
         for _ in 0..<iterations {
-            stats.append(statistic(resamplePool(usable, using: &rng)))
+            stats.append(statistic.of(resamplePool(usable, using: &rng)))
         }
         let alpha = (1 - level) / 2
-        return ConfidenceInterval(point: statistic(usable.flatMap { $0 }),
+        return ConfidenceInterval(point: statistic.of(usable.flatMap { $0 }),
                                   low: Stats.percentile(stats, alpha),
                                   high: Stats.percentile(stats, 1 - alpha),
                                   level: level)
@@ -162,7 +162,7 @@ public enum Bootstrap {
     /// interval would not merely mislead a reader but drive the app's own decision to stop
     /// collecting.
     public static func pooledDifference(_ a: [[Double]], _ b: [[Double]],
-                                        statistic: ([Double]) -> Double,
+                                        statistic: SeriesStatistic,
                                         iterations: Int = defaultIterations,
                                         level: Double = 0.95,
                                         seed: UInt64 = 0xC0FFEE) -> ConfidenceInterval? {
@@ -171,10 +171,11 @@ public enum Bootstrap {
         var rng = SplitMix64(seed: seed)
         var deltas = [Double](); deltas.reserveCapacity(iterations)
         for _ in 0..<iterations {
-            deltas.append(statistic(resamplePool(ua, using: &rng)) - statistic(resamplePool(ub, using: &rng)))
+            deltas.append(statistic.of(resamplePool(ua, using: &rng))
+                        - statistic.of(resamplePool(ub, using: &rng)))
         }
         let alpha = (1 - level) / 2
-        return ConfidenceInterval(point: statistic(ua.flatMap { $0 }) - statistic(ub.flatMap { $0 }),
+        return ConfidenceInterval(point: statistic.of(ua.flatMap { $0 }) - statistic.of(ub.flatMap { $0 }),
                                   low: Stats.percentile(deltas, alpha),
                                   high: Stats.percentile(deltas, 1 - alpha),
                                   level: level)
@@ -318,8 +319,40 @@ public enum Bootstrap {
                                   level: level)
     }
 
-    // Common statistics, ready to pass in.
-    public static let meanStat: ([Double]) -> Double = { Stats.mean($0) }
-    public static let sdStat: ([Double]) -> Double = { Stats.sd($0) }
-    public static let lag1Stat: ([Double]) -> Double = { Stats.autocorrelation($0, lag: 1) ?? 0 }
+}
+
+/// What a block-resampling bootstrap may be asked for.
+///
+/// **An enum rather than a closure, and that is the guard.** These entry points used to take any
+/// `([Double]) -> Double`, and the one statistic they must never be handed is a lag-1
+/// autocorrelation: every join between two resampled blocks is a pair that was never adjacent, so
+/// r₁ comes back attenuated by about `1/L` and a nominal 95% interval covered the truth 25% of the
+/// time at r₁ = 0.64 (§7.32). It was passed in four places and nobody noticed for thirty takes.
+///
+/// A `check.sh` rule could forbid the pairing; a closed set makes it **unrepresentable**, which is
+/// the same move as `PlannedBacking` replacing two optionals that could disagree. There is no
+/// spelling of "block-bootstrap my autocorrelation" left to write.
+///
+/// Adding a case is therefore a deliberate act, and the question it forces is the right one: does
+/// block resampling preserve what this statistic measures? For the mean and the spread it does —
+/// that is why they are here. For anything that reads *across* neighbouring points, it does not.
+public enum SeriesStatistic: String, CaseIterable {
+    /// Mean asynchrony: rush or drag.
+    case mean
+    /// Spread, the skill metric.
+    case sd
+
+    public func of(_ x: [Double]) -> Double {
+        switch self {
+        case .mean: return Stats.mean(x)
+        case .sd:   return Stats.sd(x)
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .mean: return "mean"
+        case .sd:   return "SD"
+        }
+    }
 }

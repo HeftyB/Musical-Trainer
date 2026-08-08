@@ -581,8 +581,8 @@ public enum Commands {
         // 95% confidence intervals via block bootstrap, so it's clear how much of each
         // number is real and how much is the ~130-event sample size.
         let async = report.asynchroniesMs
-        let meanCI = Bootstrap.interval(async, statistic: Bootstrap.meanStat)
-        let sdCI = Bootstrap.interval(async, statistic: Bootstrap.sdStat)
+        let meanCI = Bootstrap.interval(async, statistic: .mean)
+        let sdCI = Bootstrap.interval(async, statistic: .sd)
         let r1CI = Bootstrap.lag1Interval(r: report.lag1Autocorrelation,
                                           pairs: report.lag1PairCount ?? 0)
 
@@ -882,8 +882,8 @@ public enum Commands {
         printComparabilityNotes(comparabilityNotes([("A", [a]), ("B", [b])]))
         print("\n\(pad("Metric", 16))\(pad("A", 10))\(pad("B", 10))\(pad("change (B−A)", 22))verdict")
 
-        func row(_ name: String, _ stat: @escaping ([Double]) -> Double, unit: String) {
-            let va = stat(asyncA), vb = stat(asyncB)
+        func row(_ name: String, _ stat: SeriesStatistic, unit: String) {
+            let va = stat.of(asyncA), vb = stat.of(asyncB)
             // difference(B, A) = stat(B) − stat(A): the change from the earlier take to the later.
             let diff = Bootstrap.difference(asyncB, asyncA, statistic: stat)
             let changeStr: String
@@ -898,8 +898,8 @@ public enum Commands {
                 + "\(pad(changeStr, 22))\(verdict)")
         }
 
-        row("Mean async", Bootstrap.meanStat, unit: "")
-        row("Spread (SD)", Bootstrap.sdStat, unit: "")
+        row("Mean async", .mean, unit: "")
+        row("Spread (SD)", .sd, unit: "")
         // r₁ cannot go through `row`: that takes a statistic of an asynchrony series, and the
         // gap-aware r₁ needs to know which notes were adjacent, which only the report knows.
         // Two takes are independent samples, so the variances add — no resampling, and nothing
@@ -983,8 +983,8 @@ public enum Commands {
         for (tag, takes) in groups.sorted(by: { $0.key < $1.key }) {
             let series = takes.map(asynchronies(of:))
             let events = series.reduce(0) { $0 + $1.count }
-            let mean = Bootstrap.pooledInterval(series, statistic: Bootstrap.meanStat)
-            let sd = Bootstrap.pooledInterval(series, statistic: Bootstrap.sdStat)
+            let mean = Bootstrap.pooledInterval(series, statistic: .mean)
+            let sd = Bootstrap.pooledInterval(series, statistic: .sd)
             // **One value per take, resampled over takes.** That is R3.2's own prescription for
             // a per-take quantity, and it is what `pooledInterval` is not: that concatenates a
             // block-resampled series per take, adding a spurious adjacency at every take
@@ -1041,8 +1041,8 @@ public enum Commands {
         printComparabilityNotes(comparabilityNotes([(tagA, a), (tagB, b)]))
         print("\n\(pad("Metric", 16))\(pad(tagA, 10))\(pad(tagB, 10))\(pad("change (B−A)", 22))verdict")
 
-        func row(_ name: String, _ stat: @escaping ([Double]) -> Double) {
-            let va = stat(sa.flatMap { $0 }), vb = stat(sb.flatMap { $0 })
+        func row(_ name: String, _ stat: SeriesStatistic) {
+            let va = stat.of(sa.flatMap { $0 }), vb = stat.of(sb.flatMap { $0 })
             let diff = Bootstrap.pooledDifference(sb, sa, statistic: stat)
             let change = diff.map { String(format: "%+.2f [%+.2f, %+.2f]", $0.point, $0.low, $0.high) } ?? "—"
             let verdict = diff.map { $0.excludesZero ? "\(Console.bold)real change\(Console.reset)"
@@ -1050,8 +1050,8 @@ public enum Commands {
             print("\(pad(name, 16))\(pad(String(format: "%+.2f", va), 10))"
                 + "\(pad(String(format: "%+.2f", vb), 10))\(pad(change, 22))\(verdict)")
         }
-        row("Mean async", Bootstrap.meanStat)
-        row("Spread (SD)", Bootstrap.sdStat)
+        row("Mean async", .mean)
+        row("Spread (SD)", .sd)
 
         // r₁ again cannot go through `row`, which resamples asynchronies. The unit of analysis
         // here is the **take**, and `plainDifference` says so in its own doc comment — one value

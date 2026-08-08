@@ -63,7 +63,20 @@ final class CorrectionGainIntervalTests: XCTestCase {
         var rng = SplitMix64(seed: 99)
         let x = ar1(122, rho: 0.7, rng: &rng)
         let point = try XCTUnwrap(Stats.autocorrelation(x, lag: 1))
-        let bootstrapped = try XCTUnwrap(Bootstrap.interval(x, statistic: Bootstrap.lag1Stat))
+        // The old pairing, spelled out by hand because it can no longer be *written*:
+        // `SeriesStatistic` has no autocorrelation case, which is the guard §7.34 put in. This
+        // reproduces what the four call sites used to do, so the defect stays demonstrable.
+        var blockRng = SplitMix64(seed: 0xC0FFEE)
+        let L = Bootstrap.defaultBlockLength(x.count)
+        var resampled: [Double] = []
+        for _ in 0..<2000 {
+            resampled.append(Stats.autocorrelation(
+                Bootstrap.blockResample(x, blockLength: L, using: &blockRng), lag: 1) ?? 0)
+        }
+        let bootstrapped = ConfidenceInterval(point: point,
+                                              low: Stats.percentile(resampled, 0.025),
+                                              high: Stats.percentile(resampled, 0.975),
+                                              level: 0.95)
 
         XCTAssertLessThan(bootstrapped.high, point,
             String(format: "the block bootstrap should attenuate: point %.3f, interval "
