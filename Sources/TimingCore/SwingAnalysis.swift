@@ -111,7 +111,7 @@ public enum SwingAnalysis {
             // phase and then transformed: `φ/(1−φ)` is monotonic, so the endpoints map straight
             // across, and bootstrapping the ratio directly would resample a quantity whose
             // scale changes across its own range.
-            if let async = Bootstrap.interval(asynchronies, statistic: Stats.mean,
+            if let async = Bootstrap.interval(asynchronies, statistic: .mean,
                                               iterations: iterations, seed: seed) {
                 let lowPhase = expected + async.low / pairSpanMs
                 let highPhase = expected + async.high / pairSpanMs

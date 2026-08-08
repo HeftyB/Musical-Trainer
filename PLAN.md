@@ -5652,6 +5652,29 @@ comparability notes naming the backing *and* the style.
 Nothing here changes a point estimate. All three intervals were absent an hour ago and wrong
 before that.
 
+#### And the wrong pairing is now unrepresentable
+
+The four block-resampling entry points took any `([Double]) -> Double`, so "block-bootstrap my
+autocorrelation" was a thing anybody could write — and four call sites did, for thirty takes.
+Removing the callers fixed the instances and left the *spelling* available.
+
+`SeriesStatistic` is a closed set of `.mean` and `.sd`. There is no autocorrelation case, so the
+pairing cannot be written at all: the same move as `PlannedBacking` replacing two optionals that
+could disagree, and stronger than the `check.sh` rule first considered, which would have missed a
+call wrapped across two lines (`LESSONS.md` shape 2 — a guard that looks right and matches nothing).
+
+Adding a case forces the right question: **does block resampling preserve what this statistic
+measures?** For the mean and the spread it does, which is why they are there. For anything reading
+*across* neighbouring points it does not.
+
+A one-line `check.sh` rule remains as a backstop for the symbol itself, since a `lag1Stat`-shaped
+constant reappearing beside the others is how a closed set gets quietly reopened. Verified by
+planting one and watching it report FAIL (R5.7).
+
+`CorrectionGainIntervalTests` still demonstrates the defect, but it now builds the old pairing by
+hand — the clearest statement that the pairing is gone: the test that proves it was wrong can no
+longer express it through the API.
+
 ### What this does not settle
 
 The r₁ **point estimate** is what moved; nothing here revisits what it means. Whether a jam played

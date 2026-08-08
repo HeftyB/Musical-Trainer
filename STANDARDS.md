@@ -128,6 +128,11 @@ says "real change" or "within noise". Using the wrong bootstrap is a defect, not
 | A lag-1 autocorrelation, two takes | `Bootstrap.lag1Difference` — independent, so the variances add |
 | A lag-1 autocorrelation, pooled or compared across takes | one value per take, resampled over takes |
 
+`Bootstrap`'s block-resampling entry points take a `SeriesStatistic` — a closed set of `.mean` and
+`.sd` — rather than any closure, so the wrong pairing cannot be written rather than merely being
+forbidden. **Adding a case is a deliberate act and the question it forces is: does block resampling
+preserve what this statistic measures?**
+
 > The block bootstrap is self-defeating for r₁: every join between two resampled blocks is a pair
 > that was never adjacent, so the statistic is attenuated by about `1/L` and the interval sits
 > below the point estimate. Measured against planted AR(1) series, a nominal 95% interval covered
