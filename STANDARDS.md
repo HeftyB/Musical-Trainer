@@ -10,20 +10,32 @@ Install the hooks once with `./scripts/install-hooks.sh`.
 
 ## 0. Document map
 
-Four documents, four jobs. Putting content in the wrong one is a defect.
+Five documents, five jobs. Putting content in the wrong one is a defect.
 
 | Document | Holds | Does not hold |
 |---|---|---|
 | `PLAN.md` | Design, rationale, findings, measured results, roadmap. **The reasoning lives here.** | Procedure, style |
 | `AGENT.md` | Operating manual: how to build, run, and not break things | Rationale, roadmap |
 | `STANDARDS.md` | These rules, and the procedures that enforce them | Design decisions |
+| `LESSONS.md` | The catalogue of failure *shapes* — how things go wrong here, with the instance and the guard | A single defect's history, which is `PLAN.md`'s |
 | `README.md` | What the app is and how to use it | Anything internal |
 
 **Reasoning does not go in commit messages.** A commit says *what changed*; `PLAN.md` says
 *why it is right*. A reader wanting the argument should find it in one place that stays
 current, not scattered across a log that never gets re-read.
 
-Code comments carry a fifth job: **invariants and the defects that produced them.** A comment
+**`LESSONS.md` is cited by number and never renumbered.** Code comments and the other documents
+refer to a shape by its number, so the numbering is an interface rather than an ordering.
+`check.sh` fails when a citation names a shape the file does not define. A shape that turns out to
+be wrong keeps its heading and has its body corrected, the way a retracted finding does.
+
+The split between it and `PLAN.md` is a recurrence test: **one defect belongs in `PLAN.md`; the
+second instance of the same mistake belongs in `LESSONS.md`.** §7.29 step 0 was the *fifth*
+instance of one word with two meanings, and the paragraph explaining that distinction was already
+sitting above the line that got it wrong — which is the argument for keeping a catalogue rather
+than trusting that a comment will be read.
+
+Code comments carry a sixth job: **invariants and the defects that produced them.** A comment
 explaining what a line does is noise; a comment explaining what breaks if the line changes is
 the most valuable text in the file.
 
@@ -400,7 +412,7 @@ commit.
 ### 8.2.2 One change at a time
 
 **Take a change all the way to commit-ready before starting the next one.** Commit-ready means
-§8.3: the gate passes, all four documents are level, and the message file describes it.
+§8.3: the gate passes, all five documents are level, and the message file describes it.
 
 The reason is mechanical and it is not obvious until it bites. Every change here updates
 `PLAN.md` and usually `AGENT.md` — that is §8.3 item 4, and it is not optional. Do two changes
@@ -453,14 +465,24 @@ A change is done when all of the following are true:
 2. New analysable behaviour has tests that would fail without it.
 3. Any hardware path is exercised by a live run, or the gap is stated explicitly.
 4. **Documentation is brought level with the code — this is a closing step, every time.**
-   Walk all four documents and correct anything the change made untrue:
+   Walk all five documents and correct anything the change made untrue:
    - `PLAN.md` — design decisions, findings, measured results, milestone status
    - `AGENT.md` — operating procedure, environment constraints, project state
    - `STANDARDS.md` — a rule that changed, or a new procedure
+   - `LESSONS.md` — only when the change was the **second** instance of a failure shape, or a
+     new shape. One defect is a `PLAN.md` entry; a pattern is a `LESSONS.md` one
    - `README.md` — any user-facing surface, and the command table
+
    Counts and figures quoted in prose are claims like any other: re-derive them from the code
-   rather than trusting the previous value. Four separate doc-accuracy passes have each found
-   stale numbers that had been copied forward unchecked.
+   rather than trusting the previous value. **Five separate doc-accuracy passes have each found
+   stale numbers copied forward unchecked** — `LESSONS.md` shape 17, the failure mode of a
+   project that documents well.
+
+   `check.sh`'s **Documentation** section holds the mechanical half of this: the test counts
+   quoted in `AGENT.md`, `STANDARDS.md` and `README.md` are re-derived and compared, and every
+   `LESSONS.md` shape citation must resolve. That is the enforceable subset and nothing more —
+   a figure a script cannot check is still yours to re-derive. Prefer writing claims a script
+   *can* check.
 5. `temp/current-git-commit-message.txt` describes exactly what is about to be committed.
 
 ---
@@ -530,7 +552,7 @@ looks like the player's own timing.
 | `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 443 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
-**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 157 tests
+**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 161 tests
 run only in `./scripts/check.sh`, which the pre-commit hook enforces. A green pipeline therefore
 covers less than a green `check.sh`, and saying so is the point: the gap that destroyed a take
 existed because the split between tested and untested had stopped being visible.
@@ -571,3 +593,23 @@ decode check. Those run in `./scripts/check.sh` locally, which the pre-commit ho
 
 Findings go in `PLAN.md` with the numbers that support them, the sample size, and what would
 falsify them. A finding without a sample size is an anecdote.
+
+### 9.7 Recording a failure shape
+
+When a defect is found, ask one question: **has this shape happened here before?**
+
+- **No** — it goes in `PLAN.md` with its instance and its fix, and nowhere else. A single defect
+  is not a pattern, and a catalogue that admits everything stops being read.
+- **Yes** — add the new instance to the existing shape in `LESSONS.md`, with its numbers, beside
+  the ones already there. Do not open a second entry: shape 1 is a loud warning because it lists
+  four instances, and it would be four quiet ones if they had been filed separately.
+- **Yes, but no shape describes it** — add one at the end, numbered next, never inserted. Give it
+  the shape in one line, the real instance with its numbers, and the guard.
+
+A shape earns its place by recurring, so the bar for a new one is that two instances already
+exist. Shapes 18, 19 and 20 were each added when a milestone produced the second instance and no
+existing shape fitted.
+
+**Cite it from the code.** A comment saying `LESSONS.md` shape 10 at the site where that mistake
+is available costs one line and is the only mechanism that puts the catalogue in front of someone
+at the moment it matters. `check.sh` checks that every citation resolves.

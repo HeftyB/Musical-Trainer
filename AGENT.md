@@ -3,11 +3,15 @@
 macOS app that trains an autonomous internal pulse. One user: Andrew, 25+ years playing,
 theory-strong, timing is the weak axis.
 
-Four documents, four jobs — putting content in the wrong one is a defect:
+Five documents, five jobs — putting content in the wrong one is a defect:
 
 - **[PLAN.md](PLAN.md)** — design, rationale, findings, roadmap. **The reasoning lives here.**
 - **[STANDARDS.md](STANDARDS.md)** — binding engineering rules and the procedures that enforce
   them. Read it before writing code.
+- **[LESSONS.md](LESSONS.md)** — the twenty failure *shapes* this project has produced, each with
+  its instance and its guard. **Read it before any review**, and look for these shapes rather than
+  for code smells. Every one of them shipped, or nearly did, with a green gate. Code comments cite
+  it by number; `check.sh` fails if a citation names a shape that does not exist.
 - **AGENT.md** (this file) — the operating manual.
 - **[README.md](README.md)** — what the app is and how to use it.
 
@@ -26,18 +30,20 @@ progression are a different problem from rhythm, with the framework for it alrea
 `Hit.note`).
 
 **M19 is in progress** (§7.29), ahead of M16 because a 32-bar phrase needs a backing that
-sustains 32 bars and M16.5's organ bubble needs the pattern format settled. Steps 0 and 1 are
-done and changed no audio by design: the grid a free jam is scored on is a named constant rather
-than the drum programming's resolution, and every arrangement now speaks **one grid of 24 steps
-to the beat** so a triplet section and a straight one can share a piece of music. Patterns are
-still authored at whatever reads naturally and `Arrangement` lifts them.
+sustains 32 bars and M16.5's organ bubble needs the pattern format settled. **Steps 0–6 are done;
+step 7 — the planner and the surfaces — is next and is the one step with measurement risk.**
+
+Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
+rather than the drum programming's resolution, and every arrangement now speaks **one grid of 24
+steps to the beat** so a triplet section and a straight one can share a piece of music. Patterns
+are still authored at whatever reads naturally and `Arrangement` lifts them.
 
 The band now has a **bass** — `BackingVoice.bass`, pitch on the hit, `BassSynth` — and a
 **style format**: layers that enter at an intensity, plus fills, `playerVoices` for M20 and
-`density` for M21/M24. `rock` and `motown` are authored. **Nothing frozen carries any of it** and
-no planner or drill can reach a style yet; `jamBacking` is the music every take was measured
-against and stays exactly as it is. Hear all of it with `render`, which writes `bass-demo` and
-every style at every intensity.
+`density` for M21/M24. **Four styles are authored** — `driving`, `pocket`, `syncopated`,
+`half-time` — and `StyleArranger` turns any of them into a piece from a seed. **Nothing frozen
+carries any of it** and no planner or drill can reach a style yet; `jamBacking` is the music every
+take was measured against and stays exactly as it is. Hear all of it with `render`.
 
 **A style that clips is heard as bad playing, not as a bad gain.** `StyleHeadroomTests` mixes the
 real buffers at 100 and 160 BPM — a mix goes hot because voices stack, and a style that clears
@@ -55,7 +61,7 @@ label imply a measurement nobody made. **Do not name a new style after a genre.*
 unchanged and it has two milestones behind it: **M26** makes the kit sound convincing, **M27**
 works out how to say what a genre *is* so the claim has a falsifier. Neither is part of M19.
 
-**Three rules an ear found that a step list cannot show:**
+**Four rules an ear found that a step list cannot show:**
 
 - **No style may have two timekeepers on the same steps.** A ride and a hat playing one rhythm
   reads as a bell over a hat rather than as either. A hat on the downbeats against a shaker on
@@ -63,18 +69,46 @@ works out how to say what a genre *is* so the claim has a falsifier. Neither is 
   it wrongly forbade both.
 - **No layer may run at one velocity.** Eight identical hi-hat hits a bar is a metronome by
   construction. Use `Pattern.line` and lean on the beat. Velocity only, never position.
-- **A one-shot must not stop mid-decay.** See the open defect below.
+- **One hi-hat, one state.** An open hat on a step the closed hat already plays is not a louder
+  hat, it is two hats — a thing no drummer can do. The open hat on the "and" of four *replaces*
+  the closed one. Open defect below.
+- **A one-shot must not stop mid-decay.** Open defect below.
 
-**Open defect — every one-shot truncates, and the kick clicks.** A voice's buffer length is a
-constant and its envelope is exponential, so the signal steps to zero at whatever value it
-happened to hold. The kick ends at **−31.8 dBFS**, 0.320 s after every hit, which at 100 BPM is
-0.53 of a beat — a click sitting just past the offbeat, and it has been in every take ever
-recorded. Snare −38.7, clap −45.7, ride −47.8; the rest are inaudible. Found by ear, located with
-one file per voice, then measured off the rendered samples. Not fixed yet, and the fix is to fade
-the last milliseconds or let the length follow the decay.
+### Open defects, all in the kit and none in the measurement
+
+Three, found in the §7.31 review. None affects any stored number — the grid comes from
+`TimingCore` and never from audio — and the first is in every take ever recorded.
+
+**1. Every one-shot truncates; the kick clicks and the bass clicks louder.** A voice's buffer
+length is a constant and its envelope is exponential, so the signal steps to zero at whatever
+value it happened to hold. A step discontinuity is a broadband impulse.
+
+| Voice | Envelope at truncation | Measured |
+|---|---|---|
+| **bass** | `exp(-1.6)` = **20.2% of peak** | 15–20 dB below its own peak, across E1–E3 |
+| kick | `exp(-3.2)` = 4.1% of peak | **−31.8 dBFS**, 0.320 s after every hit |
+| snare / clap / ride | — | −38.7 / −45.7 / −47.8 dBFS |
+| everything else | — | below −51 dBFS, inaudible |
+
+At 100 BPM the kick's lands 0.53 of a beat after the hit — a click just past the offbeat, in
+every take on record since `basicRock` started kicking in M3. **The bass is five times worse and
+was never measured**, because `render`'s per-voice pass filters on `!isPitched` and writes no
+`kit-bass` file: the diagnostic that turned "there is a click somewhere" into "it is the kick"
+structurally cannot see the one voice that is worst. Nothing frozen carries a bass, so no stored
+take is affected — but every style does, so it lands the moment step 7 schedules one.
+
+**2. `driving` and `syncopated` sound both hats at once.** `driving` at intensity ≥ 2 plays the
+closed hat on step 14 and the open hat on step 14; `syncopated` at intensity 3 does it on steps 6
+and 14. `Style.doubledTimekeepers` cannot catch it — `openHat` is not in `BackingVoice.timekeepers`
+and has too few hits a bar to count as keeping time.
+
+**3. `render`'s seeded pieces do not contain their own intensity arc.** `runRender` generates at
+`max(bars, 32)` and then writes `0..<bars`, so at the documented `render 100 8` the file is one
+8-bar phrase at one intensity. `driving@000000005eed0001-100bpm.wav` is byte-for-byte the same
+length as `driving-2-100bpm.wav`. Use `render 100 32` until it is fixed.
 
 `render` writes `kit-<voice>` for every voice alone, which is how a sound gets *named* rather
-than theorised about. Use it before guessing.
+than theorised about. Use it before guessing — and note the gap above: it writes no bass.
 
 ## Audio, and how it gets accepted
 
@@ -84,9 +118,10 @@ Nothing here can be verified by a test, so the loop is: **render → listen → 
 ./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
 ```
 
-It writes the ladder backings, every style at every intensity, a seeded piece per style, and one
-file per kit voice. Two guards run automatically: `render` warns on any clipped sample, and
-`StyleHeadroomTests` mixes real buffers at 100 and 160 BPM because a mix goes hot where voices
+It writes **43 files**: ten ladder and demo backings, four styles × four intensities, one seeded
+piece per style, and thirteen `kit-<voice>` files — one for each non-pitched voice, which is why
+there is no bass among them. Two guards run automatically: `render` warns on any clipped sample,
+and `StyleHeadroomTests` mixes real buffers at 100 and 160 BPM because a mix goes hot where voices
 stack rather than where one is loud.
 
 **`Style.auditioned` is the gate.** It is `false` for all four styles, `StyleLibrary.auditioned`
@@ -114,14 +149,8 @@ Capturing them to *measure* — spectra, envelopes, velocity behaviour — and t
 to match is a different thing entirely: a timbre is not copyrightable, and it turns an asset
 problem into a measurement problem, which is what this project is good at. §7.30 has the argument.
 
-**Four styles are authored and none is approved.** `Style.auditioned` is `false` for all of
-them, `StyleLibrary.auditioned` is what the planner may schedule, and it is empty — so the planner
-falls back to the fixed `jamBacking` every take on record used. Listen to the renders, then flip
-the flag; nobody who writes a style can set it honestly, because whether a groove is worth thirty
-minutes is not a property of its step list.
-
 `StyleArranger` turns a style into a piece from a **seed**, and `BackingIdentity` writes that seed
-into `grooveName` as `motown@000000005eed0001` — no schema change, and a name without an `@` is a
+into `grooveName` as `pocket@000000005eed0001` — no schema change, and a name without an `@` is a
 fixed backing, which is every take before M19. **A generated backing that could not be rebuilt
 from what was stored would make every take played over it unexplainable** (R1.2.2), so the seed
 is not optional bookkeeping.
@@ -133,7 +162,7 @@ than it looks.
 
 **Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
 position before and after the lift, at three tempos and four feels, and a one-step drift fails it
-3,265 times. The nineteen WAVs `render` writes are the other half of that gate.
+3,265 times. The 43 WAVs `render` writes are the other half of that gate.
 
 **Anything can be tried from the CLI without corrupting a ladder.** `--probe`, anywhere on the
 line, records a take as a deliberate look at a setting that was not earned — form level 3, a rung
@@ -228,7 +257,7 @@ that precondition is met without booking a live run.
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 443 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (157 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (161 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -610,9 +639,12 @@ Full rules in [STANDARDS.md](STANDARDS.md); this is the short form.
    once that message lands, so a stale one never gets committed unread. If a change genuinely
    needs two commits, add `-2.txt` alongside it — STANDARDS.md §8.2.1, and rarely.
 4. **Update the documentation — always a closing step.** Walk PLAN.md, AGENT.md, STANDARDS.md
-   and README.md and correct anything the change made untrue. Re-derive any count or figure
-   quoted in prose rather than trusting it; four separate accuracy passes have each found
-   numbers copied forward unchecked.
+   and README.md and correct anything the change made untrue. **LESSONS.md only when the change
+   was the second instance of a failure shape**, or a new one — one defect is a PLAN.md entry, a
+   pattern is a LESSONS.md one (STANDARDS.md §9.7). Re-derive any count or figure quoted in prose
+   rather than trusting it; five separate accuracy passes have each found numbers copied forward
+   unchecked, which is LESSONS.md shape 17. `check.sh`'s Documentation section catches the test
+   counts and the shape citations and nothing else — the rest is yours.
 5. **`./scripts/check.sh`** last, and `.githooks/commit-msg temp/current-git-commit-message.txt`
    — it takes a path and exits non-zero, so checking the message costs nothing and counting
    characters by eye does not work. The pre-commit hook runs only the fast half of the gate.
