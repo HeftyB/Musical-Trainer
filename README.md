@@ -57,7 +57,7 @@ so it runs before every commit.
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 692 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 697 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
