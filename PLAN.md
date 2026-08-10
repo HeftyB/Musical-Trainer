@@ -5984,6 +5984,80 @@ the two exclusions before anything moves.
 
 ---
 
+## 7.35 The hang recurred — 10 August, and what the second instance rules out
+
+A jam asked for with **swing** — so a binary rung over `jamBacking`, since a rung and a style cannot
+both play — failed the same way from the *start* of the take: one droning note, keyboard
+unresponsive, drums and app unaffected. The take was stopped and discarded rather than analysed. A
+second jam started immediately afterwards ran clean and is on record as
+`pocket@c7da4f6fc6dbf25d`, 32 bars, tagged `relaxed` and rated 3.
+
+### The backing is not the variable, and the pair proves it both ways
+
+| | 8 Aug, block 10 | 10 Aug, hung | 10 Aug, retry |
+|---|---|---|---|
+| Backing | `syncopated@…`, **generated** | `jamBacking`, **fixed** | `pocket@…`, **generated** |
+| Rung / feel | none — free | binary rung, **swung** | none — free |
+| When | mid-take | from the start | — |
+| Outcome | hung | hung | **clean** |
+
+A generated backing sits on both sides of the outcome and a fixed backing produced a hang, so the
+music M19 generates is not implicated. Neither is take length, the style picker, nor the planner —
+the 10 August failure came from the app's Jam mode with no plan involved. **No single configuration
+value is common to both failures**, which is itself the finding: this does not look like a code path
+selected by a setting.
+
+That retry is also the first take ever played over `pocket`, which §7.33 recorded as approved on
+listening alone.
+
+### What the code says without a live run, by elimination
+
+Reading the audio path settles where the fault is *not*, which the four-candidate table in §7.34
+could only guess at:
+
+- `LiveInstrument.freeVoiceSlot()` **steals the oldest voice** when none is idle, so exhaustion at
+  16 voices cannot silence the keyboard — a seventeenth note displaces the droning one instead.
+- `LiveInstrument.render()` drains the **whole** event ring on every callback, so the ring filling
+  cannot persist while audio is running.
+- The drums kept playing, so the render callback *was* running.
+- `GroovePlayer` and its `LiveInstrument` are built per take, so no state survives from a previous
+  one.
+
+Which leaves one conclusion: **the events stopped reaching `enqueue` at all.** The fault is upstream
+of the synthesis, and a voice sounding at that moment never receives its note-off — which is exactly
+one tone ringing on while nothing new sounds. §7.34's third and fourth candidates are eliminated;
+its second is narrowed to "delivery stopped", without yet saying why.
+
+### A second defect, which would stop the app recovering from the first
+
+`MIDIInput.connectedSources` is **inserted into and never pruned** — three mentions in the file, no
+removal anywhere. `connectSources()` skips any source whose unique ID is already in that set, so a
+keyboard that drops off the bus and returns under the same unique ID, which CoreMIDI preserves per
+device, **is never reconnected** and stays dead for every later take until the app is relaunched.
+
+It constrains the diagnosis as well as the fix. The 10 August retry worked immediately, so either
+that instance was not a disconnect, or the device returned under a different identity — a plain
+disconnect-and-return would have left the keyboard dead. And it means §7.34's notify block buys
+nothing on its own: being told the device left is useless while the reconnect path refuses to run.
+
+### A latent out-of-bounds read, found while reading
+
+`GroovePlayer.render` mixes `scratch[f]` across the full `frameCount`, but `LiveInstrument.render`
+clamps its own work to `scratchCapacity` — 8192. A buffer larger than that would be mixed from
+memory the instrument never wrote. **Not reachable today**: nothing sets `maximumFramesToRender`, so
+AVAudioEngine's default of 4096 applies. It is one device or one configuration change from being
+live, and it is in the same file as the fix above.
+
+### What is still not established
+
+**The cause.** Two instances, both described from the player's chair, nothing instrumented. The
+elimination above narrows *where* the fault is without identifying it, and `midimon` alongside a
+session remains what would separate the survivors — LESSONS.md shape 16, whose whole subject is
+acting on a diagnosis no probe confirmed. The fix that matters most is therefore the one that makes
+a third instance leave evidence behind.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
