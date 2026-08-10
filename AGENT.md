@@ -46,6 +46,18 @@ path out of one. **Block 10 of that session is compromised and deliberately kept
 its 33.1 ms spread is not a fact about the player. And `AppModel.feelAdvice` explains a disabled
 Feel picker by talking about triplets even when the rung is quarters.
 
+**The hang recurred on 10 August** (§7.35), from the *start* of a swung take over `jamBacking`, with
+a retry over `pocket` running clean immediately after. **The backing is not the variable** — a
+generated backing sits on both sides of the outcome and a fixed one produced a hang, and no single
+configuration value is common to both failures. Reading the audio path narrows it by elimination:
+voices are *stolen* rather than exhausted, the event ring is drained every callback, the drums prove
+the callback was running, and player and instrument are per-take — **so the events stopped reaching
+`enqueue` at all**, upstream of the synthesis. Beside it, `MIDIInput.connectedSources` is never
+pruned, so a device returning under the same unique ID is never reconnected and stays dead until
+relaunch; the notify block buys nothing without that. **The cause is still not established** —
+nothing is instrumented, and `midimon` alongside a session is what would settle it. That retry is
+also the first take ever played over `pocket`.
+
 Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
 rather than the drum programming's resolution, and every arrangement now speaks **one grid of 24
 steps to the beat** so a triplet section and a straight one can share a piece of music. Patterns
