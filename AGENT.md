@@ -29,7 +29,7 @@ the timekeeper or partly the hands) and M25 (harmony — its own milestone becau
 progression are a different problem from rhythm, with the framework for it already in
 `Hit.note`).
 
-**M19 is built and has not been played.** Steps 0–8 are complete (§7.29, §7.33): the pattern
+**M19 is built.** Steps 0–8 are complete (§7.29, §7.33): the pattern
 format, the bass, four approved styles, the seeded generator, the planner picking a band for the
 closing jam, band pickers in the app, and `render --style` reproducing any take's music from the
 name it is stored under.
@@ -55,7 +55,12 @@ the callback was running, and player and instrument are per-take — **so the ev
 `enqueue` at all**, upstream of the synthesis. Beside it, `MIDIInput.connectedSources` is never
 pruned, so a device returning under the same unique ID is never reconnected and stays dead until
 relaunch; the notify block buys nothing without that. **The cause is still not established** —
-nothing is instrumented, and `midimon` alongside a session is what would settle it. That retry is
+nothing is instrumented, and `midimon` alongside a session is what would settle it. **A stuck voice
+now releases itself after 8 s** (`LiveInstrument.maxSustainSeconds`), which does not fix the cause
+and is not meant to — it makes a hang survivable instead of take-ending, and it cannot move a
+measured number because everything analysed comes from note onsets and nothing reads a duration.
+**Nothing yet leaves evidence**: the notify block and the `connectedSources` pruning are unbuilt, so
+a third instance still produces a description rather than a record. That retry is
 also the first take ever played over `pocket`.
 
 Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
@@ -296,7 +301,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 485 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (207 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (212 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -340,7 +345,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 692 tests, no hardware needed
+swift test                              # 697 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

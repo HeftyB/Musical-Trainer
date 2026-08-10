@@ -286,16 +286,30 @@ final class GroovePlayer {
         // Mix the live instrument (mono) into every channel, then soft-clip the master so
         // stacked drum hits and held chords cannot exceed 0 dBFS. tanh is ~linear at low
         // level, so it barely touches the drums and only tames the peaks.
-        let scratch = instrument.render(frames: n)
+        // `played` is what the instrument actually wrote, which is not always `n`: its scratch
+        // buffer is a fixed allocation and a larger request is clamped rather than grown, because
+        // growing it would allocate here (R2.3). Mixing `0..<n` against it read past the
+        // allocation whenever the engine handed over more than `scratchCapacity` frames.
+        let (scratch, played) = instrument.render(frames: n)
         for buffer in abl {
             guard let raw = buffer.mData else { continue }
             let data = raw.assumingMemoryBound(to: Float.self)
             let channels = Int(buffer.mNumberChannels)
-            for f in 0..<n {
+            for f in 0..<played {
                 let voice = scratch[f]
                 for c in 0..<channels {
                     let idx = f * channels + c
                     data[idx] = tanhf(data[idx] + voice)
+                }
+            }
+            // The tail past what the instrument wrote still needs the master soft-clip, or an
+            // oversized buffer would leave the drums unlimited on its remainder. Split into two
+            // loops rather than branching per sample, for the same reason the drum mix resolves
+            // its buffer pointer once.
+            for f in played..<n {
+                for c in 0..<channels {
+                    let idx = f * channels + c
+                    data[idx] = tanhf(data[idx])
                 }
             }
         }

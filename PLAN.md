@@ -6048,13 +6048,51 @@ memory the instrument never wrote. **Not reachable today**: nothing sets `maximu
 AVAudioEngine's default of 4096 applies. It is one device or one configuration change from being
 live, and it is in the same file as the fix above.
 
+### Fixed — the instrument releases a voice nothing released for it
+
+**`LiveInstrument.maxSustainSeconds`, 8 s.** A voice tracks how long it has sounded unreleased and,
+past the ceiling, sets its own release using the identical slope `release(note:)` sets — so a voice
+that times out is indistinguishable from one that was let go, rather than being cut off.
+
+**This is not a fix for the cause, and it is not offered as one.** It converts "for ever" into a few
+seconds whatever the cause turns out to be, which is worth having on its own: both hangs ended a
+take, and neither had to.
+
+**Why 8 seconds, and why the *lower* bound is the interesting one.** A whole bar of four beats at
+40 BPM — the slowest tempo any drill accepts — is 6.0 s, so a bar held at the slowest tempo the app
+offers still rings in full. A ceiling below that would cut off real playing, which is why
+`MaxSustainTests` asserts that end too. **If the 40 BPM floor is ever lowered, nothing notices**:
+that floor is a literal repeated at eight call sites rather than a shared constant, so the test pins
+the ceiling and not the relationship. Said here rather than implied, per shape 21.
+
+**It cannot move a measured number**, and that is what makes the ceiling safe to be aggressive
+about. Everything analysed derives from note *onsets* — `MIDINoteOn`, `tapTimes`, the raw note-ons —
+and nothing reads a note's duration anywhere. The worst case is a held note fading under a finger
+still holding it: audible, and invisible to every statistic.
+
+`MaxSustainTests` asserts against `LiveInstrument` itself rather than a reimplementation of its
+envelope, because the claim is that the *shipping* voice loop times out (shape 1). Deleting the
+`heldSamples` block leaves the voice at **0.223** amplitude nine seconds in and fails the test.
+
+### Fixed — the mix can no longer read past what the instrument wrote
+
+`render` returns `(samples, count)` instead of a bare pointer, and `GroovePlayer` mixes to `count`
+then soft-clips the remainder. The bound stops being something the caller has to remember and
+becomes something it cannot get wrong — the same move as `SeriesStatistic` closing the set a block
+bootstrap may resample (§7.32). The tail past the instrument's frames still goes through `tanhf`, or
+an oversized buffer would leave the drums unlimited on its remainder.
+
 ### What is still not established
 
 **The cause.** Two instances, both described from the player's chair, nothing instrumented. The
 elimination above narrows *where* the fault is without identifying it, and `midimon` alongside a
 session remains what would separate the survivors — LESSONS.md shape 16, whose whole subject is
-acting on a diagnosis no probe confirmed. The fix that matters most is therefore the one that makes
-a third instance leave evidence behind.
+acting on a diagnosis no probe confirmed.
+
+**So the two fixes above are the half that does not depend on knowing.** What they do not do is
+leave evidence: the notify block and the `connectedSources` pruning are still unbuilt, and until
+they exist a third instance will produce another description rather than a record. That is the next
+branch, and it is the one that actually advances the diagnosis.
 
 ---
 
@@ -6081,11 +6119,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   692 cases
+└── Tests/                   697 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     363 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     207 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     212 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
