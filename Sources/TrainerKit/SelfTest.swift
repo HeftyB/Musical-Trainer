@@ -291,8 +291,8 @@ public enum SelfTest {
         func renderRMS(blocks: Int) -> Double {
             var sum = 0.0, count = 0
             for _ in 0..<blocks {
-                let p = inst.render(frames: block)
-                for i in 0..<block { sum += Double(p[i]) * Double(p[i]); count += 1 }
+                let (p, played) = inst.render(frames: block)
+                for i in 0..<played { sum += Double(p[i]) * Double(p[i]); count += 1 }
             }
             return (sum / Double(count)).squareRoot()
         }
@@ -317,8 +317,8 @@ public enum SelfTest {
         for n: UInt8 in [60, 64, 67, 71] { inst.enqueue(note: n, velocity: 100, on: true) }
         var peak = 0.0
         for _ in 0..<20 {
-            let p = inst.render(frames: block)
-            for i in 0..<block { peak = max(peak, abs(Double(p[i]))) }
+            let (p, played) = inst.render(frames: block)
+            for i in 0..<played { peak = max(peak, abs(Double(p[i]))) }
         }
         ok = check("chord renders and stays finite", peak > 0.05 && peak.isFinite,
                    String(format: "peak %.2f", peak)) && ok

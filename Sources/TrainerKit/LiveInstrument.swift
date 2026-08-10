@@ -19,6 +19,9 @@ final class LiveInstrument {
         var relInc: Float = 0        // release slope, fixed at note-off for a steady tail
         var velGain: Float = 0
         var age: UInt64 = 0          // for voice stealing
+        /// Samples this voice has sounded without being released. A voice whose note-off never
+        /// arrives is released on its own once this passes the ceiling — see `maxSustainSamples`.
+        var heldSamples: Int = 0
         /// 0 = pitched tone, 1 = percussive click. A click is a one-shot: it ignores
         /// note-off and decays on its own.
         var kind: Int32 = 0
@@ -52,12 +55,33 @@ final class LiveInstrument {
     /// Per-sample decay for the click voice — ~25 ms to inaudible.
     private let clickDecay: Float
 
+    /// How long any one voice may sound before it releases itself, in seconds.
+    ///
+    /// `release(note:)` was the only way out of a sounding voice, so a note whose note-off never
+    /// arrived rang until the engine stopped. That is not hypothetical: the instrument hung twice,
+    /// on 8 and 10 August 2026, one tone sustaining while the keyboard went silent underneath it
+    /// (PLAN.md §7.34, §7.35). This ceiling does not fix the cause — which is still not
+    /// established — it converts "for ever" into "a few seconds" whatever the cause turns out to
+    /// be.
+    ///
+    /// **8 seconds, and the bound that matters is the lower one.** A whole bar at 40 BPM, the
+    /// slowest tempo any drill accepts, is 6.0 s, so a bar held at the slowest tempo the app
+    /// offers still rings in full. `MaxSustainTests` asserts both ends; the lower assertion is
+    /// the one that stops this being tightened into something that cuts off real playing.
+    ///
+    /// **It cannot move a measured number.** Everything analysed is derived from note *onsets* —
+    /// `MIDINoteOn`, `tapTimes`, the raw note-ons — and nothing anywhere reads a note's duration.
+    /// So the worst this can do is shorten what the player hears, never what the take reports.
+    static let maxSustainSeconds = 8.0
+    private let maxSustainSamples: Int
+
     init(sampleRate: Double, gain: Float = 0.5) {
         fs = sampleRate
         self.gain = gain
         attackInc = Float(1.0 / (0.006 * sampleRate))
         decayInc = (1 - sustain) / Float(0.10 * sampleRate)
         clickDecay = Float(exp(-1.0 / (0.008 * sampleRate)))
+        maxSustainSamples = Int(LiveInstrument.maxSustainSeconds * sampleRate)
 
         voices = .allocate(capacity: maxVoices)
         voices.initialize(repeating: Voice(), count: maxVoices)
@@ -90,9 +114,18 @@ final class LiveInstrument {
 
     // MARK: - Consumer (audio thread)
 
-    /// Render `frames` of mono instrument audio, returning a pointer to the internal buffer.
-    /// Drains pending note events first, then synthesizes.
-    func render(frames: Int) -> UnsafePointer<Float> {
+    /// Render up to `frames` of mono instrument audio, returning the internal buffer **and how
+    /// many frames of it are valid**. Drains pending note events first, then synthesizes.
+    ///
+    /// The count is returned rather than assumed because `frames` is clamped to the scratch
+    /// buffer rather than growing it — growing it would allocate on the render thread (R2.3).
+    /// Reading `samples` past `count` is reading memory this never wrote, which is what the
+    /// caller did while the count was implicit: `GroovePlayer.render` mixed the full
+    /// `frameCount` against a buffer clamped at `scratchCapacity`. Latent only because nothing
+    /// sets `maximumFramesToRender` and AVAudioEngine's default is 4096, but a device or
+    /// configuration handing over a larger buffer would have read past the allocation. Making
+    /// the count part of the return type is what stops the mistake being writable again.
+    func render(frames: Int) -> (samples: UnsafePointer<Float>, count: Int) {
         let n = min(frames, scratchCapacity)
 
         while head.pointee != tail.pointee {
@@ -128,6 +161,17 @@ final class LiveInstrument {
                     if v.env < 0.0005 { v.active = false; break }
                     continue
                 }
+                // A voice that never receives its note-off releases itself. Checked before the
+                // envelope so the ceiling is the elapsed sounding time, not the time spent in
+                // any one stage, and it uses the same slope `release(note:)` sets so a voice
+                // that times out is indistinguishable from one that was let go.
+                if v.stage != 3 {
+                    v.heldSamples += 1
+                    if v.heldSamples >= maxSustainSamples {
+                        v.stage = 3
+                        v.relInc = max(v.env, 0.0001) / (releaseTime * Float(fs))
+                    }
+                }
                 switch v.stage {
                 case 0: v.env += attackInc; if v.env >= 1 { v.env = 1; v.stage = 1 }
                 case 1: v.env -= decayInc;  if v.env <= sustain { v.env = sustain; v.stage = 2 }
@@ -143,7 +187,7 @@ final class LiveInstrument {
             }
             voices[vi] = v
         }
-        return UnsafePointer(scratch)
+        return (UnsafePointer(scratch), n)
     }
 
     // MARK: - Voice management (consumer thread only)
