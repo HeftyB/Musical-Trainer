@@ -53,7 +53,7 @@ func usage() {
       offbeat [bpm] [bars] [level]
                         M15: ska and reggae. Play on every offbeat while the downbeat
                         disappears -- levels 0-3 remove the kick, then the backbeat,
-                        then everything on a beat. (default 100, 32, 0)
+                        then everything on a beat. (default 70, 32, 0)
       dropout [bpm] [pacedBars] [silentBars] [cycles] [rung]
                         continuation drill: play a steady note value through the silences.
                         The only drill that yields a clock/motor split. (100, 4, 4, 6,
@@ -159,7 +159,11 @@ do {
                               leadBars: 4, holdBars: 4, rounds: 8)
 
     case "offbeat":
-        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 100
+        // 70 rather than 100, because at 100 the chop sits 300 ms from the beat either side and
+        // the feel inverted: the only take there put 23% of its notes off the beat, against 96%
+        // at 69. Grounded in those two takes rather than derived — see PLAN.md §7.38, which also
+        // says what would falsify it. A faster offbeat is still reachable by asking for one.
+        let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 70
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32
         let level = arguments.dropFirst(3).first.flatMap(Int.init) ?? 0
         try Commands.runOffbeat(bpm: bpm, bars: bars, level: level, flags: flags)

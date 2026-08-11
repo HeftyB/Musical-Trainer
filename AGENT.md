@@ -263,7 +263,8 @@ as such in §7.24. M15 has three live takes, all in the small hours of 6 August 
 sittings found a defect no test could, and both were the same gap** — between the path a live
 take runs and the path a stored take is read back on. The swung takes were scored on a straight
 grid; the offbeat take's own result did not survive being saved. Nothing has yet been played
-above eighths, and no offbeat take has been held rather than slipped.
+above eighths. **The offbeat has since been held** — 96% off the beat at 69 BPM on 11 August,
+against 23% at 100 BPM, which is §7.38 and moved the drill's default tempo to 70.
 
 Three things to watch on the next session, all in the gap between tested pieces where every
 defect of this shape has lived:
@@ -509,10 +510,10 @@ Types worth knowing before changing anything:
   pipeline covers *less* than a green `check.sh`.
 - **M15 has two swung takes and one offbeat take**, all played around 4 a.m., tagged `tired`, at
   a first attempt: they establish that the machinery works and nothing about the player. The
-  swing readout's thresholds have now fired correctly on real playing once. The offbeat take
-  **slipped** — 26 of 112 notes off the beat — so the drill has never yet measured a held skank,
-  and the swing block's misfire on a held one (§7.24 step 8) is closed by test rather than by
-  observation.
+  swing readout's thresholds have now fired correctly on real playing once. That offbeat take
+  **slipped** — 26 of 112 notes off the beat — and a second one **held**, 248 of 258 at 69 BPM
+  (§7.38), which is the drill's first held skank. The swing block's misfire on a held one
+  (§7.24 step 8) is still closed by test rather than by observation.
 - **The offbeat drill is CLI-only.** No app mode yet — the one surface gap M15 leaves.
 - **`selftest` covers the analysis pipeline against synthetic ground truth**, not storage — that
   moved to `TrainerKitTests` with T1.
