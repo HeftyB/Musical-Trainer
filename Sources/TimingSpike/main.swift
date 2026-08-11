@@ -12,6 +12,18 @@ import TrainerKit
 //
 // See PLAN.md §4.2 for the measurement design and §7.1 for M0 results.
 
+// Line-buffer stdout so a redirected or piped run writes as it goes.
+//
+// C stdio block-buffers when stdout is not a terminal, so `midimon 3000 | tee log` held every
+// line in a 4 KB buffer and ^C — SIGINT, which does not flush — threw the lot away. A whole
+// session was watched and the log came back **empty**, with the monitor's own header still
+// sitting in the buffer, so a working run and a broken one looked identical from the outside
+// (`LESSONS.md` shape 16, PLAN.md §7.37).
+//
+// Global rather than inside `midimon`: every readout here is something somebody may pipe into a
+// file, and per-line writes cost nothing at the rate a CLI prints.
+setvbuf(stdout, nil, _IOLBF, 0)
+
 let rawArguments = Array(CommandLine.arguments.dropFirst())
 
 func usage() {

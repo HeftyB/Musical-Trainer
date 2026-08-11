@@ -90,7 +90,39 @@ public enum MIDIMonitor {
 
         // Drive the run loop rather than sleeping, so that any CoreMIDI delivery path
         // depending on it is exercised too.
-        RunLoop.current.run(until: Date().addingTimeInterval(seconds))
+        //
+        // Sliced rather than one blocking wait, so a long watch reports **as it goes**. The
+        // whole purpose of a session-length run is finding the moment delivery stops, and
+        // neither the summary at the end nor the packet lines above can show a moment — those
+        // stop after twelve packets, by design, because a line per note over fifty minutes
+        // buries the thing being looked for. The heartbeat is the timeline instead: a silent
+        // slice is printed as silent, so the log says when it went quiet (PLAN.md §7.37).
+        //
+        // Below a minute this is the old "does the keyboard work" check and behaves exactly
+        // as it always did.
+        let isLongWatch = seconds > 60
+        let slice = isLongWatch ? 5.0 : seconds
+        let clock = DateFormatter()
+        clock.dateFormat = "HH:mm:ss"
+        var elapsed = 0.0
+        var lastUMP = 0
+        var lastLegacy = 0
+
+        while elapsed < seconds {
+            let step = min(slice, seconds - elapsed)
+            RunLoop.current.run(until: Date().addingTimeInterval(step))
+            elapsed += step
+            guard isLongWatch else { continue }
+
+            let deltaUMP = umpCount - lastUMP
+            let deltaLegacy = legacyCount - lastLegacy
+            lastUMP = umpCount
+            lastLegacy = legacyCount
+            let quiet = deltaUMP == 0 && deltaLegacy == 0
+            print("  \(clock.string(from: Date()))  +\(deltaUMP) UMP  +\(deltaLegacy) legacy"
+                + "  (total \(umpCount) / \(legacyCount))"
+                + (quiet ? "  \u{001B}[33m— silent —\u{001B}[0m" : ""))
+        }
 
         print("\nReceived: UMP \(umpCount) packets, legacy \(legacyCount) packets")
         if umpCount == 0 && legacyCount == 0 {
