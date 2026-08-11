@@ -36,9 +36,31 @@ final class MIDIInput {
     private var client = MIDIClientRef()
     private var port = MIDIPortRef()
     private var isConfigured = false
-    private var connectedSources = Set<MIDIUniqueID>()
     private(set) var sourceNames: [String] = []
     private(set) var skippedSources: [String] = []
+
+    /// Which sources are connected and what has happened to them.
+    ///
+    /// Guarded because CoreMIDI's notification block runs on its own thread and may mutate this
+    /// while a take is connecting sources or reading incidents. Every rule about the contents
+    /// lives on the registry, where a test can reach it; the lock is the only part that has to
+    /// be here.
+    private var registry = MIDISourceRegistry()
+    private var registryLock = os_unfair_lock_s()
+
+    private func withRegistry<T>(_ body: (inout MIDISourceRegistry) -> T) -> T {
+        os_unfair_lock_lock(&registryLock)
+        defer { os_unfair_lock_unlock(&registryLock) }
+        return body(&registry)
+    }
+
+    /// What happened to the MIDI connection during the take just run, in the order it happened.
+    ///
+    /// Empty is the normal case and means the connection was uneventful — **not** that nothing
+    /// could have gone wrong unobserved. Before the notify block existed this was unanswerable
+    /// in principle: a keyboard leaving mid-take produced no note-ons, no note-offs and no
+    /// record, which is why two hangs left nothing but the player's description (§7.34, §7.35).
+    var incidents: [MIDIIncident] { withRegistry { $0.incidents } }
 
     /// Called on the CoreMIDI delivery thread for every note-on and note-off, for live
     /// monitoring. Keep the handler real-time-safe — it runs on the MIDI thread. `on` is
@@ -97,7 +119,14 @@ final class MIDIInput {
     private func configureIfNeeded() throws {
         guard !isConfigured else { return }
 
-        var status = MIDIClientCreateWithBlock("MusicalTrainer" as CFString, &client, nil)
+        // The notify block was `nil` for the life of the project, so the app received no CoreMIDI
+        // notifications at all — a keyboard dropping off the bus mid-take was invisible, and the
+        // only account of the two hangs is the player's (PLAN.md §7.34, §7.35). It cannot make a
+        // hang not happen; it makes the next one leave something behind.
+        var status = MIDIClientCreateWithBlock("MusicalTrainer" as CFString, &client) {
+            [weak self] notification in
+            self?.handle(notification)
+        }
         guard status == noErr else {
             throw SpikeError("""
                 Could not open CoreMIDI (error \(status)). Unplug and replug the keyboard, or \
@@ -116,6 +145,38 @@ final class MIDIInput {
             throw SpikeError("MIDIInputPortCreateWithProtocol failed: \(status)")
         }
         isConfigured = true
+    }
+
+    /// CoreMIDI telling us the world changed. Runs on CoreMIDI's own thread, not the take
+    /// thread and not the render thread, so taking a lock here is fine.
+    ///
+    /// Only the two messages that can explain a take going silent are acted on. Everything else
+    /// — properties changing, IO errors, thru-connection edits — is noise for this purpose, and
+    /// recording all of it would bury the signal in a readout nobody then reads.
+    private func handle(_ notification: UnsafePointer<MIDINotification>) {
+        let now = mach_absolute_time()
+        switch notification.pointee.messageID {
+        case .msgObjectRemoved:
+            // The payload is the larger add/remove struct. Rebinding is safe because the
+            // messageID says which struct was sent; reading it for any other message would not be.
+            let removal = notification.withMemoryRebound(
+                to: MIDIObjectAddRemoveNotification.self, capacity: 1
+            ) { $0.pointee }
+            guard removal.childType == .source else { return }
+
+            // A departed object usually cannot be queried for its own name, so this is often
+            // nil. The unique ID is what matters and it is read the same way.
+            var uniqueID: MIDIUniqueID = 0
+            MIDIObjectGetIntegerProperty(removal.child, kMIDIPropertyUniqueID, &uniqueID)
+            let name = Self.name(of: removal.child)
+            withRegistry { $0.sourceRemoved(uniqueID, at: now, name: name == "(unnamed)" ? nil : name) }
+
+        case .msgSetupChanged:
+            withRegistry { $0.setupChanged(at: now) }
+
+        default:
+            break
+        }
     }
 
     /// Connect any source we are not already listening to. Re-run before each take so a
@@ -139,10 +200,13 @@ final class MIDIInput {
 
             var uniqueID: MIDIUniqueID = 0
             MIDIObjectGetIntegerProperty(source, kMIDIPropertyUniqueID, &uniqueID)
-            // Connecting the same source twice would deliver every event twice.
-            if uniqueID != 0, connectedSources.contains(uniqueID) { continue }
-            if MIDIPortConnectSource(port, source, nil) == noErr, uniqueID != 0 {
-                connectedSources.insert(uniqueID)
+            // Connecting the same source twice would deliver every event twice. The registry
+            // owns that rule, and — unlike the set it replaced — it forgets a source that went
+            // away, so a keyboard returning under the same unique ID is connected again rather
+            // than skipped for the rest of the process's life (§7.35).
+            guard withRegistry({ $0.needsConnecting(uniqueID) }) else { continue }
+            if MIDIPortConnectSource(port, source, nil) == noErr {
+                withRegistry { $0.markConnected(uniqueID) }
             }
         }
     }
@@ -152,6 +216,9 @@ final class MIDIInput {
         storageCount = 0
         os_unfair_lock_unlock(&storageLock)
         for i in 0..<lastNoteOn.count { lastNoteOn[i] = 0 }
+        // Last take's incidents are not this take's. Connections deliberately survive — see
+        // `MIDISourceRegistry.beginTake`.
+        withRegistry { $0.beginTake() }
     }
 
     /// A snapshot of everything captured so far. Safe to call mid-take.
