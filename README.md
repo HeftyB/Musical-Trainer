@@ -57,7 +57,7 @@ so it runs before every commit.
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 697 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 704 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
@@ -69,7 +69,7 @@ swift build -c release   # the console tool
 | Command | What it does |
 |---|---|
 | `selftest` | Verifies the analysis maths against synthetic data of known ground truth. No hardware. |
-| `midimon` | Diagnoses MIDI delivery — opens the device on both CoreMIDI APIs and reports what each receives. |
+| `midimon [seconds]` | Diagnoses MIDI delivery — opens the device on both CoreMIDI APIs and reports what each receives. Default 20 s; pass a length to watch a whole session, which is how a keyboard that stops sending is told apart from an app that stops listening. |
 | `validate` | **M0.** Two-path bridge validation with the four pass criteria. |
 | `calibrate` | **M1.** Full calibration: loopback + two-path. Becomes the reference device. |
 | `calibrate quick` | **M1.** Loopback only (~15 s), derives its constant from the reference. |
