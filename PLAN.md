@@ -6096,6 +6096,114 @@ branch, and it is the one that actually advances the diagnosis.
 
 ---
 
+## 7.36 The app notices the keyboard leaving
+
+§7.35 closed with the point that mattered: the two fixes it recorded make a hang *survivable* and
+do nothing to make one *diagnosable*. This is the other half. It does not identify the cause either
+— it makes the next instance leave something behind that is not a description.
+
+### The notify block, which was `nil` for the life of the project
+
+`MIDIClientCreateWithBlock(…, nil)` meant the app received **no CoreMIDI notifications at all**: not
+`kMIDIMsgObjectRemoved`, not `kMIDIMsgSetupChanged`. A source leaving mid-take produced no note-ons,
+no note-offs, and no record — which is precisely why two hangs left nothing but the player's account
+of them.
+
+Two messages are acted on and the rest ignored. Property changes, IO errors and thru-connection
+edits are noise for this question, and a readout that fires on all of them is one nobody reads.
+
+### The connection set forgets, so a returning device is reconnected
+
+The insert-only `Set<MIDIUniqueID>` is gone. `MIDISourceRegistry.sourceRemoved` drops the ID, so a
+keyboard returning under the same unique ID — which CoreMIDI preserves per device — is connected
+again instead of being skipped for the life of the process.
+
+**A setup change deliberately forgets nothing.** It is not evidence that any particular source
+left, and clearing the whole set would reconnect sources already connected, which delivers every
+event twice and makes the pairing step discard the beat. The coarse signal is recorded without
+being acted on.
+
+### The rules moved somewhere a test can reach them
+
+Every decision here used to sit inside functions that talk to CoreMIDI, where **no test can run** —
+which is why an insert-only set survived to be found by reading rather than by failing. That is
+`LESSONS.md` shape 1, and the guard it prescribes is exactly this: move the decision out.
+
+`MIDISourceRegistry` is over `Int32` rather than `MIDIUniqueID` — the same type, since the latter is
+a typealias — so neither it nor its tests import CoreMIDI and the rules run anywhere.
+`MIDISourceRegistryTests` covers the reconnect, the double-connect guard, the zero-ID case, take
+boundaries and ordering. Deleting the `connected.remove` fails it.
+
+### An incident is recorded, and recorded is all
+
+`JamOutcome.midiIncidents` carries what happened, with `mach_absolute_time` on the same clock as
+every captured note, so an incident is placeable against the notes either side of it.
+
+**This is not the field §7.34 refused, and the difference is who writes it.** §7.34 rejected a way
+for the *player* to mark a take compromised after the fact, because a take marked bad in hindsight
+is post-hoc exclusion however carefully it is worded, and "inconvenient" and "explained" are
+indistinguishable once the numbers are known. An incident is written by the machine, during the
+take, from an event that either happened or did not. It carries no judgement about the playing.
+
+**Nothing reads it to act.** No filter, no exclusion, no reweighting — an exclusion rule is declared
+before collection (R3.5), and this is a record rather than a verdict. The readout says so in those
+words, because a warning next to a number invites exactly the inference the rule forbids.
+
+### Where it is shown, and the question that is not settled
+
+The console prints it **with the results, after the rating**. That is the conservative side of a
+genuine question rather than a settled answer:
+
+- **For showing it first**: a player whose keyboard died would otherwise rate his own playing for an
+  equipment failure, and that is noise landing directly in `review feel`'s correlation.
+- **Against**: §2 takes the rating before anything the take produced, and this is something the take
+  produced.
+
+Left as it is until the player says otherwise.
+
+### What this does not cover
+
+**The cause is still not established.** This branch is instrumentation, and instrumentation that has
+never fired. It says what CoreMIDI reports; it cannot say what happens if CoreMIDI reports nothing —
+and "delivery stopped with no notification" remains a live candidate that would produce an *empty*
+incident list on a hung take. **An empty list is therefore not evidence the connection was fine**,
+and the readout is worded so it cannot be read that way.
+
+**None of it is tested against CoreMIDI, and none of it can be.** No unit test can remove a device.
+The registry's rules are covered; the wiring — whether the block is installed, whether the messages
+arrive, whether the payload is read correctly — is verified only by a live run (R5.6), and no live
+run has happened.
+
+### `midimon` can now watch a whole session, which is the experiment
+
+`MIDIMonitor.run` always accepted a length and `main.swift` never passed one, so the command was
+fixed at 20 seconds — a "does the keyboard work" check, and useless for watching a take that fails
+after seven minutes. `midimon <seconds>` is the diagnostic this whole investigation has been
+waiting on.
+
+**It is a second process with its own CoreMIDI client**, which is how it discriminates. Run beside a
+session, the two candidates left after §7.35's elimination separate cleanly:
+
+| What `midimon` sees when the app goes silent | What it means |
+|---|---|
+| `midimon` **also** stops receiving | The source stopped sending — a device or driver fault, and the app is the victim |
+| `midimon` **keeps** receiving | The device is fine and the app stopped listening — the fault is ours |
+
+That is a genuine fork, and nothing available before could tell the two apart.
+
+**Two caveats worth stating before the run rather than after.** A second client connected to the
+same source is a change to the conditions, so this is not quite the configuration the hang occurred
+in — an observer effect is possible and would itself be informative. And `midimon` prints a line per
+packet, so a session's worth belongs in a file rather than a terminal scrollback.
+
+**Incidents are not stored on the take.** They reach the console and stop there, so a hang recorded
+today is legible in the moment and gone by the next session. That is a deliberate hold rather than
+an oversight: R6.3 argues for the field on the grounds that a take recorded without it is lost to
+the question for good, and §7.34's argument about who writes a field applies here as it does above.
+It is the first thing to build if the player agrees.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -6119,11 +6227,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   697 cases
+└── Tests/                   704 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     363 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     212 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     219 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

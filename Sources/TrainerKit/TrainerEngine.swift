@@ -247,6 +247,17 @@ public enum TrainerEngine {
         public let eventCount: Int
         public let environment: Environment
         public let config: JamConfig
+        /// What happened to the MIDI connection while this take ran, in order.
+        ///
+        /// Empty on every healthy take, which is the point: when it is not empty the take was
+        /// played on an instrument that was not fully connected, and the numbers below it are
+        /// about a player who could not hear himself. Two takes have already been spoiled that
+        /// way with no record of it beyond a description (§7.34, §7.35).
+        ///
+        /// **Reported, never acted on.** Nothing filters, excludes or reweights a take on the
+        /// strength of this — an exclusion rule is declared before collection, not derived from
+        /// a field afterwards (R3.5).
+        public internal(set) var midiIncidents: [MIDIIncident] = []
         fileprivate let gridStartTime: Double
         /// The grid the take was *analysed* on.
         ///
@@ -316,6 +327,7 @@ public enum TrainerEngine {
 
         return JamOutcome(report: report, notesCaptured: midi.events.count,
                           eventCount: events.count, environment: env, config: config,
+                          midiIncidents: midi.incidents,
                           gridStartTime: reduced.grid.startTime,
                           gridSubdivisions: reduced.grid.subdivisions, taps: events,
                           rawTaps: reduced.taps)

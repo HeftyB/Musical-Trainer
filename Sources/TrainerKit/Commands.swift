@@ -528,8 +528,39 @@ public enum Commands {
         reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
                      events: outcome.eventCount, uncalibrated: !env.isCalibrated,
                      grid: outcome.analysisGrid, offbeat: nil)
+        reportMIDIIncidents(outcome.midiIncidents)
         let url = try TrainerEngine.save(outcome, feelRating: feel, wasProbe: flags.isProbe)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
+    }
+
+    /// Say that the instrument was not fully connected for part of the take.
+    ///
+    /// **Printed with the results rather than before the rating**, which is the conservative side
+    /// of a real question. The argument for showing it first is that a player whose keyboard died
+    /// would otherwise rate his own playing for an equipment failure, which is exactly the noise
+    /// `review feel` correlates away. The argument against is §2: the rating is taken before
+    /// anything the take produced, and this is something the take produced. Left here until the
+    /// player says otherwise — see PLAN.md §7.36.
+    ///
+    /// Silent on a healthy take. A warning that fires on every take is one nobody reads.
+    static func reportMIDIIncidents(_ incidents: [MIDIIncident]) {
+        guard !incidents.isEmpty else { return }
+
+        let removals = incidents.filter { $0.kind == .sourceRemoved }
+        let changes = incidents.count - removals.count
+
+        Console.warn("The MIDI connection changed while this take was running.")
+        if let named = removals.compactMap(\.name).first {
+            print("  \(removals.count) source removal(s), including \(named)")
+        } else if !removals.isEmpty {
+            print("  \(removals.count) source removal(s)")
+        }
+        if changes > 0 { print("  \(changes) setup change(s)") }
+        print("""
+              \(Console.dim)Notes played while a source was gone were never delivered, so this \
+              take may be missing playing that happened. Nothing has been excluded — this is a \
+              record, not a verdict.\(Console.reset)
+              """)
     }
 
     /// An offbeat take's own readout, carried as one value rather than as a flag.
@@ -1324,6 +1355,7 @@ public enum Commands {
                      events: outcome.eventCount, uncalibrated: !env.isCalibrated,
                      grid: outcome.analysisGrid,
                      offbeat: OffbeatContext(report: offbeat, level: level))
+        reportMIDIIncidents(outcome.midiIncidents)
         let url = try TrainerEngine.save(outcome, feelRating: feel, wasProbe: flags.isProbe)
         print("\n\(Console.dim)Saved \(url.lastPathComponent)\(Console.reset)")
     }

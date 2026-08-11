@@ -47,21 +47,28 @@ its 33.1 ms spread is not a fact about the player. And `AppModel.feelAdvice` exp
 Feel picker by talking about triplets even when the rung is quarters.
 
 **The hang recurred on 10 August** (§7.35), from the *start* of a swung take over `jamBacking`, with
-a retry over `pocket` running clean immediately after. **The backing is not the variable** — a
-generated backing sits on both sides of the outcome and a fixed one produced a hang, and no single
-configuration value is common to both failures. Reading the audio path narrows it by elimination:
-voices are *stolen* rather than exhausted, the event ring is drained every callback, the drums prove
-the callback was running, and player and instrument are per-take — **so the events stopped reaching
-`enqueue` at all**, upstream of the synthesis. Beside it, `MIDIInput.connectedSources` is never
-pruned, so a device returning under the same unique ID is never reconnected and stays dead until
-relaunch; the notify block buys nothing without that. **The cause is still not established** —
-nothing is instrumented, and `midimon` alongside a session is what would settle it. **A stuck voice
-now releases itself after 8 s** (`LiveInstrument.maxSustainSeconds`), which does not fix the cause
-and is not meant to — it makes a hang survivable instead of take-ending, and it cannot move a
-measured number because everything analysed comes from note onsets and nothing reads a duration.
-**Nothing yet leaves evidence**: the notify block and the `connectedSources` pruning are unbuilt, so
-a third instance still produces a description rather than a record. That retry is
-also the first take ever played over `pocket`.
+a retry over `pocket` running clean immediately after — which is also the first take ever played
+over that style. **The backing is not the variable**: a generated backing sits on both sides of the
+outcome and a fixed one produced a hang, and no single configuration value is common to both
+failures. Reading the audio path narrows it by elimination — voices are *stolen* rather than
+exhausted, the event ring is drained every callback, the drums prove the callback was running, and
+player and instrument are per-take — **so the events stopped reaching `enqueue` at all**, upstream
+of the synthesis.
+
+**Three things are fixed and the cause is still not established.** A stuck voice releases itself
+after 8 s (`LiveInstrument.maxSustainSeconds`, §7.35), which makes a hang survivable rather than
+take-ending and cannot move a measured number, because everything analysed comes from note onsets
+and nothing reads a duration. The CoreMIDI **notify block** is installed where it was `nil` for the
+life of the project, and `MIDISourceRegistry` **forgets a removed source** so a device returning
+under the same unique ID reconnects instead of staying dead until relaunch — the two are one fix,
+since being told the device left is worth nothing while the reconnect path refuses to run (§7.36).
+`JamOutcome.midiIncidents` records what happened, with host times on the same clock as the notes.
+
+**None of the instrumentation has ever fired, and none of it can be unit tested** (R5.6) — no test
+can remove a device, so only the registry's rules are covered and the wiring is live-run-only.
+**An empty incident list is not evidence the connection was fine**: "delivery stopped with no
+notification" is still a live candidate and would look exactly like a clean take. `midimon`
+alongside a session is still what would settle it.
 
 Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
 rather than the drum programming's resolution, and every arrangement now speaks **one grid of 24
@@ -301,7 +308,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 485 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (212 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (219 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -345,7 +352,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 697 tests, no hardware needed
+swift test                              # 704 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
