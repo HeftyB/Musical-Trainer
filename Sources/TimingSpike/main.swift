@@ -4,7 +4,7 @@ import TrainerKit
 // Musical Trainer — timing spike and calibration tool.
 //
 //   selftest          verify the analysis maths against synthetic data (no hardware)
-//   midimon           diagnose MIDI delivery
+//   midimon [seconds] diagnose MIDI delivery — a length watches a whole session
 //   validate          M0: full two-path bridge validation with the four pass criteria
 //   calibrate         M1: full calibration — loopback + two-path, becomes the reference
 //   calibrate quick   M1: loopback only, derives its constant from the reference
@@ -19,7 +19,8 @@ func usage() {
     Usage: TimingSpike <command>
 
       selftest          verify the analysis maths (no hardware needed)
-      midimon           diagnose MIDI delivery
+      midimon [seconds] diagnose MIDI delivery (default 20). Pass a length to watch
+                        a whole session and see whether the keyboard stops sending.
       validate          M0 bridge validation — the four pass criteria
       calibrate         full calibration, becomes the reference device
       calibrate quick   loopback-only calibration for another output device
@@ -95,7 +96,11 @@ do {
         exit(SelfTest.run() ? 0 : 1)
 
     case "midimon":
-        MIDIMonitor.run()
+        // Default 20 s is a "does the keyboard work" check. A length is what lets it run
+        // beside a whole session, which is the only way to tell a source that stopped sending
+        // from an app that stopped listening — see PLAN.md §7.36.
+        let watchFor = arguments.dropFirst().first.flatMap(Double.init) ?? 20
+        MIDIMonitor.run(seconds: min(max(watchFor, 1), 4 * 3600))
 
     case "validate":
         try Commands.runValidation()
