@@ -67,8 +67,19 @@ since being told the device left is worth nothing while the reconnect path refus
 **None of the instrumentation has ever fired, and none of it can be unit tested** (R5.6) — no test
 can remove a device, so only the registry's rules are covered and the wiring is live-run-only.
 **An empty incident list is not evidence the connection was fine**: "delivery stopped with no
-notification" is still a live candidate and would look exactly like a clean take. `midimon`
-alongside a session is still what would settle it.
+notification" is still a live candidate and would look exactly like a clean take.
+
+**A deliberately instrumented session on 11 August produced nothing** (§7.37) — no hang, and the
+`midimon` log came back empty because piped stdout is block-buffered and `^C` does not flush. Both
+halves are fixed: `setvbuf` line-buffers every CLI readout, and a watch over a minute prints a
+five-second heartbeat with a `— silent —` marker, because the monitor only ever printed its first
+twelve packets and so could never have shown *when* delivery stopped. The app could not show an
+incident at all until now — R3.4, and both hangs happened in the app.
+
+**The quarantine is dropped and there is no debug build flag** (§7.37). A take spoiled by an
+incident is handled by hand, as §7.34 handled block 10. A mode switched on when trouble is expected
+cannot catch trouble that is not: the hang fired twice, unpredictably, and a flag would have been
+off both times.
 
 Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
 rather than the drum programming's resolution, and every arrangement now speaks **one grid of 24

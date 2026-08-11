@@ -50,6 +50,12 @@ private struct JamResults: View {
                 .font(.title2).fontWeight(.semibold)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // Above the numbers, because it changes how they should be read rather than
+            // annotating them. The console says the same thing at the same point in its
+            // readout — R3.4 asks both surfaces to warn identically, and this one existed
+            // only in the console for a whole branch while both hangs happened in the app.
+            MIDIIncidentNotice(incidents: outcome.midiIncidents)
+
             Text("\(outcome.notesCaptured) notes → \(outcome.eventCount) events · "
                + "\(report.matchedCount) on the grid")
                 .font(.callout).foregroundStyle(.secondary)

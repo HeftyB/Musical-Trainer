@@ -69,7 +69,7 @@ swift build -c release   # the console tool
 | Command | What it does |
 |---|---|
 | `selftest` | Verifies the analysis maths against synthetic data of known ground truth. No hardware. |
-| `midimon [seconds]` | Diagnoses MIDI delivery — opens the device on both CoreMIDI APIs and reports what each receives. Default 20 s; pass a length to watch a whole session, which is how a keyboard that stops sending is told apart from an app that stops listening. |
+| `midimon [seconds]` | Diagnoses MIDI delivery — opens the device on both CoreMIDI APIs and reports what each receives. Default 20 s. Pass a length over a minute and it prints a five-second heartbeat — packets since the last beat, running totals, and `— silent —` when none arrived — so a session-long watch says *when* the keyboard stopped sending rather than only whether it did. Safe to pipe into a file. |
 | `validate` | **M0.** Two-path bridge validation with the four pass criteria. |
 | `calibrate` | **M1.** Full calibration: loopback + two-path. Becomes the reference device. |
 | `calibrate quick` | **M1.** Loopback only (~15 s), derives its constant from the reference. |
