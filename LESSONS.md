@@ -366,9 +366,23 @@ fix.**
   nothing was pending, and the PR had to be opened by hand. The same staleness made `open-pr.sh`
   count **three commits ahead instead of two**, listing a commit already on `main`.
 
+- **A diagnostic that threw away everything it recorded** (§7.37). `midimon 3000 | tee log` produced
+  a **0-byte file**: C stdio block-buffers when stdout is not a terminal, and `^C` is SIGINT, which
+  does not flush. A whole session was watched on the assumption it was recording. **The tell was
+  absent by construction** — the monitor prints its device list and port status *before* it starts
+  watching, so the buffer swallowed those too and the terminal showed nothing at all, making a
+  correctly running diagnostic identical to a hung one from the outside. And underneath it a second
+  defect that would have survived the fix: the monitor prints packet detail only `if umpCount <= 12`,
+  so even a flushed log could not have shown **when** delivery stopped, which was the only question
+  being asked.
+
 **Guard:** validate the probe against a case whose answer you already know, before trusting it
 about a case you do not. When a probe says "nothing happened", suspect the probe first. And do not
 change the probe between the baseline and the comparison — capture the old output first (shape 4).
+
+**Before a probe is relied on for a long unattended run, watch it produce output early.** A probe
+whose first output arrives at the end cannot be distinguished from one that is broken, and the run
+that proves it is the run you have already spent. Check the file has bytes in it a minute in.
 
 **A cached view of a remote system is a probe, not the system.** `origin/*`, a stored summary, a
 memoised lookup: if answering the question needs the other end, either reach it or say you cannot.

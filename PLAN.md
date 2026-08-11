@@ -6204,6 +6204,107 @@ It is the first thing to build if the player agrees.
 
 ---
 
+## 7.37 The diagnostic session that produced nothing, and why
+
+A 20-minute planned session was played on 11 August with the §7.36 instrumentation live and
+`midimon` watching. **It produced no diagnostic data at all**, for three separate reasons, two of
+which were defects in the diagnostic rather than in the thing being diagnosed.
+
+### What the session did establish
+
+**No hang.** Eight of eight blocks, 22.9 minutes against 20 asked, nothing skipped.
+
+**The instrumentation is live and harmless.** The app binary the session ran on was verified to
+contain `MIDISourceRegistry` — 15 symbols — rather than assumed to. A full session with the notify
+block installed behaved exactly as before, which discharges "does this destabilise the normal path"
+and nothing else. It says nothing about whether it *detects* anything, because nothing happened.
+
+The takes are unremarkable and one is worth noting: the benchmark read **26.4 ms**, the highest of
+the six in that locked slot — 24.1 → 17.4 → 22.0 → 21.7 → 24.9 → 26.4. Still bouncing in one band
+rather than trending, which is what §7.21 already said about it.
+
+**The tempo axis finally has data.** `review interval` now spans five distinct intervals — 250, 429,
+500, 545 and 600 ms — where it recently had one interval carrying 61% of every note. Everything is
+within noise and the readout says so, including that "easier to a point" is a claim about an optimum
+that five points and a straight line cannot carry. Recomputed rather than eyeballed: 17.3 ms at
+140 BPM against ~24.7 at 100 *looks* like absolute spread falling with the interval, and the fit is
+−0.27 ms per 100 ms [−4.71, +4.66]. It is not a finding.
+
+### Defect 1 — the log was empty, and a working run looked exactly like a broken one
+
+`midimon 3000 2>&1 | tee temp/midimon-session.log` produced a **0-byte file**. C stdio block-buffers
+when stdout is not a terminal, so every line sat in a 4 KB buffer, and `^C` is SIGINT, which does not
+flush. Fifty minutes of watching went in the bin.
+
+Measured rather than reasoned about: the same binary redirected to a file holds **0 bytes during the
+run and 888 after a normal exit**.
+
+The worst part is not the loss. The monitor prints its header — device list, source list, port
+status — *before* it starts watching, so with the buffer swallowing that too, **the terminal showed
+nothing whatsoever and a correctly running diagnostic was indistinguishable from a hung one.** The
+session was played on the assumption it was recording.
+
+`setvbuf(stdout, nil, _IOLBF, 0)` in `main.swift`, globally rather than in `midimon`, because every
+readout here is something somebody may pipe into a file.
+
+### Defect 2 — it only ever printed the first twelve packets
+
+The deeper one, and it would have survived the buffering fix. `midimon` prints packet detail under
+`if umpCount <= 12` and then counts silently to the end. That is right for the check it was built
+for — *does the keyboard work* — and useless for the question it was being asked, because **a log
+that stops after twelve notes cannot show the moment delivery stopped**.
+
+So the run loop is sliced instead of blocking once, and a watch longer than a minute prints a
+heartbeat every five seconds: wall-clock time, packets since the last beat, running totals, and a
+**`— silent —`** marker when a slice was empty. That marker is the experiment. A session's log is
+now a timeline of when the keyboard was and was not sending, in about 600 lines rather than one per
+note.
+
+Below a minute nothing changed, and the twelve-packet detail limit stays — it verifies the delivery
+format, which is what it is for.
+
+### Defect 3 — the app could not show an incident, and the app is where they happen
+
+§7.36 wired `reportMIDIIncidents` into the console and **nowhere else**. Both hangs happened in the
+app; this session ran in the app. Had an incident fired, nothing would have been shown.
+
+R3.4 requires both surfaces to warn identically and this failed it for a whole branch.
+`MIDIIncidentNotice` now sits **above** the numbers in the results view, because it changes how they
+should be read rather than annotating them, and it draws nothing at all on a healthy take.
+
+### The quarantine is dropped
+
+§7.36 left a designed-but-unbuilt path: a take that ran through an incident would be dumped to a log
+directory and kept out of the corpus. **It is not being built**, and the reasoning is worth keeping
+because the argument for it was sound.
+
+- **It has happened twice in the project's life.** Handling the third by hand costs less than
+  building and maintaining an automatic route-and-drop path, and §7.34 already handled block 10 that
+  way successfully.
+- **Automatic exclusion is delicate in exactly this codebase.** R6.2 and R3.5 are satisfiable, but
+  every future reader of the corpus would have to know that a silent filter exists, and a filter
+  nobody can see is indistinguishable from quietly dropping the data that spoiled the answer — the
+  thing shape 18's guard exists to prevent.
+
+**And no debug build flag**, which was the other candidate. A mode switched on when trouble is
+expected cannot catch trouble that is not: the hang fired twice, unpredictably, ten days apart, and
+a deliberate attempt to provoke it produced nothing. **A flag would have been off on both occasions
+that mattered.** What is left always-on is a bug fix rather than instrumentation — an insert-only
+connection set is a defect, and being deaf to `kMIDIMsgObjectRemoved` is a defect — plus a readout
+that costs nothing and draws nothing until the day it does.
+
+### What is still not established
+
+**The cause.** Three sessions have now been played since the first hang without reproducing it, one
+of them deliberately instrumented. The instrumentation has never fired, so **it remains unproven in
+the only case it exists for** — and an empty incident list is still not evidence that the connection
+was healthy, because "delivery stopped with no notification" would look exactly like this.
+
+What is different is that the next occurrence leaves a timeline: the app says an incident happened,
+and `midimon`'s heartbeat says whether the keyboard was still sending when it did.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
