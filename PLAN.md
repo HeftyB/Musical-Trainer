@@ -6305,6 +6305,93 @@ and `midimon`'s heartbeat says whether the keyboard was still sending when it di
 
 ---
 
+## 7.38 The offbeat drill has a tempo, and 100 BPM was the wrong one
+
+The drill has measured a **held skank** for the first time. It also produced the clearest
+instrument-specific result in the project so far, and neither was planned.
+
+### The two takes
+
+| | 6 Aug, 100 BPM | 11 Aug, 69 BPM |
+|---|---|---|
+| Off the beat | 26 of 112 — **23%** | 248 of 258 — **96%** |
+| Verdict | *"the feel inverting"* | *"You held the offbeat"* |
+| Placement spread | 45.3 ms | 28.7 ms |
+
+The player's account arrived before either number was looked at: at 100 BPM it was *"very difficult
+to try and get any notes in"* and was abandoned inside twenty seconds; at 68 it *"had a nice flow"*.
+Two independent lines pointing the same way, which is the only reason two takes are worth writing up
+at all.
+
+**The measurement was never the problem, and it is worth being exact about that.** `IntervalRung`'s
+ceiling is about whether a rung can be *scored* honestly, and at this player's ~25 ms spread eighths
+are scorable to about 160 BPM. 100 was comfortably inside it. What failed at 100 was the playing,
+not the scoring, and those are different axes — treating one as the other would be `LESSONS.md`
+shape 10 arriving through a tempo.
+
+### Why an offbeat gets harder as the tempo rises
+
+Stated as hypothesis, because this project has been burned by stating a tempo relationship as fact
+before measuring it (shape 17, and "faster is tighter" specifically).
+
+**The rate is not what changes — the phase is.** An offbeat take asks for one note per beat, so the
+notes are no closer together at 100 BPM than a quarter-note jam is. What changes is that each note
+must sit at the *midpoint* of an interval whose endpoints are not being played. At 100 BPM that
+midpoint is 300 ms from the beat either side; at 69 it is 435 ms.
+
+**The mechanism I would bet on is the instrument, and it is the player's own observation.** A ska
+up-stroke is one limb oscillating at beat rate, and the offbeat is the *return* of a motion whose
+down-stroke is the beat — the timing is carried by the oscillation, so the offbeat comes very nearly
+free. On a keyboard every offbeat is a discrete press, independently initiated, with no return
+stroke underneath it. The biomechanical scaffolding is simply absent.
+
+That predicts something checkable: ska guitarists hold offbeats at 160 BPM, which is a 187 ms
+placement — far tighter than the one that defeated a keyboard here. **So the drill on keys has a
+much lower tempo ceiling than the genre it trains for, and that is an instrument limit rather than a
+skill limit.** It is an argument for M21 rather than for grinding at the keyboard.
+
+A second candidate, from the interval-timing literature rather than from anything measured here:
+below roughly 250–300 ms, successive events stop being timed individually and start being chunked.
+At 100 BPM the offbeat grid is *exactly* 300 ms, sitting on that boundary; at 69 BPM it is 435 ms,
+clear of it.
+
+**What would falsify the instrument explanation:** the same player holding a fast offbeat on
+*any* oscillatory instrument — a strummed guitar under M21, or pads struck alternately — while
+still losing it on keys at the same tempo. What would falsify the boundary explanation: the feel
+holding at 100 BPM after practice, with no change of instrument.
+
+### The default moves to 70 BPM
+
+Grounded in the take that worked rather than derived from a threshold — two observations cannot
+support a derived ceiling, and inventing one would be shape 11 exactly. **A faster offbeat is still
+reachable by asking for one**, because the genre needs it: ska and punk live at tempos this drill's
+default has no business pinning the player to.
+
+### The other direction, which the player raised and the data cannot yet answer
+
+*"Some things are way easier to play faster and playing them slow is difficult."* That is the
+standard shape of timing variability against tempo — a minimum somewhere near the spontaneous motor
+tempo, rising on both sides — and it is the player's own stated hypothesis from §7.23: faster is
+easier to a point, and slow tempos invite rushing.
+
+Two mechanisms are usually offered for the slow side, both literature rather than measurement here:
+a fast repetitive movement becomes preprogrammed and runs open-loop, where a slow one needs
+per-event feedback correction; and beyond roughly 1.5–2 s an interval exceeds what is held as a
+single felt unit, so the player begins subdividing or counting — **which for this player is the
+documented way to make timing worse.**
+
+`review interval` is the readout built for this and it still says no: a straight line cannot carry a
+claim about an optimum, and it names the count of distinct intervals as the limit. There are now
+five. The 69 BPM take is a sixth interval and is the slowest yet, which is the side of the curve the
+corpus has least of.
+
+**One thing worth watching rather than concluding.** That take's offbeat placement spread is 28.7 ms
+against this player's usual ~24 ms at 100 BPM — held the feel, placed it less precisely. That is
+what the slow side of a U-shaped curve would look like, and it is also one take of a different task,
+which is exactly the confound `TakeAxis` splits groups for (shape 19). Not a finding.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
