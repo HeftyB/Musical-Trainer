@@ -152,4 +152,29 @@ final class OffbeatSurvivesTheTakeTests: StoreBackedTestCase {
         XCTAssertEqual(config.rung, .eighths)
         XCTAssertEqual(config.feel, .swung)
     }
+
+    // MARK: - The config both surfaces build
+
+    /// The console and the app must ask for the same take, or two surfaces record one drill as
+    /// two conditions. Built inline at each surface this could not be asserted at all — which is
+    /// how a planned offbeat block came to carry skank instructions over `jamBacking`.
+    func testTheOffbeatConfigCarriesItsIdentityAndValidates() throws {
+        let config = TrainerEngine.JamConfig.offbeat(bpm: 70, bars: 32, level: .backbeatOnly)
+
+        XCTAssertEqual(config.offbeatLevel, .backbeatOnly)
+        XCTAssertEqual(config.tag, "offbeat", "both surfaces must pool under one tag")
+        XCTAssertNil(config.rung, "an offbeat take prescribes no rung")
+        XCTAssertTrue(config.feel.isStraight, "ska and reggae are not a feel — the grid is straight")
+        XCTAssertNil(config.generatedBacking, "the drill's own backing is what makes the level audible")
+        XCTAssertNoThrow(try config.validate())
+    }
+
+    /// And the backing it resolves to is the drill's, named for the level, rather than the
+    /// fixed jam backing that a config missing its level would silently fall back to.
+    func testTheOffbeatConfigPlaysTheOffbeatBacking() {
+        for level in OffbeatLevel.allCases {
+            let config = TrainerEngine.JamConfig.offbeat(bpm: 70, bars: 8, level: level)
+            XCTAssertEqual(config.backing.name, "offbeat-\(level.rawValue)")
+        }
+    }
 }

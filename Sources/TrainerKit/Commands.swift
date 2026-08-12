@@ -1334,8 +1334,7 @@ public enum Commands {
                            + OffbeatLevel.allCases
                                .map { "\($0.rawValue) \($0.label)" }.joined(separator: ", "))
         }
-        let config = TrainerEngine.JamConfig(bpm: bpm, bars: bars, tag: "offbeat",
-                                             offbeatLevel: level)
+        let config = TrainerEngine.JamConfig.offbeat(bpm: bpm, bars: bars, level: level)
         try config.validate()
         let env = try TrainerEngine.environment()
 

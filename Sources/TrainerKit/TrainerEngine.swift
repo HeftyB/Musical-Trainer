@@ -100,6 +100,22 @@ public enum TrainerEngine {
             self.rung = rung; self.feel = feel; self.offbeatLevel = offbeatLevel
             self.generatedBacking = generatedBacking
         }
+        /// The take an offbeat drill runs, from whichever surface asked for it.
+        ///
+        /// One constructor because the *rule* has to match across surfaces, not just the fields:
+        /// tagged `offbeat` so takes from the console and the app pool as one condition rather
+        /// than two that mean the same thing, and carrying neither a rung nor a feel — the
+        /// offbeat grid is straight, since ska and reggae are not a feel and only the drill
+        /// changes.
+        ///
+        /// Extracted for the reason `SessionRunner.jamConfig(for:)` was: a config built inline at
+        /// a surface is a decision no test can reach, and the last time one was, a planned
+        /// offbeat block would have printed skank instructions over `jamBacking`
+        /// (`LESSONS.md` shape 1).
+        public static func offbeat(bpm: Double, bars: Int, level: OffbeatLevel) -> JamConfig {
+            JamConfig(bpm: bpm, bars: bars, tag: "offbeat", offbeatLevel: level)
+        }
+
         public var durationSeconds: Double { Double(bars + 2) * 4 * 60 / bpm }
 
         /// The backing this take plays over, and the name it is stored under.

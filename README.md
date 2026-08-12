@@ -19,7 +19,7 @@ take of the sitting is recorded under it. It is asked **before** you start, neve
 afterwards it would be a way of excusing an evening that went badly, and the point is to be able
 to compare tired evenings against ordinary ones rather than to discount them.
 
-Or pick a mode (Jam / Form / Alone / Tempo / Recall / Play), set the options, hit Start. Each mode
+Or pick a mode (Jam / Offbeat / Form / Alone / Tempo / Recall / Play), set the options, hit Start. Each mode
 shows exactly what it expects of you before you begin. Jam, Alone and Tempo can ask for a
 **subdivision** — quarters, eighths, triplet eighths or sixteenths — and score against it; the
 picker offers only the ones your chosen tempo can measure honestly, and the Jam defaults to free
@@ -29,6 +29,11 @@ a style and a seed, so no two evenings play the same piece. The seed is stored w
 piece you liked can be asked for again. The take screen is
 deliberately near-blank — no numbers, no progress bar, nothing to read — then you rate how it
 felt *before* any numbers appear, and the results come with charts.
+
+**Offbeat** is ska and reggae — hold the chop between the beats while the downbeat disappears
+underneath you. It starts at 70 BPM rather than 100, because tempo changes the task in this drill
+more than in any other: the chop has to land at the midpoint of an interval whose endpoints nobody
+is playing, and that midpoint closes on the beat as the tempo rises.
 
 To abandon a take mid-way (wrong tempo, keyboard not responding), press **esc** or **⌘.**, or
 click *Stop and discard*. The recording is thrown away rather than analysed.
@@ -57,7 +62,7 @@ so it runs before every commit.
   runners. Shared by both front ends so the measurement logic has one implementation.
 - `Sources/MusicalTrainerApp` — the SwiftUI app.
 - `Sources/TimingSpike` — the console tool.
-- `Tests/` — 704 cases against synthetic ground truth. `Tests/TestSupport` holds the
+- `Tests/` — 712 cases against synthetic ground truth. `Tests/TestSupport` holds the
   shared generators; storage tests are macOS-only.
 
 ```sh
