@@ -72,8 +72,12 @@ final class TemporalLadderTests: XCTestCase {
 
     /// The reason has to say which skill is being asked for, or the player reads a held level as
     /// a comment on the wrong thing — which is exactly what the old text did.
+    ///
+    /// Both rates are below the bar so **neither** ladder moves and the hold reason is what
+    /// speaks. With a perfect on-form rate this take earns a longer phrase instead (§7.43), which
+    /// is correct and is a different sentence.
     func testTheReasonNamesLandingRatherThanForm() {
-        let reason = formReason([form(level: 2, onFormRate: 1.0, cleanRate: 0.32)])
+        let reason = formReason([form(level: 2, onFormRate: 0.5, cleanRate: 0.32)])
         XCTAssertTrue(reason.lowercased().contains("bar line") || reason.lowercased().contains("land"),
                       "the held level must be explained by the axis it is about: \(reason)")
     }

@@ -503,6 +503,14 @@ public enum SessionPlanner {
     /// the player climbs it is not measuring anything.
     public static let ladderPromotionRate = 0.9
 
+    /// The phrase spans the spatial ladder climbs, shortest first.
+    ///
+    /// The progression the roadmap describes is 8 → 16 → 32; 4 is on the list because the
+    /// felt-period rule can put a player there and a ladder has to know where its rungs are, not
+    /// only where it likes to start. Matches the lengths the app offers, so the ladder can never
+    /// ask for a span the player cannot also choose by hand.
+    public static let phraseSpanLadder = [4, 8, 16, 32]
+
     /// How much drill a session of a given length can hold.
     ///
     /// A longer session buys **longer takes, not more of them.** There are only three
@@ -1126,15 +1134,47 @@ public enum SessionPlanner {
                              + "earns the next one.", last.cleanRate * 100, next))
         }
 
+        // **The span ladder is promoted on knowing the bar, which is the other axis.** Growing
+        // the phrase asks the player to hold their place across more music; it changes nothing
+        // about the cues that say when to land, and a longer phrase at the same level has exactly
+        // the same landmarks. So the rate that decides it is the spatial one (§7.43).
+        //
+        // **It sits after the level ladder, and that ordering is doing real work.** Both gates can
+        // be open at once — this player could clear one, the other, or both — and the early return
+        // means only one axis moves in any plan. Which one is currently decided by position, which
+        // is `LESSONS.md` shape 5's complaint about two blocks ordered by which was appended
+        // first; M16 step 3 is the chooser that makes it a decision rather than an accident. The
+        // guarantee that *only one* moves is asserted now, because it is the property that keeps a
+        // take comparable to the one before it.
+        //
+        // **The felt-period rule above is this ladder's demotion.** It returns before this, so a
+        // player who marks a shorter phrase twice running is moved back down to the span he is
+        // actually tracking — a correction beats a promotion, because promoting someone onto a
+        // span they are not following measures nothing.
+        if last.onFormRate >= ladderPromotionRate, !last.hasUnmarkedPhrases,
+           let rung = phraseSpanLadder.firstIndex(of: last.phraseBars),
+           rung + 1 < phraseSpanLadder.count {
+            let wider = phraseSpanLadder[rung + 1]
+            return SessionBlock(
+                role: .training,
+                plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars,
+                                     phraseBars: wider, level: last.level)),
+                reason: String(format: "%.0f%% on form last time with nothing unmarked, so the "
+                             + "phrase grows: %d bars at level %d. The span is about holding your "
+                             + "place across more music, so knowing the bar is what earns it.",
+                               last.onFormRate * 100, wider, last.level))
+        }
+
         return SessionBlock(
             role: .training,
             plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars,
                                  phraseBars: last.phraseBars, level: last.level)),
             reason: String(format: "%.0f%% on form last time and %.0f%% landed on a bar line. The "
-                         + "levels are about landing, so level %d holds until that is above "
+                         + "levels are about landing and the phrase length is about holding your "
+                         + "place, so level %d over %d bars holds until one of those is above "
                          + "%.0f%% with nothing unmarked.",
                            last.onFormRate * 100, last.cleanRate * 100, last.level,
-                           ladderPromotionRate * 100))
+                           last.phraseBars, ladderPromotionRate * 100))
     }
 
     private static func mean(_ x: [Double]) -> Double? {
