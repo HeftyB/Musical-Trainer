@@ -68,7 +68,10 @@ final class FormProbeTests: XCTestCase {
     }
 
     func testTheLadderStillPromotesOnEarnedTakes() throws {
-        let clean = PlannerInput.Form(level: 1, phraseBars: 8, onFormRate: 1.0,
+        // Carries a high `cleanRate` because the level ladder is promoted on landing cleanly
+        // (§7.41). The claim here is about probes not touching the ordinary path, so the
+        // ordinary path has to be one that actually promotes.
+        let clean = PlannerInput.Form(level: 1, phraseBars: 8, onFormRate: 1.0, cleanRate: 1.0,
                                       hasUnmarkedPhrases: false, markedEveryBars: nil)
         XCTAssertEqual(try XCTUnwrap(plannedForm([clean])).level, 2,
                        "nothing about probes may touch the ordinary path")

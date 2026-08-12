@@ -6540,6 +6540,90 @@ and step 3 is the chooser that stops both ladders moving at once.
 
 ---
 
+## 7.41 M16 step 1 — the levels become the temporal ladder
+
+Step 0 made the two axes peers and left the promotion rule alone. This is the rule.
+
+### The levels remove landing cues, so landing is what earns the next one
+
+| | what it takes away |
+|---|---|
+| 0 → 1 | the crash **on** the downbeat — the thing that confirms the arrival |
+| 1 → 2 | the fill that warned the turn was coming |
+| 2 → 3 | the band, across the boundary entirely |
+
+Every rung of that ladder removes information about **when** to land. None of it removes information
+about *which bar* — the phrase length never changes, and a player who knows where he is at level 0
+knows it at level 3. So the rate that decides whether a player has outgrown a level is the placement
+one, and reading `onFormRate` there was asking the wrong question of the right ladder.
+
+Phrase span is the other axis and is promoted on `onFormRate`. That is step 2.
+
+### What the old rule did, on this player's real history
+
+Not hypothetical. Run against the corpus as it stands, with the promotion input flipped back:
+
+| | planner's choice |
+|---|---|
+| Reading `onFormRate` | **level 3** — "silence across the boundary… no band at all" |
+| Reading `cleanRate` | **level 2**, held |
+
+The take it read was 10 August: **25 of 25 on form, 8 of 25 clean.** Perfect spatial awareness, and
+landing cleanly a third of the time. The old rule's answer to that was to take away the last of the
+landing help — promoting him to the top of the ladder on the strength of the skill he already had,
+in a drill whose remaining levels only make the skill he lacks harder.
+
+The player now reads:
+
+> 100% on form last time and 32% landed on a bar line. The levels are about landing, so level 2
+> holds until that is above 90% with nothing unmarked.
+
+### One bar for both ladders
+
+`SessionPlanner.ladderPromotionRate`, 0.9, shared by this ladder and the span ladder step 2 adds.
+Two numbers would be two standards for "you have got this" and nobody could say why they differed;
+one constant rather than two literals also stops them becoming the same value for different reasons,
+which is shape 9.
+
+**It is deliberately not tuned to make this player advance.** His clean rate runs 12–100% across the
+fourteen takes with a recent best of 76%, so the temporal ladder holds him at level 2 — which is the
+correct behaviour for a skill he has not got. A ladder tuned until the player climbs it measures
+nothing.
+
+**`hasUnmarkedPhrases` still gates, and now for a second reason.** Unmarked phrases mean few marks,
+so a clean rate computed over them is a rate over a thin sample.
+
+### What was checked
+
+`TemporalLadderTests` plants the defect directly — 100% on form with 32% clean must not promote —
+and the converse, that clean landings earn the level even from a take whose spatial rate would have
+failed the old gate. Reverting the promotion input fails it four ways.
+
+**Two existing tests failed and were changed, which is worth stating plainly.** Both built a
+`PlannerInput.Form` without a clean rate and asserted a promotion, so under the new rule they
+correctly declined to promote. Their intent — *a good enough take earns the next level* — is
+unchanged; what they needed was to supply the axis the rule now reads. One was called
+`testCleanTakeEarnsTheNextLandmarkLevel`, where "clean" meant "good"; it is
+`testLandingCleanlyEarnsTheNextLandmarkLevel` now, because "clean" names a specific axis in this
+file and one word with two meanings is shape 10.
+
+**The level this player currently stands on was earned honestly.** Worth checking rather than
+assuming, since a ladder inheriting a position from the rule it replaced would be starting from
+somewhere it would not have chosen: the 1 → 2 promotion followed the 2 August take that was 5/5 on
+form **and** 5/5 clean. Small — five marks — but earned on both axes.
+
+### What this step does not do
+
+**No demotion.** The ladder has never demoted and this does not add it; a player above their level
+holds there rather than being moved down. Whether the temporal ladder should demote is a real
+question and it is not answered here.
+
+**The phrase length still follows the felt period.** That rule is orthogonal to promotion and is
+left alone — it is the span axis's business, and step 3's chooser is what stops the two ladders
+moving in the same sitting.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -6563,9 +6647,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   717 cases
+└── Tests/                   724 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     374 cases against synthetic ground truth
+    ├── TimingCoreTests/     381 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     221 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.

@@ -12,9 +12,13 @@ final class SessionPlanTests: XCTestCase {
                                   splitIsReliable: reliable, clockSDms: clock, motorSDms: motor)
     }
 
+    /// `cleanRate` defaults to 0 — "no landings recorded" — so a planted history that does not
+    /// care about the temporal axis cannot accidentally climb the level ladder.
     private func form(level: Int = 2, phraseBars: Int = 8, onFormRate: Double = 0.6,
+                      cleanRate: Double = 0,
                       unmarked: Bool = false, markedEvery: Double? = nil) -> PlannerInput.Form {
         PlannerInput.Form(level: level, phraseBars: phraseBars, onFormRate: onFormRate,
+                          cleanRate: cleanRate,
                           hasUnmarkedPhrases: unmarked, markedEveryBars: markedEvery)
     }
 
@@ -301,8 +305,12 @@ final class SessionPlanTests: XCTestCase {
         XCTAssertEqual(firstForm(plan)?.phraseBars, 4, "one take feeling 8 must not flip it back")
     }
 
-    func testCleanTakeEarnsTheNextLandmarkLevel() {
-        let input = PlannerInput(forms: [form(level: 1, onFormRate: 1.0, unmarked: false)])
+    /// Renamed with the rule: "clean" now names the temporal axis specifically, so a test called
+    /// `testCleanTake…` that meant "a good take" would be one word with two meanings in the one
+    /// file where the distinction is the whole point (shape 10).
+    func testLandingCleanlyEarnsTheNextLandmarkLevel() {
+        let input = PlannerInput(forms: [form(level: 1, onFormRate: 1.0, cleanRate: 1.0,
+                                              unmarked: false)])
         XCTAssertEqual(firstForm(SessionPlanner.plan(targetMinutes: 30, from: input))?.level, 2)
     }
 
