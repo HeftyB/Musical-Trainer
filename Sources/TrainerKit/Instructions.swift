@@ -269,7 +269,16 @@ public struct DrillInstructions {
     /// player was told to wait for a cue that would never arrive. §6.1 already records two
     /// takes lost to an instruction ambiguity; static text for a drill whose whole design is
     /// removing cues was the same mistake wearing a different hat.
-    public static func form(level: Int = 0) -> DrillInstructions {
+    /// The form drill's instructions **for the phrase length that will actually play**.
+    ///
+    /// The first step read *"A drum groove plays in phrases — 8 bars each by default"*, hardcoded,
+    /// while the take ran whatever it was configured with. At a 16-bar phrase the player was told
+    /// 8. That is R3.6's own failure — static text describing something the backing will not do —
+    /// and it is invisible in a way the drill makes worse: **8 bars and 16 bars of the same groove
+    /// sound identical.** At level 2 there are no fills, no accents and no silences, so nothing
+    /// audible distinguishes them for the whole take and the words were the only source of the
+    /// number. See PLAN.md §7.42.
+    public static func form(level: Int = 0, phraseBars: Int = 8) -> DrillInstructions {
         let cue: String
         let target: String
         var pitfalls = [
@@ -300,14 +309,23 @@ public struct DrillInstructions {
                           + "where you feel the phrase turns.", at: 0)
         }
 
+        // Said first and said plainly, because at level 2 it is the only place the number
+        // exists — the groove is uniform and one phrase length sounds exactly like another.
+        // Plain text, no `**`: this layer is shared by both surfaces and neither renders
+        // markdown — `consoleText` prints the step as-is and SwiftUI's `Text` does not parse a
+        // runtime string — so emphasis markup arrives as literal asterisks. The number leads the
+        // sentence instead, which is the prominence that actually survives.
+        var steps = ["\(phraseBars) bars to a phrase. The drum groove runs in phrases that long, "
+                   + "starting from the first downbeat.", cue, target,
+                     "Play whatever you like on the keys between marks, or nothing at all."]
+        if level == 2 {
+            steps.insert("Nothing in the music marks the phrase at this level, so \(phraseBars) "
+                       + "bars is the only thing you have — fix it before you start.", at: 1)
+        }
+
         return DrillInstructions(
             goal: "Measures whether you know where you are in the music without counting.",
-            steps: [
-                "A drum groove plays in phrases — 8 bars each by default.",
-                cue,
-                target,
-                "Play whatever you like on the keys between marks, or nothing at all.",
-            ],
+            steps: steps,
             pitfalls: pitfalls,
             measures: "How many phrase tops you found on the correct bar, and how close to the "
                     + "downbeat you landed.")
@@ -480,7 +498,7 @@ public extension DrillInstructions {
             // would swap the conditions, which is the worse failure of the two.
             if let arm = block.experiment?.arm { return .jam(arm: arm) }
             return .jam(rung: p.rung, feel: p.feel)
-        case .form(let p): return .form(level: p.level)
+        case .form(let p): return .form(level: p.level, phraseBars: p.phraseBars)
         case .dropout(let p): return .dropout(rung: p.rung)
         case .tempo(let p):   return .tempo(rung: p.rung)
         case .memory:      return .memory

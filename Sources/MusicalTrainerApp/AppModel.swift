@@ -36,11 +36,12 @@ final class AppModel: ObservableObject {
         /// differently. The form drill's text depends on the level — the landmarks it
         /// describes are exactly what the ladder removes.
         func instructions(formLevel: Int = 0, rung: IntervalRung? = nil,
-                          offbeatLevel: OffbeatLevel = .stated) -> DrillInstructions {
+                          offbeatLevel: OffbeatLevel = .stated,
+                          phraseBars: Int = 8) -> DrillInstructions {
             switch self {
             case .jam: return .jam(rung: rung)
             case .offbeat: return .offbeat(level: offbeatLevel)
-            case .form: return .form(level: formLevel)
+            case .form: return .form(level: formLevel, phraseBars: phraseBars)
             case .dropout: return .dropout(rung: rung ?? .quarters)
             case .tempo: return .tempo(rung: rung ?? .quarters)
             case .memory: return .memory
@@ -401,7 +402,7 @@ final class AppModel: ObservableObject {
     /// Instructions for the mode as currently configured.
     var currentInstructions: DrillInstructions {
         mode.instructions(formLevel: formLevel.rawValue, rung: rung,
-                          offbeatLevel: offbeatLevel)
+                          offbeatLevel: offbeatLevel, phraseBars: phraseBars)
     }
 
     var feel: Feel { Feel(swingRatio: swingRatio) ?? .straight }

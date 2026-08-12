@@ -2054,7 +2054,7 @@ public enum Commands {
             + "at \(Int(bpm)) BPM  ·  "
             + String(format: "~%.1f min", config.durationSeconds / 60))
         print("Landmarks: \(level.label)")
-        printInstructions(DrillInstructions.form(level: level.rawValue))
+        printInstructions(DrillInstructions.form(level: level.rawValue, phraseBars: phraseBars))
         announceProbe(flags)
         if level.hasArrivalAccent {
             print("\n  \(Console.dim)At this level a crash cymbal lands exactly on the beat you are\n"
