@@ -6455,6 +6455,93 @@ the built binary; whether it reads well is a live-run question.
 **Nothing has been recorded from the app's offbeat mode**, so the surface is unproven in the way
 every surface here starts out. The two takes in §7.38 are both from the console.
 
+---
+
+## 7.40 M16 step 0 — the form drill's two axes become peers
+
+§7.26 concluded from the form history that this player *knows where he is and cannot land on it*.
+The drill has been measuring both facts all along and reporting them as one, because the temporal
+figure was computed only over marks that had already passed the spatial test.
+
+### The defect is a selection effect, not a missing number
+
+`phaseErrorMs` was always a peer at the level of a single mark: it is the distance to the **nearest**
+bar line, well defined for any mark, and its doc comment already said that landing crisply on the
+wrong downbeat is a different failure from landing sloppily on the right one.
+
+The gating was in the aggregate. `phaseErrors = onForm.map(\.phaseErrorMs)`, and `tightCount` was
+on-form marks that were *also* close. So the temporal score described a population selected by the
+spatial one — **get better at knowing the bar, more marks enter the pool, and the placement figure
+moves for reasons that have nothing to do with placement.**
+
+That is survivable while nothing acts on it. It is not survivable in step 1, which promotes a ladder
+on the temporal figure: a ladder reading a statistic that shifts when the *other* ladder advances is
+reading its own progress back to itself.
+
+So the report carries three things where it carried two:
+
+| | |
+|---|---|
+| `onFormCount` / `onFormRate` | **Spatial.** The right bar — did you know where you were? |
+| `cleanCount` / `cleanRate` | **Temporal.** On a bar line, *whichever* bar — could you land on it? |
+| `nailedCount` | Both at once. The intersection, and neither axis. **Nothing is promoted on it.** |
+
+### The corpus already contained both failures, in opposite directions
+
+Recomputed over all fourteen form takes, which R3.1 makes free — the analysis re-runs from the
+stored marks, so a new axis reaches takes recorded a fortnight before it existed.
+
+| | on form | clean | |
+|---|---|---|---|
+| **5 Aug, 01:41** | **5/14** — 36% | **10/14** — 71% | placement fine, the map was lost |
+| **10 Aug** | **25/25** — 100% | **8/25** — 32% | the map was perfect, placement missed |
+
+**A double dissociation, and it settles M16's premise rather than illustrating it.** Two takes, each
+strong on one axis and weak on the other, in opposite directions. Under the old readout the 5 August
+take read *5/14 on form, 5/14 nailed* — a bad take at everything. It was nothing of the kind: he was
+landing cleanly twice as often as he was landing in the right place, and the drill had no way to say
+so. One ladder cannot train two skills that come apart like this.
+
+### What was checked before the change was believed
+
+The old `review form` output was captured first and diffed against the new one, which is what
+`LESSONS.md` shape 4 asks for when rewriting a computation. **The `both` column is identical to the
+old `nailed` column in all fourteen takes** — the intersection did not move, and a peer was added
+beside it. A change that altered the existing number while adding a new one would have looked the
+same on any single reading.
+
+Re-gating `cleanCount` and the phase spread behind form fails `FormAxesArePeersTests` twice.
+
+### The objection, and what it is worth
+
+A mark a bar and a half from the phrase top is not *aiming* at the bar line it is measured against,
+so calling it "cleanly placed" reads a motor success into what may be a guess. That is the argument
+the old design was making, and it is not silly.
+
+It is answered by reporting both rather than choosing: `phaseErrorSDms` is unconditioned,
+`onFormPhaseErrorSDms` is the on-form subset, and the headline — *"the map is solid; the placement is
+loose"* — keeps reading the on-form figure, because that sentence is explicitly about marks that
+were on form. Neither is promoted on, and R3.4's rule applies to the pair: name the two rather than
+blend them.
+
+### What this step deliberately does not do
+
+**The promotion rule is untouched.** `SessionPlanner` still promotes on `onFormRate >= 0.9` with no
+unmarked phrases, exactly as before — `cleanRate` is carried on `PlannerInput.Form` and **read by
+nothing**. That is §8.1.2's order: the data lands before the rule that reads it, so the first takes
+scored under a new rule are not scored under one that then changes.
+
+**No storage change.** `FormSession.tightCount` keeps its name and stores the intersection it always
+held; `report()` recomputes from `markTimes`, so nothing had to be added to a stored take for the
+new axis to reach the whole corpus (R3.1).
+
+**The temporal ladder does not exist yet.** Step 1 turns `cleanRate` into a rung the player climbs,
+and step 3 is the chooser that stops both ladders moving at once.
+
+---
+
+## 8. Project layout
+
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
 two pure modules are what make the numbers testable, and the rule that keeps them honest is that
 **anything analysable goes in `TimingCore` or `GrooveCore`**, because only those run under
@@ -6476,9 +6563,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   712 cases
+└── Tests/                   717 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     369 cases against synthetic ground truth
+    ├── TimingCoreTests/     374 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     221 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
