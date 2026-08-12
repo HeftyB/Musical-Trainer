@@ -1,4 +1,5 @@
 import Charts
+import GrooveCore
 import SwiftUI
 import TimingCore
 import TrainerKit
@@ -59,6 +60,16 @@ private struct JamResults: View {
             Text("\(outcome.notesCaptured) notes → \(outcome.eventCount) events · "
                + "\(report.matchedCount) on the grid")
                 .font(.callout).foregroundStyle(.secondary)
+
+            // An offbeat take's own readout, recomputed here exactly as the console recomputes
+            // it. Without this the app would show a skank as an ordinary jam — the take's
+            // identity reaching storage and then dying at the surface, which is the invariant
+            // "a drill's identity survives being stored" failing one step further along.
+            if let level = outcome.config.offbeatLevel {
+                OffbeatResults(report: OffbeatAnalysis.analyze(matched: report.matched,
+                                                               grid: outcome.analysisGrid),
+                               level: level)
+            }
 
             // What the take was scored against, since a rung changes what "on the grid" means:
             // the window is ±40% of the division, so it is four times narrower at sixteenths
@@ -131,6 +142,56 @@ private struct JamResults: View {
         if r < -0.3 { return "chasing the click" }
         if r > 0.3 { return "drifting, uncorrected" }
         return "autonomous pulse"
+    }
+}
+
+// MARK: - Offbeat
+
+/// Where the notes went, which for this drill is a different question from how tightly they
+/// were placed.
+///
+/// **Slipping is shown apart from placement and above it**, because a player who has slipped is
+/// dead on a grid point — the wrong one — so a placement figure alone would call a lost feel an
+/// excellent take. The console orders it the same way for the same reason.
+private struct OffbeatResults: View {
+    let report: OffbeatReport
+    let level: OffbeatLevel
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Where the notes went").font(.headline)
+                Text("Level \(level.rawValue) — \(level.label)")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                Text(report.headline)
+                    .font(.callout)
+                    .foregroundStyle(report.slipped ? .orange : .primary)
+                    .fontWeight(report.slipped ? .semibold : .regular)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(alignment: .top, spacing: 24) {
+                    Metric(label: "Off the beat",
+                           value: String(format: "%.0f%%", report.offbeatShare * 100),
+                           note: "\(report.onOffbeat) of \(report.onOffbeat + report.onDownbeat)",
+                           emphasis: true)
+                    if let spread = report.spreadMs {
+                        Metric(label: "Placement", value: spread.msLabel,
+                               note: "spread of the chop", emphasis: true)
+                    }
+                    if let placement = report.placementMs {
+                        Metric(label: placement < 0 ? "Ahead" : "Behind",
+                               value: placement.signedMsLabel, note: "against the offbeat")
+                    }
+                }
+
+                ForEach(report.notes, id: \.self) { note in
+                    Text(note)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 }
 

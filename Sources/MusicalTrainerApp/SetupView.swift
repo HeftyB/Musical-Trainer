@@ -174,6 +174,24 @@ struct SetupView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                if model.mode == .offbeat {
+                    Divider()
+                    LabeledContent("Downbeat") {
+                        Picker("", selection: $model.offbeatLevel) {
+                            ForEach(OffbeatLevel.allCases, id: \.self) { level in
+                                Text("\(level.rawValue) — \(level.label)").tag(level)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    Text(model.offbeatLevel.advice)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(model.offbeatTempoAdvice)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 if model.mode == .tempo {
                     Divider()
                     LabeledContent("Targets") {
