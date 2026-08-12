@@ -39,6 +39,36 @@ public enum IntervalRung: String, Codable, Equatable, CaseIterable {
     /// Rungs ordered easiest first, which is longest interval first at any fixed tempo.
     public static var ladder: [IntervalRung] { [.quarters, .eighths, .tripletEighths, .sixteenths] }
 
+    // MARK: - Swing
+
+    /// Whether a swing means anything at this rung.
+    ///
+    /// Derived from the same test `Feel.applies(toSubdivisions:)` uses, so a surface asking this
+    /// question and the engine answering it cannot disagree.
+    public var canSwing: Bool { Feel.dividesBinarily(subdivisions) }
+
+    /// Why a swing cannot be asked for at this rung, or `nil` when it can.
+    ///
+    /// **The reason lives on the rung because the surface cannot work it out.** The app answered
+    /// *"Triplets are the division swing borrows from"* for every unswingable rung — including
+    /// quarters, where triplets have nothing to do with it — so a disabled control explained
+    /// itself wrongly and sent the reader looking for the wrong thing. That is how a search for
+    /// the offbeat drill ended at the Feel picker (§7.34).
+    ///
+    /// Switched exhaustively with no `default`, so a new rung cannot be added without deciding
+    /// what it says here. `SwingAvailabilityTests` requires this and `canSwing` to agree.
+    public var swingUnavailableReason: String? {
+        switch self {
+        case .quarters:
+            return "Quarter notes are the beat itself. A swing moves the second note of a "
+                 + "divided beat, and there is nothing here between them to move."
+        case .tripletEighths:
+            return "Triplets are the division a swing borrows from, so there is no pair to swing."
+        case .eighths, .sixteenths:
+            return nil
+        }
+    }
+
     // MARK: - The interval
 
     /// Seconds between adjacent notes at this rung and tempo. The quantity the whole ladder is

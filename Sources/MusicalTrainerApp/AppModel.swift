@@ -8,11 +8,12 @@ import TrainerKit
 final class AppModel: ObservableObject {
 
     enum Mode: String, CaseIterable, Identifiable {
-        case jam, form, dropout, tempo, memory, groove
+        case jam, offbeat, form, dropout, tempo, memory, groove
         var id: String { rawValue }
         var title: String {
             switch self {
             case .jam: return "Jam"
+            case .offbeat: return "Offbeat"
             case .form: return "Form"
             case .dropout: return "Alone"
             case .tempo: return "Tempo"
@@ -23,6 +24,7 @@ final class AppModel: ObservableObject {
         var symbol: String {
             switch self {
             case .jam: return "waveform"
+            case .offbeat: return "chart.bar.xaxis"
             case .form: return "square.grid.3x3"
             case .dropout: return "speaker.slash"
             case .tempo: return "metronome"
@@ -33,9 +35,11 @@ final class AppModel: ObservableObject {
         /// Full instructions, shared with the console so the two can't describe a drill
         /// differently. The form drill's text depends on the level — the landmarks it
         /// describes are exactly what the ladder removes.
-        func instructions(formLevel: Int = 0, rung: IntervalRung? = nil) -> DrillInstructions {
+        func instructions(formLevel: Int = 0, rung: IntervalRung? = nil,
+                          offbeatLevel: OffbeatLevel = .stated) -> DrillInstructions {
             switch self {
             case .jam: return .jam(rung: rung)
+            case .offbeat: return .offbeat(level: offbeatLevel)
             case .form: return .form(level: formLevel)
             case .dropout: return .dropout(rung: rung ?? .quarters)
             case .tempo: return .tempo(rung: rung ?? .quarters)
@@ -47,6 +51,7 @@ final class AppModel: ObservableObject {
         var blurb: String {
             switch self {
             case .jam: return "Play along and measure how you place the beat."
+            case .offbeat: return "Hold the chop between the beats while the downbeat disappears."
             case .form: return "Mark the top of each phrase without counting."
             case .dropout: return "Hold quarter notes through the silences — is it your clock or your hands?"
             case .tempo: return "Produce a tempo unaccompanied and find out what you actually played."
@@ -102,6 +107,18 @@ final class AppModel: ObservableObject {
     @Published var phraseBars: Int = 8 { didSet { setBars(bars) } }
     @Published var formLevel: FormLevel = .fillAndAccent
 
+    // Offbeat drill.
+    @Published var offbeatLevel: OffbeatLevel = .stated
+
+    /// The tempo the offbeat drill starts at, and it is not the app's usual 100.
+    ///
+    /// At 100 BPM the chop sits 300 ms from the beat either side and the feel inverted: 23% of
+    /// notes off the beat, against 96% at 69 (§7.38). The rate is not what changes with tempo —
+    /// an offbeat take is one note per beat either way — it is that each note must land at the
+    /// midpoint of an interval whose endpoints are not being played. Faster is still reachable
+    /// by asking, because ska and punk live up there.
+    static let defaultOffbeatBpm: Double = 70
+
     // Dropout drill.
     @Published var pacedBars: Int = 4
     @Published var silentBars: Int = 4
@@ -132,6 +149,10 @@ final class AppModel: ObservableObject {
     /// underpowered take, so bump to the form default the first time.
     private func adoptDefaultLength(for mode: Mode) {
         if mode == .form, bars < defaultFormBars { setBars(defaultFormBars) } else { setBars(bars) }
+        // Entering the offbeat drill at the app's usual 100 hands the player the tempo that
+        // inverted the feel (§7.38). Only on the way in, and only from the default, so a tempo
+        // deliberately chosen is never overwritten.
+        if mode == .offbeat, bpm == 100 { bpm = Self.defaultOffbeatBpm }
     }
 
     @Published private(set) var environment: TrainerEngine.Environment?
@@ -182,6 +203,7 @@ final class AppModel: ObservableObject {
     var estimatedDuration: Double {
         switch mode {
         case .jam:    return TrainerEngine.JamConfig(bpm: bpm, bars: bars, rung: rung).durationSeconds
+        case .offbeat: return offbeatConfig.durationSeconds
         case .form:   return TrainerEngine.FormConfig(bpm: bpm, bars: bars, phraseBars: phraseBars,
                                                       level: formLevel).durationSeconds
         case .dropout: return dropoutConfig.durationSeconds
@@ -205,6 +227,16 @@ final class AppModel: ObservableObject {
     var memoryConfig: TrainerEngine.MemoryConfig {
         TrainerEngine.MemoryConfig(bpm: bpm, referenceBars: 4, retentionBars: retentionBars,
                                    reproduceBars: 4, rounds: memoryRounds)
+    }
+
+    /// The offbeat take, which is a jam carrying a level.
+    ///
+    /// Tagged `offbeat` exactly as the console tags it, so takes recorded from the two surfaces
+    /// pool together rather than forming two conditions that mean the same thing. No rung and no
+    /// feel: the offbeat grid is straight — ska and reggae are not a *feel*, only the drill
+    /// changes — and `JamConfig.validate` refuses an offbeat level beside a swing anyway.
+    var offbeatConfig: TrainerEngine.JamConfig {
+        .offbeat(bpm: bpm, bars: bars, level: offbeatLevel)
     }
 
     var dropoutConfig: TrainerEngine.DropoutConfig {
@@ -239,6 +271,7 @@ final class AppModel: ObservableObject {
         let dropConfig = dropoutConfig
         let tempConfig = tempoConfig
         let memConfig = memoryConfig
+        let offbeatCfg = offbeatConfig
 
         // The engine blocks for the length of the take, so it runs off the main thread and
         // the UI stays responsive. `self` is captured strongly: the closure runs once and
@@ -249,6 +282,12 @@ final class AppModel: ObservableObject {
                 switch mode {
                 case .jam:
                     let outcome = try TrainerEngine.runJam(jamConfig, cancellation: flag)
+                    Task { @MainActor in self.finish(jam: outcome) }
+                case .offbeat:
+                    // The same runner as a jam, because an offbeat take *is* a jam with the
+                    // level set — the drill's identity travels on `JamConfig.offbeatLevel`
+                    // rather than on a separate engine path.
+                    let outcome = try TrainerEngine.runJam(offbeatCfg, cancellation: flag)
                     Task { @MainActor in self.finish(jam: outcome) }
                 case .form:
                     let outcome = try TrainerEngine.runForm(formConfig, cancellation: flag)
@@ -361,17 +400,19 @@ final class AppModel: ObservableObject {
     /// What the take screen says, whether the take came from the menu or from a session.
     /// Instructions for the mode as currently configured.
     var currentInstructions: DrillInstructions {
-        mode.instructions(formLevel: formLevel.rawValue, rung: rung)
+        mode.instructions(formLevel: formLevel.rawValue, rung: rung,
+                          offbeatLevel: offbeatLevel)
     }
 
     var feel: Feel { Feel(swingRatio: swingRatio) ?? .straight }
 
     /// Whether a swing means anything at the chosen rung. Triplets have no binary pair, and free
     /// playing prescribes no division for a feel to describe.
-    var feelApplies: Bool {
-        guard let rung else { return false }
-        return rung.subdivisions == 2 || rung.subdivisions == 4
-    }
+    ///
+    /// Asks the rung rather than testing its subdivisions here. The inline copy was
+    /// `subdivisions == 2 || subdivisions == 4`, which is the same answer as the engine's rule
+    /// for exactly today's four rungs and a different rule — shape 9.
+    var feelApplies: Bool { rung?.canSwing ?? false }
 
     /// The ratios offered, each labelled in the words a player would use.
     /// Three, all audibly distinct. A 4:3 option sat 20 ms from straight at 100 BPM and the
@@ -449,10 +490,30 @@ final class AppModel: ObservableObject {
     /// Why the Feel picker is greyed out, when it is. Shown rather than left to be guessed.
     var feelAdvice: String? {
         guard mode == .jam, !feelApplies else { return nil }
-        guard rung != nil else {
+        guard let rung else {
             return "Swing needs a subdivision to swing — pick eighths or sixteenths above."
         }
-        return "Triplets are the division swing borrows from, so there is no pair to swing."
+        // The rung says why, because this said "triplets" for every unswingable rung including
+        // quarters — where triplets are irrelevant — and a disabled control that explains itself
+        // wrongly sends the reader looking for the wrong thing (§7.39).
+        return rung.swingUnavailableReason
+    }
+
+    /// What the chosen tempo asks of the chop, in milliseconds rather than in BPM.
+    ///
+    /// This is the one drill where tempo changes the *task* rather than only its speed. The note
+    /// rate is one per beat either way — no faster than a quarter-note jam — but each note has to
+    /// land at the midpoint of an interval whose endpoints are not being played, and that midpoint
+    /// closes on the beat as the tempo rises.
+    ///
+    /// States the geometry and the two takes there are, and stops. **No threshold**: one take at
+    /// each of two tempos cannot support one, and picking a number that reads as measured would be
+    /// `LESSONS.md` shape 11 in a tooltip.
+    var offbeatTempoAdvice: String {
+        let gapMs = 60_000 / max(bpm, 1) / 2
+        return String(format: "The chop lands %.0f ms from the beat on either side. Tempo changes "
+                    + "the task here more than in any other drill: the one take on record at "
+                    + "100 BPM inverted the feel, and one at 69 held it.", gapMs)
     }
 
     /// One line under the picker saying what the choice costs, in the player's terms.

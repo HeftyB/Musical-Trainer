@@ -75,7 +75,7 @@ public struct Feel: Equatable {
     public func phases(subdivisions: Int) -> [Double] {
         guard subdivisions > 1 else { return [0] }
         let straightPhases = (0..<subdivisions).map { Double($0) / Double(subdivisions) }
-        guard !isStraight, isBinary(subdivisions) else { return straightPhases }
+        guard !isStraight, Self.dividesBinarily(subdivisions) else { return straightPhases }
 
         // The pair is the finest division; swing shifts its second member within its own span.
         let pairSpan = 1.0 / Double(subdivisions / 2)
@@ -86,10 +86,17 @@ public struct Feel: Equatable {
 
     /// Whether this feel has any effect at a given rung. Triplets and undivided beats do not.
     public func applies(toSubdivisions subdivisions: Int) -> Bool {
-        !isStraight && isBinary(subdivisions)
+        !isStraight && Self.dividesBinarily(subdivisions)
     }
 
-    private func isBinary(_ subdivisions: Int) -> Bool {
+    /// Whether a beat divided this many ways has a *pair* for a swing to act on.
+    ///
+    /// Public because it was being reimplemented. `AppModel.feelApplies` tested
+    /// `subdivisions == 2 || subdivisions == 4`, which is the same answer as this for exactly
+    /// the four rungs that exist today and a different rule — a 32nd rung would swing here and
+    /// not there. Two places holding one value for different reasons is `LESSONS.md` shape 9,
+    /// and the guard it asks for is deriving from one source rather than keeping them in step.
+    public static func dividesBinarily(_ subdivisions: Int) -> Bool {
         subdivisions > 1 && subdivisions & (subdivisions - 1) == 0
     }
 
