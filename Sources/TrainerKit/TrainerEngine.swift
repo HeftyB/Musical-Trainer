@@ -490,7 +490,7 @@ public enum TrainerEngine {
             subdivisions: outcome.gridSubdivisions,
             markTimes: outcome.markTimes,
             phrasesAvailable: r.phrasesAvailable, marksPlaced: r.marksPlaced,
-            onFormCount: r.onFormCount, tightCount: r.tightCount,
+            onFormCount: r.onFormCount, tightCount: r.nailedCount,
             meanAbsFormErrorBars: Stats.finite(r.meanAbsFormErrorBars),
             phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
             phaseErrorSDms: Stats.finite(r.phaseErrorSDms),
@@ -948,7 +948,8 @@ public enum TrainerEngine {
             return HistoryEntry(
                 date: s.date,
                 title: "level \(s.level) · \(s.phraseBars)-bar phrases · \(Int(s.bpm)) BPM",
-                detail: "\(r.onFormCount)/\(r.marksPlaced) on form · \(r.tightCount) nailed",
+                detail: "\(r.onFormCount)/\(r.marksPlaced) on form · "
+                      + "\(r.cleanCount)/\(r.marksPlaced) clean",
                 feelRating: s.feelRating, headline: r.headline,
                 metric: r.onFormRate * 100, metricLabel: "on form (%)")
         }
@@ -1296,7 +1297,7 @@ public enum TrainerEngine {
         let forms = SessionStore.loadAllForm().map { session -> PlannerInput.Form in
             let r = session.report()
             return PlannerInput.Form(level: session.level, phraseBars: session.phraseBars,
-                                     onFormRate: r.onFormRate,
+                                     onFormRate: r.onFormRate, cleanRate: r.cleanRate,
                                      hasUnmarkedPhrases: !r.missedPhrases.isEmpty,
                                      markedEveryBars: r.markedEveryBars,
                                      wasProbe: session.wasProbe == true)

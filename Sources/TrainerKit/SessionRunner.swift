@@ -49,7 +49,7 @@ public final class SessionRunner {
                               o.report.meanAsynchronyMs, o.report.sdAsynchronyMs)
             case .form(let o):
                 return "\(o.report.onFormCount)/\(o.report.marksPlaced) on form · "
-                     + "\(o.report.tightCount) nailed"
+                     + "\(o.report.cleanCount)/\(o.report.marksPlaced) clean"
             case .dropout(let o):
                 let tempo = o.report.playedBpm.map { String(format: "%.0f BPM alone", $0) }
                 var split = "split unreliable"

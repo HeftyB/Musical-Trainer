@@ -320,7 +320,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 491 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 496 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (221 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -365,7 +365,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 712 tests, no hardware needed
+swift test                              # 717 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -627,6 +627,12 @@ interval`.
   recorded (4.2 ms). **The 8-bar figures moved in §7.25** — one of them was 40.7 / 20.9 and the
   other read 193.5 / 71.3, both inflated by a handful of hesitations feeding a variance. Anything
   quoting the old numbers is quoting the defect.
+- **The form drill measures two skills and they come apart.** §7.40 split them: `onFormRate` is
+  knowing which bar the phrase turns on, `cleanRate` is landing on a bar line at all. The corpus
+  holds a double dissociation — 5 Aug was 36% on form against 71% clean, 10 Aug was 100% against
+  32% — so a take can be strong on either axis and weak on the other. **The promotion rule still
+  reads `onFormRate` alone**; `cleanRate` is carried on `PlannerInput.Form` and read by nothing
+  until M16 step 1.
 - **Nothing in the drill trends is moving, and two "worsening" verdicts were retracted to get
   there** (§7.27). `review trend` now fits one line per task instead of one line and a caveat:
   the continuation clock SD was +1.32/take [+0.64, +3.05] *worsening* across pooled 2-, 4-, 8-

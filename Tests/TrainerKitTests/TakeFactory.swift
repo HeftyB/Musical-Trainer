@@ -82,7 +82,7 @@ enum TakeFactory {
             bpm: g.bpm, bars: 64,
             phraseBars: phraseBars, level: level, feelRating: 3, gridStartTime: g.startTime,
             subdivisions: g.subdivisions, markTimes: markTimes, phrasesAvailable: r.phrasesAvailable,
-            marksPlaced: r.marksPlaced, onFormCount: r.onFormCount, tightCount: r.tightCount,
+            marksPlaced: r.marksPlaced, onFormCount: r.onFormCount, tightCount: r.nailedCount,
             meanAbsFormErrorBars: Stats.finite(r.meanAbsFormErrorBars),
             phaseErrorMeanMs: Stats.finite(r.phaseErrorMeanMs),
             phaseErrorSDms: Stats.finite(r.phaseErrorSDms),

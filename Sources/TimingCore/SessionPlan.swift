@@ -328,6 +328,13 @@ public struct PlannerInput: Equatable {
         public let level: Int
         public let phraseBars: Int
         public let onFormRate: Double
+        /// The temporal axis: share of marks that landed on a bar line, whichever bar.
+        ///
+        /// **Written and read by nothing yet.** M16 step 1 promotes the temporal ladder on it,
+        /// and it lands first because a rule that arrives before its data scores the first takes
+        /// under something that then changes (§8.1.2). Defaulted so every existing caller and
+        /// every planted history keeps compiling and meaning what it did.
+        public let cleanRate: Double
         public let hasUnmarkedPhrases: Bool
         /// The sub-multiple the player actually marked, when they were consistent about one.
         /// A steady 4-bar feel against an 8-bar setting is a different finding from a lost
@@ -337,8 +344,10 @@ public struct PlannerInput: Equatable {
         /// earned. Excluded from everything that decides where the ladder currently stands.
         public let wasProbe: Bool
         public init(level: Int, phraseBars: Int, onFormRate: Double,
+                    cleanRate: Double = 0,
                     hasUnmarkedPhrases: Bool, markedEveryBars: Double?, wasProbe: Bool = false) {
             self.level = level; self.phraseBars = phraseBars; self.onFormRate = onFormRate
+            self.cleanRate = cleanRate
             self.hasUnmarkedPhrases = hasUnmarkedPhrases; self.markedEveryBars = markedEveryBars
             self.wasProbe = wasProbe
         }

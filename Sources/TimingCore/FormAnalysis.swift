@@ -21,21 +21,44 @@ public struct FormReport: Equatable {
     public let phrasesAvailable: Int
     public let marksPlaced: Int
 
+    // MARK: - The two axes, which are peers
+
+    /// **Spatial.** Marks on the right bar — did you know where you were?
     public let onFormCount: Int
     public let onFormRate: Double
-    /// On-form marks that also landed close to the downbeat. "Right bar" is a generous
-    /// criterion — half a bar is 1.2 s at 100 BPM — so this is the number that says you
-    /// actually *nailed* the turn rather than merely being in the right neighbourhood.
-    public let tightCount: Int
+
+    /// **Temporal.** Marks that landed close to a bar line, *whichever* bar line — could you
+    /// land on it?
+    ///
+    /// Counted over every mark rather than over the on-form ones, which is the change M16 step 0
+    /// exists for. Conditioning the temporal score on spatial success makes it a statistic about
+    /// a population that moves whenever the *other* axis improves: get better at knowing the bar
+    /// and more marks enter the pool, so the placement figure shifts for reasons that have
+    /// nothing to do with placement. A ladder promoted on that would be reading its own progress.
+    public let cleanCount: Int
+    public let cleanRate: Double
+
+    /// Both at once — the right bar *and* close to its downbeat. Still worth reporting, because
+    /// it is what "nailed it" means to a player, but it is the intersection of the two axes
+    /// rather than either of them, and nothing is promoted on it.
+    public let nailedCount: Int
     public let tightToleranceMs: Double
     /// Counts of each whole-bar error, e.g. `[0: 6, 1: 2]` — six on the money, two a bar late.
     public let formErrorHistogram: [Int: Int]
     public let meanAbsFormErrorBars: Double
 
-    /// Placement stats among on-form marks only. Including off-form marks would mix two
-    /// different quantities.
+    /// Placement against the nearest bar line, over **every** mark.
+    ///
+    /// Bounded to half a bar either way by construction, since the error is measured to the
+    /// *nearest* line. Unconditioned for the reason `cleanCount` is.
     public let phaseErrorMeanMs: Double
     public let phaseErrorSDms: Double
+
+    /// The same placement over on-form marks only — the cleaner read when the form was held,
+    /// and the honest answer to the objection that a mark a bar and a half out was not aiming
+    /// at the line it is being measured against. Reported beside the unconditioned figure
+    /// rather than instead of it; neither is promoted on.
+    public let onFormPhaseErrorSDms: Double
 
     /// Slope of form error against phrase index, in bars per phrase. Positive means the
     /// error grows as the take goes on — progressively losing the thread, which is a
@@ -121,10 +144,13 @@ public enum FormAnalysis {
             }
         }
 
-        let phaseErrors = onForm.map(\.phaseErrorMs)
+        // Unconditioned: every mark's distance to the nearest bar line. See `cleanCount`.
+        let phaseErrors = marks.map(\.phaseErrorMs)
+        let onFormPhaseErrors = onForm.map(\.phaseErrorMs)
         let onFormRate = marks.isEmpty ? 0 : Double(onForm.count) / Double(marks.count)
         let tightToleranceMs = tightToleranceBeats * grid.beatInterval * 1000
-        let tight = onForm.filter { abs($0.phaseErrorMs) <= tightToleranceMs }.count
+        let clean = marks.filter { abs($0.phaseErrorMs) <= tightToleranceMs }.count
+        let nailed = onForm.filter { abs($0.phaseErrorMs) <= tightToleranceMs }.count
 
         return FormReport(
             marks: marks,
@@ -132,20 +158,25 @@ public enum FormAnalysis {
             marksPlaced: marks.count,
             onFormCount: onForm.count,
             onFormRate: onFormRate,
-            tightCount: tight,
+            cleanCount: clean,
+            cleanRate: marks.isEmpty ? 0 : Double(clean) / Double(marks.count),
+            nailedCount: nailed,
             tightToleranceMs: tightToleranceMs,
             formErrorHistogram: histogram,
             meanAbsFormErrorBars: marks.isEmpty ? 0
                 : Stats.mean(marks.map { Double(abs($0.formErrorBars)) }),
             phaseErrorMeanMs: phaseErrors.isEmpty ? .nan : Stats.mean(phaseErrors),
             phaseErrorSDms: phaseErrors.count > 1 ? Stats.sd(phaseErrors) : .nan,
+            onFormPhaseErrorSDms: onFormPhaseErrors.count > 1
+                ? Stats.sd(onFormPhaseErrors) : .nan,
             slipBarsPerPhrase: slip,
             missedPhrases: missed,
             duplicatedPhrases: duplicated,
             markedEveryBars: markedEvery,
             headline: Self.headline(marks: marks, onFormRate: onFormRate, slip: slip,
                                     missed: missed.count, phrases: phrasesAvailable,
-                                    phaseSD: phaseErrors.count > 1 ? Stats.sd(phaseErrors) : .nan,
+                                    phaseSD: onFormPhaseErrors.count > 1
+                                        ? Stats.sd(onFormPhaseErrors) : .nan,
                                     markedEvery: markedEvery, phraseBars: barsPerPhrase))
     }
 
