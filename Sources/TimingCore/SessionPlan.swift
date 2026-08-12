@@ -503,6 +503,56 @@ public enum SessionPlanner {
     /// the player climbs it is not measuring anything.
     public static let ladderPromotionRate = 0.9
 
+    /// Which of the form drill's two ladders may move, and why that is one decision.
+    ///
+    /// Both gates can be open at once, and only one axis may move in a plan — two changes and the
+    /// next take differs from the last in two ways, so neither result says which change did it.
+    /// Until now *which* one moved was decided by the order the two branches happened to sit in,
+    /// which is `LESSONS.md` shape 5: a planner choice nobody made, invisible in a diff, and
+    /// changed by moving code. Naming it makes it a decision a test can reach.
+    public enum FormAxis: Equatable {
+        /// The levels — what the music tells you about *when* to land.
+        case temporal
+        /// The phrase span — how much music you hold your place across.
+        case spatial
+        /// Neither has been earned; the drill repeats.
+        case hold
+    }
+
+    /// The axis this plan may move.
+    ///
+    /// **The temporal ladder goes first when both are earned, and that is a measured preference
+    /// rather than a taste.** Advancing a level costs nothing: the same number of phrase tops
+    /// arrive and the same number of marks are placed. Growing the span costs data — at 96 bars an
+    /// 8-bar phrase yields twelve marks and a 16-bar phrase six — and `cleanRate` is computed over
+    /// marks placed, so every rung of the span ladder halves the sample the *other* ladder is
+    /// judged on (§7.43). Take the free rung first.
+    ///
+    /// **Strict alternation was the other candidate and is worse here.** It develops both skills in
+    /// parallel, which the double dissociation of §7.40 argues for — but parallel development is
+    /// self-defeating when one axis starves the other's measurement. What would change this: a
+    /// temporal ladder that stalls for many sittings while the spatial one is held behind it,
+    /// which would be the cost of this rule showing up as lost training rather than as lost data.
+    public static func formAxis(for last: PlannerInput.Form) -> FormAxis {
+        // A missed phrase top is the spatial failure this whole drill measures, and it also
+        // means few marks — so a rate computed over them is a rate over a thin sample. Neither
+        // ladder may climb past it.
+        guard !last.hasUnmarkedPhrases else { return .hold }
+
+        if last.cleanRate >= ladderPromotionRate, last.level < 3 { return .temporal }
+        if last.onFormRate >= ladderPromotionRate, nextSpan(after: last.phraseBars) != nil {
+            return .spatial
+        }
+        return .hold
+    }
+
+    /// The next rung up the span ladder, or `nil` at the top or off the ladder entirely.
+    public static func nextSpan(after phraseBars: Int) -> Int? {
+        guard let rung = phraseSpanLadder.firstIndex(of: phraseBars),
+              rung + 1 < phraseSpanLadder.count else { return nil }
+        return phraseSpanLadder[rung + 1]
+    }
+
     /// The phrase spans the spatial ladder climbs, shortest first.
     ///
     /// The progression the roadmap describes is 8 → 16 → 32; 4 is on the list because the
@@ -1109,20 +1159,20 @@ public enum SessionPlanner {
                        + "thing — chasing one take is how the setting started oscillating.")
         }
 
-        // **The level ladder is promoted on landing cleanly, not on knowing the bar.** What the
-        // levels remove are the cues that tell you *when* to land — level 0's crash confirms the
-        // arrival, level 1 takes it away, level 2 takes the fill that warned you. Thinning those
-        // makes the turn harder to *place*, so the rate that decides whether the player has
-        // outgrown them is the placement one (§7.41).
+        // **One decision, made once.** `formAxis` says which ladder may move and why; both
+        // branches below are consequences of it rather than two gates racing. Which axis moved
+        // used to depend on the order these sat in — shape 5 — and the property that only one
+        // moves is asserted across every level and span in `SpatialLadderTests`.
         //
-        // Reading `onFormRate` here promoted a player who knew exactly where he was and could not
-        // land on it: 25 of 25 on form and 8 of 25 clean would have thinned the landmarks again,
-        // taking away help on the axis that needed it. Phrase span is the other ladder and is
-        // promoted on `onFormRate` — that is M16 step 2.
-        //
-        // `hasUnmarkedPhrases` still gates, and now for a second reason: unmarked phrases mean
-        // few marks, so a clean rate computed over them is a rate over a thin sample.
-        if last.cleanRate >= ladderPromotionRate && !last.hasUnmarkedPhrases && last.level < 3 {
+        // The felt-period rule above returns before any of this, so a correction still outranks a
+        // promotion on either axis.
+        switch formAxis(for: last) {
+        case .temporal:
+            // The levels remove the cues that say *when* to land — level 0's crash confirms the
+            // arrival, level 1 takes it away, level 2 takes the fill that warned you. So landing
+            // cleanly is what earns the next one (§7.41). Reading `onFormRate` here promoted a
+            // player who knew exactly where he was and could not land on it: 25 of 25 on form
+            // and 8 of 25 clean would have thinned the landmarks again.
             let next = last.level + 1
             return SessionBlock(
                 role: .training,
@@ -1132,29 +1182,11 @@ public enum SessionPlanner {
                              + "nothing unmarked, so the landmarks thin out: level %d. The levels "
                              + "take away what tells you when to land, so landing cleanly is what "
                              + "earns the next one.", last.cleanRate * 100, next))
-        }
 
-        // **The span ladder is promoted on knowing the bar, which is the other axis.** Growing
-        // the phrase asks the player to hold their place across more music; it changes nothing
-        // about the cues that say when to land, and a longer phrase at the same level has exactly
-        // the same landmarks. So the rate that decides it is the spatial one (§7.43).
-        //
-        // **It sits after the level ladder, and that ordering is doing real work.** Both gates can
-        // be open at once — this player could clear one, the other, or both — and the early return
-        // means only one axis moves in any plan. Which one is currently decided by position, which
-        // is `LESSONS.md` shape 5's complaint about two blocks ordered by which was appended
-        // first; M16 step 3 is the chooser that makes it a decision rather than an accident. The
-        // guarantee that *only one* moves is asserted now, because it is the property that keeps a
-        // take comparable to the one before it.
-        //
-        // **The felt-period rule above is this ladder's demotion.** It returns before this, so a
-        // player who marks a shorter phrase twice running is moved back down to the span he is
-        // actually tracking — a correction beats a promotion, because promoting someone onto a
-        // span they are not following measures nothing.
-        if last.onFormRate >= ladderPromotionRate, !last.hasUnmarkedPhrases,
-           let rung = phraseSpanLadder.firstIndex(of: last.phraseBars),
-           rung + 1 < phraseSpanLadder.count {
-            let wider = phraseSpanLadder[rung + 1]
+        case .spatial:
+            // Growing the phrase asks the player to hold his place across more music and changes
+            // nothing about the landing cues, so knowing the bar is what earns it (§7.43).
+            guard let wider = nextSpan(after: last.phraseBars) else { break }
             return SessionBlock(
                 role: .training,
                 plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars,
@@ -1163,6 +1195,9 @@ public enum SessionPlanner {
                              + "phrase grows: %d bars at level %d. The span is about holding your "
                              + "place across more music, so knowing the bar is what earns it.",
                                last.onFormRate * 100, wider, last.level))
+
+        case .hold:
+            break
         }
 
         return SessionBlock(
