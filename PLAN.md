@@ -6624,6 +6624,88 @@ moving in the same sitting.
 
 ---
 
+## 7.42 The drill says how long a phrase is, and the backing question is answered
+
+Two things came out of playing a 16-bar phrase over the current form backing, which was the ear
+check §7.13 left open and step 2 was waiting on.
+
+### The backing stays as it is, and the reason is better than the question assumed
+
+§7.13 framed the risk as *"a 32-bar phrase over it is hypnotic well before the boundary arrives, and
+a player who has stopped listening is not being measured on form."* Hypnotic was assumed to be a
+flaw. The player's verdict, having played one:
+
+> *"The track was kind of hypnotic or repetitive however I would argue that is a feature not a flaw
+> for this exercise. Having a track that varies could give the user an unintended reference point
+> for timing."*
+
+**That is the stronger argument and it reverses the premise.** A backing with sectional variety hands
+the player landmarks the drill did not intend to give — a section change is a signpost, and this
+drill's whole ladder is about removing signposts. Uniformity is not the backing failing to be
+interesting; it is the control that makes the level mean what it says.
+
+So **option 1 — leave it** — and not as the cheap choice. `FormBacking` keeps its own patterns and
+step 2's span ladder runs on today's music.
+
+**What is left open, and it is a different idea rather than a smaller version of this one:** a
+backing that varies *non-uniformly* could be a deliberate distractor — training focus against
+changes that carry no timing information. That is an addition to the ladder rather than a fix to
+the backing, and nothing here is blocked on it.
+
+### The instructions were telling the player the wrong number
+
+The gap the same take found. `DrillInstructions.form` took only a level, and its first step read:
+
+```
+"A drum groove plays in phrases — 8 bars each by default."
+```
+
+**Hardcoded.** A 16-bar take announced 8. Not a missing statement — a wrong one, produced by text
+written independently of the configuration it describes, which is exactly R3.6 and exactly the shape
+§7.39 found in the Feel picker a fortnight earlier: a surface answering from its own assumption
+rather than from the thing that decided the state.
+
+**This drill makes it worse than it sounds, and the reason is worth stating.** Eight bars and sixteen
+bars of the same groove are *audibly identical*. At level 2 — no fills, no accent, no silence — the
+groove is uniform for the whole take, so nothing in the music distinguishes one phrase length from
+another and **the words are the only place the number exists.** At levels 0, 1 and 3 the boundary is
+marked by a fill, a crash or a silence, so the span is at least discoverable by ear; at level 2 it is
+not discoverable at all. Level 2 is where this player has been for eleven of his fourteen takes.
+
+What it costs is data rather than comfort: a player who believes the phrase is 8 bars when it is 16
+marks every 8 bars and is scored as a bar out, over and over, on a task he was performing correctly
+under the instruction he was given.
+
+**And it would have corrupted the planner, quietly.** `markedEveryBars` detects a player marking a
+period other than the configured one and, when two takes agree, follows it — the felt-period rule. A
+player mis-told the span marks the span he was told, twice, and the planner reads a *felt period*
+where there was only a misprint. The rule cannot tell those apart, and step 2 is about to start
+varying the span deliberately.
+
+`form(level:phraseBars:)` now, with the length as the first thing said, `forBlock` passing the
+`FormPlan`'s own value it already had in hand, and both surfaces passing theirs. At level 2 a second
+line says the music will not tell you, because being told the number is useless if you do not know
+it is the only copy.
+
+**Plain text, no markdown.** `consoleText` prints a step as-is and SwiftUI's `Text` does not parse a
+runtime string, so `**` arrives as literal asterisks on both surfaces. The number leads the sentence
+instead, which is the prominence that survives the medium.
+
+### What this does not do
+
+**The count-in is unchanged.** Making it the indicator was considered and does not scale: a count-in
+equal to the phrase is four bars of lead-in at a 4-bar phrase and thirty-two at a 32-bar one. The
+ladder's precedent — *the count-in is where the drill tells a player with their eyes shut what it is
+asking for* — encodes the task in the count-in's **content** rather than its length, and no short
+rhythm encodes an arbitrary bar count without inventing a code the player must learn.
+
+**So the number is stated, not sounded.** An audible demonstration of the span — a lead-in phrase at
+full landmarks, excluded from scoring — is the obvious next idea and is deliberately not built here:
+it changes what a take contains, and recomputing the corpus under it would score fourteen historical
+takes as though they had a demonstration phrase they never had.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -6647,11 +6729,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   724 cases
+└── Tests/                   728 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     381 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     221 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     225 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
