@@ -191,10 +191,17 @@ Hit **any pad** once per phrase, on the **downbeat where the groove settles back
 fill** — not during the fill. The fill is the warning; the downbeat right after it is the
 target. Play whatever you like on the keys in between; no counting.
 
-Each mark is scored on two separate axes: whole bars off the phrase top (**form error** — the
-spatial-awareness number) and placement against the bar line (**phase error**).
+Each mark is scored on **two separate skills, which come apart** — knowing which bar the phrase
+turns on (*on form*), and landing on a bar line at all (*clean*). A take can be strong on either
+and weak on the other, and the history holds both: one take was 36% on form and 71% clean, another
+100% and 32%.
 
-Levels remove the landmarks as you improve:
+So there are two ladders, and each is promoted on its own skill:
+
+| Ladder | What it changes | What earns the next rung |
+|---|---|---|
+| **Levels 0–3** | how much the music tells you *when* to land | landing cleanly |
+| **Phrase span** 4 → 8 → 16 → 32 bars | how much music you hold your place across | knowing the bar |
 
 | | |
 |---|---|
@@ -203,7 +210,13 @@ Levels remove the landmarks as you improve:
 | `2` | no fills — your own clock |
 | `3` | silence across the boundary — the turn happens with no band at all |
 
-The report tells you when you've earned the next one. `review form` shows your history.
+**Only one ladder moves per session**, so a take differs from the last one in one way and the
+result says which change did it.
+
+`review form` shows the history with both columns and a **felt** column — the phrase length you
+actually marked, whether or not it is the one that was asked for. Where those two disagree, every
+other number in the row is scored against a phrase you were not holding, which is worth knowing
+before reading them.
 
 To try a level before you have earned it, add `--probe` from the command line:
 

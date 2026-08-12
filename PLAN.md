@@ -218,8 +218,8 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 
 | # | Milestone | Proves / delivers |
 |---|---|---|
-| **M0** | **Timing spike + ground-truth rig (console)** | Click, Launchkey capture, host-time ↔ sample-index bridge, and the §4.2 two-path validation with its four automated pass criteria. **The whole project rests on this.** Also yields the Launchkey's key-scan latency as a by-product. |
-| **M1** | Calibration | Chirp loopback cross-correlation via built-in mic; Bluetooth detection + refusal; per-device storage with reference-derived constants for devices that skip the full run. See §7.2. |
+| **M0** | ✅ **Timing spike + ground-truth rig (console)** | Click, Launchkey capture, host-time ↔ sample-index bridge, and the §4.2 two-path validation with its four automated pass criteria. **The whole project rests on this.** Also yields the Launchkey's key-scan latency as a by-product. |
+| **M1** | ✅ Calibration | Chirp loopback cross-correlation via built-in mic; Bluetooth detection + refusal; per-device storage with reference-derived constants for devices that skip the full run. See §7.2. |
 | **M2** | `TimingCore` + tests | ✅ Done. Pure analysis module, 25 XCTest cases against synthetic ground truth. See §7.3. |
 | **M3** | Groove engine | ✅ Done. `GrooveCore` (patterns, sequencer, dropout ladder) + synthesized kit + `GroovePlayer`. See §7.4. |
 | **M4** | Jam capture loop | ✅ Done (console). `jam` records a take against the groove, applies calibration, runs the report, saves the session. SwiftUI shell deferred — see §7.5. **First version you actually practice with.** |
@@ -232,16 +232,16 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M11** | Clock stability drills | ✅ Done. The recall drill: is the period stored, or only held by keeping it running? See §7.16. |
 | **M12** | What you play | ✅ Done. Content measured per window against timing, within-take. See §7.18. |
 | **M13** | Experiment runner | ✅ Done. Preregistered A/B experiments: arms assigned and counterbalanced before play, no verdict before the declared n. See §7.22. |
-| **M14** | Subdivision ladder + tempo | ✅ Built, **never run live**. Rungs, tempo ceilings derived from the matching window, a tempo-rotating training block, and `slow-vs-fast`. See §7.23. |
-| **M15** | The feels | Swing, jazz comping, ska/reggae offbeat, latin. Placement as style, not error. |
-| **M16** | Form ladder v2 | Phrase length as a trained variable, after the 4-bar finding. |
+| **M14** | Subdivision ladder + tempo | ✅ Done. Rungs, tempo ceilings derived from the matching window, a tempo-rotating training block, and `slow-vs-fast`. Six ladder takes on record across 80–140 BPM. See §7.23. |
+| **M15** | The feels | ✅ Done. Swing measured as placement, and the ska/reggae offbeat drill. Three offbeat takes and two swung ones. **Jazz comping moved to M23** and latin was never scoped — the original line promised both. See §7.24, §7.38. |
+| **M16** | Form ladder v2 | ✅ Done, steps 0–4. The form drill's two axes split into peers, then a ladder each: the levels promoted on landing cleanly, the phrase span on knowing the bar, and a named chooser between them. See §7.26 and §7.40–§7.45. |
 | **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. |
 | **M18** | Longitudinal model | Within-session vs between-session effects, separated properly. |
-| **M19** | Musical depth | Enough variety that a 30-minute session stays worth doing. |
+| **M19** | Musical depth | ✅ Done and proven live. A style format, a bass, four approved styles, a seeded arranger, and the planner picking a band for the closing jam. See §7.29, §7.33, §7.34. |
 | **M20** | Drum mode | Pads and keys become the kit; the click becomes the band. |
 | **M21** | Guitar input | Audio onset detection. Needs an interface. |
 | **M22** | Computer-keyboard input | For anyone who doesn't own a MIDI controller. |
-| **T1** | **Test infrastructure — the take factory** | A different axis from the M-sequence: what the project can verify about itself. Synthetic takes, a degenerate corpus, a macOS-only `TrainerKitTests` target, and a seam under the drill runners. Ordered **before M13's storage step**. See §7.22. |
+| **T1** | ✅ **Test infrastructure — the take factory** | A different axis from the M-sequence: what the project can verify about itself. Synthetic takes, a degenerate corpus, a macOS-only `TrainerKitTests` target, and a seam under the drill runners. Ordered **before M13's storage step**. See §7.22. |
 | — | *Later* | TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
 
 ---
@@ -912,12 +912,14 @@ phrase to 32 bars and there was no backing that sustains 32 bars, so the ladder 
 built on music that cannot carry it; M16.5's organ bubble needs a triplet skank backing, and M19 is
 where the pattern format is settled. Building M19 second would have meant revisiting both.
 
-**That dependency is discharged: M19 is built (§7.33) and M16 is next.** What M19 did *not* settle
-is whether the form drill's own backing should draw on a style — `FormBacking` builds its own
-patterns and has no sectional variety, so a 32-bar phrase over it is hypnotic well before the
-boundary arrives, and a player who has stopped listening is not being measured on form. That is
-M16's first open question rather than an assumption to inherit, and whatever a style contributes
-has to sit under §2's invariant: nothing louder than the groove except on the beat being marked.
+**That dependency is discharged and both are built**: M19 with a live run (§7.33, §7.34), M16 as
+steps 0–4 (§7.40–§7.45). What M19 did *not* settle was whether the form drill's own backing should
+draw on a style — `FormBacking` builds its own patterns and has no sectional variety, and the
+worry was that a 32-bar phrase over it would be hypnotic well before the boundary arrived.
+**Answered by playing one, and the answer was the opposite of the worry** (§7.42): uniformity is
+the control that makes a level mean what it says, because a backing that varies hands the player
+timing landmarks the ladder exists to remove. The hypnotic risk is real for a long *jam*, which is
+what M19's styles are for, and this drill is a different task.
 
 **What does not wait for M19 is M16's other axis.** The decision below splits form into a
 spatial ladder and a temporal one, and only the spatial one needs longer music — levels 0→3 at a
