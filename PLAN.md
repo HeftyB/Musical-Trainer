@@ -6786,6 +6786,74 @@ decision — one axis per sitting, with a test that it never moves both.
 
 ---
 
+## 7.44 M16 step 3 — the chooser, and why the temporal ladder goes first
+
+Steps 1 and 2 gave each ladder its own axis. Both gates can be open at once, and only one may move
+— that property was already asserted in step 2. What was missing was *which*.
+
+### The choice was being made by the order of two branches
+
+Nothing chose. The level ladder's `if` sat above the span ladder's, the first match returned, and
+the preference that produced was invisible: not in a diff, not in a test, and changed by moving
+code. That is `LESSONS.md` shape 5 — two planner blocks ordered by which was appended first, which
+dropped form from every 20-minute session once already.
+
+`SessionPlanner.formAxis(for:)` is the decision now, with a name, three cases and its own tests.
+Both branches in the form block are consequences of it rather than gates racing each other.
+
+### The temporal ladder goes first, and that is measured rather than preferred
+
+**Advancing a level costs nothing.** The same phrase tops arrive, the same marks are placed, and
+both rates are computed over the same sample as before.
+
+**Growing the span costs data.** At 96 bars an 8-bar phrase yields twelve marks and a 16-bar phrase
+six, and `cleanRate` is a rate over marks placed — so every rung of the span ladder halves the
+sample the *other* ladder is judged on (§7.43). A ladder whose measurement gets noisier each time
+its neighbour advances is a ladder that will stall for reasons that have nothing to do with the
+player.
+
+So when both are earned, take the free rung. **It is an ordering and not a veto**: when the level is
+at the top the span moves the same sitting, rather than the opportunity being wasted.
+
+### Strict alternation was the other candidate
+
+It develops both skills in parallel, which §7.40's double dissociation is an argument for — they are
+genuinely separate skills in different states, and there is no reason to train them serially.
+
+It loses on the same measurement. Parallel development is self-defeating when one axis starves the
+other's sample: alternating would grow the span on schedule regardless of whether the temporal
+ladder was still moving, and the temporal ladder is this player's weak axis and the one with
+*"enormous room"*.
+
+**What would change it:** a temporal ladder that stalls for many sittings while the spatial one is
+held behind it. That is the cost of this rule, and it would show up as lost *training* rather than
+as lost data — the opposite trade from the one being avoided. The rule is a preference between two
+defensible options, not a proof, and it is worth revisiting the first time the level ladder sits
+still for a month.
+
+### What is guarded
+
+`FormAxisChooserTests` asserts the decision directly rather than through the plan it produces:
+each axis chosen by its own rate, both-earned choosing temporal, the span still moving when the
+level is topped, unmarked phrases holding both, and the bar being *met* rather than beaten — a
+ladder that needed the threshold beaten would make the stated number wrong by a hundredth.
+
+Flipping the preference fails it. `SpatialLadderTests.testOnlyOneAxisMovesInAnyPlan` still pins the
+only-one property across every level and span, and the felt-period rule still returns before all of
+it, so a correction outranks a promotion on either axis.
+
+### Where this leaves M16
+
+Steps 0 through 3 are done: the axes are peers (§7.40), the levels are the temporal ladder (§7.41),
+the span is the spatial one (§7.43), and the chooser decides between them. **Step 4 is surfaces and
+documentation**, and it is the only one left.
+
+Nothing has been *played* under any of it. The planner currently holds this player at level 2 over
+16 bars with both rates below the bar — 43% on form, 14% clean — so the first thing the chooser will
+do on real data is nothing, which is the correct answer and not a test of it.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -6809,9 +6877,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   736 cases
+└── Tests/                   745 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     389 cases against synthetic ground truth
+    ├── TimingCoreTests/     398 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     225 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
