@@ -321,7 +321,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 503 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (221 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (225 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -365,7 +365,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 724 tests, no hardware needed
+swift test                              # 728 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -635,6 +635,12 @@ interval`.
   which bar; on the real corpus the old rule promoted him to level 3, the top, off a take he
   landed 32% of. Phrase span is the other ladder and still reads `onFormRate` — that is step 2.
   `SessionPlanner.ladderPromotionRate` is the one bar both clear.
+- **The form drill's instructions state the phrase length** (§7.42). They were hardcoded to "8 bars
+  each by default" whatever ran, and 8 and 16 bars of the same groove are audibly identical — at
+  level 2 there are no fills, accent or silence, so the words are the *only* place the number
+  exists. A player mis-told the span marks the span he was told, and `markedEveryBars` would have
+  read that as a felt period. **The form backing stays uniform on purpose**: a varying one would
+  hand the player timing landmarks the ladder exists to remove.
 - **Nothing in the drill trends is moving, and two "worsening" verdicts were retracted to get
   there** (§7.27). `review trend` now fits one line per task instead of one line and a caveat:
   the continuation clock SD was +1.32/take [+0.64, +3.05] *worsening* across pooled 2-, 4-, 8-
