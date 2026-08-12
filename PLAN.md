@@ -6639,10 +6639,18 @@ flaw. The player's verdict, having played one:
 > for this exercise. Having a track that varies could give the user an unintended reference point
 > for timing."*
 
-**That is the stronger argument and it reverses the premise.** A backing with sectional variety hands
-the player landmarks the drill did not intend to give — a section change is a signpost, and this
-drill's whole ladder is about removing signposts. Uniformity is not the backing failing to be
-interesting; it is the control that makes the level mean what it says.
+**That is the stronger argument, and what it does is scope the premise rather than reverse it.** A
+backing with sectional variety hands the player landmarks the drill did not intend to give — a
+section change is a signpost, and this drill's whole ladder is about removing signposts. Uniformity
+is not the backing failing to be interesting; it is the control that makes the level mean what it
+says.
+
+**The hypnotic risk is real everywhere else, and M19 exists because of it.** The player is explicit
+that a varying track makes a long jam better and easier to lock into, which is exactly what §7.29's
+styles, intensity arcs and sectional arrangements were built for. Nothing here argues against that.
+What is being said is narrower and only about this drill: **the form drill is a different task and
+is treated as one.** A jam wants music worth playing over for seven minutes; the form drill wants
+music that says nothing about where you are.
 
 So **option 1 — leave it** — and not as the cheap choice. `FormBacking` keeps its own patterns and
 step 2's span ladder runs on today's music.
@@ -6706,6 +6714,78 @@ takes as though they had a demonstration phrase they never had.
 
 ---
 
+## 7.43 M16 step 2 — the phrase span becomes the spatial ladder
+
+The other half of the split. Step 1 made the levels a ladder about landing; this makes the phrase
+length a ladder about holding your place, and gives it the axis step 0 separated.
+
+### Why the span reads the spatial rate
+
+Growing the phrase asks the player to carry his position across more music. It changes nothing about
+the cues that say *when* to land — **a 32-bar phrase at level 2 has exactly the landmarks an 8-bar
+phrase at level 2 has**, which is none. So the rate that decides it is the spatial one, and the two
+ladders now read the axis each is actually about:
+
+| ladder | moves | promoted on |
+|---|---|---|
+| Levels 0–3 | which cues are removed | `cleanRate` — landing |
+| Span 4 → 8 → 16 → 32 | how much music you hold your place across | `onFormRate` — knowing the bar |
+
+The rungs are the spans the drill offers, so the ladder can never ask for a length the player cannot
+also choose by hand. The roadmap describes the progression as 8 → 16 → 32; 4 is on the list because
+the felt-period rule can put a player there, and a ladder has to know where its rungs are rather
+than only where it prefers to start.
+
+### The felt-period rule is this ladder's demotion
+
+It returns before the span ladder, so a player who marks a shorter phrase twice running is moved
+back to the span he is actually tracking. **A correction beats a promotion**, because promoting
+someone onto a span they are not following measures nothing — and the ladder has no demotion of its
+own, so this is the only thing that walks it back down.
+
+### Only one axis moves in a plan, and that is asserted rather than assumed
+
+Both gates can be open at once. The early return means only one ever fires, and
+`SpatialLadderTests.testOnlyOneAxisMovesInAnyPlan` pins that across every level and span
+combination, because it is the property that keeps one take comparable to the one before it: two
+changes at once and neither result says which change did it.
+
+**Which one fires is currently decided by position in the function**, and that is `LESSONS.md`
+shape 5's complaint about two blocks ordered by which was appended first. Step 3's chooser is what
+turns it into a decision. The guarantee that *only one* moves is locked now; the choice of which is
+not yet.
+
+### A test from step 1 caught the interaction, and the behaviour was right
+
+`testTheReasonNamesLandingRatherThanForm` planted 100% on form with 32% clean and asserted the held
+level explained itself in terms of landing. With the span ladder in, that take no longer holds — it
+**earns a longer phrase**, which is the correct answer and a different sentence. The plant moved to
+rates below both bars so the hold reason is what speaks.
+
+That is the split doing what it was built for: the axis the player is strong on advances while the
+one he is weak on holds, from a single take, with no rule reading the wrong number.
+
+### The cost worth stating: a longer span thins the temporal sample
+
+At 96 bars an 8-bar phrase yields twelve marks and a 16-bar phrase yields six. So every rung of the
+span ladder **halves the number of observations the *other* axis gets per take**, and `cleanRate` is
+computed over marks placed.
+
+Nothing is wrong with the number — it is a rate, and it stays a rate. What shrinks is its precision,
+so a temporal ladder that will not move gets slower to move as the spatial one climbs. That is a
+real argument for step 3's chooser being more than tidiness: alternating the axis keeps takes at the
+shorter span in the record rather than letting the span run away from the axis that needs the data.
+
+### What this step does not do
+
+**No demotion of its own**, as above — the felt-period rule is the only way back down, and it fires
+on a felt period rather than on a poor rate.
+
+**The chooser does not exist.** Which axis moves is positional, and step 3 is what makes it a
+decision — one axis per sitting, with a test that it never moves both.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -6729,9 +6809,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   728 cases
+└── Tests/                   736 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     381 cases against synthetic ground truth
+    ├── TimingCoreTests/     389 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     225 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
