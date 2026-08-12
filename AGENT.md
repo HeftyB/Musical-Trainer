@@ -320,7 +320,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 503 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 511 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (225 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -365,7 +365,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 728 tests, no hardware needed
+swift test                              # 736 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -634,7 +634,11 @@ interval`.
   `cleanRate` as of §7.41**, because every rung removes a cue about *when* to land and none about
   which bar; on the real corpus the old rule promoted him to level 3, the top, off a take he
   landed 32% of. Phrase span is the other ladder and still reads `onFormRate` — that is step 2.
-  `SessionPlanner.ladderPromotionRate` is the one bar both clear.
+  `SessionPlanner.ladderPromotionRate` is the one bar both clear. **The phrase span is the other
+  ladder** (§7.43), 4→8→16→32 promoted on `onFormRate`, with the felt-period rule as its only
+  demotion. Only one axis moves in any plan and there is a test across every combination; *which*
+  one is still positional until step 3's chooser. A longer span halves the marks per take, so it
+  thins the sample the temporal axis is measured on.
 - **The form drill's instructions state the phrase length** (§7.42). They were hardcoded to "8 bars
   each by default" whatever ran, and 8 and 16 bars of the same groove are audibly identical — at
   level 2 there are no fills, accent or silence, so the words are the *only* place the number
