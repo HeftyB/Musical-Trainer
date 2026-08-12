@@ -290,12 +290,13 @@ happened to be played first, which is why that readout carries a warning saying 
 
 Both front ends drive `TrainerEngine`; neither contains measurement logic.
 
-**App** (`./build-app.sh`): Session (a planned evening), six single-take modes — Jam, Form,
-Alone, Tempo, Recall, Play — and History. Jam, Alone and Tempo carry a **subdivision picker**
+**App** (`./build-app.sh`): Session (a planned evening), seven single-take modes — Jam, Offbeat,
+Form, Alone, Tempo, Recall, Play — and History. Jam, Alone and Tempo carry a **subdivision picker**
 that offers only the rungs the chosen tempo can score honestly, and a Jam on a binary rung can
 also be **swung**. Jam and Play carry a **band picker** offering the approved styles only — the two
-clamp each other, since a rung and a style cannot both play. The offbeat drill is CLI-only so far,
-and it is now the one surface gap left.
+clamp each other, since a rung and a style cannot both play. **Offbeat is an app mode as of §7.39**,
+with a Downbeat picker over all four levels and a default tempo of 70 rather than 100 — there are no
+surface gaps left.
 
 **CLI** (`./.build/release/TimingSpike <command>`): everything the app does, plus calibration
 and the M0 diagnostics. `TimingSpike` with no argument prints the full command list; README.md
@@ -319,8 +320,8 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 485 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (219 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 491 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (221 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -364,7 +365,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 704 tests, no hardware needed
+swift test                              # 712 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -514,7 +515,8 @@ Types worth knowing before changing anything:
   **slipped** — 26 of 112 notes off the beat — and a second one **held**, 248 of 258 at 69 BPM
   (§7.38), which is the drill's first held skank. The swing block's misfire on a held one
   (§7.24 step 8) is still closed by test rather than by observation.
-- **The offbeat drill is CLI-only.** No app mode yet — the one surface gap M15 leaves.
+- **The offbeat drill now has an app mode** (§7.39), but nothing has been recorded from it — both
+  offbeat takes on record came from the console.
 - **`selftest` covers the analysis pipeline against synthetic ground truth**, not storage — that
   moved to `TrainerKitTests` with T1.
 - **Backings are tested for pattern structure only.** Whether a groove is playable-along-to is a

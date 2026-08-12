@@ -6392,7 +6392,68 @@ which is exactly the confound `TakeAxis` splits groups for (shape 19). Not a fin
 
 ---
 
-## 8. Project layout
+## 7.39 The last surface gap closes, and the Feel picker stops lying
+
+M15 left the offbeat drill CLI-only and §7.34 found the app explaining a disabled Feel picker by
+talking about triplets when the rung was quarters. Those turned out to be the same defect wearing
+two coats: **a surface answering a question it should have been asking.**
+
+### The Feel picker's wrong explanation was a duplicated rule, not bad wording
+
+`AppModel.feelApplies` tested `rung.subdivisions == 2 || rung.subdivisions == 4`, while the engine
+tests `Feel.applies(toSubdivisions:)`, which is *is this a power of two above one*. Those agree for
+exactly the four rungs that exist today and are different rules — a 32nd rung would swing in the
+engine and not in the picker. `LESSONS.md` shape 9, sitting under a visible bug rather than causing
+one yet.
+
+The wording was downstream of it. Having decided for itself that a rung could not swing, the app had
+nothing to say about *why*, so it said the same sentence every time — and that sentence was true of
+triplet eighths and irrelevant to quarters.
+
+**Both now come from the rung.** `IntervalRung.canSwing` derives from the same
+`Feel.dividesBinarily` the engine uses, and `swingUnavailableReason` carries the reason, switched
+exhaustively with no `default` so a new rung cannot be added without deciding what it says.
+`SwingAvailabilityTests` requires the two to agree, requires quarters *not* to mention triplets, and
+pins the rule as a power-of-two test rather than as the two rungs it happens to be today.
+
+**The reason belongs on the rung rather than at the surface**, and the argument generalises: a
+control that explains itself has to derive the explanation from the same thing that decided the
+state, or the two drift and the explanation is worse than silence. It sent the player looking for
+the offbeat drill in the Feel picker, which is how the missing mode was found.
+
+### The offbeat drill in the app
+
+`Mode.offbeat`, a Downbeat picker over all four levels, and the level's own `advice` under it. No
+gate: the CLI never gated the levels either, and `--probe` there only marks the take rather than
+unlocking it, so there is nothing for the app to withhold.
+
+**The take is a jam carrying a level, not a separate engine path.** Both surfaces now build it
+through `JamConfig.offbeat(bpm:bars:level:)` — one constructor, because the rule has to match and
+not merely the fields: tagged `offbeat` so console and app takes pool as one condition rather than
+two meaning the same thing, and carrying neither rung nor feel. Extracted for the reason
+`SessionRunner.jamConfig(for:)` was, and the same shape-1 story sits behind both.
+
+**The results screen gets the offbeat readout**, recomputed exactly as the console recomputes it,
+with slipping shown **above and apart from** placement. A slipped player is dead on a grid point —
+the wrong one — so a placement figure alone would call a lost feel an excellent take. Without this
+the app would have shown a skank as an ordinary jam: the take's identity surviving storage and then
+dying at the surface, one step further along than §7.24 step 8's version of the same failure.
+
+**Entering the mode moves the tempo to 70**, and only from the app's default of 100, so a tempo
+deliberately chosen is never overwritten. The advice line states the geometry — how many
+milliseconds from the beat the chop lands at the chosen tempo — and the two takes there are, and
+stops there. **No threshold**, because one take at each of two tempos cannot support one and a
+number that reads as measured would be shape 11 in a tooltip.
+
+### What this does not cover
+
+**None of the app path is tested, because none of it can be.** `MusicalTrainerApp` has no test
+target: the config both surfaces build is now testable and tested, and the picker, the mode wiring
+and the results view are verified only by the build and by playing it (R5.6). The mode is present in
+the built binary; whether it reads well is a live-run question.
+
+**Nothing has been recorded from the app's offbeat mode**, so the surface is unproven in the way
+every surface here starts out. The two takes in §7.38 are both from the console.
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
 two pure modules are what make the numbers testable, and the rule that keeps them honest is that
@@ -6415,11 +6476,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   704 cases
+└── Tests/                   712 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     363 cases against synthetic ground truth
+    ├── TimingCoreTests/     369 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     219 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     221 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
