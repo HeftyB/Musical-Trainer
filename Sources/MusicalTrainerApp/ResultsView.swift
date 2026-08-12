@@ -439,18 +439,24 @@ private struct FormResults: View {
                + "level \(outcome.config.level.rawValue)")
                 .font(.callout).foregroundStyle(.secondary)
 
+            // Two peers, side by side and equally weighted, because they are different skills
+            // in different states — knowing the bar and landing on it (§7.40). "Both" is the
+            // intersection and is deliberately the quieter of the three.
             Card {
                 HStack(alignment: .top, spacing: 24) {
                     Metric(label: "On the right bar",
                            value: "\(report.onFormCount)/\(report.marksPlaced)",
-                           note: "form sense", emphasis: true)
-                    Metric(label: "Nailed it",
-                           value: "\(report.tightCount)/\(report.marksPlaced)",
-                           note: "within \(Int(report.tightToleranceMs)) ms", emphasis: true)
+                           note: "knowing where you are", emphasis: true)
+                    Metric(label: "On a bar line",
+                           value: "\(report.cleanCount)/\(report.marksPlaced)",
+                           note: "landing on it, whichever bar", emphasis: true)
+                    Metric(label: "Both",
+                           value: "\(report.nailedCount)/\(report.marksPlaced)",
+                           note: "within \(Int(report.tightToleranceMs)) ms of the right downbeat")
                     if !report.phaseErrorMeanMs.isNaN {
                         Metric(label: "Placement",
                                value: report.phaseErrorMeanMs.signedMsLabel,
-                               note: reactionNote, emphasis: true)
+                               note: reactionNote)
                     }
                 }
             }

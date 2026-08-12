@@ -976,12 +976,14 @@ public enum Commands {
             print("No form drills yet. Try:  TimingSpike form 100 64 8 0")
             return
         }
-        print("\(pad("When", 22))\(pad("lvl", 5))\(pad("phrase", 8))\(pad("on form", 10))\(pad("nailed", 9))slip")
+        print("\(pad("When", 22))\(pad("lvl", 5))\(pad("phrase", 8))\(pad("on form", 10))"
+            + "\(pad("clean", 9))\(pad("both", 9))slip")
         for s in sessions {
             // Re-analysed from the stored marks so an analysis fix reaches older takes.
             let r = s.report()
             let onForm = "\(r.onFormCount)/\(r.marksPlaced)"
-            let tight = "\(r.tightCount)/\(r.marksPlaced)"
+            let clean = "\(r.cleanCount)/\(r.marksPlaced)"
+            let tight = "\(r.nailedCount)/\(r.marksPlaced)"
             let slip = r.slipBarsPerPhrase.map { String(format: "%+.2f", $0) } ?? "—"
             // A probe is marked in the ladder it is not part of. Without this a level the
             // player was handed for one take reads as a level they climbed to, which is the
@@ -989,9 +991,13 @@ public enum Commands {
             let probe = s.wasProbe == true
             let level = probe ? "\(s.level)*" : "\(s.level)"
             print("\(pad(dateLabel(s.date), 22))\(pad(level, 5))"
-                + "\(pad("\(s.phraseBars) bars", 8))\(pad(onForm, 10))\(pad(tight, 9))\(slip)")
+                + "\(pad("\(s.phraseBars) bars", 8))\(pad(onForm, 10))"
+                + "\(pad(clean, 9))\(pad(tight, 9))\(slip)")
         }
-        print("\n\(Console.dim)\"nailed\" = on the right bar AND close to the downbeat.\(Console.reset)")
+        print("\n\(Console.dim)Two different skills, side by side. \"on form\" is knowing which "
+            + "bar the phrase turns on;\n\"clean\" is landing on a bar line at all, whichever one. "
+            + "\"both\" is their overlap and is\nneither axis — nothing is promoted on "
+            + "it.\(Console.reset)")
         if sessions.contains(where: { $0.wasProbe == true }) {
             print("\(Console.dim)* a probe — a level run for the reading, not one you earned. "
                 + "The ladder ignores these.\(Console.reset)")
@@ -2086,8 +2092,10 @@ public enum Commands {
 
         let pct = Int((report.onFormRate * 100).rounded())
         print("On the right bar: \(report.onFormCount)/\(report.marksPlaced)  (\(pct)%)")
-        print("Nailed it:        \(report.tightCount)/\(report.marksPlaced)"
-            + "  \(Console.dim)(within \(Console.ms(report.tightToleranceMs, 0)) of the downbeat)\(Console.reset)")
+        print("On a bar line:    \(report.cleanCount)/\(report.marksPlaced)"
+            + "  \(Console.dim)(within \(Console.ms(report.tightToleranceMs, 0)), whichever bar)\(Console.reset)")
+        print("Both at once:     \(report.nailedCount)/\(report.marksPlaced)"
+            + "  \(Console.dim)(the right bar and its downbeat)\(Console.reset)")
 
         // The histogram is the clearest picture of *how* the form is missed.
         let keys = report.formErrorHistogram.keys.sorted()
