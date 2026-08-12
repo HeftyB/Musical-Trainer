@@ -489,6 +489,20 @@ public enum SessionPlanner {
     /// should not keep being scheduled because it once went badly.
     public static let recentWindow = 6
 
+    /// The bar a ladder has to clear before it advances, on whichever axis it measures.
+    ///
+    /// **One standard for two skills, named once rather than written twice.** The form drill's
+    /// levels are promoted on landing cleanly and its phrase span on knowing the bar (§7.41), and
+    /// asking a different number of each would invite the question "why 0.8 here and 0.9 there"
+    /// with no answer available. Written as a shared constant so the two cannot drift into being
+    /// the same value for different reasons, which is `LESSONS.md` shape 9.
+    ///
+    /// **It is deliberately not tuned to make this player advance.** At the time it was set his
+    /// clean rate ran 12–100% with a recent best of 76%, so the temporal ladder holds him where
+    /// he is — which is the correct behaviour for a skill he has not got. A ladder tuned until
+    /// the player climbs it is not measuring anything.
+    public static let ladderPromotionRate = 0.9
+
     /// How much drill a session of a given length can hold.
     ///
     /// A longer session buys **longer takes, not more of them.** There are only three
@@ -1087,22 +1101,40 @@ public enum SessionPlanner {
                        + "thing — chasing one take is how the setting started oscillating.")
         }
 
-        if last.onFormRate >= 0.9 && !last.hasUnmarkedPhrases && last.level < 3 {
+        // **The level ladder is promoted on landing cleanly, not on knowing the bar.** What the
+        // levels remove are the cues that tell you *when* to land — level 0's crash confirms the
+        // arrival, level 1 takes it away, level 2 takes the fill that warned you. Thinning those
+        // makes the turn harder to *place*, so the rate that decides whether the player has
+        // outgrown them is the placement one (§7.41).
+        //
+        // Reading `onFormRate` here promoted a player who knew exactly where he was and could not
+        // land on it: 25 of 25 on form and 8 of 25 clean would have thinned the landmarks again,
+        // taking away help on the axis that needed it. Phrase span is the other ladder and is
+        // promoted on `onFormRate` — that is M16 step 2.
+        //
+        // `hasUnmarkedPhrases` still gates, and now for a second reason: unmarked phrases mean
+        // few marks, so a clean rate computed over them is a rate over a thin sample.
+        if last.cleanRate >= ladderPromotionRate && !last.hasUnmarkedPhrases && last.level < 3 {
             let next = last.level + 1
             return SessionBlock(
                 role: .training,
                 plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars,
                                      phraseBars: last.phraseBars, level: next)),
-                reason: String(format: "%.0f%% on form last time with nothing unmarked, so the "
-                             + "landmarks thin out: level %d.", last.onFormRate * 100, next))
+                reason: String(format: "%.0f%% of your marks landed on a bar line last time with "
+                             + "nothing unmarked, so the landmarks thin out: level %d. The levels "
+                             + "take away what tells you when to land, so landing cleanly is what "
+                             + "earns the next one.", last.cleanRate * 100, next))
         }
 
         return SessionBlock(
             role: .training,
             plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars,
                                  phraseBars: last.phraseBars, level: last.level)),
-            reason: String(format: "%.0f%% on form last time — stay at level %d until it is "
-                         + "above 90%% with nothing unmarked.", last.onFormRate * 100, last.level))
+            reason: String(format: "%.0f%% on form last time and %.0f%% landed on a bar line. The "
+                         + "levels are about landing, so level %d holds until that is above "
+                         + "%.0f%% with nothing unmarked.",
+                           last.onFormRate * 100, last.cleanRate * 100, last.level,
+                           ladderPromotionRate * 100))
     }
 
     private static func mean(_ x: [Double]) -> Double? {
