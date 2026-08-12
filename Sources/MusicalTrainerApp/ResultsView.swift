@@ -442,6 +442,27 @@ private struct FormResults: View {
             // Two peers, side by side and equally weighted, because they are different skills
             // in different states — knowing the bar and landing on it (§7.40). "Both" is the
             // intersection and is deliberately the quieter of the three.
+            // What the player actually marked, above the figures that score it against the
+            // setting. When the two disagree every number below is measured against a phrase
+            // that was not being held, and saying so afterwards would be too late to read
+            // them correctly (§7.45).
+            if let felt = report.markedEveryBars,
+               abs(felt - Double(outcome.config.phraseBars)) > 1 {
+                Card {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(String(format: "You marked a steady %.1f-bar phrase against the "
+                                   + "%d-bar setting.", felt, outcome.config.phraseBars),
+                              systemImage: "waveform.path.ecg")
+                            .font(.callout).fontWeight(.semibold).foregroundStyle(.orange)
+                        Text("That is a consistent feel rather than a lost one. The figures "
+                           + "below score it against \(outcome.config.phraseBars) bars — set the "
+                           + "phrase to \(Int(felt.rounded())) to measure what you are holding.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
             Card {
                 HStack(alignment: .top, spacing: 24) {
                     Metric(label: "On the right bar",

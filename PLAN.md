@@ -6854,6 +6854,84 @@ do on real data is nothing, which is the correct answer and not a test of it.
 
 ---
 
+## 7.45 M16 step 4 — the drill says what you actually held
+
+The surfaces step, and the first M16-era form takes decided what belonged in it.
+
+### The take the drill could not read
+
+12 August, 16-bar setting, level 2. Seven marks, and the gaps between them:
+
+```
+7.92   7.98   7.88   8.00   8.12   8.01   bars
+```
+
+**Six consecutive gaps inside a quarter of a bar of each other — the steadiest phrase in the
+corpus.** The drill reported 3/7 on form, 1/7 clean, and a −0.92 slip: a failing take.
+
+Both readings are correct and they answer different questions. Every figure in that row is measured
+against the *setting*, and the setting was 16 while the player was holding 8. The analysis knew:
+`markedEveryBars` has computed the felt period since M7, the planner reads it, and the comment
+above it says the right thing — *"the player is feeling a shorter phrase than the one configured,
+which is a different thing from losing the form and deserves to be said rather than scored down."*
+
+**It was never said.** `markedEveryBars` appeared in no readout on either surface — computed,
+consumed by the planner, and invisible to the person it was about. A `felt` column in
+`review form`, a line in the take's own report, and a card in the app now carry it, and where it
+disagrees with the setting all three say so before the figures rather than after them.
+
+### The column immediately convicted itself
+
+With the felt period visible, the *other* 12 August take reported **13.2 bars** — from gaps of 4.1,
+12.4, 16.0 and 14.0. There is no period there.
+
+The regularity gate was *"70% of gaps within 35% of the median"*, and 35% is the defect. A ±35% band
+spans a factor of 1.35/0.65 ≈ **2.08 — wider than a doubling**, while the phrase lengths it
+describes sit exactly a doubling apart. At a median of 13.2 the qualifying band ran 8.6 to 17.8 bars
+and **contained both 8 and 16**: a tolerance that cannot tell one rung of the ladder from the next
+cannot identify a rung.
+
+±20% spans 1.5, comfortably inside a doubling, and three quarters of the gaps must sit in it.
+
+**This is `LESSONS.md` shape 11 exactly** — a threshold reasoned to, wrong the first time real data
+went through it — and it is the shape's own guard that caught it: *wire the readout to real data
+before believing the thresholds*. Nothing designed the number 13.2; showing the column did.
+
+**Nothing the planner does changes**, which was checked rather than assumed: a spurious period was
+never in `[2, 4, 8, 16, 32]`, so the felt-period rule already ignored it. The plan for this history
+is identical before and after, and the corpus loses exactly two reported periods — 5.9 and 13.2,
+both from takes whose marks were plainly irregular — while every real one survives.
+
+### A label that had stopped being true
+
+`review form`'s placement line still read *"(on-form marks only)"*. §7.40 stopped conditioning those
+figures two sections earlier and did not update the words, so the readout described the statistic it
+used to compute. Corrected, with the on-form subset printed beside it rather than instead of it.
+
+Third instance of one shape in a fortnight — §7.39's Feel picker, §7.42's hardcoded phrase length,
+and this — all a surface asserting something it no longer derives from the thing that decides it.
+
+### What this does not settle
+
+**Why the 8-bar period was two bars out of phase.** Those marks land at bars 9.99, 17.91, 25.89 and
+so on: a perfect 8-bar period offset two bars from the music's. Period and phase are different
+quantities and the drill measures only their sum, through `formErrorBars`. A player with a correct
+period and a wrong phase is wrong on every mark, and a player with a correct phase and a wrong
+period is wrong on all but the first — the readout cannot tell those apart today, and the felt-period
+column makes the gap visible without closing it.
+
+**Whether one exceptionally steady take should move the phrase length on its own.** The rule needs
+two takes to agree, which was a deliberate fix for the planner chasing a single take (§7.26). Six
+gaps inside a quarter of a bar is far stronger evidence than the takes that rule was written
+against, and the second take did not agree — so the drill stayed at a setting the player had already
+abandoned. Worth revisiting, and not on one observation.
+
+**Nothing in M16 has been played under the finished milestone.** These two takes ran under steps 0–3
+with step 4 unbuilt, which is why the felt period had to be recovered from stored marks rather than
+read off a screen.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -6877,9 +6955,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   745 cases
+└── Tests/                   751 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     398 cases against synthetic ground truth
+    ├── TimingCoreTests/     404 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     225 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
