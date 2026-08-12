@@ -137,9 +137,22 @@ public enum FormAnalysis {
             var gaps: [Double] = []
             for i in 1..<deduped.count { gaps.append((deduped[i] - deduped[i - 1]) / barDuration) }
             let medianGap = Stats.median(gaps)
-            // Only claim a period when the marks are actually regular.
-            let consistent = gaps.filter { abs($0 - medianGap) <= 0.35 * medianGap }
-            if Double(consistent.count) / Double(gaps.count) >= 0.7, medianGap > 0.5 {
+            // Only claim a period when the marks are actually regular, and **the tolerance has to
+            // be narrower than the ladder it is describing.**
+            //
+            // It was ±35%, which spans a factor of 1.35/0.65 ≈ 2.08 — wider than a doubling. The
+            // phrase lengths are 4, 8, 16, 32, so neighbouring rungs sit a factor of two apart and
+            // a band that wide admits gaps belonging to two different phrase lengths at once. On
+            // 12 August it did: four gaps of 4.1, 12.4, 16.0 and 14.0 bars reported "a steady
+            // 13.2-bar phrase", and the qualifying band ran 8.6 to 17.8 — containing both 8 and
+            // 16. There was no period there at all.
+            //
+            // ±20% spans 1.5, comfortably inside a doubling, and three quarters of the gaps must
+            // sit in it. Nothing the planner does changes: a spurious period was never in
+            // `[2, 4, 8, 16, 32]`, so the felt-period rule already ignored it — what it reached
+            // was the readout, where it read as a fact (§7.45, `LESSONS.md` shape 11).
+            let consistent = gaps.filter { abs($0 - medianGap) <= 0.20 * medianGap }
+            if Double(consistent.count) / Double(gaps.count) >= 0.75, medianGap > 0.5 {
                 markedEvery = medianGap
             }
         }
