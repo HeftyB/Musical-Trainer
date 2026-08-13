@@ -876,7 +876,8 @@ public enum TrainerEngine {
                                                         $0, r.usableCount, r.rounds.count) }
                         ?? "no rounds scored",
                 feelRating: session.feelRating, headline: r.headline,
-                metric: r.meanAbsErrorPercent ?? .nan, metricLabel: "tempo error (%)")
+                metric: r.meanAbsErrorPercent ?? .nan, metricLabel: "tempo error (%)",
+                group: tempoTitle(tempoKey(session)))
         }
     }
 
@@ -894,6 +895,53 @@ public enum TrainerEngine {
         /// tighter), on-form percentage for form drills (higher is better).
         public let metric: Double
         public let metricLabel: String
+        /// The comparable group this take belongs to — **the title of the `TrendSeries` it
+        /// contributes to**, character for character.
+        ///
+        /// Here so a chart can draw one line per group instead of one line through all of them.
+        /// The app plotted every take of a drill as a single series while the cards below it
+        /// split the same takes by tempo, rung, feel, offbeat level and backing: an offbeat take
+        /// at 48.4 ms joined 21 free jams on one line, which is the shape §7.24 step 8 retracted
+        /// a verdict over (`LESSONS.md` shape 19).
+        ///
+        /// It comes from the same key functions the trends use rather than being rebuilt here,
+        /// because two ways of saying which takes belong together is two answers
+        /// (`LESSONS.md` shape 9).
+        public let group: String
+    }
+
+    /// What a chart may draw, and what it is leaving out.
+    ///
+    /// Grouping the chart honestly is not enough on its own: this player's 49 jams fall into
+    /// **eighteen** groups, thirteen of them a single take, so one line per group would be a
+    /// thicket of dots under an eighteen-row legend — a worse picture than the dishonest one it
+    /// replaced, which is how an honest change gets reverted.
+    ///
+    /// The rule that resolves it is one the project already has. `TrendAnalysis.minimumPoints`
+    /// decides where a slope means anything, the cards refuse to fit below it, and **the chart
+    /// draws what the cards fit.** A two-point line is an invitation to read a slope off two
+    /// points, which is the thing that threshold exists to refuse.
+    ///
+    /// What is left out is counted rather than dropped in silence (R3.3): the caller says how many
+    /// takes and groups are not on the chart, and every one of them is still in the list below it.
+    public struct ChartableHistory {
+        public let entries: [HistoryEntry]
+        public let omittedTakes: Int
+        public let omittedGroups: Int
+    }
+
+    /// Here rather than in the view: a filter applied while drawing is a decision no suite can
+    /// reach, which is `LESSONS.md` shape 1 and how the chart came to disagree with the cards in
+    /// the first place.
+    public static func chartable(_ entries: [HistoryEntry]) -> ChartableHistory {
+        let plottable = entries.filter { $0.metric.isFinite }
+        var sizes: [String: Int] = [:]
+        for entry in plottable { sizes[entry.group, default: 0] += 1 }
+        let drawn = plottable.filter { (sizes[$0.group] ?? 0) >= TrendAnalysis.minimumPoints }
+        let omittedGroups = sizes.values.filter { $0 < TrendAnalysis.minimumPoints }.count
+        return ChartableHistory(entries: drawn,
+                                omittedTakes: entries.count - drawn.count,
+                                omittedGroups: omittedGroups)
     }
 
     public static func jamHistory() -> [HistoryEntry] {
@@ -913,7 +961,8 @@ public enum TrainerEngine {
                      + (s.tag.map { " · \($0)" } ?? ""),
                 detail: String(format: "mean %+.1f ms · SD %.1f ms", r.meanAsynchronyMs, r.sdAsynchronyMs),
                 feelRating: s.feelRating, headline: r.headline,
-                metric: r.sdAsynchronyMs, metricLabel: "spread (ms)")
+                metric: r.sdAsynchronyMs, metricLabel: "spread (ms)",
+                group: groupKey(s).title)
         }
     }
 
@@ -938,7 +987,9 @@ public enum TrainerEngine {
                 feelRating: session.feelRating, headline: r.headline,
                 // Tempo bias is the metric worth trending: it is measured reliably every
                 // time, whereas the clock/motor split often is not.
-                metric: r.tempoBiasBpm ?? .nan, metricLabel: "tempo bias (BPM)")
+                metric: r.tempoBiasBpm ?? .nan, metricLabel: "tempo bias (BPM)",
+                group: DropoutKey(silentBars: session.silentBars,
+                                  rung: session.rung).title)
         }
     }
 
@@ -951,7 +1002,8 @@ public enum TrainerEngine {
                 detail: "\(r.onFormCount)/\(r.marksPlaced) on form · "
                       + "\(r.cleanCount)/\(r.marksPlaced) clean",
                 feelRating: s.feelRating, headline: r.headline,
-                metric: r.onFormRate * 100, metricLabel: "on form (%)")
+                metric: r.onFormRate * 100, metricLabel: "on form (%)",
+                group: FormKey(level: s.level, phraseBars: s.phraseBars).title)
         }
     }
 
@@ -1163,7 +1215,8 @@ public enum TrainerEngine {
                 detail: detail, feelRating: session.feelRating, headline: r.headline,
                 // The number this drill exists to move — already withheld by the analysis when
                 // the conditions are not comparable, so an artefact never reaches the chart.
-                metric: r.interferenceCost ?? .nan, metricLabel: "interference cost (points)")
+                metric: r.interferenceCost ?? .nan, metricLabel: "interference cost (points)",
+                group: memoryTitle(session.retentionBars))
         }
     }
 
@@ -1546,6 +1599,14 @@ public enum TrainerEngine {
             return rungPart + feelPart + offbeatPart + backing.label
         }
 
+        /// The one name for this group.
+        ///
+        /// **Read by the trend card and by the history chart**, so the two cannot draw different
+        /// groups under one heading. The chart used to plot a single line through every take of a
+        /// drill while the cards beneath it split the same takes four ways and warned about the
+        /// confounds — a reader who sees one line has been shown one line (`LESSONS.md` shape 19).
+        var title: String { "Jams at \(bpm) BPM\(label)" }
+
         static func < (a: GroupKey, b: GroupKey) -> Bool {
             if a.bpm != b.bpm { return a.bpm < b.bpm }
             if (a.rung ?? "") != (b.rung ?? "") { return (a.rung ?? "") < (b.rung ?? "") }
@@ -1580,7 +1641,6 @@ public enum TrainerEngine {
         let groups = Set(jams.map(groupKey))
         for key in groups.sorted() {
             let takes = jams.filter { groupKey($0) == key }
-            let tempo = key.bpm
             let reports = takes.map { $0.report() }
             var warnings: [String] = []
             let backings = TrendAnalysis.distinct(takes.map(\.grooveName))
@@ -1608,7 +1668,7 @@ public enum TrainerEngine {
                 warnings.append("mixed output devices — bias is not comparable; spread and r₁ are.")
             }
             series.append(TrendSeries(
-                title: "Jams at \(tempo) BPM\(key.label)", takeCount: takes.count,
+                title: key.title, takeCount: takes.count,
                 warnings: warnings,
                 rows: [
                     TrendAnalysis.row("spread (SD)", reports.map(\.sdAsynchronyMs), lowerIsBetter: true),
@@ -1669,6 +1729,9 @@ public enum TrainerEngine {
             self.rung = rung.flatMap(IntervalRung.init(rawValue:)) ?? .quarters
         }
 
+        /// One name, read by the card and the chart alike. See `GroupKey.title`.
+        var title: String { "Continuation drill — \(silentBars)-bar silences, \(rung.label)" }
+
         static func < (a: DropoutKey, b: DropoutKey) -> Bool {
             a.silentBars != b.silentBars
                 ? a.silentBars < b.silentBars : a.rung.rawValue < b.rung.rawValue
@@ -1679,7 +1742,7 @@ public enum TrainerEngine {
         groupedTrends(
             SessionStore.loadAllDropout(),
             by: { DropoutKey(silentBars: $0.silentBars, rung: $0.rung) },
-            title: { "Continuation drill — \($0.silentBars)-bar silences, \($0.rung.label)" },
+            title: { $0.title },
             rows: { group in
                 let reports = group.map { $0.report() }
                 return [
@@ -1702,6 +1765,9 @@ public enum TrainerEngine {
     private struct FormKey: Hashable, Comparable {
         let level: Int
         let phraseBars: Int
+        /// One name, read by the card and the chart alike. See `GroupKey.title`.
+        var title: String { "Form drill — level \(level), \(phraseBars)-bar phrases" }
+
         static func < (a: FormKey, b: FormKey) -> Bool {
             a.level != b.level ? a.level < b.level : a.phraseBars < b.phraseBars
         }
@@ -1711,10 +1777,25 @@ public enum TrainerEngine {
         groupedTrends(
             SessionStore.loadAllForm(),
             by: { FormKey(level: $0.level, phraseBars: $0.phraseBars) },
-            title: { "Form drill — level \($0.level), \($0.phraseBars)-bar phrases" },
+            title: { $0.title },
+            // **Two rows, because the drill has two axes and they are peers.** §7.40 made
+            // `cleanRate` a peer of `onFormRate` in the report, the planner's input and both
+            // readouts, and the trend was not on that list — so the one place that answers "is
+            // this improving" answered it for the spatial axis alone.
+            //
+            // That is the axis this player is *good* at: 75% on form at 8 bars against a clean
+            // rate running 12–100%. M16 exists to train the temporal one (§7.41), the temporal
+            // ladder is promoted on this number, and until now nothing anywhere fitted a line
+            // through it. A ladder whose progress cannot be read is a ladder nobody can tell is
+            // working.
             rows: { group in
-                [TrendAnalysis.row("on-form rate", group.map { $0.report().onFormRate },
-                                   lowerIsBetter: false)]
+                let reports = group.map { $0.report() }
+                return [
+                    TrendAnalysis.row("on-form rate", reports.map(\.onFormRate),
+                                      lowerIsBetter: false),
+                    TrendAnalysis.row("clean rate", reports.map(\.cleanRate),
+                                      lowerIsBetter: false),
+                ]
             })
     }
 
@@ -1722,7 +1803,7 @@ public enum TrainerEngine {
         groupedTrends(
             SessionStore.loadAllMemory(),
             by: { $0.retentionBars },
-            title: { "Recall drill — \($0)-bar waits" },
+            title: memoryTitle,
             rows: { group in
                 let reports = group.map {
                     TempoMemoryAnalysis.analyze(taps: $0.taps, rounds: $0.roundWindows)
@@ -1743,11 +1824,18 @@ public enum TrainerEngine {
         take.targets.map { String(Int($0)) }.joined(separator: "/")
     }
 
+    /// Beside the key rather than inside the readout, so the chart names the group the card fits.
+    private static func tempoTitle(_ key: String) -> String { "Tempo drill — \(key) BPM" }
+
+    private static func memoryTitle(_ retentionBars: Int) -> String {
+        "Recall drill — \(retentionBars)-bar waits"
+    }
+
     private static func tempoTrends() -> [TrendSeries] {
         groupedTrends(
             SessionStore.loadAllTempo(),
             by: tempoKey,
-            title: { "Tempo drill — \($0) BPM" },
+            title: tempoTitle,
             rows: { group in
                 [TrendAnalysis.row("tempo error (%)",
                                    group.map { $0.report().meanAbsErrorPercent ?? .nan },

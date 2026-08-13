@@ -503,6 +503,20 @@ inside *"Jams at 100 BPM"* with 21 free jams and turned that group's bias **"wor
 it out returns the group to flat (§7.24 step 8). The mixed-backings warning fired correctly
 throughout. R3.4 was doing its job and it was not enough.
 
+**Third instance, and the fix for the second one walked straight past it** (§7.48). The app's
+history *chart* kept drawing one line through every take of a drill while the cards directly beneath
+it — split by tempo, rung, feel, offbeat level and backing, precisely because of the retraction
+above — carried the warnings. The comment over the chart said so: *"That chart draws one line
+through every take, which is only honest if the takes are comparable"*, and drew it anyway on the
+grounds that the cards below explained the problem. **A picture is a verdict**; splitting the fits
+and leaving the drawing pooled fixes the sentence and leaves the impression.
+
+Worth noting what nearly killed the fix: one line per group gave eighteen jam groups, thirteen of
+them a single take, which is a worse picture than the dishonest one — and a worse picture is how an
+honest change gets reverted. The resolution was a threshold the project already had:
+`TrendAnalysis.minimumPoints` decides where a slope means anything, so **the chart draws what the
+cards fit**, and says how many takes that leaves out.
+
 **Guard:** R3.4 is the floor; R3.5 is the fix. A reader who sees a verdict and a caveat has still
 been shown a verdict. When an axis makes two takes a different task, give it its own **group** —
 `TakeAxis.all` is the one list of what those axes are, and `GroupKey` is where a trend acts on

@@ -38,10 +38,17 @@ struct HistoryView: View {
             case .memory: return "Interference cost over time"
             }
         }
+        /// Which way is better, and — for the form drill — that this is one of two axes.
+        ///
+        /// The chart can follow one number and the form drill has two peers, so it says which one
+        /// it is drawing rather than letting "the form number" mean whichever is plotted. The
+        /// other axis is fitted in the card below, with an interval, which is where the question
+        /// "is this improving" is actually answered.
         var trendNote: String {
             switch self {
-            case .jam: return "Lower is tighter."
-            case .form: return "Higher is better."
+            case .jam: return "Lower is tighter. One line per comparable group."
+            case .form: return "Higher is better. This is the spatial axis — knowing which bar the "
+                             + "phrase turns on. The temporal one, landing cleanly, is fitted below."
             case .dropout: return "Closer to zero is a truer internal tempo."
             case .tempo: return "Lower is more accurate."
             case .memory: return "Lower means the period survives a filled gap."
@@ -49,14 +56,16 @@ struct HistoryView: View {
         }
     }
 
+    /// Every take of this drill. The list shows all of them; the chart shows what it can draw
+    /// honestly, which `TrainerEngine.chartable` decides — including dropping a take whose metric
+    /// is not finite, as a drill whose split came out unreliable has no clock number to plot.
     private var entries: [TrainerEngine.HistoryEntry] {
         switch kind {
         case .jam: return TrainerEngine.jamHistory()
         case .form: return TrainerEngine.formHistory()
-        // A drill whose split came out unreliable has no clock number to plot.
-        case .dropout: return TrainerEngine.dropoutHistory().filter { $0.metric.isFinite }
-        case .tempo: return TrainerEngine.tempoHistory().filter { $0.metric.isFinite }
-        case .memory: return TrainerEngine.memoryHistory().filter { $0.metric.isFinite }
+        case .dropout: return TrainerEngine.dropoutHistory()
+        case .tempo: return TrainerEngine.tempoHistory()
+        case .memory: return TrainerEngine.memoryHistory()
         }
     }
 
@@ -86,27 +95,55 @@ struct HistoryView: View {
                 // cards vary in height with how many groups the takes fall into.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        if entries.count > 2 {
+                        let chartable = TrainerEngine.chartable(entries)
+                        if !chartable.entries.isEmpty {
                             Card {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(kind.trendTitle).font(.headline)
                                     Text(kind.trendNote)
                                         .font(.caption).foregroundStyle(.secondary)
-                                    Chart(entries) { entry in
+                                    // **One line per comparable group, not one through all of
+                                    // them.** `HistoryEntry.group` is the title of the trend
+                                    // series each take contributes to, so the line a reader
+                                    // follows here is the line fitted in the card below it.
+                                    //
+                                    // It used to be a single series over every take of a drill.
+                                    // For jams that put an offbeat take's 48.4 ms spread — the
+                                    // widest on record and a different task — on one line with
+                                    // 21 free jams, beside a swung take, at four tempos and two
+                                    // backings. §7.24 step 8 retracted a verdict built the same
+                                    // way, and §7.27 retracted two more; the cards were split for
+                                    // exactly that reason while the picture above them was not
+                                    // (`LESSONS.md` shape 19).
+                                    Chart(chartable.entries) { entry in
                                         LineMark(x: .value("Take", entry.date),
-                                                 y: .value(entry.metricLabel, entry.metric))
+                                                 y: .value(entry.metricLabel, entry.metric),
+                                                 series: .value("Group", entry.group))
+                                        .foregroundStyle(by: .value("Group", entry.group))
                                         PointMark(x: .value("Take", entry.date),
                                                   y: .value(entry.metricLabel, entry.metric))
+                                        .foregroundStyle(by: .value("Group", entry.group))
                                     }
-                                    .frame(height: 150)
+                                    .chartLegend(position: .bottom, alignment: .leading)
+                                    .frame(height: 190)
+
+                                    // R3.3: what is missing is said, not silently absent. Every
+                                    // one of these takes is in the list further down.
+                                    if chartable.omittedTakes > 0 {
+                                        Text("\(chartable.omittedTakes) take(s) in "
+                                           + "\(chartable.omittedGroups) group(s) of fewer than "
+                                           + "\(TrendAnalysis.minimumPoints) are not drawn — a "
+                                           + "line through one or two takes is not a trend. They "
+                                           + "are all in the list below.")
+                                            .font(.caption).foregroundStyle(.tertiary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
                                 }
                             }
                         }
 
-                        // That chart draws one line through every take, which is only honest
-                        // if the takes are comparable. The fitted trends below are grouped and
-                        // carry the same confound warnings the console prints — without them
-                        // the app would show a slope where the console refuses to.
+                        // The fitted trends carry the same confound warnings the console prints —
+                        // without them the app would show a slope where the console refuses to.
                         ForEach(Array(TrainerEngine.trends(for: kind.drill).enumerated()),
                                 id: \.offset) { _, series in TrendCard(series: series) }
 
