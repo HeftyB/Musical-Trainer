@@ -7529,11 +7529,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   788 cases
+└── Tests/                   794 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     411 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     255 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     261 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
