@@ -1281,7 +1281,7 @@ public enum TrainerEngine {
         // nominal 300 describes nothing that was played — and reporting it would be §7.23 step
         // 3's mistake again, where the grid the take was *scored* on stood in for the task it
         // actually performed. Swung takes are excluded rather than averaged onto the axis.
-        SessionStore.loadAll().filter { $0.feel.isStraight }.map { session in
+        SessionStore.loadAllPlayAlong().filter { $0.feel.isStraight }.map { session in
             let r = session.report()
             // The rung, or the beat when no rung was prescribed — never the stored grid. A free
             // jam asks for no subdivision; it was *scored* on a sixteenth grid, which is a
@@ -1305,7 +1305,8 @@ public enum TrainerEngine {
     /// Recomputed from raw taps like everything else (R3.1), so an analysis fix moves the
     /// ceiling with it.
     public static func recentJamSpreadsMs(_ count: Int = 6) -> [Double] {
-        SessionStore.loadAll().suffix(count).compactMap { Stats.finite($0.report().sdAsynchronyMs) }
+        SessionStore.loadAllPlayAlong().suffix(count)
+            .compactMap { Stats.finite($0.report().sdAsynchronyMs) }
     }
 
     /// Every jam's notes, keyed by the interval they were produced at.
@@ -1319,11 +1320,12 @@ public enum TrainerEngine {
     /// the grid gap: a gap of four at 100 BPM is 600 ms and at 120 BPM is 500 ms, and they land
     /// in different bins as they should.
     public static func producedIntervalProfile() -> ProducedIntervalProfile {
-        ProducedIntervalAnalysis.analyze(SessionStore.loadAll().flatMap { $0.producedNotes() })
+        ProducedIntervalAnalysis.analyze(
+            SessionStore.loadAllPlayAlong().flatMap { $0.producedNotes() })
     }
 
     public static func plannerInput() -> PlannerInput {
-        let allJams = SessionStore.loadAll()
+        let allJams = SessionStore.loadAllPlayAlong()
         let jams = allJams.map { session -> PlannerInput.Jam in
             let r = session.report()
             return PlannerInput.Jam(bpm: session.bpm, sdMs: r.sdAsynchronyMs,
@@ -1460,7 +1462,7 @@ public enum TrainerEngine {
         switch kind {
         case .jam:
             // Spread, the same metric the jam trend follows.
-            let takes = SessionStore.loadAll().map {
+            let takes = SessionStore.loadAllPlayAlong().map {
                 DatedTake(date: $0.date, placement: $0.placement, value: $0.report().sdAsynchronyMs)
             }
             return WarmUpAnalysis.analyze(sessioned(takes), lowerIsBetter: true)

@@ -533,8 +533,31 @@ enum SessionStore {
         return url
     }
 
+    /// Every take stored as a jam, **including the offbeat drill's**, which shares this type.
+    ///
+    /// Right for anything that shows the player their history — the list, the review, a trend that
+    /// groups by task. Wrong for anything that asks *"how tightly does this player place a note"*,
+    /// because an offbeat take does not answer that question. Use `loadAllPlayAlong` there.
     static func loadAll() -> [JamSession] {
         load(prefix: "jam-", as: JamSession.self).sorted { $0.date < $1.date }
+    }
+
+    /// Takes where the player was playing **along** with the band.
+    ///
+    /// The offbeat drill is stored as a jam because it is the same capture, grid and storage
+    /// (`JamConfig.offbeatLevel`), and it is not the same *task*: holding a position the band
+    /// never plays is a different skill, measured against a different expectation, and its spread
+    /// runs half again as wide as a free jam's. Everything that estimates "this player's spread"
+    /// has to read this rather than `loadAll`.
+    ///
+    /// **Third instance of one mistake.** §7.24 step 8 found an offbeat take inside
+    /// *"Jams at 100 BPM"* in the trend and split it out; §7.48 found the app's chart drawing it on
+    /// one line with 21 free jams and grouped it. Both fixed a *readout*. The planner's own input
+    /// was built with `map` over `loadAll` the whole time, so the take that widened a trend also
+    /// widened the spread estimate that decides which rungs exist — and unlike a readout, nothing
+    /// about that is visible. See PLAN.md §7.52.
+    static func loadAllPlayAlong() -> [JamSession] {
+        loadAll().filter { $0.offbeatLevel == nil }
     }
 
     @discardableResult

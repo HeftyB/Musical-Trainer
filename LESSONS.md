@@ -607,6 +607,41 @@ it *by default* — the exception costs a deliberate act that shows up in a diff
 
 ---
 
+## 22. The readout was fixed and the decision was not
+
+A confound is found, and fixed in the thing that *displays* the data. The thing that **acts** on the
+same data reads it unfiltered and nobody looks, because it prints nothing.
+
+**The asymmetry is the whole shape.** A wrong readout shows a wrong number, and somebody eventually
+reads it and asks. A wrong decision changes what the player is asked to practise, or removes an
+option from a picker, and there is no line of text anywhere to notice.
+
+**Instances:**
+
+- **The offbeat drill reached the planner as a free jam** (§7.52). The same confound had already
+  been found twice and fixed twice, both times in a readout: §7.24 step 8 split an offbeat take out
+  of *"Jams at 100 BPM"* in the trend, and §7.48 gave it its own line on the app's chart.
+  `plannerInput` built its jam list with `map` over `loadAll` throughout, so a skank's spread — half
+  again as wide as free playing — went into `spreadEstimate`, which gates **which rungs the interval
+  ladder may schedule** and which the app's picker offers at all. Five of the six most recent takes
+  were skanks when this was found, and triplet eighths had already vanished from the picker at
+  100 BPM with nothing saying so.
+- **The recall drill's interference cost, third derivation** (§7.20 finding 2). Shape 14 files this
+  under the *flag* that made it possible; the site is what belongs here. The report and the history
+  chart both checked the reliability flag. **The planner's input did not**, and it was found only by
+  noticing that a trend which should have moved had not. Same site, same reason: it is the one
+  consumer with nothing on screen to be wrong.
+
+**Guard:** when a confound is fixed in a readout, ask immediately **what else reads the same
+corpus** — and specifically what *decides* something from it. Then make the distinction structural:
+one accessor carrying the argument (`loadAllPlayAlong`), not a filter each caller remembers to
+apply, which is shape 9's guard pointed at a predicate rather than a constant.
+
+**And the tell is that the fix felt complete.** Both earlier fixes closed with a test, a section in
+`PLAN.md` and a green gate. What neither asked was who else was holding the same list.
+
+---
+
 ## Adding to this file
 
 When something goes wrong, ask whether it is an instance of a shape above or a new one. If new,
@@ -615,10 +650,11 @@ instance of an existing shape, **add it there** — a shape with four instances 
 warning than four separate entries, and shapes 1, 2, 9, 16 and 21 earned their place by
 recurring.
 
-Shapes 1–17 are shared with the generalised template. **18 to 21 are this project's own**, and
+Shapes 1–17 are shared with the generalised template. **18 to 22 are this project's own**, and
 they are here because a milestone found each one and no existing shape described it: a guard whose
 algebra does not match what it protects, a confound named instead of separated, an error path that
-throws away the failure it was meant to record, and a rule enforced by nothing but memory.
+throws away the failure it was meant to record, a rule enforced by nothing but memory, and a fix
+applied to every readout and not to the thing that acts on the data.
 
 **Never renumber.** Code comments and `PLAN.md` cite these by number, and `check.sh` checks that
 every citation resolves to a heading here. A shape that turns out to be wrong gets its heading

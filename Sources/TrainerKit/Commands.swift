@@ -1887,7 +1887,10 @@ public enum Commands {
             + "timing? Within-take holds the day,\nthe tempo and the fatigue fixed — so a "
             + "relationship here cannot be explained by any of them.\(Console.reset)")
 
-        let sessions = SessionStore.loadAll()
+        // Play-along takes only. The offbeat drill *forbids* varied content — "don't fill the
+        // gaps. One note per offbeat and nothing between them" — so a take of it contributes a
+        // content correlation from a task where content was not free to vary.
+        let sessions = SessionStore.loadAllPlayAlong()
         let withPitch = sessions.filter(\.hasPitchData)
         guard !withPitch.isEmpty else {
             print("\nNo take has pitch data yet. Note numbers have been recorded since "
