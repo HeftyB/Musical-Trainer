@@ -954,6 +954,41 @@ public enum TrainerEngine {
                                 omittedGroups: omittedGroups)
     }
 
+    /// Everything one History screen shows, built in one pass off the main thread.
+    ///
+    /// **Assembled here rather than in the view because it is expensive and the view is not the
+    /// place to discover that.** Each of the three readouts re-analyses every take from raw taps
+    /// — which is R3.1 working as intended — and on this player's corpus a single re-analysis is
+    /// about 32 ms, so a visit to History was roughly 180 of them plus four decodes of the whole
+    /// store, all on the main thread while the window tried to draw (§7.54).
+    ///
+    /// Nothing is cached and nothing is approximated: this is the same work, done once, where the
+    /// caller can put it on a background queue.
+    public struct HistoryPayload {
+        public let entries: [HistoryEntry]
+        public let chart: ChartableHistory
+        public let trends: [TrendSeries]
+        public let warmUp: WarmUpReport
+        /// Empty for every drill but the jam, which is the only one carrying experiments.
+        public let experiments: [ExperimentResult]
+    }
+
+    public static func historyPayload(for kind: DrillKind) -> HistoryPayload {
+        let entries: [HistoryEntry]
+        switch kind {
+        case .jam:     entries = jamHistory()
+        case .form:    entries = formHistory()
+        case .dropout: entries = dropoutHistory()
+        case .tempo:   entries = tempoHistory()
+        case .memory:  entries = memoryHistory()
+        }
+        return HistoryPayload(entries: entries,
+                              chart: chartable(entries),
+                              trends: trends(for: kind),
+                              warmUp: warmUpReport(for: kind),
+                              experiments: kind == .jam ? experimentResults() : [])
+    }
+
     public static func jamHistory() -> [HistoryEntry] {
         SessionStore.loadAll().map { s in
             // Recomputed from the raw taps, like the other drills. The cached summary

@@ -1,4 +1,5 @@
 import Foundation
+import os
 import TimingCore
 
 /// Where a take sat inside a planned practice session.
@@ -513,7 +514,36 @@ enum SessionStore {
     /// and a test suite that saves takes has to save them somewhere else — a suite that could
     /// scribble on the player's practice history would be a worse defect than any it caught.
     /// `check.sh` fails if anything outside `Tests/` assigns this.
-    static var directoryOverride: URL?
+    static var directoryOverride: URL? {
+        didSet { invalidateCache() }
+    }
+
+    // MARK: - Decoded-take cache
+
+    /// Decoded takes, held for the life of the process.
+    ///
+    /// **Not a cache of anything derived.** Every report still recomputes from raw taps (R3.1);
+    /// what is held here is the JSON, decoded. A stored take is immutable by rule — R6.2 says one
+    /// is never rewritten — and new ones arrive only through `save`, so the only two things that
+    /// can invalidate this are a save and the test redirect moving, and both do.
+    ///
+    /// It exists because reading was costing a second. `SetupView` asks for `scorableRungs` and
+    /// `rungAdvice`, each of which resolves the player's recent spread, and each of those decoded
+    /// **every take on disk** — 58 jams, 1.9 MB — before looking at the last six. `tag` is
+    /// `@Published`, so that ran twice per keystroke in the Condition field. See PLAN.md §7.54.
+    ///
+    /// Guarded because the app loads its history off the main thread while a take may be saving
+    /// on it. The lock is held for a dictionary read; nothing here runs on the render thread.
+    private static var cache: [String: Any] = [:]
+    private static var cacheLock = os_unfair_lock_s()
+
+    /// Called on every save and whenever the test redirect moves. Coarse on purpose: a save is
+    /// rare, and dropping everything cannot be wrong the way dropping the wrong entry can.
+    static func invalidateCache() {
+        os_unfair_lock_lock(&cacheLock)
+        cache.removeAll()
+        os_unfair_lock_unlock(&cacheLock)
+    }
 
     static var directory: URL {
         let base = directoryOverride ?? FileManager.default
@@ -530,6 +560,7 @@ enum SessionStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(session).write(to: url, options: .atomic)
+        invalidateCache()
         return url
     }
 
@@ -567,6 +598,7 @@ enum SessionStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(session).write(to: url, options: .atomic)
+        invalidateCache()
         return url
     }
 
@@ -581,6 +613,7 @@ enum SessionStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(session).write(to: url, options: .atomic)
+        invalidateCache()
         return url
     }
 
@@ -595,6 +628,7 @@ enum SessionStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(session).write(to: url, options: .atomic)
+        invalidateCache()
         return url
     }
 
@@ -609,6 +643,7 @@ enum SessionStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(session).write(to: url, options: .atomic)
+        invalidateCache()
         return url
     }
 
@@ -623,6 +658,7 @@ enum SessionStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(record).write(to: url, options: .atomic)
+        invalidateCache()
         return url
     }
 
@@ -690,6 +726,19 @@ enum SessionStore {
     /// Decode every file with the given name prefix. The prefix keeps jam and form takes
     /// apart, so neither can be silently decoded as the other.
     private static func load<T: StoredTake>(prefix: String, as type: T.Type) -> [T] {
+        os_unfair_lock_lock(&cacheLock)
+        let hit = cache[prefix] as? [T]
+        os_unfair_lock_unlock(&cacheLock)
+        if let hit { return hit }
+
+        let decoded = decode(prefix: prefix, as: type)
+        os_unfair_lock_lock(&cacheLock)
+        cache[prefix] = decoded
+        os_unfair_lock_unlock(&cacheLock)
+        return decoded
+    }
+
+    private static func decode<T: StoredTake>(prefix: String, as type: T.Type) -> [T] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let candidates = storedFiles(prefix: prefix)

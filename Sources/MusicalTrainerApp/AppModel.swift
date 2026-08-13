@@ -180,7 +180,10 @@ final class AppModel: ObservableObject {
         cancellation?.cancel()
     }
 
-    init() { refreshEnvironment() }
+    init() {
+        refreshEnvironment()
+        refreshRecentSpread()
+    }
 
     func refreshEnvironment() {
         do {
@@ -371,6 +374,8 @@ final class AppModel: ObservableObject {
         } catch {
             errorMessage = "Could not save the take: \(error.localizedDescription)"
         }
+        // The take just stored is part of the window the estimate reads.
+        refreshRecentSpread()
         screen = .results
     }
 
@@ -504,10 +509,34 @@ final class AppModel: ObservableObject {
 
     /// The player's own recent spread, which is what the ceiling is derived from. Falls back to
     /// the figure §7.23 step 1 works its table through when there is nothing to measure.
-    var recentSpreadMs: Double {
-        let spreads = TrainerEngine.recentJamSpreadsMs()
-        guard !spreads.isEmpty else { return SessionPlanner.assumedSpreadMs }
-        return Stats.median(spreads)
+    ///
+    /// **Stored, not computed on demand, and that is a performance fix with a measurement behind
+    /// it.** Resolving it decodes the corpus and re-analyses six takes: 437 ms and 125 ms on this
+    /// player's history. `SetupView` reads `scorableRungs` *and* `rungAdvice`, each of which
+    /// resolves it, and `tag` is `@Published` — so every keystroke in the Condition field cost
+    /// about 1.1 seconds of disk and analysis. That is the lag, and it is why this is a value
+    /// rather than a getter (§7.54).
+    ///
+    /// It changes only when a take is saved, so it is refreshed where that happens rather than
+    /// where it is read.
+    @Published private(set) var recentSpreadMs: Double = SessionPlanner.assumedSpreadMs
+
+    /// Recompute the spread estimate. Called on launch and after any take is stored.
+    ///
+    /// Off the main thread, because it is the expensive thing this class does and the caller is
+    /// usually a view. The assignment comes back to the main actor.
+    func refreshRecentSpread() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let spreads = TrainerEngine.recentJamSpreadsMs()
+            let median = spreads.isEmpty ? SessionPlanner.assumedSpreadMs : Stats.median(spreads)
+            Task { @MainActor in
+                guard self.recentSpreadMs != median else { return }
+                self.recentSpreadMs = median
+                // The rung on offer may have moved with it, so the picker cannot keep a rung the
+                // take would now refuse (`clampRungToTempo`'s reason, one input further back).
+                self.clampRungToTempo()
+            }
+        }
     }
 
     /// Why the Feel picker is greyed out, when it is. Shown rather than left to be guessed.
@@ -682,6 +711,7 @@ final class AppModel: ObservableObject {
             errorMessage = "Could not save that take: \(error.localizedDescription)"
         }
         pendingOutcome = nil
+        refreshRecentSpread()
         showNextBrief()
     }
 
