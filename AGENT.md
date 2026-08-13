@@ -31,8 +31,16 @@ file that no longer exists reported PASS, so every file-scoped rule was one rena
 disarming. **A green gate has always bounded what was checked rather than what is true; until this
 it also included things that were not checked at all.**
 
-The six still open are listed in §7.46's closing table. The sharpest is that `review trend` fits
-only `onFormRate`, so the temporal ladder M16 exists to train has no trend line on either surface.
+**§7.48 closed the next two, both on the history screen.** `review trend` fitted `onFormRate` and
+nothing else, so the axis M16 exists to train — the temporal one, which its ladder is promoted on —
+had no trend line on either surface; it fits both now. And the app's history *chart* drew one line
+through every take of a drill while the cards beneath it split the same takes four ways and warned
+about the confounds, which is shape 19 a third time. The chart draws one line per comparable group
+now, and only groups big enough to fit, naming how many takes that leaves out.
+
+**Three still open**, listed in §7.46's closing table: two lists of legal phrase spans disagree ·
+`MIDIInput.onNoteEvent` crosses threads unsynchronised · captured note-ons are dropped in silence at
+capacity.
 
 M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
 the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
@@ -348,7 +356,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 526 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (234 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (243 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -392,7 +400,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 760 tests, no hardware needed
+swift test                              # 769 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

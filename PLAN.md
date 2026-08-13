@@ -7039,8 +7039,8 @@ The review's other seven findings, in the order they will be taken:
 | | Finding | Why it matters |
 |---|---|---|
 | 2 | ~~`check.sh` cannot fail on a third-party dependency~~ | Done in §7.47, which found a second rule underneath it |
-| 3 | `review trend` and the app's form chart fit `onFormRate` only | The temporal ladder is promoted on `cleanRate`, and M16 exists to train it |
-| 4 | The app's history chart draws one line through takes the console refuses to pool | Shape 19, on the surface where §7.24 step 8's retraction came from |
+| 3 | ~~`review trend` fits `onFormRate` only~~ | Done in §7.48 |
+| 4 | ~~The app's history chart pools what the console refuses to~~ | Done in §7.48, and the chart survived being made honest |
 | 5 | Two lists of legal phrase spans disagree — a felt period of 2 strands the spatial ladder | Shape 9 |
 | 6 | `MIDIInput.onNoteEvent` is written and read from two threads unsynchronised | A closure property plus ARC is a race the adjacent field takes a lock to avoid |
 | 7 | Captured note-ons are dropped in silence once storage fills | Shape 20: the truncation reads as the keyboard going quiet |
@@ -7148,6 +7148,108 @@ itself.
 
 ---
 
+## 7.48 The history screen says what it is about
+
+§7.46's findings 3 and 4, taken together because they are one screen and one argument: a readout
+that covers less than it appears to. One under-described its **axes**, the other its **takes**.
+
+### The trend fitted the axis the player is already good at
+
+`review trend` fitted `onFormRate` for the form drill and nothing else. §7.40 made `cleanRate` a
+peer — *"in the report, planner input and both readouts"* — and the trend was not on that list.
+
+The consequence is worse than a missing row. The spatial axis is the healthy one: 75% on form at
+8 bars, which is why §7.13 scheduled it second. **M16 exists to train the temporal one**, the
+temporal ladder is promoted on `cleanRate` (§7.41), and nothing anywhere fitted a line through it.
+A ladder whose progress cannot be read is a ladder nobody can tell is working.
+
+Both rows now, and both surfaces gain it together because `TrendCard` and the console both render
+whatever rows a series carries. The first thing it says, on 7 takes at level 2 over 8-bar phrases:
+
+| | slope/take | 95% interval | verdict |
+|---|---|---|---|
+| on-form rate | −0.02 | [−0.12, +0.04] | flat |
+| clean rate | −0.04 | [−0.13, +0.00] | flat |
+
+**Read nothing into that beyond the fact that the line now exists.** Seven takes, an interval that
+touches zero, and a ladder that was still being rebuilt underneath them.
+
+### The chart pooled what the cards refuse to pool
+
+The app charted every take of a drill as one line, while the cards under it split the same takes
+four ways and named the confounds. For jams that put an offbeat take — the widest spread on record
+and a different task — on one line with 21 free jams, beside a swung take, at four tempos and two
+backings.
+
+The comment above the chart conceded the whole thing:
+
+> That chart draws one line through every take, which is only honest if the takes are comparable.
+
+and drew it anyway, on the grounds that the cards below carried the warnings. That is exactly the
+distinction `LESSONS.md` shape 19 exists for: naming a confound is R3.4, separating it is R3.5, and
+**a reader who sees one line has been shown one line.** §7.24 step 8 retracted a verdict built this
+way; §7.27 retracted two more.
+
+### Grouping alone would have made the chart worse, which is why it nearly did not survive
+
+One line per group, drawn naively, gives this history **eighteen jam groups, thirteen of them a
+single take** — a thicket of disconnected dots under an eighteen-row legend. That is a worse
+picture than the dishonest one, and a worse picture is how an honest change gets reverted.
+
+The rule that resolves it was already here. `TrendAnalysis.minimumPoints` is 3, the cards refuse to
+fit below it, and **the chart draws what the cards fit**. A two-point line is an invitation to read
+a slope off two points, which is the thing that threshold exists to refuse. What the chart actually
+draws now:
+
+| Screen | Lines | Not drawn |
+|---|---|---|
+| Jams | 2 — 100 BPM (27 takes), 110 BPM (4) | 20 takes in 16 groups |
+| Continuation | 2 — 4-bar (7), 16-bar (5) | 3 takes in 2 groups |
+| Form | 2 — level 2 over 4 bars (5), over 8 bars (7) | 4 takes in 3 groups |
+| Tempo | 1 — 100 BPM (13) | none |
+| Recall | 2 — 2-bar (6), 4-bar (5) | none |
+
+What is left out is **counted and named** under the chart rather than going missing quietly (R3.3),
+and every one of those takes is still in the list below it.
+
+### One grouping, not two
+
+`HistoryEntry.group` is the **title of the `TrendSeries` that take contributes to**, character for
+character, and it comes from the same key types rather than being rebuilt: `GroupKey`, `DropoutKey`
+and `FormKey` gain a `title`, the two scalar keys gain a title function beside them. Two answers to
+*which takes belong together* is one answer too many (`LESSONS.md` shape 9), and it is how a chart
+and the card under it came to disagree in the first place.
+
+`chartable()` lives in `TrainerKit` for the reason `TakeAxis.mixed(in:)` was extracted (§7.28): a
+filter applied while drawing is a decision no suite can reach.
+
+### What was checked
+
+The group titles are transcribed into `testTheTrendGroupsAreStable` from the readout rather than
+rebuilt from the code under test (`LESSONS.md` shape 4), and the pre-existing
+`GeneratedBackingTrendTests` assertion on `"Jams at 100 BPM"` still holds — the strings are
+character-identical to the ones they replaced, which is the claim the whole change rests on.
+
+`ChartsAndTrendsAgreeTests` asserts the property that stops the two drifting apart: **the set of
+groups a chart would draw and the set the cards fit are the same set.** Reverting the grouping
+fails it with the two sets printed side by side; reverting the clean-rate row fails the form-axes
+test; a group below `minimumPoints` and a take with a non-finite metric are each asserted to be
+omitted and counted rather than drawn.
+
+### What this does not cover
+
+**The chart still follows one number per drill.** The form drill has two peer axes and the chart
+draws the spatial one, with a note saying so and pointing at the fit below. Plotting both would
+need a second series dimension competing with the group legend, and the verdict — which is what
+"is this improving" actually means here — is in the card either way. Worth revisiting if the
+temporal ladder starts moving.
+
+**No live run and no measurement change.** No stored field, no analysis, no audio. Every number on
+the screen is recomputed from raw taps exactly as before; what changed is which of them are drawn
+together.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -7171,11 +7273,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   760 cases
+└── Tests/                   769 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     404 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     234 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     243 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
