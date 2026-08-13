@@ -49,11 +49,25 @@ struct HistoryView: View {
             case .jam: return "Lower is tighter. One line per comparable group."
             case .form: return "Higher is better. This is the spatial axis — knowing which bar the "
                              + "phrase turns on. The temporal one, landing cleanly, is fitted below."
-            case .dropout: return "Closer to zero is a truer internal tempo."
+            // The line is **signed** — above the rule you played fast alone, below it slow — and
+            // the fit beneath the chart is on the distance from zero. Saying so is the point: a
+            // line descending through zero is improving until it crosses and worsening after,
+            // while its own slope never changes sign. The signed value is worth keeping because
+            // rushing and dragging are different faults with different work behind them, and
+            // taking the absolute value throws that away before the player ever sees it.
+            case .dropout: return "Closer to the line is a truer internal tempo — above it you "
+                                + "played fast alone, below it slow. The fit below is on the "
+                                + "distance from zero, so it does not care which."
             case .tempo: return "Lower is more accurate."
             case .memory: return "Lower means the period survives a filled gap."
             }
         }
+
+        /// Whether zero is the target, and so worth drawing.
+        ///
+        /// Only where the metric is signed and the goal is to sit on it. A spread or an error
+        /// percentage cannot be negative, so a rule at zero would be a line along the axis.
+        var marksZero: Bool { self == .dropout }
     }
 
     /// Every take of this drill. The list shows all of them; the chart shows what it can draw
@@ -116,6 +130,10 @@ struct HistoryView: View {
                                     // exactly that reason while the picture above them was not
                                     // (`LESSONS.md` shape 19).
                                     Chart(chartable.entries) { entry in
+                                        if kind.marksZero {
+                                            RuleMark(y: .value("On tempo", 0))
+                                                .foregroundStyle(.secondary.opacity(0.5))
+                                        }
                                         LineMark(x: .value("Take", entry.date),
                                                  y: .value(entry.metricLabel, entry.metric),
                                                  series: .value("Group", entry.group))
@@ -197,7 +215,7 @@ private struct TrendCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(series.title).font(.headline)
-                    Text("\(series.takeCount) takes")
+                    Text(series.takeCountLabel)
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
