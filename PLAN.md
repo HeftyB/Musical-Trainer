@@ -7034,7 +7034,7 @@ now holds the string layer of `Instructions.swift`, verified by planting the ast
 
 ### What this branch does not cover
 
-The review's other seven findings, in the order they will be taken:
+The review's other seven findings, in the order they were taken. **All eight are closed** as of §7.51:
 
 | | Finding | Why it matters |
 |---|---|---|
@@ -7042,8 +7042,8 @@ The review's other seven findings, in the order they will be taken:
 | 3 | ~~`review trend` fits `onFormRate` only~~ | Done in §7.48 |
 | 4 | ~~The app's history chart pools what the console refuses to~~ | Done in §7.48, and the chart survived being made honest |
 | 5 | ~~Two lists of legal phrase spans disagree~~ | Done in §7.50, which found the strand was the worse half |
-| 6 | `MIDIInput.onNoteEvent` is written and read from two threads unsynchronised | A closure property plus ARC is a race the adjacent field takes a lock to avoid |
-| 7 | Captured note-ons are dropped in silence once storage fills | Shape 20: the truncation reads as the keyboard going quiet |
+| 6 | ~~`MIDIInput.onNoteEvent` crosses threads unsynchronised~~ | Done in §7.51 |
+| 7 | ~~Captured note-ons are dropped in silence once storage fills~~ | Done in §7.51, which found the buffer was four notes a beat from full |
 | 8 | ~~`**swung**` renders as literal asterisks~~ | Done here — it was one file away |
 
 **No live run.** Nothing here touches audio, MIDI or the analysis, and the only untested path is a
@@ -7399,6 +7399,113 @@ take exactly as before.
 
 ---
 
+## 7.51 The capture stops losing notes and races in silence
+
+§7.46's last two findings, both on the path every take is recorded through, and both silent by
+construction. A third came out of fixing them.
+
+### The buffer was too small, and only just
+
+`MIDIInput` preallocates its note-on buffer so the delivery thread never allocates — right — and
+the number was 8192, chosen once and never revisited. Against the engine's own limit:
+
+| | |
+|---|---|
+| Longest take a drill will run | 512 bars = 2048 beats |
+| Old buffer | 8192 note-ons = **4.0 per beat** |
+| A keyboard player at four-note chords on sixteenths | **16 per beat** |
+
+Not theoretical headroom. §7.34's block 9 logged 955 matched notes and 243 extras over 176 bars, so
+an ordinary take already runs to ~1200 events; a long dense one is a factor of four from the ceiling
+rather than an order of magnitude. `captureCapacity` is 32,768, and `notesPerBeatCovered` derives
+the rate from `TrainerEngine.maximumTakeBars` — which is a named constant now rather than a `512`
+written into three validators, so raising the bar cap without the buffer fails a test instead of
+silently shortening how much of a take gets recorded (`LESSONS.md` shape 9). Half a megabyte, held
+once for the process lifetime.
+
+### And it stopped writing without saying so
+
+```swift
+if storageCount < capacity { … }        // and no else
+```
+
+A take that overran lost the rest of its playing with **no incident, no warning, and nothing to
+distinguish it from a take where the player stopped early** — while every number it reports is
+computed over the truncated series. That is `LESSONS.md` shape 20 in its second instance: the error
+path discarding exactly the observation that says something went wrong, and it fires hardest on the
+densest take, which is the one worth having.
+
+Drops are counted now, with the host time of the first, and surface as an incident beside the
+connection events. Nothing is excluded — §7.34's rule holds: an incident is a record, never a
+verdict.
+
+### The handler race, which the file already had the argument against
+
+`onNoteEvent` was written on the take thread (`runJam` sets it, `end()` clears it) and read on
+CoreMIDI's delivery thread, with nothing between them. The comment fifteen lines below it rejects
+precisely that pattern for the note *count*:
+
+> That pattern happens to be safe on x86_64's total store order, but it is a data race under the
+> language model and would break on Apple Silicon.
+
+A closure property does not get as far as needing that argument. Assigning one releases a box a
+reader may be retaining, and a refcount underflow is a use-after-free on **any** architecture — so
+the field beside it was locked while this one, holding a closure that captures the live
+`GroovePlayer`, was not.
+
+It goes behind the same kind of lock, **copied once per packet and called outside it**. Both halves
+matter: monitoring must never be able to block capture, and a handler retained for the duration of
+the call keeps what it captured alive if the take thread tears down mid-packet.
+
+### A third defect, found by adding the third kind
+
+Both surfaces counted incidents by subtraction — removals by identity, and *everything else* as a
+setup change:
+
+```swift
+let changes = incidents.count - removals.count
+```
+
+So a `captureFull` incident would have been reported under `setupChanged`'s name, on both surfaces,
+with nothing failing to compile. `LESSONS.md` shape 1: a decision made while printing is a decision
+no suite can reach, which is why §7.28 extracted `TakeAxis.mixed(in:)` and why this is now
+`MIDIIncidentReport.of`, exhaustive over `Kind`.
+
+It carries the consequence as well as the counts, because the two losses are not the same one and
+one sentence cannot describe both:
+
+| Incident | What it means for the take |
+|---|---|
+| `sourceRemoved` | Notes were **never delivered** — the take may be missing playing that happened |
+| `captureFull` | Notes were **delivered and heard, and not stored** — every number is computed over a truncated take |
+
+### What is guarded, and what cannot be
+
+The overflow cannot be provoked without CoreMIDI handing over tens of thousands of packets, and the
+race cannot be tested deterministically — a two-thread hammer either crashes or passes, which R5.4
+rules out. What `CaptureLossTests` covers is the arithmetic that sizes the buffer (reverting to 8192
+fails with *"8192 note-ons over 512 bars is 4.0 per beat"*) and the readout that describes the
+result, which is where the third defect lived: counting `captureFull` as a setup change fails three
+assertions.
+
+That split is worth stating plainly rather than implying the whole thing is covered. **The two
+defects this section is named for are argued, not tested** (R5.6). The one found while fixing them
+is tested, because it was the one that had escaped into a print.
+
+### The review is closed
+
+All eight findings of §7.46 are done: the app's swung instructions and the markdown (§7.46), two
+gate rules that proved nothing (§7.47), the form trend's missing axis and the pooled chart (§7.48),
+the phrase-span lists and the ladder strand (§7.50), and these two. §7.49 is the one nobody
+predicted — two defects a screenshot found after §7.48 had already shipped.
+
+**Nothing here has been played.** Six branches, no live run, and the next thing this project needs
+is a session: M16 has never been exercised under its finished ladders, no take has been recorded
+from the app's swung or offbeat paths, and the new incident readout draws nothing until the day it
+does.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -7422,11 +7529,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   779 cases
+└── Tests/                   788 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     411 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     246 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     255 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

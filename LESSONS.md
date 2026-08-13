@@ -22,7 +22,7 @@ new repository — is kept outside the tree with the rest of the cross-project t
 
 ## 1. The path under test is not the path that ships
 
-**The most common shape here by a distance — seven instances.** Tests are written against a helper,
+**The most common shape here by a distance — eight instances.** Tests are written against a helper,
 an accessor, or a decision made inline somewhere no suite can reach. They pass for ever and guard
 nothing.
 
@@ -59,6 +59,13 @@ nothing.
 - **`TakeAxis.mixed(in:)` was a decision inside a `print`.** A pooled readout decided what
   confounds to name while printing them, which no suite can check. Extracted so a test can reach
   it (§7.28).
+- **Both incident readouts counted by subtraction** (§7.51). The console and the app each counted
+  `kind == .sourceRemoved` and called *everything else* a setup change, inline, in a `print` and in
+  a `View`. Adding a third kind — notes lost because the capture buffer filled — would have
+  reported it under the second's name on both surfaces **with nothing failing to compile.** Caught
+  while adding that kind rather than after it shipped, which is the only instance here that was
+  found before it cost anything. `MIDIIncidentReport.of` is exhaustive over `Kind`, so the next
+  case stops the build instead of being absorbed into a neighbour's count.
 
 **Guard:** before writing a test, ask what production code calls the thing you are about to
 assert on. If the answer is "nothing", you are testing a copy. When logic sits inside something
@@ -542,8 +549,19 @@ way the rule does not literally say: nothing deleted a stored take, but a take t
 storage is lost just as completely, and the manifest recorded it as *"skipped"*, so nothing
 downstream could tell a destroyed measurement from a declined one.
 
+**Second instance, in the capture rather than in storage** (§7.51). `MIDIInput`'s note buffer is
+preallocated so the delivery thread never allocates, and when it filled the code simply stopped
+writing — `if storageCount < capacity { … }` with no `else`. A take that overran lost the rest of
+its playing with **no incident, no warning, and nothing to distinguish it from a take where the
+player stopped early**, while every number it reports is computed over the truncated series. Same
+inversion: it fires hardest on the densest take, which is the one worth having. And the buffer was
+**4.0 note-ons per beat** across a maximum-length take against a keyboard player's 16, so it was
+reachable rather than theoretical.
+
 **Guard:** every stored summary goes through `Stats.finite`, and the seven affected fields are
-`Optional`. Nothing reads a cached summary back (R3.1), so writing `null` costs nothing.
+`Optional`. Nothing reads a cached summary back (R3.1), so writing `null` costs nothing. Where a
+fixed-size buffer is the constraint, **count what did not fit and report it** — and size the buffer
+from the thing it has to hold rather than from a number that once looked generous.
 Structurally: R5.8 — every stored type gets a round-trip test *with the type*, not after the first
 take is lost — and when writing an error path, ask what the *worst* input looks like and whether
 that is the input you most wanted to keep.

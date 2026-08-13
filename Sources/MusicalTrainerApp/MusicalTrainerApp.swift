@@ -118,38 +118,25 @@ struct MIDIIncidentNotice: View {
     let incidents: [MIDIIncident]
 
     var body: some View {
-        if !incidents.isEmpty {
+        // The same report the console prints, counted in `TrainerKit` where a test can reach it.
+        // R3.4 asks both surfaces to warn identically, and two copies of a count are two chances
+        // to describe an incident differently.
+        if let report = MIDIIncidentReport.of(incidents) {
             Card {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("The MIDI connection changed while this take was running",
+                    Label("Something happened to this take while it was running",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.callout).fontWeight(.semibold)
                         .foregroundStyle(.orange)
-                    Text(summary)
+                    Text(report.lines.joined(separator: " · "))
                         .font(.callout).foregroundStyle(.secondary)
-                    Text("""
-                         Notes played while a source was gone were never delivered, so this take \
-                         may be missing playing that happened. Nothing has been excluded — this \
-                         is a record, not a verdict.
-                         """)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(report.consequence)
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-    }
-
-    private var summary: String {
-        let removals = incidents.filter { $0.kind == .sourceRemoved }
-        var parts: [String] = []
-        if !removals.isEmpty {
-            let named = removals.compactMap(\.name).first
-            parts.append("\(removals.count) source removal(s)"
-                       + (named.map { ", including \($0)" } ?? ""))
-        }
-        let changes = incidents.count - removals.count
-        if changes > 0 { parts.append("\(changes) setup change(s)") }
-        return parts.joined(separator: " · ")
     }
 }
 

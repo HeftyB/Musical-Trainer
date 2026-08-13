@@ -544,23 +544,13 @@ public enum Commands {
     ///
     /// Silent on a healthy take. A warning that fires on every take is one nobody reads.
     static func reportMIDIIncidents(_ incidents: [MIDIIncident]) {
-        guard !incidents.isEmpty else { return }
+        // Counted where a test can reach it. Both surfaces used to count by subtraction — a
+        // third kind would have been printed under the second's name (`LESSONS.md` shape 1).
+        guard let report = MIDIIncidentReport.of(incidents) else { return }
 
-        let removals = incidents.filter { $0.kind == .sourceRemoved }
-        let changes = incidents.count - removals.count
-
-        Console.warn("The MIDI connection changed while this take was running.")
-        if let named = removals.compactMap(\.name).first {
-            print("  \(removals.count) source removal(s), including \(named)")
-        } else if !removals.isEmpty {
-            print("  \(removals.count) source removal(s)")
-        }
-        if changes > 0 { print("  \(changes) setup change(s)") }
-        print("""
-              \(Console.dim)Notes played while a source was gone were never delivered, so this \
-              take may be missing playing that happened. Nothing has been excluded — this is a \
-              record, not a verdict.\(Console.reset)
-              """)
+        Console.warn("Something happened to this take while it was running.")
+        for line in report.lines { print("  \(line)") }
+        print("\n  \(Console.dim)\(report.consequence)\(Console.reset)")
     }
 
     /// An offbeat take's own readout, carried as one value rather than as a flag.

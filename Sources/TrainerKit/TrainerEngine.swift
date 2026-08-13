@@ -62,6 +62,14 @@ public enum TrainerEngine {
 
     // MARK: - Jam
 
+    /// The longest take any drill will run, in bars.
+    ///
+    /// Named because two things now depend on it: every drill config validates against it, and
+    /// `MIDIInput.captureCapacity` is sized from it — a buffer that must hold a whole take has to
+    /// be derived from how long a take can be, not from a number that once looked generous
+    /// (`LESSONS.md` shape 9).
+    public static let maximumTakeBars = 512
+
     public struct JamConfig {
         public var bpm: Double
         public var bars: Int
@@ -235,7 +243,9 @@ public enum TrainerEngine {
         /// regression away from playing a full take through the speakers.
         public func validate() throws {
             guard (40...260).contains(bpm) else { throw SpikeError("Tempo must be 40–260 BPM.") }
-            guard (4...512).contains(bars) else { throw SpikeError("Bars must be 4–512.") }
+            guard (4...maximumTakeBars).contains(bars) else {
+                throw SpikeError("Bars must be 4–\(maximumTakeBars).")
+            }
             guard offbeatLevel == nil || feel.isStraight else {
                 throw SpikeError("The offbeat drill is straight: an offbeat is at half the beat, "
                                + "and swinging it would move the very point being held.")
@@ -403,8 +413,8 @@ public enum TrainerEngine {
             guard (2...32).contains(phraseBars) else {
                 throw SpikeError("Phrase length must be 2–32 bars.")
             }
-            guard bars >= phraseBars, bars <= 512 else {
-                throw SpikeError("Bars must be between the phrase length and 512.")
+            guard bars >= phraseBars, bars <= maximumTakeBars else {
+                throw SpikeError("Bars must be between the phrase length and \(maximumTakeBars).")
             }
         }
     }
