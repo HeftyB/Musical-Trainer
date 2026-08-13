@@ -14,15 +14,94 @@ public struct MIDIIncident: Equatable {
         case sourceRemoved
         /// The MIDI setup changed — a device added, removed, or reconfigured somewhere.
         case setupChanged
+        /// The capture buffer filled and this many note-ons after it were not recorded.
+        ///
+        /// Not a connection event, and here anyway: it belongs beside the others because it
+        /// answers the same question — *what is this take missing, and why* — through the same
+        /// list on both surfaces.
+        case captureFull(dropped: Int)
     }
 
     public let kind: Kind
-    /// `mach_absolute_time` when CoreMIDI told us, on the same clock as every captured note, so
-    /// an incident can be placed against the notes on either side of it.
+    /// `mach_absolute_time` when it happened, on the same clock as every captured note, so an
+    /// incident can be placed against the notes on either side of it.
     public let hostTime: UInt64
     /// The endpoint's display name where one could be read. Absent is normal for a removal —
     /// a departed object often cannot be queried for its own name.
     public let name: String?
+
+    /// Internal on purpose (R4.5): only the capture path creates one. Both front ends read
+    /// incidents and render `MIDIIncidentReport`; neither has any business making one up.
+    init(kind: Kind, hostTime: UInt64, name: String?) {
+        self.kind = kind; self.hostTime = hostTime; self.name = name
+    }
+}
+
+/// What a take's incidents amount to, in the words both surfaces use.
+///
+/// **One readout, exhaustive over `Kind`.** The console and the app each counted
+/// `kind == .sourceRemoved` and called *everything else* a setup change, by subtraction — so a
+/// third kind would have been reported under the second's name, silently and on both surfaces, and
+/// nothing would have failed to compile. A decision made while printing is a decision no suite can
+/// reach (`LESSONS.md` shape 1, and §7.28 extracted `TakeAxis.mixed(in:)` for the same reason).
+///
+/// The consequence line depends on which kinds occurred, because they do not have the same one: a
+/// source that went away means notes were **never delivered**, while a full buffer means they were
+/// delivered and **not recorded**. Reporting both as "may be missing playing" would understate the
+/// second, which is the take's own numbers being computed over a truncated series.
+public struct MIDIIncidentReport: Equatable {
+    /// One line per kind that occurred, in a fixed order.
+    public let lines: [String]
+    /// What it means for this take.
+    public let consequence: String
+
+    /// `nil` when nothing happened, so a caller cannot render an empty warning.
+    public static func of(_ incidents: [MIDIIncident]) -> MIDIIncidentReport? {
+        guard !incidents.isEmpty else { return nil }
+
+        var removals: [MIDIIncident] = []
+        var changes = 0
+        var dropped = 0
+        // Exhaustive on purpose: a kind added later stops compiling here rather than being
+        // absorbed into a neighbour's count.
+        for incident in incidents {
+            switch incident.kind {
+            case .sourceRemoved:          removals.append(incident)
+            case .setupChanged:           changes += 1
+            case .captureFull(let count): dropped += count
+            }
+        }
+
+        var lines: [String] = []
+        if !removals.isEmpty {
+            let named = removals.compactMap(\.name).first
+            lines.append(count(removals.count, "source removal", "source removals")
+                       + (named.map { ", including \($0)" } ?? ""))
+        }
+        if changes > 0 { lines.append(count(changes, "setup change", "setup changes")) }
+        if dropped > 0 {
+            lines.append(count(dropped, "note not recorded", "notes not recorded")
+                       + " — the capture buffer was full")
+        }
+
+        var consequence = ""
+        if !removals.isEmpty || changes > 0 {
+            consequence = "Notes played while a source was gone were never delivered, so this "
+                        + "take may be missing playing that happened. "
+        }
+        if dropped > 0 {
+            consequence += "Notes after the buffer filled were played and heard but not stored, "
+                         + "so every number for this take is computed over a truncated take. "
+        }
+        return MIDIIncidentReport(
+            lines: lines,
+            consequence: consequence + "Nothing has been excluded — this is a record, not a "
+                       + "verdict.")
+    }
+
+    private static func count(_ n: Int, _ singular: String, _ plural: String) -> String {
+        "\(n) \(n == 1 ? singular : plural)"
+    }
 }
 
 /// Which MIDI sources are connected, and what has happened to them.

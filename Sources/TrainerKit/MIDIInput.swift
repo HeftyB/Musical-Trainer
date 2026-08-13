@@ -54,18 +54,63 @@ final class MIDIInput {
         return body(&registry)
     }
 
-    /// What happened to the MIDI connection during the take just run, in the order it happened.
+    /// What happened during the take just run, in the order it happened.
     ///
     /// Empty is the normal case and means the connection was uneventful — **not** that nothing
     /// could have gone wrong unobserved. Before the notify block existed this was unanswerable
     /// in principle: a keyboard leaving mid-take produced no note-ons, no note-offs and no
     /// record, which is why two hangs left nothing but the player's description (§7.34, §7.35).
-    var incidents: [MIDIIncident] { withRegistry { $0.incidents } }
+    ///
+    /// The capture's own incident is merged here rather than reported separately, so the surfaces
+    /// have one list to render and one place a new kind can appear. **The two locks are taken in
+    /// sequence and never nested**, which is why the overflow is kept in plain fields under
+    /// `storageLock` and turned into an incident at read time instead of being handed to the
+    /// registry from inside the delivery thread's critical section.
+    var incidents: [MIDIIncident] {
+        var all = withRegistry { $0.incidents }
+        if let overflow = captureOverflowIncident { all.append(overflow) }
+        return all.sorted { $0.hostTime < $1.hostTime }
+    }
+
+    private var captureOverflowIncident: MIDIIncident? {
+        os_unfair_lock_lock(&storageLock)
+        defer { os_unfair_lock_unlock(&storageLock) }
+        guard droppedNoteOns > 0 else { return nil }
+        return MIDIIncident(kind: .captureFull(dropped: droppedNoteOns),
+                            hostTime: firstDropHostTime, name: nil)
+    }
+
+    typealias NoteHandler = (_ note: UInt8, _ velocity: UInt8, _ on: Bool, _ channel: UInt8) -> Void
 
     /// Called on the CoreMIDI delivery thread for every note-on and note-off, for live
     /// monitoring. Keep the handler real-time-safe — it runs on the MIDI thread. `on` is
     /// false for note-offs (and note-ons with velocity 0).
-    var onNoteEvent: ((_ note: UInt8, _ velocity: UInt8, _ on: Bool, _ channel: UInt8) -> Void)?
+    ///
+    /// **Guarded, for the reason the note storage below is.** This is written on the take thread
+    /// — `runJam` sets it, `end()` clears it — and read on CoreMIDI's delivery thread, and a
+    /// closure property is not a word: assigning one releases the old box while a reader may be
+    /// retaining it. The comment under `storage` rejects the unguarded pattern on the grounds
+    /// that it is *"a data race under the language model"* which happens to survive x86_64's
+    /// total store order; that argument does not even get that far here, because a refcount
+    /// underflow is a use-after-free on any architecture.
+    ///
+    /// The handler is **copied under the lock and called outside it**, which matters twice: a
+    /// monitoring handler must never be able to block capture, and holding a strong copy keeps
+    /// the `GroovePlayer` it captures alive for the duration of the call even if the take thread
+    /// tears down mid-packet.
+    var onNoteEvent: NoteHandler? {
+        get { withHandlerLock { handler } }
+        set { withHandlerLock { handler = newValue } }
+    }
+
+    private var handler: NoteHandler?
+    private var handlerLock = os_unfair_lock_s()
+
+    private func withHandlerLock<T>(_ body: () -> T) -> T {
+        os_unfair_lock_lock(&handlerLock)
+        defer { os_unfair_lock_unlock(&handlerLock) }
+        return body()
+    }
 
     /// Last note-on time per note number, for duplicate rejection.
     private var lastNoteOn = [UInt64](repeating: 0, count: 128)
@@ -84,7 +129,35 @@ final class MIDIInput {
     private var storageLock = os_unfair_lock_s()
     private let capacity: Int
 
-    init(capacity: Int = 8192) {
+    /// Note-ons this take could not record, and when the first one arrived.
+    ///
+    /// The buffer is preallocated so the delivery thread never allocates, which means it has an
+    /// end — and the code simply stopped writing at it. A take that overran lost the rest of its
+    /// playing with no incident, no warning and no difference from a take where the player
+    /// stopped, which is `LESSONS.md` shape 20: the error path discarding exactly the data that
+    /// says something went wrong.
+    private var droppedNoteOns = 0
+    private var firstDropHostTime: UInt64 = 0
+
+    /// How many note-ons a take may record.
+    ///
+    /// **Derived from the longest take the engine will run**, rather than picked. `JamConfig`
+    /// caps a take at `TrainerEngine.maximumTakeBars` bars of four beats, and this divided by
+    /// those beats is how many note-ons per beat the buffer can hold for the whole of one —
+    /// `notesPerBeatCovered`, which `CaptureCapacityTests` requires to stay above a dense
+    /// keyboard player's rate. Four-note chords on sixteenths is 16 a beat, and this player is a
+    /// keyboard player.
+    ///
+    /// The old 8192 covered barely 4 a beat over a maximum-length take. The cost of the new
+    /// number is half a megabyte, held once for the process lifetime.
+    static let captureCapacity = 32_768
+
+    /// Note-ons per beat the buffer covers across the longest legal take.
+    static var notesPerBeatCovered: Double {
+        Double(captureCapacity) / Double(TrainerEngine.maximumTakeBars * 4)
+    }
+
+    init(capacity: Int = MIDIInput.captureCapacity) {
         self.capacity = capacity
         self.storage = .allocate(capacity: capacity)
     }
@@ -214,6 +287,8 @@ final class MIDIInput {
     func reset() {
         os_unfair_lock_lock(&storageLock)
         storageCount = 0
+        droppedNoteOns = 0
+        firstDropHostTime = 0
         os_unfair_lock_unlock(&storageLock)
         for i in 0..<lastNoteOn.count { lastNoteOn[i] = 0 }
         // Last take's incidents are not this take's. Connections deliberately survive — see
@@ -243,6 +318,10 @@ final class MIDIInput {
         // A zero timestamp means "now" in CoreMIDI's contract.
         let timeStamp = packet.pointee.timeStamp == 0 ? mach_absolute_time() : packet.pointee.timeStamp
         let words = Array(packet.words())
+        // One locked copy for the whole packet, strong for as long as the calls below take. See
+        // `onNoteEvent`: the take thread may clear it at any point, and a handler retained here
+        // keeps what it captured alive rather than being torn out from under a call in progress.
+        let monitor = onNoteEvent
 
         var i = 0
         while i < words.count {
@@ -266,13 +345,20 @@ final class MIDIInput {
                             storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note,
                                                                velocity: velocity, channel: channel)
                             storageCount += 1
+                        } else {
+                            // Counted rather than swallowed. A take that overran used to lose the
+                            // rest of its playing and look exactly like one where the player
+                            // stopped — and the numbers computed from a truncated series are a
+                            // fact about the buffer, not about the player.
+                            if droppedNoteOns == 0 { firstDropHostTime = timeStamp }
+                            droppedNoteOns += 1
                         }
                         os_unfair_lock_unlock(&storageLock)
                         // Outside the lock: monitoring must never be able to block capture.
-                        onNoteEvent?(note, velocity, true, channel)
+                        monitor?(note, velocity, true, channel)
                     }
                 } else if status == 0x8 || (status == 0x9 && velocity == 0) {
-                    onNoteEvent?(note, 0, false, channel)
+                    monitor?(note, 0, false, channel)
                 }
             }
             i += Self.wordCount(forMessageType: messageType)
