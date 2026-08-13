@@ -546,19 +546,36 @@ public enum SessionPlanner {
         return .hold
     }
 
-    /// The next rung up the span ladder, or `nil` at the top or off the ladder entirely.
+    /// The next rung up the span ladder, or `nil` at the top.
+    ///
+    /// **The first rung wider than where you are, rather than the successor of an exact match.**
+    /// The old form required `phraseBars` to *be* a rung, so any span off the ladder returned
+    /// `nil` and `formAxis` could never again answer `.spatial` — the spatial ladder was stranded
+    /// for good at a setting the player could reach by hand (`form 100 64 6 2`) or be moved to by
+    /// the felt-period rule below. Asking for the next one up needs no such precondition and
+    /// answers identically on every rung: 4 → 8, 8 → 16, 16 → 32, 32 → nil.
     public static func nextSpan(after phraseBars: Int) -> Int? {
-        guard let rung = phraseSpanLadder.firstIndex(of: phraseBars),
-              rung + 1 < phraseSpanLadder.count else { return nil }
-        return phraseSpanLadder[rung + 1]
+        phraseSpanLadder.first { $0 > phraseBars }
     }
 
-    /// The phrase spans the spatial ladder climbs, shortest first.
+    /// The phrase spans the spatial ladder climbs, shortest first — **and the only spans the
+    /// planner may ask for.**
     ///
     /// The progression the roadmap describes is 8 → 16 → 32; 4 is on the list because the
     /// felt-period rule can put a player there and a ladder has to know where its rungs are, not
-    /// only where it likes to start. Matches the lengths the app offers, so the ladder can never
-    /// ask for a span the player cannot also choose by hand.
+    /// only where it likes to start.
+    ///
+    /// **One list, and every rule that decides a span reads it.** There were two: this, and a
+    /// `[2, 4, 8, 16, 32]` written out twice inside the felt-period rule, which could therefore
+    /// move the drill onto a 2-bar phrase — a span the ladder did not contain, the app's picker
+    /// could not display, and `nextSpan` could not climb off. Two lists of legal values is
+    /// `LESSONS.md` shape 9: they agreed about four of five entries, which is exactly how long
+    /// nobody notices.
+    ///
+    /// `SetupView` reads this too, so "the ladder can never ask for a span the player cannot also
+    /// choose by hand" is structural rather than a claim in a comment. The **CLI** can still be
+    /// handed anything `FormConfig.validate` accepts, which is deliberate — trying a span by hand
+    /// is the same affordance as `--probe` — and `nextSpan` no longer strands a player who does.
     public static let phraseSpanLadder = [4, 8, 16, 32]
 
     /// How much drill a session of a given length can hold.
@@ -1139,9 +1156,16 @@ public enum SessionPlanner {
         //
         // The rule now needs the two most recent takes to agree. That cannot oscillate on
         // noise, and when it does move, something real has been measured twice.
+        //
+        // **The span it moves to is a rung of `phraseSpanLadder`, not a separate list.** It was
+        // `[2, 4, 8, 16, 32]`, written out twice here, so a player who marked a steady 2-bar
+        // period twice running was moved onto a 2-bar phrase — off the ladder, unreachable from
+        // the app's picker, and, before `nextSpan` was rewritten, a setting the spatial ladder
+        // could never climb out of. No take on record has ever felt a 2-bar period, so this
+        // changes nothing already measured; it closes a door rather than moving anybody.
         let feltPeriods = recent.suffix(2).map { $0.markedEveryBars.map { Int($0.rounded()) } }
         if feltPeriods.count == 2, let latest = feltPeriods[1], let previous = feltPeriods[0],
-           latest == previous, latest != last.phraseBars, [2, 4, 8, 16, 32].contains(latest) {
+           latest == previous, latest != last.phraseBars, phraseSpanLadder.contains(latest) {
             return SessionBlock(
                 role: .training,
                 plan: .form(FormPlan(bpm: referenceBpm, bars: sizes.formBars, phraseBars: latest,
@@ -1152,11 +1176,24 @@ public enum SessionPlanner {
                       + "\(last.level).")
         }
         if let latest = feltPeriods.last ?? nil, latest != last.phraseBars,
-           [2, 4, 8, 16, 32].contains(latest) {
+           phraseSpanLadder.contains(latest) {
             notes.append("Your last form take marked a steady \(latest)-bar phrase against the "
                        + "\(last.phraseBars)-bar setting, but the take before it did not agree. "
                        + "The phrase length stays put until two takes running say the same "
                        + "thing — chasing one take is how the setting started oscillating.")
+        }
+
+        // A felt period the ladder does not have is still a measurement, and refusing to act on it
+        // in silence would leave the drill sitting at a span the player has visibly abandoned with
+        // nothing on screen accounting for it (R3.3). Said whether one take or both agree, because
+        // the reason it is being declined is the span rather than the evidence.
+        if let latest = feltPeriods.last ?? nil, !phraseSpanLadder.contains(latest),
+           latest != last.phraseBars {
+            let rungs = phraseSpanLadder.map(String.init).joined(separator: ", ")
+            notes.append("Your last form take marked a steady \(latest)-bar phrase, which is not "
+                       + "one of the lengths this drill runs (\(rungs) bars). The setting stays "
+                       + "at \(last.phraseBars) — marking a period the form does not contain "
+                       + "usually means the phrase was lost rather than felt differently.")
         }
 
         // **One decision, made once.** `formAxis` says which ladder may move and why; both

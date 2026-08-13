@@ -59,12 +59,23 @@ final class FormAxisChooserTests: XCTestCase {
         XCTAssertEqual(SessionPlanner.formAxis(for: done), .hold)
     }
 
-    /// A span the ladder does not contain cannot be climbed from — the felt-period rule can set
-    /// one, and inventing a "next" from an unknown rung would be guessing.
-    func testASpanOffTheLadderDoesNotGrow() {
-        XCTAssertNil(SessionPlanner.nextSpan(after: 2))
-        let odd = form(phraseBars: 2, onFormRate: 1.0)
-        XCTAssertEqual(SessionPlanner.formAxis(for: odd), .hold)
+    /// A span the ladder does not contain climbs to the first rung above it.
+    ///
+    /// **This reverses what this test asserted**, which was that an off-ladder span cannot be
+    /// climbed from at all, on the grounds that inventing a "next" from an unknown rung would be
+    /// guessing. It is not guessing — the ladder is ordered, and "the first rung wider than where
+    /// you are" is what climbing means. What the old rule actually did was strand the player: a
+    /// span reached by hand (`form 100 64 6 2`) left `formAxis` unable to answer `.spatial` ever
+    /// again, on a ladder whose whole job is to widen. See PLAN.md §7.50.
+    func testASpanOffTheLadderClimbsToTheNextRungAboveIt() {
+        XCTAssertEqual(SessionPlanner.nextSpan(after: 2), 4)
+        XCTAssertEqual(SessionPlanner.nextSpan(after: 6), 8)
+        XCTAssertEqual(SessionPlanner.nextSpan(after: 20), 32)
+        XCTAssertNil(SessionPlanner.nextSpan(after: 33), "nothing is wider than the top rung")
+
+        let odd = form(phraseBars: 6, onFormRate: 1.0)
+        XCTAssertEqual(SessionPlanner.formAxis(for: odd), .spatial,
+                       "a player off the ladder must still be able to climb it")
     }
 
     /// The ladder is walked one rung at a time and stops at the top.

@@ -38,9 +38,15 @@ through every take of a drill while the cards beneath it split the same takes fo
 about the confounds, which is shape 19 a third time. The chart draws one line per comparable group
 now, and only groups big enough to fit, naming how many takes that leaves out.
 
-**Three still open**, listed in §7.46's closing table: two lists of legal phrase spans disagree ·
-`MIDIInput.onNoteEvent` crosses threads unsynchronised · captured note-ons are dropped in silence at
-capacity.
+**Two still open**, listed in §7.46's closing table, and both are in `MIDIInput`:
+`onNoteEvent` is written and read from two threads with no synchronisation, and captured note-ons
+are dropped in silence once storage fills.
+
+**§7.50 closed the phrase-span one**, which had a worse half underneath it. Two lists of legal spans
+disagreed about `2`, so the felt-period rule could move the drill onto a 2-bar phrase — and
+`nextSpan` looked its argument up by identity, so **any** span off the ladder ended the spatial
+ladder for that player permanently. One list now, read by the rule, the planner and the app's
+picker; `nextSpan` returns the first rung wider than where you are.
 
 **A screenshot then found two things the suite could not** (§7.49). The Alone chart plotted *signed*
 tempo bias while the card beneath it fitted the **absolute** value, with no rule at zero to read the
@@ -368,7 +374,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 526 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 533 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (246 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -413,7 +419,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 772 tests, no hardware needed
+swift test                              # 779 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
