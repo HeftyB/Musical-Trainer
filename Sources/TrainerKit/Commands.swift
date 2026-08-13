@@ -516,7 +516,7 @@ public enum Commands {
                                     Int(bpm), ceiling, spreadMs))
             }
         }
-        printInstructions(DrillInstructions.jam(rung: prescribed, feel: swingFeel))
+        printInstructions(DrillInstructions.forJam(config))
         announceProbe(flags)
         Console.prompt("Ready?")
 
@@ -1191,7 +1191,7 @@ public enum Commands {
         let targetText = targets.map { String(Int($0)) }.joined(separator: " / ")
         print("Targets: \(targetText) BPM   ·   \(rounds) rounds   ·   "
             + String(format: "~%.1f min", config.durationSeconds / 60))
-        printInstructions(DrillInstructions.tempo(rung: prescribed))
+        printInstructions(DrillInstructions.forTempo(config))
         Console.prompt("Ready?")
 
         print("")
@@ -1353,7 +1353,7 @@ public enum Commands {
         print("\n\(bars) bars at \(Int(bpm)) BPM  ·  \(Console.bold)level \(level.rawValue) — "
             + "\(level.label)\(Console.reset)"
             + String(format: "  ·  ~%.1f min", config.durationSeconds / 60))
-        printInstructions(DrillInstructions.offbeat(level: level))
+        printInstructions(DrillInstructions.forJam(config))
         announceProbe(flags)
         Console.prompt("Ready?")
 
@@ -1645,7 +1645,7 @@ public enum Commands {
         print("\n\(Console.bold)\(cycles) cycles\(Console.reset): \(pacedBars) bars with the band, "
             + "\(silentBars) bars alone  ·  "
             + String(format: "~%.1f min", config.durationSeconds / 60))
-        printInstructions(DrillInstructions.dropout(rung: prescribed))
+        printInstructions(DrillInstructions.forDropout(config))
         Console.prompt("Ready?")
 
         let outcome = try TrainerEngine.runDropout(config)
@@ -2059,7 +2059,7 @@ public enum Commands {
             + "at \(Int(bpm)) BPM  ·  "
             + String(format: "~%.1f min", config.durationSeconds / 60))
         print("Landmarks: \(level.label)")
-        printInstructions(DrillInstructions.form(level: level.rawValue, phraseBars: phraseBars))
+        printInstructions(DrillInstructions.forForm(config))
         announceProbe(flags)
         if level.hasArrivalAccent {
             print("\n  \(Console.dim)At this level a crash cymbal lands exactly on the beat you are\n"
