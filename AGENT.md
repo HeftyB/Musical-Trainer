@@ -22,38 +22,34 @@ carries the status of each and is the one to trust. M14 has six ladder takes acr
 M15 has two swung takes and three offbeat ones, and **no form take has yet run on the finished
 M16** — the two most recent ran under its half-built steps.
 
-**A pre-M16.5 review found eight things, and they are being fixed in order** (§7.46). Two are
-closed. The app handed a **swung** jam the *straight* instructions, because its text was assembled
-from an argument list that never had the feel on it; both surfaces derive a drill's text from the
-config the engine will run now. And two `check.sh` rules proved nothing (§7.47) — the supply-chain
-rule passed a **valid, resolving** third-party dependency, and underneath it any rule pointed at a
-file that no longer exists reported PASS, so every file-scoped rule was one rename away from
-disarming. **A green gate has always bounded what was checked rather than what is true; until this
-it also included things that were not checked at all.**
+**The pre-M16.5 review is closed — eight findings, six branches** (§7.46–§7.51). Nothing in it is
+outstanding. What it changed, and what each one is worth remembering for:
 
-**§7.48 closed the next two, both on the history screen.** `review trend` fitted `onFormRate` and
-nothing else, so the axis M16 exists to train — the temporal one, which its ladder is promoted on —
-had no trend line on either surface; it fits both now. And the app's history *chart* drew one line
-through every take of a drill while the cards beneath it split the same takes four ways and warned
-about the confounds, which is shape 19 a third time. The chart draws one line per comparable group
-now, and only groups big enough to fit, naming how many takes that leaves out.
+| | Found | Closed |
+|---|---|---|
+| The app handed a **swung** jam the *straight* instructions | §7.46 | Both surfaces build a drill's text from the config the engine will run |
+| Two `check.sh` rules proved nothing — one passed a **valid, resolving** dependency | §7.47 | And a rule that cannot run now fails instead of going green |
+| `review trend` fitted `onFormRate` only, so M16's own axis had no trend line | §7.48 | Both axes fitted, on both surfaces |
+| The history chart pooled what the cards refuse to pool | §7.48 | One line per comparable group, and only groups big enough to fit |
+| The Alone chart plotted a different quantity from its own card | §7.49 | **Found by a screenshot, not by the suite** |
+| Two lists of legal phrase spans, and a ladder you could be stranded off | §7.50 | One list; `nextSpan` returns the first rung wider than where you are |
+| The capture dropped notes in silence, four notes a beat from full | §7.51 | Counted and reported; the buffer is derived from the longest take |
+| `onNoteEvent` crossed threads unsynchronised | §7.51 | Behind the same lock as the field beside it |
 
-**Two still open**, listed in §7.46's closing table, and both are in `MIDIInput`:
-`onNoteEvent` is written and read from two threads with no synchronisation, and captured note-ons
-are dropped in silence once storage fills.
+**Two things about that review are worth carrying forward.** A green gate bounded what had been
+*checked*, not what was true — and until §7.47 it also covered rules that checked nothing. And
+§7.49 is the one nobody predicted: two defects a **screenshot** found after §7.48 had already
+shipped, neither reachable by any test this project can write.
 
-**§7.50 closed the phrase-span one**, which had a worse half underneath it. Two lists of legal spans
-disagreed about `2`, so the felt-period rule could move the drill onto a 2-bar phrase — and
-`nextSpan` looked its argument up by identity, so **any** span off the ladder ended the spatial
-ladder for that player permanently. One list now, read by the rule, the planner and the app's
-picker; `nextSpan` returns the first rung wider than where you are.
+**Nothing in the review has been played.** Six branches, no live run. The next thing this project
+needs is a session, and there are three specific reasons: M16 has never been exercised under its
+finished ladders, no take has ever been recorded from the app's **swung** or **offbeat** paths, and
+the new incident readout draws nothing until the day it does.
 
-**A screenshot then found two things the suite could not** (§7.49). The Alone chart plotted *signed*
-tempo bias while the card beneath it fitted the **absolute** value, with no rule at zero to read the
-line against; and every one-take group said *"1 takes"* on both surfaces. Neither is a property of
-the data — both are properties of the sentence — and this project cannot assert on a rendered view
-(R5.6). **Add `render → look → decide` beside `render → listen → decide`**: hand over a build, ask
-for a screenshot of the surface that changed, and read it. It has now paid for itself once.
+**The procedure that came out of it: `render → look → decide`**, beside the `render → listen →
+decide` this project already had for audio. Hand over a build, ask for a screenshot of the surface
+that changed, and read it — an agent cannot see a screen any more than it can hear the kit, and
+`MusicalTrainerApp` has no test target (R5.6). It has paid for itself once already.
 
 M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
 the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
