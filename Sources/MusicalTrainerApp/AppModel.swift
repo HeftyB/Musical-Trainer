@@ -32,22 +32,13 @@ final class AppModel: ObservableObject {
             case .groove: return "play.circle"
             }
         }
-        /// Full instructions, shared with the console so the two can't describe a drill
-        /// differently. The form drill's text depends on the level — the landmarks it
-        /// describes are exactly what the ladder removes.
-        func instructions(formLevel: Int = 0, rung: IntervalRung? = nil,
-                          offbeatLevel: OffbeatLevel = .stated,
-                          phraseBars: Int = 8) -> DrillInstructions {
-            switch self {
-            case .jam: return .jam(rung: rung)
-            case .offbeat: return .offbeat(level: offbeatLevel)
-            case .form: return .form(level: formLevel, phraseBars: phraseBars)
-            case .dropout: return .dropout(rung: rung ?? .quarters)
-            case .tempo: return .tempo(rung: rung ?? .quarters)
-            case .memory: return .memory
-            case .groove: return .groove
-            }
-        }
+        // There is deliberately no `instructions(...)` here any more. It took the settings as
+        // loose arguments — `formLevel`, `rung`, `offbeatLevel`, `phraseBars` — and the feel was
+        // not among them, so a swung jam started from this screen was handed the straight text:
+        // "play two notes to the beat, evenly" over a hat that swings, scored against a grid
+        // that expects the offbeat late. `AppModel.currentInstructions` asks the config instead,
+        // which is the value the engine is about to be given, so the two cannot disagree
+        // (R3.6, `LESSONS.md` shape 1).
 
         var blurb: String {
             switch self {
@@ -203,18 +194,39 @@ final class AppModel: ObservableObject {
 
     var estimatedDuration: Double {
         switch mode {
-        case .jam:    return TrainerEngine.JamConfig(bpm: bpm, bars: bars, rung: rung).durationSeconds
+        case .jam:     return jamConfig.durationSeconds
         case .offbeat: return offbeatConfig.durationSeconds
-        case .form:   return TrainerEngine.FormConfig(bpm: bpm, bars: bars, phraseBars: phraseBars,
-                                                      level: formLevel).durationSeconds
+        case .form:    return formConfig.durationSeconds
         case .dropout: return dropoutConfig.durationSeconds
-        case .tempo: return tempoConfig.durationSeconds
-        case .memory: return memoryConfig.durationSeconds
-        case .groove: return TrainerEngine.GrooveConfig(bpm: bpm, bars: bars).durationSeconds
+        case .tempo:   return tempoConfig.durationSeconds
+        case .memory:  return memoryConfig.durationSeconds
+        case .groove:  return grooveConfig.durationSeconds
         }
     }
 
     var phraseCount: Int { max(1, bars / max(1, phraseBars)) }
+
+    /// The configuration a Jam take will run with.
+    ///
+    /// **A property rather than a local inside `start()`, and that is the whole fix.** The take
+    /// was built there while the instructions were built from a separate list of arguments, and
+    /// the feel was on one list and not the other — so the screen described a straight take and
+    /// the engine ran a swung one. One value, read by the preview and handed to the engine, is
+    /// what makes that unwritable rather than merely fixed (R3.6).
+    var jamConfig: TrainerEngine.JamConfig {
+        TrainerEngine.JamConfig(
+            bpm: bpm, bars: bars,
+            tag: tag.trimmingCharacters(in: .whitespaces).isEmpty ? nil : tag,
+            rung: rung, feel: feel, generatedBacking: generatedBacking)
+    }
+
+    var formConfig: TrainerEngine.FormConfig {
+        TrainerEngine.FormConfig(bpm: bpm, bars: bars, phraseBars: phraseBars, level: formLevel)
+    }
+
+    var grooveConfig: TrainerEngine.GrooveConfig {
+        TrainerEngine.GrooveConfig(bpm: bpm, bars: bars, generatedBacking: generatedBacking)
+    }
 
     var tempoConfig: TrainerEngine.TempoConfig {
         // These two default to quarters rather than to nothing: both drills have asked for one
@@ -260,15 +272,12 @@ final class AppModel: ObservableObject {
         cancellation = flag
         screen = .running
 
+        // Every config is read once, here, and handed to the background queue — the same values
+        // `currentInstructions` described on the screen the player just pressed Start on.
         let mode = self.mode
-        let jamConfig = TrainerEngine.JamConfig(
-            bpm: bpm, bars: bars,
-            tag: tag.trimmingCharacters(in: .whitespaces).isEmpty ? nil : tag,
-            rung: rung, feel: feel, generatedBacking: generatedBacking)
-        let formConfig = TrainerEngine.FormConfig(bpm: bpm, bars: bars,
-                                                  phraseBars: phraseBars, level: formLevel)
-        let grooveConfig = TrainerEngine.GrooveConfig(bpm: bpm, bars: bars,
-                                                      generatedBacking: generatedBacking)
+        let jamConfig = self.jamConfig
+        let formConfig = self.formConfig
+        let grooveConfig = self.grooveConfig
         let dropConfig = dropoutConfig
         let tempConfig = tempoConfig
         let memConfig = memoryConfig
@@ -399,10 +408,23 @@ final class AppModel: ObservableObject {
     var sessionRemainingSeconds: Double { runner?.remainingSeconds ?? 0 }
 
     /// What the take screen says, whether the take came from the menu or from a session.
-    /// Instructions for the mode as currently configured.
+    ///
+    /// **From the configs above, which are the ones `start()` runs.** Assembled from loose
+    /// settings until now, and one of them — the feel — was never in the list, so the app was the
+    /// one surface that could describe a take it was not about to play. The console and the
+    /// planner both route through the same four `DrillInstructions.for*` functions, so all three
+    /// now derive the text from a value rather than from an argument list somebody has to keep
+    /// complete.
     var currentInstructions: DrillInstructions {
-        mode.instructions(formLevel: formLevel.rawValue, rung: rung,
-                          offbeatLevel: offbeatLevel, phraseBars: phraseBars)
+        switch mode {
+        case .jam:     return .forJam(jamConfig)
+        case .offbeat: return .forJam(offbeatConfig)
+        case .form:    return .forForm(formConfig)
+        case .dropout: return .forDropout(dropoutConfig)
+        case .tempo:   return .forTempo(tempoConfig)
+        case .memory:  return .memory
+        case .groove:  return .groove
+        }
     }
 
     var feel: Feel { Feel(swingRatio: swingRatio) ?? .straight }
