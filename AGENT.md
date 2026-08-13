@@ -42,6 +42,13 @@ now, and only groups big enough to fit, naming how many takes that leaves out.
 `MIDIInput.onNoteEvent` crosses threads unsynchronised · captured note-ons are dropped in silence at
 capacity.
 
+**A screenshot then found two things the suite could not** (§7.49). The Alone chart plotted *signed*
+tempo bias while the card beneath it fitted the **absolute** value, with no rule at zero to read the
+line against; and every one-take group said *"1 takes"* on both surfaces. Neither is a property of
+the data — both are properties of the sentence — and this project cannot assert on a rendered view
+(R5.6). **Add `render → look → decide` beside `render → listen → decide`**: hand over a build, ask
+for a screenshot of the surface that changed, and read it. It has now paid for itself once.
+
 M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
 the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
 plus the offbeat drill. PLAN.md §7 has the milestone table with an "as built" section for each;
@@ -189,6 +196,12 @@ what kept the loudest click in the kit out of §7.29 step 6b's table for a whole
 ## Audio, and how it gets accepted
 
 Nothing here can be verified by a test, so the loop is: **render → listen → decide**.
+
+**The app's surfaces have the same problem and the same loop: render → look → decide.**
+`MusicalTrainerApp` has no test target, so nothing can assert on a rendered view. Ship a build, ask
+for a screenshot of the screen that changed, and read it — §7.49 is two defects that came back that
+way, one of them a chart and its own caption describing different quantities. An agent cannot see
+the screen any more than it can hear the kit; both gaps close the same way.
 
 ```sh
 ./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
@@ -356,7 +369,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 526 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (243 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (246 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -400,7 +413,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 769 tests, no hardware needed
+swift test                              # 772 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

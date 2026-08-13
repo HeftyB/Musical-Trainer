@@ -7250,6 +7250,69 @@ together.
 
 ---
 
+## 7.49 What a screenshot found that the suite could not
+
+§7.48 landed with an honest gap stated in its own PR: *"I could not verify the chart visually."*
+The player opened History and sent two screenshots. Both defects below are in the words a readout
+uses about itself, and **neither is reachable by any test this project can write.**
+
+### The Alone chart and the card beneath it plotted different quantities
+
+The chart draws `tempoBiasBpm`. The card immediately below fits `|tempo bias|`. One heading, two
+quantities, and nothing on screen said so.
+
+It matters in one specific way. A reader follows the drawn line, and a line **descending through
+zero** is improving until it crosses and worsening afterwards — while its own slope never changes
+sign. The screenshot has exactly that shape available: the 4-bar series sits between −3 and +1,
+straddling zero, with no rule drawn at zero to read it against.
+
+**The signed line stays.** Rushing and dragging alone are different faults with different work
+behind them, and the absolute value throws that away before the player sees it — which is why the
+fit and the picture legitimately differ here. So the fix is not to make them the same:
+
+- a `RuleMark` at zero, drawn only where zero is the target (`marksZero`, true for this drill
+  alone — a spread or an error percentage cannot be negative, so a rule at zero would be a line
+  along the axis);
+- the note says which side is which and that **the fit below is on the distance from zero, so it
+  does not care which**.
+
+This is not shape 19. Nothing here is a confound blended into a pool; it is one quantity drawn one
+way and fitted another, for defensible reasons on both sides. What was wrong was that the screen
+did not say so.
+
+### "1 takes"
+
+Sixteen of the eighteen jam groups hold a single take, so *"1 takes"* is the commonest line in the
+readout — in the console and on screen, both of which interpolated a count beside a bare plural.
+
+`TrendSeries.takeCountLabel` is written once and read by both surfaces. Same move as
+`DrillInstructions.for*` in §7.46: a surface cannot phrase it differently if it is not phrasing it
+at all.
+
+### What this says about the gap
+
+§7.48's tests assert the grouping, the thresholds and the omission counts, and all of them pass on
+both defects above. **Neither is a property of the data; both are properties of the sentence.** The
+suite was not weak here — it was aimed at a different question, and this project has no way to
+assert on a rendered view (`MusicalTrainerApp` has no test target, R5.6).
+
+What closed them was a person looking at the screen and sending a picture. That is the same
+resource as the listening verdicts in §7.31 and §7.33, applied to a surface rather than to audio,
+and it is worth naming as such: **render → look → decide**, alongside render → listen → decide.
+
+### What this does not cover
+
+**The cards for un-fittable groups are long.** A one-take group still renders a full card with a
+row per metric, each reading *"1 usable point(s) — need 3"*, so the Jams screen carries sixteen of
+them below the chart. That is honest and it is a lot of scrolling; collapsing a group that cannot be
+fitted to a single line is a real improvement and a design decision, not a defect fix, so it is
+noted here rather than taken.
+
+**No measurement change.** No stored field, no analysis, no audio, no grouping. Two strings and a
+rule mark.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -7273,11 +7336,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   769 cases
+└── Tests/                   772 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     404 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     243 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     246 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
