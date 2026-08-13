@@ -6457,6 +6457,12 @@ the built binary; whether it reads well is a live-run question.
 **Nothing has been recorded from the app's offbeat mode**, so the surface is unproven in the way
 every surface here starts out. The two takes in §7.38 are both from the console.
 
+> **Correction (§7.46).** This section's summary — *"no surface gaps left"* — was true about which
+> **modes** exist and was read as a claim about the surfaces being correct. They were not: a swung
+> jam from the app's menu was described with the straight instructions, which no mode inventory
+> would have caught. The sentence stands as written with this note beside it, the way a retracted
+> finding does.
+
 ---
 
 ## 7.40 M16 step 0 — the form drill's two axes become peers
@@ -6931,6 +6937,119 @@ abandoned. Worth revisiting, and not on one observation.
 **Nothing in M16 has been played under the finished milestone.** These two takes ran under steps 0–3
 with step 4 unbuilt, which is why the felt period had to be recovered from stored marks rather than
 read off a screen.
+
+---
+
+## 7.46 The app described a take it was not about to play
+
+A review before M16.5, looking for defects nothing was reporting. Eight findings; this section is
+the first branch out of them, and the rest are listed at the end so the order is on the record
+rather than in somebody's memory.
+
+### A swung jam was handed the straight instructions
+
+Pick Jam, pick eighths, set the Feel picker to *Shuffle* or *Swung*, and the instruction card read:
+
+> Play two notes to the beat, evenly.
+> Lock to the hat. It is playing the division you are being asked for.
+
+The hat is swinging. The grid the take is scored on expects the offbeat late. Both lines are wrong
+in the same direction, and the third — *"aim each note at the beat or the off-beat"* — is the one
+the swung text exists to replace. `swung(rung:feel:)` has carried the argument in a doc comment
+since M15: *"Handing a swung take the straight text would tell the player their own task is a
+mistake."* That is what the app was doing.
+
+**Not a wrong value — a missing argument.** `AppModel.Mode.instructions` took `formLevel`, `rung`,
+`offbeatLevel` and `phraseBars`. The feel was not on the list, so `DrillInstructions.jam(rung:)`
+took its straight default, while `start()` built a `JamConfig` two hundred lines away that carried
+the feel into the engine and into the grid. The console passed the feel and a planned block passed
+the feel; the app was the one surface that did not, and it is the surface the picker lives on.
+
+### Why the test suite was green
+
+`FeelWiringTests.testASwungRungGetsItsOwnTextRatherThanTheStraightOne` asserts on
+`DrillInstructions.jam(rung:feel:)` directly, and it passes — the function is correct and always
+was. The test beside it,
+`testAPlannedBlockCarriesTheFeelIntoItsInstructions`, is documented **"Both surfaces go through
+`forBlock`, so the feel has to arrive by that route"**, and that sentence is false: `forBlock` maps
+a *planned block*, and a take started from the menu never touches it. The comment names the exact
+assumption that made the gap invisible.
+
+The gap is sealed at both ends. The planner schedules nothing swung until a swung take exists
+(`testThePlannerSchedulesNothingSwungUntilOneHasBeenPlayed`), so `forBlock` has never once carried
+a swing — **the only reachable swung-instruction path in the app was the broken one.** `LESSONS.md`
+shape 1, seventh instance, and the fifth where the tell was that nothing in `Sources` called the
+thing under test.
+
+### The fix is the shape, not the argument
+
+Adding a fifth parameter would have fixed this take and left the next setting to go the same way.
+`DrillInstructions` gains `forJam`, `forForm`, `forDropout` and `forTempo`, which take the **config**
+rather than its parts:
+
+| Surface | Before | Now |
+|---|---|---|
+| Console | `jam(rung: prescribed, feel: swingFeel)` | `forJam(config)` |
+| Planned block | `jam(rung: p.rung, feel: p.feel)` | `forJam(SessionRunner.jamConfig(for:role:))` |
+| App menu | `jam(rung: rung)` | `forJam(jamConfig)` |
+
+A surface can forget to pass an argument. It cannot forget to pass the value it is about to hand
+the engine. `forJam` also carries the offbeat check, so a drill's identity travels on the config
+exactly as it does through `JamConfig.offbeat` — every reader of the config sees it.
+
+`SessionRunner` gains `formConfig`, `dropoutConfig`, `tempoConfig` and `memoryConfig` beside the
+`jamConfig` it already had, for the reason that one exists (§7.24 step 8): two constructions of one
+config are two chances to disagree, and the disagreement is invisible because the preview announces
+one thing while the engine runs another. `runCurrent` and `forBlock` read the same four now, so the
+out-of-range form-level fallback lives in one place instead of two.
+
+In the app, `jamConfig`, `formConfig` and `grooveConfig` become properties beside the four that
+already were; `start()` reads them rather than rebuilding three inline, and `currentInstructions`
+asks the `for*` functions. `Mode.instructions` is deleted rather than corrected.
+
+### What is guarded
+
+`InstructionsComeFromTheConfigTests`, nine cases, all reachable without an audio device and none of
+them building a config out of parts — that was the shape of the defect. A swung config gets the
+swung text; a triplet rung keeps the straight text even when handed a feel; a free jam keeps the
+plain text, which the benchmark and both experiment arms depend on (R3.5); an offbeat config
+outranks an experiment arm; and each drill's text moves when the config parameter that changes its
+task moves. **Taking the feel back out of `forJam` fails the first of those three ways**, including
+on the literal string *"evenly"*.
+
+**Nothing in the app is reachable by any test** — `MusicalTrainerApp` is an executable target with
+no test target — which is precisely why the mapping moved into `TrainerKit`. What remains
+unguarded in the app is the one line that hands the config over, and that is the smallest the
+untestable part can be made.
+
+### A second thing, found while reading the same file
+
+The swung goal line read *"Measures how you place a `**swung**` division"* — asterisks and all, on
+both surfaces. Neither renders markdown, and the comment on `form(level:phraseBars:)` says so
+outright eight lines above: the console prints the string as-is, SwiftUI's `Text` does not parse a
+runtime string, and *"the number leads the sentence instead, which is the prominence that actually
+survives."* The rule was correct, written down, and adjacent — and the next string written broke it,
+which is what `LESSONS.md` shape 21 is about. The wording takes the same route out, and `check.sh`
+now holds the string layer of `Instructions.swift`, verified by planting the asterisks back.
+
+### What this branch does not cover
+
+The review's other seven findings, in the order they will be taken:
+
+| | Finding | Why it matters |
+|---|---|---|
+| 2 | `check.sh` cannot fail on a third-party dependency — verified by planting one | R7.2 is enforced by nothing; shape 2 |
+| 3 | `review trend` and the app's form chart fit `onFormRate` only | The temporal ladder is promoted on `cleanRate`, and M16 exists to train it |
+| 4 | The app's history chart draws one line through takes the console refuses to pool | Shape 19, on the surface where §7.24 step 8's retraction came from |
+| 5 | Two lists of legal phrase spans disagree — a felt period of 2 strands the spatial ladder | Shape 9 |
+| 6 | `MIDIInput.onNoteEvent` is written and read from two threads unsynchronised | A closure property plus ARC is a race the adjacent field takes a lock to avoid |
+| 7 | Captured note-ons are dropped in silence once storage fills | Shape 20: the truncation reads as the keyboard going quiet |
+| 8 | ~~`**swung**` renders as literal asterisks~~ | Done here — it was one file away |
+
+**No live run.** Nothing here touches audio, MIDI or the analysis, and the only untested path is a
+SwiftUI property; the take it changes is the *text on the screen before* a take. What has still
+never happened is a swung take played from the app — every swung take on record was started from
+the console (§7.24 steps 7 and 8), which is why nobody had seen this.
 
 ---
 

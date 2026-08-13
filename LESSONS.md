@@ -22,11 +22,23 @@ new repository — is kept outside the tree with the rest of the cross-project t
 
 ## 1. The path under test is not the path that ships
 
-**The most common shape here by a distance — six instances.** Tests are written against a helper,
+**The most common shape here by a distance — seven instances.** Tests are written against a helper,
 an accessor, or a decision made inline somewhere no suite can reach. They pass for ever and guard
 nothing.
 
 **Instances:**
+
+- **The app described a take it was not about to play** (§7.46). `AppModel.Mode.instructions` took
+  `formLevel`, `rung`, `offbeatLevel` and `phraseBars` — and not the feel — so a swung jam started
+  from the app's menu was handed the *straight* text: *"play two notes to the beat, evenly"*, over a
+  swinging hat and a grid expecting the offbeat late. `FeelWiringTests` asserts on
+  `DrillInstructions.jam(rung:feel:)`, which was correct throughout, and **the test beside it is
+  documented "Both surfaces go through `forBlock`, so the feel has to arrive by that route"** — a
+  sentence that is false, because `forBlock` maps a planned block and a menu take never touches it.
+  The gap was sealed at both ends: the planner schedules nothing swung until a swung take exists, so
+  `forBlock` has never carried a swing and **the only reachable swung path in the app was the broken
+  one.** The `for*` functions take the config now, so a surface cannot pass fewer arguments than the
+  engine gets.
 
 - **The feel never reached the app's grid** (§7.24 step 7). `Grid` gained a feel in M15 step 2 and
   both call sites in the running app kept their old call — `JamAnalysis.reduce` for a live take,
@@ -523,6 +535,11 @@ paying attention and stops the first time an afternoon gets productive.
   standard was written, and was broken **nine times running** — PRs #23 to #31, every one a single
   commit. Nobody noticed while it was happening, because nothing was watching. `open-pr.sh` now
   refuses a one-commit branch unless `--single-commit` declares it.
+- **"Instruction text is plain — neither surface renders markdown"** was a comment on
+  `form(level:phraseBars:)`, correct and specific, and the swung jam's goal line eight lines away
+  read *"a `**swung**` division"* — asterisks and all, shown to the player on both surfaces (§7.46).
+  A rule stated beside one string does not reach the next string written. `check.sh` holds the
+  whole string layer of `Instructions.swift` now.
 
 **The tell is uniform**: the rule reads as advice, the cost of ignoring it is diffuse and lands
 later, and whoever breaks it is being productive rather than careless. That is precisely the
