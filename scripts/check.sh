@@ -26,16 +26,32 @@ head2() { printf '\n%s\n%s\n' "$1" "$(printf '─%.0s' $(seq 1 ${#1}))"; }
 SWIFT_FILES=$(find Sources Tests -name '*.swift')
 
 # check <description> <command...>   — fails when the command produces any output
+#
+# **Empty output is compliance only when the rule actually ran.** A rule that cannot run produces
+# no stdout either — a file renamed out from under it, a malformed pattern, a flag this platform's
+# grep does not have — and discarding stderr made all three indistinguishable from a clean tree.
+# Pointing the autocorrelation rule at a filename that does not exist turned it green, which is
+# every renamed file in this project's future silently disarming whichever rules named it
+# (PLAN.md §7.47).
+#
+# grep writes to stderr in each of those cases, so stderr is what separates "found nothing" from
+# "looked nowhere". A rule that legitimately writes to stderr has to redirect it itself, and the
+# one that does — `grep -P`, absent on macOS and present in CI — already did.
 expect_empty() {
     local desc="$1"; shift
-    local out
-    out="$("$@" 2>/dev/null)"
-    if [ -z "$out" ]; then
+    local out err
+    err="$(mktemp)"
+    out="$("$@" 2>"$err")"
+    if [ -s "$err" ]; then
+        fail "$desc — the rule itself could not run, so it proved nothing"
+        printf '%s%s%s\n' "$DIM" "$(sed 's/^/        /' "$err" | head -5)" "$OFF"
+    elif [ -z "$out" ]; then
         pass "$desc"
     else
         fail "$desc"
         printf '%s%s%s\n' "$DIM" "$(echo "$out" | sed 's/^/        /' | head -12)" "$OFF"
     fi
+    rm -f "$err"
 }
 
 grep_sources() { grep -rnE "$1" Sources --include='*.swift' "${@:2}"; }
@@ -131,12 +147,22 @@ expect_empty "the app makes no network calls" \
 expect_empty "no network framework is imported" \
     grep_sources '^import (Network|CFNetwork)'
 
-if grep -q 'dependencies: \[$' Package.swift && \
-   grep -A2 'let package' Package.swift | grep -q '\.package('; then
-    fail "third-party dependencies declared in Package.swift"
-else
-    pass "zero third-party dependencies"
-fi
+# R7.2, and **the rule that stood here could not fail.** It required a line ending in
+# `dependencies: [` *and* a `.package(` within two lines of `let package` — but SwiftPM's argument
+# order puts `dependencies:` after `products:`, so in this manifest the declaration lands four
+# lines below that window. Planting a real `swift-algorithms` dependency, confirming the manifest
+# still resolved, and running the gate produced PASS (PLAN.md §7.47). Every dependency-free run
+# this project has ever had was dependency-free for reasons the gate had no part in.
+#
+# Two signals, because they fail independently: the declaration in the manifest, and the lock file
+# SwiftPM writes once anything has been resolved. `Package.resolved` is gitignored, so it catches a
+# dependency resolved locally rather than one somebody committed.
+dependency_declarations() {
+    grep -nE '^[[:space:]]*\.package\(' Package.swift
+    [ -e Package.resolved ] && echo "Package.resolved exists — a dependency has been resolved"
+    return 0
+}
+expect_empty "zero third-party dependencies" dependency_declarations
 
 expect_empty "no credential-shaped strings in the source tree" \
     grep_sources '(BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})'
