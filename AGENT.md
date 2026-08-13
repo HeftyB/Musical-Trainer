@@ -22,13 +22,17 @@ carries the status of each and is the one to trust. M14 has six ladder takes acr
 M15 has two swung takes and three offbeat ones, and **no form take has yet run on the finished
 M16** — the two most recent ran under its half-built steps.
 
-**A pre-M16.5 review found eight things, and they are being fixed in order** (§7.46). The first is
-closed: the app handed a **swung** jam the *straight* instructions, because its text was assembled
-from an argument list that never had the feel on it. Both surfaces derive a drill's text from the
-config the engine will run now. The seven still open, in the order they are being taken, are listed
-in §7.46's closing table — the sharpest are that `check.sh` **cannot fail** on a third-party
-dependency (verified by planting one), and that `review trend` fits only `onFormRate`, so the
-temporal ladder M16 exists to train has no trend line on either surface.
+**A pre-M16.5 review found eight things, and they are being fixed in order** (§7.46). Two are
+closed. The app handed a **swung** jam the *straight* instructions, because its text was assembled
+from an argument list that never had the feel on it; both surfaces derive a drill's text from the
+config the engine will run now. And two `check.sh` rules proved nothing (§7.47) — the supply-chain
+rule passed a **valid, resolving** third-party dependency, and underneath it any rule pointed at a
+file that no longer exists reported PASS, so every file-scoped rule was one rename away from
+disarming. **A green gate has always bounded what was checked rather than what is true; until this
+it also included things that were not checked at all.**
+
+The six still open are listed in §7.46's closing table. The sharpest is that `review trend` fits
+only `onFormRate`, so the temporal ladder M16 exists to train has no trend line on either surface.
 
 M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
 the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,

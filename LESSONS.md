@@ -85,10 +85,29 @@ A validation rule, `check.sh` line or assertion that looks correct and matches n
   exit status, but `SessionStore.load` wrote its "could not be read" note to stderr and returned
   whatever decoded, and the CLI exited 0. **And `review list` loaded only jams**, so a schema
   change orphaning any of the other five stored types could never have been caught.
+- **The supply-chain rule could not fail** (§7.47). It required a line ending in `dependencies: [`
+  *and* a `.package(` within two lines of `let package`; SwiftPM's argument order puts
+  `dependencies:` after `products:`, so a declaration lands four lines below that window and
+  neither half matched. A **valid, resolving** `swift-algorithms` dependency was planted and the
+  gate printed `PASS`. R7.2 — *"code you did not read running with your privileges"* — was enforced
+  by nothing, and every dependency-free run this project has had was dependency-free for reasons
+  the gate had no part in.
+- **And a rule that cannot run at all reported PASS** (§7.47), which is the same defect one level
+  up. `expect_empty` discarded stderr and read empty stdout as compliance, but a rule produces no
+  stdout when it finds nothing *and* when it looks nowhere. Pointing a rule at a filename that does
+  not exist turned it green — so **every rule naming a file was one rename away from silently
+  disarming**, in a project that renames things on purpose. The compiler covers the Swift side of a
+  rename; nothing covered the gate's.
 
 **Guard:** R5.7 — plant a violation, watch it report FAIL, remove it, watch it report PASS, at the
 time you add the rule. Reading the rule is not verification, and neither is testing it in a
 different shell from the one the script runs in.
+
+**And audit the whole gate occasionally, not only each new rule.** Planting a violation of every
+static check at once and reading which ones fire costs one run; §7.47 did it for the first time and
+found two of twenty-two proving nothing. A rule added correctly can still be disarmed later by a
+rename somewhere else — which is why `expect_empty` now separates *found nothing* from *could not
+run* rather than trusting that the audit gets repeated.
 
 ---
 

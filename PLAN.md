@@ -7038,7 +7038,7 @@ The review's other seven findings, in the order they will be taken:
 
 | | Finding | Why it matters |
 |---|---|---|
-| 2 | `check.sh` cannot fail on a third-party dependency — verified by planting one | R7.2 is enforced by nothing; shape 2 |
+| 2 | ~~`check.sh` cannot fail on a third-party dependency~~ | Done in §7.47, which found a second rule underneath it |
 | 3 | `review trend` and the app's form chart fit `onFormRate` only | The temporal ladder is promoted on `cleanRate`, and M16 exists to train it |
 | 4 | The app's history chart draws one line through takes the console refuses to pool | Shape 19, on the surface where §7.24 step 8's retraction came from |
 | 5 | Two lists of legal phrase spans disagree — a felt period of 2 strands the spatial ladder | Shape 9 |
@@ -7050,6 +7050,101 @@ The review's other seven findings, in the order they will be taken:
 SwiftUI property; the take it changes is the *text on the screen before* a take. What has still
 never happened is a swung take played from the app — every swung take on record was started from
 the console (§7.24 steps 7 and 8), which is why nobody had seen this.
+
+---
+
+## 7.47 Two gate rules that could not fail
+
+§7.46's second finding, and it turned out to have a larger one underneath it. The gate has been
+green at every commit for the life of the project; what that meant is narrower than it looked.
+
+### The whole gate, audited the way R5.7 asks of one rule
+
+R5.7 says a rule is verified by planting a violation, watching it report FAIL, removing it and
+watching it report PASS — *"Reading the pattern is not verification."* That was written after the
+force-unwrap rule matched eleven violations' worth of nothing (§7.20 finding 5), and it has been
+applied to rules as they were added. It had never been applied to the gate as a whole.
+
+Doing it is cheap in one pass: plant a violation of **every** static rule at once, run
+`check.sh --fast`, and read which ones fire. Twenty-two rules, twenty fired.
+
+### The supply-chain rule could not fail
+
+```bash
+if grep -q 'dependencies: \[$' Package.swift && \
+   grep -A2 'let package' Package.swift | grep -q '\.package('; then
+```
+
+Both halves have to match. `grep -A2 'let package'` gives the match and two lines after it — and
+SwiftPM's argument order puts `dependencies:` *after* `products:`, so in this manifest a real
+declaration lands four lines below that window. The first half never matched either: no line in
+the file ends in `dependencies: [`.
+
+Planted `swift-algorithms` in the position SwiftPM actually accepts, confirmed with
+`swift package dump-package` that the manifest still resolves — so this is a working dependency,
+not a typo — and ran the gate:
+
+```
+PASS  zero third-party dependencies
+```
+
+R7.2 is the rule that every dependency is *"code you did not read running with your privileges"*,
+and it has been enforced by nothing. **Every dependency-free run this project has had was
+dependency-free for reasons the gate had no part in.** `LESSONS.md` shape 2, fourth instance, and
+the first on a security rule rather than a hygiene one.
+
+The replacement greps for a `.package(` line anywhere in the manifest, and for `Package.resolved` —
+which SwiftPM writes only once something has been resolved, and which is gitignored, so it catches
+a dependency resolved locally rather than one somebody committed. Two signals because they fail
+independently.
+
+### Underneath it, a rule that cannot run reports PASS
+
+`expect_empty` ran its command, discarded stderr, and read empty stdout as compliance. Those are
+not the same thing. A rule produces no stdout when it finds nothing **and** when it cannot run at
+all — a file renamed out from under it, a malformed pattern, a flag this platform's grep does not
+have.
+
+Pointing the autocorrelation rule at `BootstrapRenamed.swift`, a file that does not exist:
+
+```
+PASS  no autocorrelation is offered to a block-resampling bootstrap
+```
+
+**Every rule that names a file was one rename away from silently disarming**, and this project
+renames things on purpose — `DrumVoice` to `BackingVoice`, `DrumKit` to `BackingKit`, sixteen
+compiler-checked references at a time (§7.29 step 2). The compiler covers the Swift side of a
+rename. Nothing covered the gate's side.
+
+That is the same defect as the dependency rule with a larger blast radius, and it is why this
+branch is not a one-line fix. grep writes to stderr in all three cases, so stderr is what separates
+*found nothing* from *looked nowhere*; the rule now fails with `the rule itself could not run, so
+it proved nothing` and prints what grep said.
+
+### What was checked, and what was nearly broken by tidying
+
+Both fixes were verified by planting, not by reading: the dependency declared → FAIL, removed →
+PASS; the file renamed → FAIL naming the missing file, restored → PASS. Removing `Package.resolved`
+between runs is part of it — the second signal fired correctly on the lock file `dump-package` had
+just written, which is the rule working rather than a false positive.
+
+**The `grep -P` branch in the tab rule was nearly deleted as dead code.** It cannot run on macOS,
+where BSD grep has no `-P`, and the `||` fallback is what has always done the work here. It is not
+dead: `.woodpecker/test.yaml` runs `./scripts/check.sh --fast` in `swift:5.7-jammy`, where GNU grep
+has `-P`. Checking the pipeline before deleting is the whole of `LESSONS.md` shape 16 — the probe
+that says "this is unused" was looking at one of two platforms. It stays, and it redirects its own
+stderr, so the new check does not fire on it.
+
+### What this does not cover
+
+**The audit is a snapshot, not a standing guard.** Twenty-two rules were planted against on this
+date; the twenty-third will be verified by whoever writes it, exactly as R5.7 has always said. What
+*is* now mechanised is the failure mode that made the audit necessary — a rule that stops being able
+to run says so instead of going green — and that is the half a script can hold.
+
+**No source, analysis or audio change.** Nothing here touches a measurement; the tests, the
+selftest and the stored takes are untouched by design, and the only file that changes is the gate
+itself.
 
 ---
 

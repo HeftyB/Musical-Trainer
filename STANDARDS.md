@@ -236,6 +236,20 @@ verification.
 > closes the bracket expression at the first `]`, because a backslash inside brackets is
 > literal — and two rounds of checking at the shell missed it, because the shell and the script
 > disagreed. Only planting a violation and running `check.sh` found it. See PLAN.md §7.20.
+
+**R5.7.1 — Empty output is compliance only when the rule ran.** `expect_empty` fails a rule whose
+command writes to stderr, because a renamed file, a malformed pattern or a missing grep flag
+produce no stdout and used to read as a clean tree. A rule that needs stderr of its own redirects it
+at the call site.
+
+> Two of the gate's twenty-two static rules proved nothing, found by planting a violation of all of
+> them in one pass — the audit R5.7 describes for a single rule, applied to the gate. A **valid,
+> resolving** third-party dependency passed the supply-chain rule, and pointing any file-scoped rule
+> at a filename that does not exist turned it green. See PLAN.md §7.47.
+>
+> **Audit the gate as a whole from time to time, not only each new rule.** A rule added correctly
+> can be disarmed later by a rename elsewhere, and one run of the plant-everything pass is what
+> catches that class.
 Audio, MIDI and the drill runners cannot be unit tested; pretending otherwise is worse than
 admitting the gap.
 
