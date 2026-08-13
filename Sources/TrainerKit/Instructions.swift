@@ -131,8 +131,12 @@ public struct DrillInstructions {
     private static func swung(rung: IntervalRung, feel: Feel) -> DrillInstructions {
         let unit = rung.subdivisions == 2 ? "the beat" : "each eighth"
         return DrillInstructions(
-            goal: "Measures how you place a **swung** division — where the offbeat sits, and how "
-                + "consistently you put it there. The hat is swinging with you.",
+            // Plain text, for the reason `form(level:phraseBars:)` gives: neither surface renders
+            // markdown, so `**swung**` arrived as literal asterisks in the console readout and in
+            // SwiftUI's `Text`. The word leads the sentence instead, which is the prominence that
+            // actually survives.
+            goal: "Swung, and that changes what is being measured: where the offbeat sits, and "
+                + "how consistently you put it there. The hat is swinging with you.",
             steps: [
                 "A two-bar count-in plays swung, then a groove whose hi-hat swings \(unit).",
                 "Play along in \(rung.label), letting the offbeat fall late the way the hat does.",
@@ -474,6 +478,43 @@ public struct DrillInstructions {
 }
 
 public extension DrillInstructions {
+
+    // MARK: - From the configuration that will actually run
+
+    /// A jam's instructions, taken from the config the take is about to run with.
+    ///
+    /// **R3.6 was a rule each surface followed by hand, and one of them did not.** The console
+    /// passed the rung and the feel, a planned block passed the rung and the feel, and the app
+    /// built its own text from the model and passed only the rung — so a swung jam started from
+    /// the app's menu was handed the *straight* text: "play two notes to the beat, evenly" and
+    /// "lock to the hat", over a hat that swings, scored against a swung grid. `swung(rung:feel:)`
+    /// exists precisely because that text tells the player their own task is a mistake.
+    ///
+    /// Taking the config rather than its parts is what stops it recurring. A surface can forget
+    /// to pass an argument; it cannot forget to pass the value it is about to hand the engine.
+    /// The offbeat check lives here for the same reason it lives in `JamConfig.offbeat` — the
+    /// drill's identity travels on the config, so every reader of the config sees it.
+    static func forJam(_ config: TrainerEngine.JamConfig) -> DrillInstructions {
+        if let level = config.offbeatLevel { return .offbeat(level: level) }
+        return .jam(rung: config.rung, feel: config.feel)
+    }
+
+    static func forForm(_ config: TrainerEngine.FormConfig) -> DrillInstructions {
+        .form(level: config.level.rawValue, phraseBars: config.phraseBars)
+    }
+
+    /// An absent rung yields the quarter-note text, which `dropout(rung:)` already decides —
+    /// this hands it the config's value rather than letting each surface substitute its own
+    /// default on the way (`LESSONS.md` shape 13).
+    static func forDropout(_ config: TrainerEngine.DropoutConfig) -> DrillInstructions {
+        .dropout(rung: config.rung)
+    }
+
+    /// As `forDropout`.
+    static func forTempo(_ config: TrainerEngine.TempoConfig) -> DrillInstructions {
+        .tempo(rung: config.rung)
+    }
+
     /// The instructions for a planned block, **from the block rather than its plan**.
     ///
     /// Taking the plan alone was the bug this replaced: the plan knows the drill and its
@@ -489,18 +530,21 @@ public extension DrillInstructions {
         switch block.plan {
         case .groove:      return .groove
         case .jam(let p):
-            if let level = p.offbeatLevel.flatMap(OffbeatLevel.init(rawValue:)) {
-                return .offbeat(level: level)
+            // Through the same config the runner will build, so a planned take and a hand-started
+            // one cannot be described by two different rules.
+            let config = SessionRunner.jamConfig(for: p, role: block.role)
+            // The arm wins when there is one, and the offbeat level wins over the arm. An
+            // experiment take runs at the benchmark's locked settings and never carries a rung
+            // (R3.5), so the two cannot both be set — and if a future design ever does both, the
+            // arm is the independent variable and losing it would swap the conditions, which is
+            // the worse failure of the two.
+            if config.offbeatLevel == nil, let arm = block.experiment?.arm {
+                return .jam(arm: arm)
             }
-            // The arm wins when there is one. An experiment take runs at the benchmark's locked
-            // settings and never carries a rung (R3.5), so the two cannot both be set — and if
-            // a future design ever does both, the arm is the independent variable and losing it
-            // would swap the conditions, which is the worse failure of the two.
-            if let arm = block.experiment?.arm { return .jam(arm: arm) }
-            return .jam(rung: p.rung, feel: p.feel)
-        case .form(let p): return .form(level: p.level, phraseBars: p.phraseBars)
-        case .dropout(let p): return .dropout(rung: p.rung)
-        case .tempo(let p):   return .tempo(rung: p.rung)
+            return .forJam(config)
+        case .form(let p):    return .forForm(SessionRunner.formConfig(for: p))
+        case .dropout(let p): return .forDropout(SessionRunner.dropoutConfig(for: p))
+        case .tempo(let p):   return .forTempo(SessionRunner.tempoConfig(for: p))
         case .memory:      return .memory
         }
     }

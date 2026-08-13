@@ -97,6 +97,19 @@ expect_empty "only tests redirect the session store" \
 expect_empty "the analysis grid is never read off a pattern's step resolution" \
     bash -c "grep -rn '\.stepsPerBeat' Sources/TrainerKit --include='*.swift' | grep -vE ':[[:space:]]*(///|//)'"
 
+# Instruction text is read by two surfaces and rendered as plain text by both: the console
+# prints the string as-is, and SwiftUI's `Text` does not parse markdown in a runtime string. So
+# emphasis markup arrives at the player as literal asterisks. `form(level:phraseBars:)` carries a
+# comment saying exactly this, and the swung jam's goal line broke it anyway — which is the tell
+# that a rule stated in a comment beside one string does not reach the next one written
+# (`LESSONS.md` shape 21). The string layer is small and entirely under this rule, so a grep can
+# hold it.
+#
+# Doc comments are excluded: the prose *about* the instructions is markdown by design, and this
+# is a rule about what the player is shown.
+expect_empty "no markdown emphasis in instruction text" \
+    bash -c "grep -n '\*\*' Sources/TrainerKit/Instructions.swift | grep -vE ':[[:space:]]*(///|//)'"
+
 # A block-resampling bootstrap must never be handed an autocorrelation. Every join between two
 # resampled blocks is a pair that was never adjacent, so r₁ comes back attenuated by about 1/L —
 # a nominal 95% interval covered the truth 25% of the time at r₁ = 0.64, and it was wrong in four

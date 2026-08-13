@@ -179,6 +179,35 @@ public final class SessionRunner {
                 : p.generatedBacking.map { BackingIdentity(style: $0.style, seed: $0.seed) })
     }
 
+    /// The remaining four, extracted for the same reason and used by the same two callers:
+    /// `runCurrent` plays them and `DrillInstructions.forBlock` describes them.
+    ///
+    /// Two constructions of one config is two chances to disagree, and the disagreement is
+    /// invisible — the preview announces one thing and the engine runs another. `jamConfig`
+    /// exists because that already happened once with `offbeatLevel`; these close the same door
+    /// on the four drills where nobody has tried it yet. The level fallback below is the only
+    /// judgement in any of them, and it now lives in one place rather than two.
+    static func formConfig(for p: FormPlan) -> TrainerEngine.FormConfig {
+        TrainerEngine.FormConfig(bpm: p.bpm, bars: p.bars, phraseBars: p.phraseBars,
+                                 level: FormLevel(rawValue: p.level) ?? .fillAndAccent)
+    }
+
+    static func dropoutConfig(for p: DropoutPlan) -> TrainerEngine.DropoutConfig {
+        TrainerEngine.DropoutConfig(bpm: p.bpm, pacedBars: p.pacedBars,
+                                    silentBars: p.silentBars, cycles: p.cycles, rung: p.rung)
+    }
+
+    static func tempoConfig(for p: TempoPlan) -> TrainerEngine.TempoConfig {
+        TrainerEngine.TempoConfig(targets: p.targets, leadBars: p.leadBars,
+                                  holdBars: p.holdBars, rounds: p.rounds, rung: p.rung)
+    }
+
+    static func memoryConfig(for p: MemoryPlan) -> TrainerEngine.MemoryConfig {
+        TrainerEngine.MemoryConfig(bpm: p.bpm, referenceBars: p.referenceBars,
+                                   retentionBars: p.retentionBars,
+                                   reproduceBars: p.reproduceBars, rounds: p.rounds)
+    }
+
     /// Play the current block. Blocks for its duration, so call it off the main thread.
     ///
     /// - Throws: `TakeCancelled` when the player stops it. The caller decides whether that
@@ -201,31 +230,23 @@ public final class SessionRunner {
                                                  progress: progress, cancellation: cancellation))
 
         case .form(let p):
-            return .form(try TrainerEngine.runForm(
-                TrainerEngine.FormConfig(bpm: p.bpm, bars: p.bars, phraseBars: p.phraseBars,
-                                         level: FormLevel(rawValue: p.level) ?? .fillAndAccent),
-                progress: progress, cancellation: cancellation))
+            return .form(try TrainerEngine.runForm(Self.formConfig(for: p),
+                                                   progress: progress, cancellation: cancellation))
 
         case .dropout(let p):
-            return .dropout(try TrainerEngine.runDropout(
-                TrainerEngine.DropoutConfig(bpm: p.bpm, pacedBars: p.pacedBars,
-                                            silentBars: p.silentBars, cycles: p.cycles,
-                                            rung: p.rung),
-                progress: progress, cancellation: cancellation))
+            return .dropout(try TrainerEngine.runDropout(Self.dropoutConfig(for: p),
+                                                         progress: progress,
+                                                         cancellation: cancellation))
 
         case .memory(let p):
-            return .memory(try TrainerEngine.runMemory(
-                TrainerEngine.MemoryConfig(bpm: p.bpm, referenceBars: p.referenceBars,
-                                           retentionBars: p.retentionBars,
-                                           reproduceBars: p.reproduceBars, rounds: p.rounds),
-                progress: progress, cancellation: cancellation))
+            return .memory(try TrainerEngine.runMemory(Self.memoryConfig(for: p),
+                                                       progress: progress,
+                                                       cancellation: cancellation))
 
         case .tempo(let p):
-            return .tempo(try TrainerEngine.runTempo(
-                TrainerEngine.TempoConfig(targets: p.targets, leadBars: p.leadBars,
-                                          holdBars: p.holdBars, rounds: p.rounds,
-                                          rung: p.rung),
-                progress: progress, cancellation: cancellation, roundFinished: roundFinished))
+            return .tempo(try TrainerEngine.runTempo(Self.tempoConfig(for: p),
+                                                     progress: progress, cancellation: cancellation,
+                                                     roundFinished: roundFinished))
         }
     }
 
