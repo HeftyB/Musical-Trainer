@@ -7506,6 +7506,85 @@ does.
 
 ---
 
+## 7.52 The readouts were fixed and the decision was not
+
+Found while checking whether the offbeat drill's level ladder is wired into the planner. It is not
+— and something worse was.
+
+### The planner was reading skanks as free jams
+
+```swift
+let allJams = SessionStore.loadAll()
+let jams = allJams.map { session -> PlannerInput.Jam in …
+```
+
+`map`, not `filter`. The offbeat drill is stored as a `JamSession` because it is the same capture,
+the same grid and the same storage, so **every skank went into the planner as an ordinary jam**,
+carrying a spread that runs half again as wide as free playing.
+
+That input is not a readout. `SessionPlanner.spreadEstimate` takes the median of the last six jams
+and it decides **which rungs the interval ladder may schedule**; `recentJamSpreadsMs` feeds the same
+number to the app's subdivision picker, which offers only the rungs that survive it.
+
+At the moment this was found, five of the six most recent takes were offbeat takes:
+
+| Assumed spread | quarters | eighths | triplets | 16ths |
+|---|---|---|---|---|
+| 22.9 ms — free jams | 349 | 175 | **116** | 87 |
+| 31.2 ms — the last six as they stood | 256 | 128 | **85** | 64 |
+| 39.5 ms — a session of skanks | 203 | **101** | 68 | 51 |
+
+Triplet eighths were **already gone** from the picker at 100 BPM, because four evenings of skank
+practice had displaced the free jams out of a six-take window. And a planned run of offbeat takes —
+which is exactly what M16.5 needs before it can be designed — would have taken eighths down to a
+101 BPM ceiling and shut the ladder down.
+
+### The part worth learning from
+
+This confound has been found and fixed **twice before**, both times in a readout:
+
+| | Where | Fix |
+|---|---|---|
+| §7.24 step 8 | An offbeat take inside *"Jams at 100 BPM"* in the trend, turning that group's bias "worsening" | `GroupKey.offbeatLevel` |
+| §7.48 | The app's chart drawing it on one line with 21 free jams | `HistoryEntry.group` |
+
+Both fixed **what the player reads**. Neither touched what *acts* on the same corpus — and the
+asymmetry is the whole point: a wrong readout shows a wrong number, which somebody eventually
+notices, while a wrong decision silently changes what you are asked to practise and removes a rung
+from a picker with no line of text anywhere saying why. `LESSONS.md` shape 22.
+
+### One place the distinction lives
+
+`SessionStore.loadAllPlayAlong()` — takes where the player was playing *along* with the band —
+against `loadAll()`, kept for the surfaces that should show everything. Six readers move onto it:
+
+| Reader | Why it must not see a skank |
+|---|---|
+| `plannerInput().jams` | Sets the spread that gates every rung |
+| `recentJamSpreadsMs` | The app's picker reads it |
+| `intervalObservations` | The interval axis asks how the *gap* changes placement |
+| `producedIntervalProfile` | Same question at note level |
+| `warmUpReport(for: .jam)` | A 40 ms take mid-sitting distorts the within-session slope |
+| `review content` | **The sharpest.** The drill's own instructions forbid the varied playing this readout correlates against — *"don't fill the gaps"* |
+
+The history, `review list` and the trend keep `loadAll`, because they group by task rather than
+averaging across it. Hiding the drill from those would be the opposite mistake.
+
+### What this does not cover
+
+**The offbeat drill still has no session slot.** `OffbeatAnalysis.suggestedLevel` has exactly one
+production caller — the console's own end-of-take readout — and `SessionPlanner` never builds an
+offbeat block, though `JamPlan.offbeatLevel` and `SessionRunner.jamConfig` are both wired for one.
+Offbeat takes therefore accumulate only when the drill is chosen by hand. That is a real gap and it
+belongs to M16.5's planning rather than to a filter fix: adding a second drill to the family without
+it would leave both at one take per setting indefinitely.
+
+**Whether a swung take belongs on the play-along side is not settled here.** It is left in, because
+a swung jam still measures placing notes with the band — only the expectation moves. The offbeat
+drill is categorically different, and that is the line this draws.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the

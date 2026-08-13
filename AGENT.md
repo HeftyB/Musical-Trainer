@@ -8,7 +8,7 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 - **[PLAN.md](PLAN.md)** — design, rationale, findings, roadmap. **The reasoning lives here.**
 - **[STANDARDS.md](STANDARDS.md)** — binding engineering rules and the procedures that enforce
   them. Read it before writing code.
-- **[LESSONS.md](LESSONS.md)** — the twenty-one failure *shapes* this project has produced, each with
+- **[LESSONS.md](LESSONS.md)** — the twenty-two failure *shapes* this project has produced, each with
   its instance and its guard. **Read it before any review**, and look for these shapes rather than
   for code smells. Every one of them shipped, or nearly did, with a green gate. Code comments cite
   it by number; `check.sh` fails if a citation names a shape that does not exist.
@@ -19,8 +19,10 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 
 **M0–M16 and M19 are built.** M17, M18 and M20–M22 are not started; PLAN.md §7's milestone table
 carries the status of each and is the one to trust. M14 has six ladder takes across 80–140 BPM,
-M15 has two swung takes and three offbeat ones, and **no form take has yet run on the finished
-M16** — the two most recent ran under its half-built steps.
+M15 has two swung takes and — as of 13 August — seven offbeat ones across five tempos and three
+levels, **every group holding one take except one**, so nothing about the skank can be fitted yet.
+And **no form take has yet run on the finished M16**: the two most recent ran under its half-built
+steps.
 
 **The pre-M16.5 review is closed — eight findings, six branches** (§7.46–§7.51). Nothing in it is
 outstanding. What it changed, and what each one is worth remembering for:
@@ -45,6 +47,19 @@ shipped, neither reachable by any test this project can write.
 needs is a session, and there are three specific reasons: M16 has never been exercised under its
 finished ladders, no take has ever been recorded from the app's **swung** or **offbeat** paths, and
 the new incident readout draws nothing until the day it does.
+
+**A ninth finding came out of planning M16.5** (§7.52), and it is the one worth reading. The
+planner built its jam input with `map` over every stored jam, and **the offbeat drill is stored as a
+jam** — so a skank's spread, half again as wide as free playing, went into the estimate that decides
+which rungs the interval ladder may schedule and which the app's subdivision picker offers at all.
+Five of the six most recent takes were skanks; triplet eighths had already vanished from the picker
+at 100 BPM with nothing saying why.
+
+**The same confound had been found and fixed twice before, both times in a readout** (§7.24 step 8,
+§7.48). Neither touched what *acts* on the corpus. That asymmetry is `LESSONS.md` shape 22, and it
+is the most transferable thing this review produced: a wrong readout shows a wrong number, a wrong
+decision quietly changes what you are told to practise. `SessionStore.loadAllPlayAlong()` is the one
+place the distinction now lives.
 
 **The procedure that came out of it: `render → look → decide`**, beside the `render → listen →
 decide` this project already had for audio. Hand over a build, ask for a screenshot of the surface
