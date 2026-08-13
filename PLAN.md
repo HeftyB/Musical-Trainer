@@ -7041,7 +7041,7 @@ The review's other seven findings, in the order they will be taken:
 | 2 | ~~`check.sh` cannot fail on a third-party dependency~~ | Done in §7.47, which found a second rule underneath it |
 | 3 | ~~`review trend` fits `onFormRate` only~~ | Done in §7.48 |
 | 4 | ~~The app's history chart pools what the console refuses to~~ | Done in §7.48, and the chart survived being made honest |
-| 5 | Two lists of legal phrase spans disagree — a felt period of 2 strands the spatial ladder | Shape 9 |
+| 5 | ~~Two lists of legal phrase spans disagree~~ | Done in §7.50, which found the strand was the worse half |
 | 6 | `MIDIInput.onNoteEvent` is written and read from two threads unsynchronised | A closure property plus ARC is a race the adjacent field takes a lock to avoid |
 | 7 | Captured note-ons are dropped in silence once storage fills | Shape 20: the truncation reads as the keyboard going quiet |
 | 8 | ~~`**swung**` renders as literal asterisks~~ | Done here — it was one file away |
@@ -7313,6 +7313,92 @@ rule mark.
 
 ---
 
+## 7.50 One ladder of phrase spans, and no way off it
+
+§7.46's fifth finding. Two lists of legal spans, disagreeing about one entry, and the disagreement
+was reachable.
+
+### The two lists
+
+| Where | Legal spans |
+|---|---|
+| `SessionPlanner.phraseSpanLadder` | `[4, 8, 16, 32]` |
+| The felt-period rule, written out **twice** | `[2, 4, 8, 16, 32]` |
+| `SetupView`'s picker | `[4, 8, 16, 32]`, its own literal |
+| `FormConfig.validate` | `2...32` |
+
+They agree about four entries of five. That is not a near miss — it is how long a disagreement of
+this shape goes unnoticed, and it is `LESSONS.md` shape 9: two places holding the same value for
+different reasons, correct together by coincidence rather than by construction.
+
+**The fifth entry was reachable.** A player marking a steady 2-bar period across two takes running
+was moved onto a 2-bar phrase: a span the ladder did not contain and the app's picker could not
+display. The doc comment on `phraseSpanLadder` claimed *"Matches the lengths the app offers, so the
+ladder can never ask for a span the player cannot also choose by hand"* — true of the ladder, false
+of the planner that owns it.
+
+### The strand, which is the worse half
+
+`nextSpan(after:)` looked its argument up **by identity** and returned the successor:
+
+```swift
+guard let rung = phraseSpanLadder.firstIndex(of: phraseBars), … else { return nil }
+```
+
+So any span off the ladder returned `nil`, and `formAxis` — which only answers `.spatial` when
+`nextSpan` is non-nil — could never do so again. **The spatial ladder was finished for that
+player**, on an axis whose entire job is to widen. Two ways to get there: the felt-period rule
+above, and a take run by hand at `form 100 64 6 2`, which `FormConfig.validate` accepts on purpose.
+
+It returns the first rung wider than where you are now. No precondition, identical answers on every
+rung — 4 → 8, 8 → 16, 16 → 32, 32 → nil — and 2 → 4, 6 → 8 for anything off it.
+
+### A reversal, stated rather than slipped in
+
+`FormAxisChooserTests.testASpanOffTheLadderDoesNotGrow` asserted the old behaviour, with a reason:
+*"inventing a 'next' from an unknown rung would be guessing."*
+
+It is not guessing. The ladder is ordered, and *the first rung wider than where you are* is what
+climbing means — there is nothing to invent. What the old rule actually bought was a permanent
+stall, and the test's own name described the defect as though it were the design. It is renamed to
+the claim it now holds and cites this section, because a test quietly edited to match new code is
+the guard becoming a mirror.
+
+### What the data says about the entry being removed
+
+`review form`, sixteen takes. Every felt period on record: **8.0, 8.0, 8.0, 7.9, 8.0, 4.0, 4.0,
+8.0, 4.0, 4.0, 8.0**, and five takes with none. Nothing has ever felt a 2-bar period, so this
+changes no take, no plan and no number already recorded. It closes a door rather than moving
+anybody through one.
+
+### Declining a measurement out loud
+
+A felt period the ladder does not have is still a measurement. Refusing it in silence would leave
+the drill at a span the player has visibly abandoned with nothing on screen accounting for it, so
+the plan says what it saw and why it is not acting on it (R3.3) — and names the rungs from the list
+rather than from a third copy of them, so a rung added later appears in the sentence without anyone
+remembering to edit it.
+
+The wording leans on what an off-ladder period usually means: marking a period the form does not
+contain is more often the phrase being lost than a different phrase being felt. That is a judgement
+and it is written as one.
+
+### What this does not cover
+
+**The felt-period rule still needs two takes to agree**, which §7.45 flagged as worth revisiting —
+six gaps inside a quarter of a bar is far stronger evidence than the takes that rule was written
+against. Untouched here, deliberately: this branch is about *which* spans are legal, not about how
+much evidence moves between them.
+
+**`FormConfig.validate` still accepts 2–32.** A span tried by hand is the same affordance as
+`--probe`, and the planner is what must not choose one — which it now cannot, and which no longer
+costs the player their ladder if they do.
+
+**No live run**, no storage change, and no take is re-scored: `phraseBars` is read from the stored
+take exactly as before.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -7336,9 +7422,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   772 cases
+└── Tests/                   779 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     404 cases against synthetic ground truth
+    ├── TimingCoreTests/     411 cases against synthetic ground truth
     ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
     └── TrainerKitTests/     246 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.

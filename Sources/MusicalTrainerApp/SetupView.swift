@@ -156,8 +156,13 @@ struct SetupView: View {
                 if model.mode == .form {
                     Divider()
                     LabeledContent("Phrase") {
+                        // The ladder's own rungs, not a copy of them. The planner may only ask for
+                        // a span on this list, so reading it here is what makes "the app offers
+                        // what the ladder climbs" true rather than asserted (`LESSONS.md` shape 9).
                         Picker("", selection: $model.phraseBars) {
-                            ForEach([4, 8, 16, 32], id: \.self) { Text("\($0) bars").tag($0) }
+                            ForEach(SessionPlanner.phraseSpanLadder, id: \.self) {
+                                Text("\($0) bars").tag($0)
+                            }
                         }
                         .labelsHidden().frame(width: 130)
                     }
