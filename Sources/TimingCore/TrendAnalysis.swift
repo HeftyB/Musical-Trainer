@@ -51,6 +51,14 @@ public struct TrendSeries: Equatable {
     public let warnings: [String]
     public let rows: [TrendRow]
 
+    /// "1 take" or "7 takes", written once for both surfaces.
+    ///
+    /// The console and the app each interpolated the number beside a bare "takes", so every group
+    /// with one take in it read **"1 takes"** — on screen, in the readout, and in this project's
+    /// own screenshots. A count that cannot say "one" undermines the sentence it sits in, which
+    /// for a readout is the product.
+    public var takeCountLabel: String { takeCount == 1 ? "1 take" : "\(takeCount) takes" }
+
     public init(title: String, takeCount: Int, warnings: [String], rows: [TrendRow]) {
         self.title = title; self.takeCount = takeCount; self.warnings = warnings; self.rows = rows
     }

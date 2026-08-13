@@ -1992,7 +1992,7 @@ public enum Commands {
         }
 
         for group in series {
-            print("\n\(Console.bold)\(group.title)\(Console.reset)  (\(group.takeCount) takes)")
+            print("\n\(Console.bold)\(group.title)\(Console.reset)  (\(group.takeCountLabel))")
             for warning in group.warnings { Console.warn(warning) }
             for row in group.rows {
                 guard let fit = row.fit else {
