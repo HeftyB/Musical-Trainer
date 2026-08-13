@@ -131,8 +131,12 @@ public struct DrillInstructions {
     private static func swung(rung: IntervalRung, feel: Feel) -> DrillInstructions {
         let unit = rung.subdivisions == 2 ? "the beat" : "each eighth"
         return DrillInstructions(
-            goal: "Measures how you place a **swung** division — where the offbeat sits, and how "
-                + "consistently you put it there. The hat is swinging with you.",
+            // Plain text, for the reason `form(level:phraseBars:)` gives: neither surface renders
+            // markdown, so `**swung**` arrived as literal asterisks in the console readout and in
+            // SwiftUI's `Text`. The word leads the sentence instead, which is the prominence that
+            // actually survives.
+            goal: "Swung, and that changes what is being measured: where the offbeat sits, and "
+                + "how consistently you put it there. The hat is swinging with you.",
             steps: [
                 "A two-bar count-in plays swung, then a groove whose hi-hat swings \(unit).",
                 "Play along in \(rung.label), letting the offbeat fall late the way the hat does.",
