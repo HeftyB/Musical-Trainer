@@ -7585,6 +7585,159 @@ drill is categorically different, and that is the line this draws.
 
 ---
 
+## 7.53 The 13 August setlist — the skank is held, and r₁ went up all afternoon
+
+Not a planned session: a **setlist**, ordered by hand, because the planner has no offbeat slot and
+every offbeat group on record held exactly one take. Ten takes, cold-sensitive first.
+
+### The skank at 70 BPM is held, five for five
+
+| Take | Off the beat | Placement | Spread |
+|---|---|---|---|
+| 54–58 | **128/128, 100%**, every one | −35 ms (ahead) | 21.7 / 30.8 / 23.4 / 29.0 / 23.1 |
+
+The first offbeat series in this project that can be fitted at all: spread +0.08/take
+[−2.68, +5.55], flat. §7.38 moved the default to 70 BPM on **one** take against one at 100; this
+is that decision confirmed with depth, and the drill now says *"Ready for level 1."*
+
+**Holding a position the band never plays costs this player nothing in precision.** Offbeat
+placement spread is ~23 ms against ~25 ms for free jams — the same within noise. That is a result
+with real consequences for M16.5: if holding *one* unplayed position is free, the bubble's whole
+claim to be a different skill rests on whether holding **two** is.
+
+**The chop sits 35 ms ahead, every take.** Free jams run −4 to −20 ms, so this is not the player's
+general rush — it is drill-specific and it is stable across five takes. Pushing the chop is
+stylistically real in ska, and §2 holds that bias is not failure, so this is recorded as a question
+rather than a fault: **is 35 ms ahead the feel he wants?** Unanswered, and the drill scores it the
+same either way.
+
+### Triplet eighths at 80 BPM came down 10 ms, and r₁ went up 0.63
+
+The one M14 rung with a single take on it — 42.7 ms, the widest spread on record — repeated at the
+same tempo, rung, length and backing. `review compare` flags no confound:
+
+| | 8 Aug | 13 Aug | change | |
+|---|---|---|---|---|
+| Spread (SD) | 42.66 | **32.54** | −10.12 [−18.13, −2.34] | **real change** |
+| Mean async | −22.99 | −23.35 | −0.37 [−9.17, +8.31] | within noise |
+| r₁ | +0.09 | **+0.72** | +0.63 [+0.51, +0.76] | **real change** |
+
+So the widest take on record was **partly unfamiliarity** — the honest answer to a question the
+player could not answer from memory, which is why the repeat was on the setlist. Two takes is not a
+trend, and the bias not moving while the spread did is what a familiarity effect should look like.
+
+The r₁ half is the uncomfortable one, and it is not confined to this pair.
+
+### r₁ was high all afternoon
+
+| Take | | r₁ |
+|---|---|---|
+| 59 | swung eighths, 100 BPM, from the app | +0.58 [+0.47, +0.68] |
+| 60 | triplet eighths, 80 BPM | +0.72 [+0.65, +0.79] |
+| 61 | free jam over `syncopated`, 100 BPM | +0.44 [+0.12, +0.77] |
+
+This player's r₁ has run **0.13–0.50** across thirty takes, and §7.32 records 0.64 as the first
+reading to leave that range at all. Three takes above it in one afternoon, on three different
+tasks, is worth writing down.
+
+**It is an observation, not a finding, and the reasons are stated so it is not read as one.** Three
+takes, one sitting, three different tasks, at the end of ten takes in an afternoon — fatigue is at
+least as good an explanation as anything about the tasks. §5.1 is explicit that r₁ near zero is the
+project's definition of success, so a sitting that moves it this far in the wrong direction is worth
+watching rather than acting on.
+
+**What would settle it:** the same three settings played cold at the top of a session. If r₁ is back
+in its usual range, this was the tenth take of an afternoon; if it is not, something has changed and
+the benchmark jam will show it too.
+
+### Two form takes, both at 8 bars, and one answered an open question
+
+The setting was never touched. What moved was the playing:
+
+| | marks | felt | on form | clean |
+|---|---|---|---|---|
+| Cold | 7 | **16.0** | 6/7 | 6/7 |
+| Warm | 24 | **4.0** | 12/24 | 16/24 |
+
+Consistent both times, in opposite directions, against a fixed 8-bar phrase. The felt-period column
+did exactly its job in both, and `hasUnmarkedPhrases` correctly refused to promote the first: seven
+marks over twelve phrase tops means half were skipped, so 86% on form is 86% of the half he marked.
+
+**This answers §7.45's open question about whether one exceptionally steady take should move the
+phrase length.** Had the rule moved on a single take, it would have gone 8 → 16 after the first and
+16 → 4 after the second — the oscillation §7.26 wrote the two-take rule to stop, reproduced exactly.
+The rule stays at two, and the "strength condition" §7.50 floated as a possible refinement is
+**dropped**: these two takes are precisely the case a tightness threshold would have been fooled by,
+since both were highly regular and both were wrong.
+
+### Two fixes verified live
+
+**§7.46 reached the built app.** The swung jam's instruction card reads *"letting the offbeat fall
+late the way the hat does"* — screenshot on the day. That path had never been played before, which
+is why the defect survived.
+
+**§7.52 reached the picker.** The rung caption now derives from a **25 ms** spread; before the
+filter it read 31.2, because four evenings of skank practice had displaced the free jams out of a
+six-take window.
+
+---
+
+## 7.54 The app reads the history once
+
+Reported from use, not from a profile: *"the UI in the app was laggy, I noticed it while typing the
+condition for the take. Going back and forth to history also creates a lag."*
+
+### Where the time went
+
+Measured on the real corpus rather than guessed at:
+
+| | |
+|---|---|
+| Decode every stored take | **437 ms** |
+| One re-analysis from raw taps | ~32 ms |
+| `recentSpreadMs` — decode plus six reports | **562 ms** |
+
+`SetupView` reads `model.scorableRungs` **and** `model.rungAdvice`, and each independently resolves
+the player's recent spread. `tag` is `@Published`. So **every keystroke in the Condition field cost
+about 1.1 seconds** of disk and analysis.
+
+History was worse: `jamHistory`, `trends`, `warmUpReport` and `experimentResults` each load
+independently and the first three re-analyse every take, so a visit was four decodes and roughly
+**180 analyses**, on the main thread, while the window tried to draw.
+
+### What was not done
+
+**The analysis was not made faster.** It is measurement code, and R3.1 requires every readout to
+recompute from raw taps — that rule is why a chord-clustering fix reached takes recorded before it.
+Nothing here caches a derived value. What changed is how often the work is asked for:
+
+| | |
+|---|---|
+| `SessionStore` holds the **decoded** takes for the process | 437 ms → 2.6 ms |
+| `AppModel` stores the spread estimate, refreshed after a save | out of the render path entirely |
+| `TrainerEngine.historyPayload` builds the screen in one pass, loaded on a background queue | off the main thread |
+
+The store cache is safe for two reasons that are properties of the rest of the system rather than of
+the cache: a stored take is immutable (R6.2), and new ones arrive only through `save`. Both are
+asserted rather than trusted — `StoreCacheTests` covers a take saved after a read, all six stored
+types, and the test redirect moving underneath, and each reverts to a failure.
+
+The spread estimate is a **value**, not a getter, and that is the shape of the fix rather than an
+optimisation of it: something read twice per render cannot be allowed to touch the disk at all.
+
+### What this does not cover
+
+**History still does ~180 analyses**, now off the main thread with *"Reading your history…"* on
+screen — an honest loading state, because a history that takes two seconds to analyse must not read
+as a history with nothing in it. Cutting that to 61 means the three readouts sharing one pass over
+the corpus, which is a restructuring of three public entry points and was not worth bundling into a
+fix for a lag reported while typing.
+
+**Nothing was profiled beyond these three numbers.** They were enough to explain the symptom and to
+choose between fixes; there may be other slow paths and none of them were looked for.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
