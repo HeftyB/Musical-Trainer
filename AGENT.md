@@ -246,7 +246,7 @@ the screen any more than it can hear the kit; both gaps close the same way.
 ./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
 ```
 
-It writes **49 files**: ten ladder and demo backings, the five skank-family auditions M16.5
+It writes **51 files**: ten ladder and demo backings, the five skank-family auditions M16.5
 turns on (§7.55), four styles × four intensities, one seeded
 piece per style, thirteen `kit-<voice>` files, and `kit-bass` — which walks E1 to E3 in one file
 rather than taking twenty-five, since the lowest note is the one that matters. Two guards run
@@ -292,7 +292,7 @@ than it looks.
 
 **Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
 position before and after the lift, at three tempos and four feels, and a one-step drift fails it
-3,265 times. The 49 WAVs `render` writes are the other half of that gate.
+3,265 times. The 51 WAVs `render` writes are the other half of that gate.
 
 **A style can be played over from either surface.** `jam --style driving --seed <hex>` from the
 CLI, with the seed printed as the flags that reproduce it; a band picker on Jam and Play in the
@@ -408,8 +408,8 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 542 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (266 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 544 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (273 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -453,7 +453,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 808 tests, no hardware needed
+swift test                              # 817 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

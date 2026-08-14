@@ -18,6 +18,12 @@ public enum BackingVoice: String, CaseIterable, Codable, Equatable {
     /// locks with the kick is what gives a groove a contour to remember, and a second thing to
     /// place your own playing against (§7.29 step 2).
     case bass
+    /// The skank family's own voice, and the second pitched one.
+    ///
+    /// Added for M16.5: the organ bubble was being auditioned on a rimshot, and a player asked to
+    /// imagine past the timbre is not judging the figure (§7.55). It carries a `note` like the
+    /// bass, and unlike the bass it plays *above* the player rather than under them.
+    case organ
 
     /// Voices that can carry the pulse — the thing a listener counts along to.
     ///
@@ -31,7 +37,7 @@ public enum BackingVoice: String, CaseIterable, Codable, Equatable {
     ///
     /// The discriminator lives here rather than as `== .bass` at each call site, so harmony
     /// adding pitched voices later is one case rather than a hunt.
-    public var isPitched: Bool { self == .bass }
+    public var isPitched: Bool { self == .bass || self == .organ }
 
     /// Voices that are **one physical instrument in different states**, listed so that the
     /// earlier one wins when both land on a step.

@@ -1490,7 +1490,11 @@ public enum Commands {
               OffbeatBacking.backing(level: .stated, bars: bars), bars),
              // The bass, so it can be judged by ear before a style is built on it. Nothing
              // frozen carries it (§7.29 step 2).
-             ("bass-demo", nil, .straight, GrooveLibrary.bassDemo, bars)]
+             ("bass-demo", nil, .straight, GrooveLibrary.bassDemo, bars),
+             // And the organ, for the same reason and a sharper one: M16.5's figure decision was
+             // made through a rimshot because this voice did not exist (§7.56). A voice nobody has
+             // heard alone is a voice whose faults get attributed to the part playing it.
+             ("organ-demo", nil, .straight, GrooveLibrary.organDemo, bars)]
 
         // Every style at every intensity, because intensity is the thing that has to be judged:
         // a layer entering should sound like the music getting more sure of itself and not like
@@ -1550,6 +1554,20 @@ public enum Commands {
                     (step: 4, note: 40),
                     (step: 8, note: BackingKit.bassNotes.upperBound),
                     (step: 12, note: 40),
+                ]), bars: 4)]),
+            bars: 4))
+
+        // The organ, on the same argument one voice later. Two pitched voices means two that this
+        // pass cannot see by filtering, and the bass's absence cost a milestone — so the rule is
+        // that **every** pitched voice gets a walk of its range here, not that the bass does.
+        kitSubjects.append((
+            name: "kit-organ", rung: nil, feel: .straight,
+            arrangement: Arrangement(sections: [
+                Section(name: "organ", pattern: Pattern.pitched(voice: .organ, [
+                    (step: 0, note: BackingKit.organNotes.lowerBound),
+                    (step: 4, note: 64),
+                    (step: 8, note: BackingKit.organNotes.upperBound),
+                    (step: 12, note: 64),
                 ]), bars: 4)]),
             bars: 4))
 
