@@ -70,6 +70,25 @@ he wants and is recorded as an open question rather than a fault. And **r₁ ran
 three different tasks in one afternoon**, against a historical 0.13–0.50 — an observation, not a
 finding, with fatigue as good an explanation as any, and the way to settle it written down.
 
+**M16.5 is blocked, and on an ear rather than on code** (§7.56). The organ built for it *"sounds
+like an organ"* and is *"not the right organ sound for a reggae vibe"*, and the player heard neither
+candidate figure as a bubble. He named the cause: **the same tone handicap §7.33 records**, where
+four styles sounded like "beat #3 rather than oh, a Motown beat". That handicap has now stopped a
+*measurement* decision instead of a naming one, which moves **M26 upstream of a drill** — it is no
+longer a someday item.
+
+**Do not build organ voices from descriptions.** The player asked for several — the Wailers' sound,
+Kash'd Out's — and is assembling references. `AGENT.md`'s own rules cover this: an agent cannot
+listen, and a style is never named after a genre. §7.30's capture-to-measure path is what makes it
+cheap once the references exist. What is missing structurally is a named `Registration` on
+`OrganSynth`, chosen per arrangement; it is described in §7.56 and deliberately unbuilt, because a
+seam with one implementation behind it is a guess about the second.
+
+**Two more things came out of that verdict**, both real design gaps: **articulation belongs to the
+figure** — the stab is one length for every bubble, so every bubble is staccato by construction, and
+a legato triplet wants a note twice as long — and **the root-and-fifth voicing may be why the
+triplet failed**, since a bubble without a third may not read as an organ part at all.
+
 **M16.5 step 0 is built and its musical question is answered "both"** (§7.55). `BubbleFeel` carries
 a triplet bubble and a sixteenth one; the player heard both as plausible and said it would depend on
 the piece, so **both ship as a player-selected axis** rather than one being chosen — which is what
@@ -427,6 +446,7 @@ never yet used for measurement**, so treat them as untested paths, not as capabi
 | Launchkey (keys + pads) | **In use.** Every take ever recorded | CoreMIDI — driver timestamps, validated in M0 |
 | TS→USB audio adapter | Owned, cheap, works | Electric guitar, bass, amplifiers, and the TDV6 drum module's line out |
 | External microphone | Owned, used for recording | Vocal capture, and the calibration test tone |
+| **Acoustic piano** | **Owned.** No data output of any kind | Onset detection from a microphone — M24's path, on an instrument with a hard attack |
 | USB→MIDI interface for the drums | **Planned purchase** | Would put the drum module on the MIDI path |
 | Better audio interface | Planned purchase | Replaces the TS→USB adapter |
 
@@ -442,6 +462,13 @@ Three things follow, and they change what the roadmap costs:
   USB→MIDI interface the kit sends note-ons with driver timestamps — the path M0 already
   validated — and needs no onset detection at all. Through the TS→USB line out it is an audio
   problem. Same instrument, entirely different measurement quality.
+
+**The piano is a microphone problem, and a favourable one.** It emits nothing electrical, so the
+only route is onset detection from audio — which is M24's path exactly. A struck string has a far
+sharper attack than a sung note, so if that detector works anywhere it works here, and it is the
+natural thing to validate M24's onset code against *before* pointing it at a voice. It also has the
+widest key span in the house, which is what §7.55's hand-span idea wants and what the Launchkey
+Mini's two octaves cannot give.
 
 **Headphones are a hard requirement for anything vocal** (M24), and the reason is feedback, not
 just bleed: an open microphone and a speaker in one room is a howl, and the drill would be
