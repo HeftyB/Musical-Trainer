@@ -19,10 +19,10 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 
 **M0–M16 and M19 are built.** M17, M18 and M20–M22 are not started; PLAN.md §7's milestone table
 carries the status of each and is the one to trust. M14 has six ladder takes across 80–140 BPM,
-M15 has two swung takes and — as of 13 August — seven offbeat ones across five tempos and three
-levels, **every group holding one take except one**, so nothing about the skank can be fitted yet.
-And **no form take has yet run on the finished M16**: the two most recent ran under its half-built
-steps.
+M15 has three swung takes and — as of 13 August — twelve offbeat ones. **The skank at 70 BPM /
+level 0 now has five takes and is the first offbeat series that can be fitted**: 100% off the beat
+in every one, and the drill says *"Ready for level 1"* (§7.53). **M16 has finally been played under
+its finished ladders**, twice on 13 August, and what those two takes settled is in §7.53.
 
 **The pre-M16.5 review is closed — eight findings, six branches** (§7.46–§7.51). Nothing in it is
 outstanding. What it changed, and what each one is worth remembering for:
@@ -43,10 +43,11 @@ outstanding. What it changed, and what each one is worth remembering for:
 §7.49 is the one nobody predicted: two defects a **screenshot** found after §7.48 had already
 shipped, neither reachable by any test this project can write.
 
-**Nothing in the review has been played.** Six branches, no live run. The next thing this project
-needs is a session, and there are three specific reasons: M16 has never been exercised under its
-finished ladders, no take has ever been recorded from the app's **swung** or **offbeat** paths, and
-the new incident readout draws nothing until the day it does.
+**The review has now been played** — the 13 August setlist (§7.53), ten takes, which is what closed
+the gap this paragraph used to describe. Two of the three things it was waiting on are answered:
+M16 ran under its finished ladders, and a swung take was recorded from the app, verifying §7.46's
+fix on the surface where the defect lived. **The incident readout still draws nothing**, and cannot
+be made to: it needs an occurrence.
 
 **A ninth finding came out of planning M16.5** (§7.52), and it is the one worth reading. The
 planner built its jam input with `map` over every stored jam, and **the offbeat drill is stored as a
@@ -60,6 +61,14 @@ at 100 BPM with nothing saying why.
 is the most transferable thing this review produced: a wrong readout shows a wrong number, a wrong
 decision quietly changes what you are told to practise. `SessionStore.loadAllPlayAlong()` is the one
 place the distinction now lives.
+
+**The 13 August setlist is the first data since the review** (§7.53), and it carries three things
+worth knowing before touching a drill. **Holding a position the band never plays costs this player
+nothing in precision** — offbeat spread ~23 ms against ~25 for free jams — which is the number
+M16.5's whole premise has to beat. **The chop sits 35 ms ahead in every take**, which may be the feel
+he wants and is recorded as an open question rather than a fault. And **r₁ ran +0.44 to +0.72 across
+three different tasks in one afternoon**, against a historical 0.13–0.50 — an observation, not a
+finding, with fatigue as good an explanation as any, and the way to settle it written down.
 
 **The procedure that came out of it: `render → look → decide`**, beside the `render → listen →
 decide` this project already had for audio. Hand over a build, ask for a screenshot of the surface
@@ -386,7 +395,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 533 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (261 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (266 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -430,7 +439,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 794 tests, no hardware needed
+swift test                              # 799 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

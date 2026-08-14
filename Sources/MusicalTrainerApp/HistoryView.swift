@@ -70,16 +70,23 @@ struct HistoryView: View {
         var marksZero: Bool { self == .dropout }
     }
 
-    /// Every take of this drill. The list shows all of them; the chart shows what it can draw
-    /// honestly, which `TrainerEngine.chartable` decides — including dropping a take whose metric
-    /// is not finite, as a drill whose split came out unreliable has no clock number to plot.
-    private var entries: [TrainerEngine.HistoryEntry] {
-        switch kind {
-        case .jam: return TrainerEngine.jamHistory()
-        case .form: return TrainerEngine.formHistory()
-        case .dropout: return TrainerEngine.dropoutHistory()
-        case .tempo: return TrainerEngine.tempoHistory()
-        case .memory: return TrainerEngine.memoryHistory()
+    /// What this screen shows, loaded once per drill rather than rebuilt while drawing.
+    ///
+    /// It used to be a computed property, so every readout on the screen re-derived it and every
+    /// re-derivation re-analysed the whole corpus from raw taps — about 180 analyses and four
+    /// decodes of the store, on the main thread, per visit. That is the History lag (§7.54). The
+    /// work is unchanged; where it happens is not.
+    @State private var payload: TrainerEngine.HistoryPayload?
+    @State private var isLoading = false
+
+    private func load(_ kind: Kind) {
+        isLoading = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let loaded = TrainerEngine.historyPayload(for: kind.drill)
+            DispatchQueue.main.async {
+                payload = loaded
+                isLoading = false
+            }
         }
     }
 
@@ -98,18 +105,13 @@ struct HistoryView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            let entries = entries
-            if entries.isEmpty {
-                Spacer()
-                Text("Nothing here yet.").foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                Spacer()
-            } else {
+            if let payload, !payload.entries.isEmpty {
+                let entries = payload.entries
                 // Chart, fitted trends and the take list all scroll together — the trend
                 // cards vary in height with how many groups the takes fall into.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        let chartable = TrainerEngine.chartable(entries)
+                        let chartable = payload.chart
                         if !chartable.entries.isEmpty {
                             Card {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -162,19 +164,17 @@ struct HistoryView: View {
 
                         // The fitted trends carry the same confound warnings the console prints —
                         // without them the app would show a slope where the console refuses to.
-                        ForEach(Array(TrainerEngine.trends(for: kind.drill).enumerated()),
+                        ForEach(Array(payload.trends.enumerated()),
                                 id: \.offset) { _, series in TrendCard(series: series) }
 
-                        WarmUpCard(report: TrainerEngine.warmUpReport(for: kind.drill))
+                        WarmUpCard(report: payload.warmUp)
 
                         // The experiment readout, on the surface where sessions are actually
                         // run. It lived only in the console until now (§7.20 finding 9), which
                         // for M13 would have meant a milestone whose whole output the player
                         // never saw where they practise.
-                        if kind == .jam {
-                            ForEach(TrainerEngine.experimentResults(), id: \.design.name) {
-                                ExperimentCard(result: $0)
-                            }
+                        ForEach(payload.experiments, id: \.design.name) {
+                            ExperimentCard(result: $0)
                         }
 
                         ForEach(entries.reversed()) { entry in
@@ -199,9 +199,18 @@ struct HistoryView: View {
                         }
                     }
                 }
+            } else {
+                Spacer()
+                // The empty state and the loading state are different sentences. A history that
+                // takes two seconds to analyse must not read as a history with nothing in it.
+                Text(isLoading ? "Reading your history…" : "Nothing here yet.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer()
             }
         }
         .padding(24)
+        .task(id: kind) { load(kind) }
     }
 }
 
