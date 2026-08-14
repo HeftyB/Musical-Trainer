@@ -114,6 +114,26 @@ public enum Stats {
         return autocovariance(x, lag: k) / g0
     }
 
+    /// Notes a run needs before it may contribute.
+    ///
+    /// **Chosen from the bias, not from taste.** Centring a run on its own mean costs roughly
+    /// `1/n` of downward bias, and that bias points *toward* r₁ ≈ 0 — which §10 of `PLAN.md`
+    /// defines as success. A method that drifts toward its own success criterion is the dangerous
+    /// direction, so the threshold is where the drift stops mattering: simulated at a 23 ms spread,
+    /// runs of 10 read −0.11 against a true 0, runs of 25 read −0.04, and runs of 60 read −0.01.
+    /// Thirty is the knee.
+    public static let minimumRunLength = 30
+
+    /// What `gappyLag1` found. `r` is `nil` when no run was long enough to answer from — and the
+    /// counts are still reported, because *why* a number is missing is the point (R3.3).
+    public struct GappyLag1: Equatable {
+        public let r: Double?
+        /// Adjacencies the estimate was summed over.
+        public let pairs: Int
+        /// Adjacencies dropped because the two elements were not consecutive.
+        public let dropped: Int
+    }
+
     /// Lag-1 autocorrelation over a series with holes in it.
     ///
     /// **A plain autocorrelation pairs element *n* with element *n+1* and asks nothing about what
@@ -152,26 +172,6 @@ public enum Stats {
     /// - Returns: the correlation, the pairs it was summed over, and how many adjacencies were
     ///   dropped. `nil` when nothing usable survives — R3.3.1, withhold at source rather than
     ///   return a number beside a caveat nobody reads.
-    /// Notes a run needs before it may contribute.
-    ///
-    /// **Chosen from the bias, not from taste.** Centring a run on its own mean costs roughly
-    /// `1/n` of downward bias, and that bias points *toward* r₁ ≈ 0 — which §10 of `PLAN.md`
-    /// defines as success. A method that drifts toward its own success criterion is the dangerous
-    /// direction, so the threshold is where the drift stops mattering: simulated at a 23 ms spread,
-    /// runs of 10 read −0.11 against a true 0, runs of 25 read −0.04, and runs of 60 read −0.01.
-    /// Thirty is the knee.
-    public static let minimumRunLength = 30
-
-    /// What `gappyLag1` found. `r` is `nil` when no run was long enough to answer from — and the
-    /// counts are still reported, because *why* a number is missing is the point (R3.3).
-    public struct GappyLag1: Equatable {
-        public let r: Double?
-        /// Adjacencies the estimate was summed over.
-        public let pairs: Int
-        /// Adjacencies dropped because the two elements were not consecutive.
-        public let dropped: Int
-    }
-
     public static func gappyLag1(_ x: [Double],
                                  isAdjacent: (Int) -> Bool) -> GappyLag1? {
         guard x.count >= 2 else { return nil }

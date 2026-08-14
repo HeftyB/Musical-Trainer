@@ -113,6 +113,15 @@ final class MIDIInput {
     }
 
     /// Last note-on time per note number, for duplicate rejection.
+    ///
+    /// **Guarded by `storageLock`, like everything else the delivery thread touches.** It was the
+    /// one piece of capture state left outside it: the delivery thread read and updated it before
+    /// taking the lock, and `reset()` cleared all 128 entries from the take thread after releasing
+    /// it. That is the pattern the comment under `storage` rejects — *"a data race under the
+    /// language model"* — and this field is declared immediately above that comment.
+    ///
+    /// The window and the append are now one critical section rather than two adjacent ones, which
+    /// is also what makes "this note was accepted" and "this note was stored" the same decision.
     private var lastNoteOn = [UInt64](repeating: 0, count: 128)
     private let dedupWindow = HostClock.ticks(seconds: 0.003)
 
@@ -289,8 +298,11 @@ final class MIDIInput {
         storageCount = 0
         droppedNoteOns = 0
         firstDropHostTime = 0
-        os_unfair_lock_unlock(&storageLock)
+        // Inside the lock with the rest of the capture state. This ran after the unlock, so a
+        // keyboard being played between takes had the delivery thread writing these entries while
+        // the take thread cleared them.
         for i in 0..<lastNoteOn.count { lastNoteOn[i] = 0 }
+        os_unfair_lock_unlock(&storageLock)
         // Last take's incidents are not this take's. Connections deliberately survive — see
         // `MIDISourceRegistry.beginTake`.
         withRegistry { $0.beginTake() }
@@ -337,10 +349,16 @@ final class MIDIInput {
                 if status == 0x9, velocity > 0 {
                     // Reject a repeat of the same note within the dedup window. No player
                     // retriggers one note in 3 ms, so this can only be double delivery.
+                    //
+                    // The window is read and updated **inside** the same critical section as the
+                    // append, not before it. Two adjacent sections would leave the dedup array
+                    // racing `reset()` on the take thread, and would also let the accept decision
+                    // and the store come apart if CoreMIDI ever delivered on two threads.
+                    os_unfair_lock_lock(&storageLock)
                     let previous = lastNoteOn[Int(note)]
-                    if previous == 0 || timeStamp &- previous > dedupWindow {
+                    let accepted = previous == 0 || timeStamp &- previous > dedupWindow
+                    if accepted {
                         lastNoteOn[Int(note)] = timeStamp
-                        os_unfair_lock_lock(&storageLock)
                         if storageCount < capacity {
                             storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note,
                                                                velocity: velocity, channel: channel)
@@ -353,10 +371,10 @@ final class MIDIInput {
                             if droppedNoteOns == 0 { firstDropHostTime = timeStamp }
                             droppedNoteOns += 1
                         }
-                        os_unfair_lock_unlock(&storageLock)
-                        // Outside the lock: monitoring must never be able to block capture.
-                        monitor?(note, velocity, true, channel)
                     }
+                    os_unfair_lock_unlock(&storageLock)
+                    // Outside the lock: monitoring must never be able to block capture.
+                    if accepted { monitor?(note, velocity, true, channel) }
                 } else if status == 0x8 || (status == 0x9 && velocity == 0) {
                     monitor?(note, 0, false, channel)
                 }
