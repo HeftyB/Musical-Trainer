@@ -70,6 +70,19 @@ he wants and is recorded as an open question rather than a fault. And **r₁ ran
 three different tasks in one afternoon**, against a historical 0.13–0.50 — an observation, not a
 finding, with fatigue as good an explanation as any, and the way to settle it written down.
 
+**M16.5 step 0 is built and its musical question is answered "both"** (§7.55). `BubbleFeel` carries
+a triplet bubble and a sixteenth one; the player heard both as plausible and said it would depend on
+the piece, so **both ship as a player-selected axis** rather than one being chosen — which is what
+§7.13's "generalise one phase to a set" was for. They differ in *closest approach* to a beat — 1/3 of
+a beat against 1/4, where the straight chop is 1/2 — so each is its own trend group with its own
+tempo default, and the data will settle what the listening could not.
+
+**That listening test was contaminated, and by this repository.** The hand-over stated the
+conclusion — that the sixteenth bubble's first note is the chop — before the player heard the files,
+and he then reported hearing it. **Do not put the answer in the question.** A listening verdict is
+taken the way a take's rating is: before the numbers, before the explanation. `render` writes the
+five skank-family auditions; a blind re-listen with an organ voice is what M16.5 still owes.
+
 **The procedure that came out of it: `render → look → decide`**, beside the `render → listen →
 decide` this project already had for audio. Hand over a build, ask for a screenshot of the surface
 that changed, and read it — an agent cannot see a screen any more than it can hear the kit, and
