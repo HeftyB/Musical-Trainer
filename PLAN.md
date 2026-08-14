@@ -7999,6 +7999,89 @@ The honest state: `BubbleFeel` ships both, §7.55's reasoning holds, and the dec
 
 ---
 
+## 7.57 Fourth codebase review — two defects, and the queue the rest of it makes
+
+A whole-tree review against a clean `main` at `23e9b4a`. **The gate passed every check before it
+started and passes every check now**, which is the finding that frames the others: nothing below was
+reachable by it.
+
+The state it passed in, for the record: 33,655 lines of Swift across five modules, 823 test cases
+carrying 1,843 assertions, 41 selftest checks, zero third-party dependencies, no force-unwrap and no
+`TODO` anywhere in `Sources`. `check.sh --fast` — the pre-commit path — takes 77 seconds.
+
+### Finding 1 — the one field §7.51's lock did not reach
+
+`MIDIInput.lastNoteOn` is 128 host times, one per note number, holding the 3 ms window that rejects
+double delivery. CoreMIDI's delivery thread read it and updated it; `reset()` cleared all 128 entries
+from the take thread. Neither took `storageLock`, so a keyboard played between takes had both running
+at once.
+
+**§7.51 is the review that fixed the field beside it.** `onNoteEvent` was found crossing threads
+unsynchronised in that pass and put behind `handlerLock`, with a doc comment arguing the case in full
+— that the unguarded pattern *"is a data race under the language model"* which *"happens to survive
+x86_64's total store order"*. `lastNoteOn` is declared **between that comment and the one under
+`storage` that it cites**, and was touched by neither.
+
+So this is `LESSONS.md` shape 21 in its sharpest form yet. Not a rule nobody wrote down: a rule
+written down, in the right file, in the right words, in the comment the broken field is declared
+immediately above, during a pass explicitly hunting for that exact defect.
+
+**Nothing is known to have gone wrong and nothing would have shown it.** The symptom is one note
+swallowed as a duplicate, or one double delivery admitted as a note, at a take boundary — with no
+incident, no count and nothing in the record to say which. It is fixed because it is undefined
+behaviour in the capture path, not because it was caught misbehaving. That distinction is worth
+keeping: this project's other concurrency entries all came with a wrong number attached, and treating
+"no observed symptom" as "no defect" is how a capture path accumulates them.
+
+**The fix folds two adjacent critical sections into one.** The window is now read, tested and updated
+inside the same `storageLock` region as the append, and `reset()` clears it before releasing. A
+side-effect worth naming: "this note was accepted" and "this note was stored" become a single
+decision rather than two that could come apart if CoreMIDI ever delivered on more than one thread.
+The monitor callback still fires outside the lock — monitoring must never be able to block capture.
+
+**What the fix does not come with is a guard**, and shape 21's own rule says to build the smallest
+thing that says no. Grep cannot express "this field is only touched inside a critical section". What
+can is the pattern already in this file twice: `withRegistry` and `withHandlerLock` make the guarded
+state unreachable except through a closure that holds the lock. Moving `storage`, `storageCount`,
+`droppedNoteOns`, `firstDropHostTime` and `lastNoteOn` behind a `withStorage { }` of the same shape
+would make the next instance a compile error instead of a review finding. Not done here, because it
+is a refactor of the capture path and this branch is a defect fix; it is the first item in the queue
+below.
+
+### Finding 2 — thirty-eight lines of argument attached to the wrong declaration
+
+Everything explaining `Stats.gappyLag1` — the per-run centring, the measured +0.27 the global-mean
+alternative invents, the `- Parameter` and `- Returns` — was bound to `minimumRunLength`, because no
+blank line separated the two doc comments and Swift binds a contiguous `///` run to whatever follows
+it. `minimumRunLength`'s own first line arrived as the thirty-ninth line of an essay about a function
+it is merely mentioned in, and **`gappyLag1` itself had no doc comment at all**: Quick Help showed
+nothing for the function carrying §7.32's entire argument.
+
+Text unchanged, block moved, blank line added. It is worth an entry only because of what it says
+about the enforceable subset: `check.sh` re-derives every test count quoted in prose and resolves
+every `LESSONS.md` citation, and cannot see that the most carefully written comment in `TimingCore`
+was pointing at the wrong line for as long as it has existed.
+
+### What the review found and did not fix
+
+Recorded here rather than acted on, in the order they are worth doing.
+
+| | Finding | Why it waits |
+|---|---|---|
+| 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
+| 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
+| 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
+| 4 | **CI covers 550 of 823 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 273 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
+| 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
+
+Items 1 and 2 are one branch. Item 3 is one branch and is the one with a measurement argument behind
+it rather than a hygiene argument. Item 4 is a decision rather than a task — the options are a macOS
+agent on hardware that is not the workstation, or writing down that the hook is the enforcement so
+its readers know they are it (shape 21's own fallback). Items 5 and 6 are small enough to ride along.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the

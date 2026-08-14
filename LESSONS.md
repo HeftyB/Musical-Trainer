@@ -591,6 +591,18 @@ paying attention and stops the first time an afternoon gets productive.
   read *"a `**swung**` division"* — asterisks and all, shown to the player on both surfaces (§7.46).
   A rule stated beside one string does not reach the next string written. `check.sh` holds the
   whole string layer of `Instructions.swift` now.
+- **"Every field the delivery thread touches is behind `storageLock`"** was the argument of two doc
+  comments in `MIDIInput.swift` — one of them written *by* §7.51's review, while it was fixing
+  `onNoteEvent` for precisely this. `lastNoteOn`, the dedup window, is declared **between those two
+  comments** and was in neither: the delivery thread read and updated it before taking the lock, and
+  `reset()` cleared all 128 entries after releasing it (§7.57). Nothing stopped it, and nothing
+  would have reported it — the symptom is one note swallowed or one admitted, with no incident
+  raised either way.
+
+**The last one sharpens the shape.** The rule was not merely written down: it was written down in
+the right file, in the right words, in the comment the broken field is declared immediately above,
+by a pass explicitly hunting for that defect. Proximity is not enforcement, and neither is having
+just thought about it.
 
 **The tell is uniform**: the rule reads as advice, the cost of ignoring it is diffuse and lands
 later, and whoever breaks it is being productive rather than careless. That is precisely the

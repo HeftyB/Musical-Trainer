@@ -62,6 +62,14 @@ is the most transferable thing this review produced: a wrong readout shows a wro
 decision quietly changes what you are told to practise. `SessionStore.loadAllPlayAlong()` is the one
 place the distinction now lives.
 
+**A fourth codebase review ran on 14 August and left a queue** (§7.57). Two defects are closed — a
+data race on the capture's dedup window, and thirty-eight lines of `gappyLag1`'s argument bound to
+the wrong declaration — and six items are recorded rather than acted on. **The gate passed before it
+and passes after it**, so read §7.57's table before assuming green means reviewed. The two worth
+knowing before touching anything: task identity (`GroupKey` and its siblings) is pure logic sitting
+in `TrainerKit` where CI cannot reach it, and CI compiles **none** of the macOS code — the
+pre-commit hook is the only thing that ever builds `TrainerKit`, the app or `TimingSpike`.
+
 **The 13 August setlist is the first data since the review** (§7.53), and it carries three things
 worth knowing before touching a drill. **Holding a position the band never plays costs this player
 nothing in precision** — offbeat spread ~23 ms against ~25 for free jams — which is the number
@@ -667,6 +675,7 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 | Invariant | What happened without it |
 |---|---|
 | One CoreMIDI client per process, never disposed | `MIDIServer` is on-demand; disposing the last client lets it exit, and the next create fails with −50. First take worked, second didn't. |
+| Every field CoreMIDI's delivery thread touches is under `storageLock` | The dedup window was not. The delivery thread updated it before taking the lock and `reset()` cleared it after releasing, so a keyboard played between takes had both at once — one note swallowed as a duplicate or one double delivery admitted, with no incident raised either way. The field that broke it is declared immediately above the comment making the argument (§7.57). |
 | Take length comes from the config, not the last scheduled sound | Drills ending in silence were truncated — the tempo drill lost its entire final round (9.6 s). |
 | Collapse near-simultaneous onsets before measuring | One accidental double-hit turned a true 11 ms clock SD into 55 ms, and another into 92 ms. |
 | Match against a *window*, never nearest-grid-point alone | A note 60% of a beat late snaps forward and reports as early — sign inverted. |
