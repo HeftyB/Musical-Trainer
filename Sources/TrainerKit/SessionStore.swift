@@ -192,7 +192,12 @@ struct JamSession: Codable, StoredTake {
     /// This take's offbeat report, when it was an offbeat drill.
     func offbeatReport() -> OffbeatReport? {
         guard offbeatLevel != nil else { return nil }
-        return OffbeatAnalysis.analyze(matched: report().matched, grid: reconstruct().grid)
+        // Every offbeat take on record is a straight skank — the bubble's figure is undecided
+        // (§7.56) and nothing stores one. When it is, this is where the take's own figure has to
+        // come from rather than from a default (`LESSONS.md` shape 13).
+        let grid = reconstruct().grid
+        return OffbeatAnalysis.analyze(matched: report().matched, grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
     }
 
     /// Notes per beat the player was **asked** to produce: the rung, or 1 for free playing.

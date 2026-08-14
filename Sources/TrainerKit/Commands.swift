@@ -1349,8 +1349,9 @@ public enum Commands {
 
         let outcome = try TrainerEngine.runJam(config)
         let feel = Console.readRating("\nHow did that feel?")
-        let offbeat = OffbeatAnalysis.analyze(matched: outcome.report.matched,
-                                              grid: outcome.analysisGrid)
+        let offbeat = OffbeatAnalysis.analyze(
+            matched: outcome.report.matched, grid: outcome.analysisGrid,
+            asking: OffbeatAnalysis.skankPhases(on: outcome.analysisGrid))
         reportTiming(outcome.report, notesCaptured: outcome.notesCaptured,
                      events: outcome.eventCount, uncalibrated: !env.isCalibrated,
                      grid: outcome.analysisGrid,
