@@ -1471,6 +1471,23 @@ public enum Commands {
              ("sixteenths-swung-1.5", .sixteenths, Feel(swingRatio: 1.5) ?? .straight,
               LadderBackings.swungBacking(notesPerBeat: 4), bars),
              ("jam-backing", nil, .straight, GrooveLibrary.jamBacking, bars),
+             // M16.5's open musical question, rendered rather than argued (§7.55). Both rest on
+             // the beat and play two notes after it; only the grid differs, and that is the thing
+             // an ear can settle and a step list cannot. Level 0 states the downbeat so the figure
+             // is heard against it, and level 2 is the same figure with the kick gone — which is
+             // where the two feels stop sounding alike.
+             ("bubble-triplet-L0", nil, .straight,
+              BubbleBacking.backing(feel: .triplet, level: .stated, bars: bars), bars),
+             ("bubble-sixteenth-L0", nil, .straight,
+              BubbleBacking.backing(feel: .sixteenth, level: .stated, bars: bars), bars),
+             ("bubble-triplet-L2", nil, .straight,
+              BubbleBacking.backing(feel: .triplet, level: .backbeatOnly, bars: bars), bars),
+             ("bubble-sixteenth-L2", nil, .straight,
+              BubbleBacking.backing(feel: .sixteenth, level: .backbeatOnly, bars: bars), bars),
+             // The straight skank beside them, so the comparison has the drill that already
+             // exists in it rather than only the two candidates.
+             ("skank-straight-L0", nil, .straight,
+              OffbeatBacking.backing(level: .stated, bars: bars), bars),
              // The bass, so it can be judged by ear before a style is built on it. Nothing
              // frozen carries it (§7.29 step 2).
              ("bass-demo", nil, .straight, GrooveLibrary.bassDemo, bars)]

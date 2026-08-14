@@ -70,6 +70,19 @@ he wants and is recorded as an open question rather than a fault. And **r₁ ran
 three different tasks in one afternoon**, against a historical 0.13–0.50 — an observation, not a
 finding, with fatigue as good an explanation as any, and the way to settle it written down.
 
+**M16.5 step 0 is built and its musical question is answered "both"** (§7.55). `BubbleFeel` carries
+a triplet bubble and a sixteenth one; the player heard both as plausible and said it would depend on
+the piece, so **both ship as a player-selected axis** rather than one being chosen — which is what
+§7.13's "generalise one phase to a set" was for. They differ in *closest approach* to a beat — 1/3 of
+a beat against 1/4, where the straight chop is 1/2 — so each is its own trend group with its own
+tempo default, and the data will settle what the listening could not.
+
+**That listening test was contaminated, and by this repository.** The hand-over stated the
+conclusion — that the sixteenth bubble's first note is the chop — before the player heard the files,
+and he then reported hearing it. **Do not put the answer in the question.** A listening verdict is
+taken the way a take's rating is: before the numbers, before the explanation. `render` writes the
+five skank-family auditions; a blind re-listen with an organ voice is what M16.5 still owes.
+
 **The procedure that came out of it: `render → look → decide`**, beside the `render → listen →
 decide` this project already had for audio. Hand over a build, ask for a screenshot of the surface
 that changed, and read it — an agent cannot see a screen any more than it can hear the kit, and
@@ -233,7 +246,8 @@ the screen any more than it can hear the kit; both gaps close the same way.
 ./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
 ```
 
-It writes **44 files**: ten ladder and demo backings, four styles × four intensities, one seeded
+It writes **49 files**: ten ladder and demo backings, the five skank-family auditions M16.5
+turns on (§7.55), four styles × four intensities, one seeded
 piece per style, thirteen `kit-<voice>` files, and `kit-bass` — which walks E1 to E3 in one file
 rather than taking twenty-five, since the lowest note is the one that matters. Two guards run
 automatically: `render` warns on any clipped sample,
@@ -278,7 +292,7 @@ than it looks.
 
 **Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
 position before and after the lift, at three tempos and four feels, and a one-step drift fails it
-3,265 times. The 44 WAVs `render` writes are the other half of that gate.
+3,265 times. The 49 WAVs `render` writes are the other half of that gate.
 
 **A style can be played over from either surface.** `jam --style driving --seed <hex>` from the
 CLI, with the seed printed as the flags that reproduce it; a band picker on Jam and Play in the
@@ -394,7 +408,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 533 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 542 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (266 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -439,7 +453,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 799 tests, no hardware needed
+swift test                              # 808 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

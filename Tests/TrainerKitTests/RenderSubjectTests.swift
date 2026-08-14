@@ -61,14 +61,17 @@ final class RenderSubjectTests: XCTestCase {
     }
 
     /// The subject list is what `AGENT.md` quotes a file count from, and a count in prose is a
-    /// claim like any other. Forty-five: ten ladder and demo backings, four styles at four
-    /// intensities, one seeded piece each, thirteen drum voices and the bass.
+    /// claim like any other. Ten ladder and demo backings, **five skank-family auditions**, four
+    /// styles at four intensities, one seeded piece each, thirteen drum voices and the bass.
     func testTheFileCountIsWhatTheDocumentationSays() {
         let subjects = Commands.renderSubjects(bars: 8)
         let styles = StyleLibrary.all.count
         let kitVoices = BackingVoice.allCases.filter { !$0.isPitched }.count
-        XCTAssertEqual(subjects.count, 10 + styles * Style.intensityRange.count + styles
-                                          + kitVoices + 1)
+        let skankFamily = BubbleFeel.allCases.count * 2 + 1     // two feels, two levels, plus the
+                                                               // straight skank they are judged
+                                                               // against (§7.55)
+        XCTAssertEqual(subjects.count, 10 + skankFamily + styles * Style.intensityRange.count
+                                          + styles + kitVoices + 1)
         XCTAssertEqual(Set(subjects.map(\.name)).count, subjects.count,
                        "two subjects with one name would overwrite each other's file")
     }

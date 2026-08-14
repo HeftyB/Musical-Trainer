@@ -40,6 +40,7 @@ This has three hard consequences for the app:
 - **`TimingCore` is pure Swift with zero UI and zero AVFoundation.** It must be unit-testable with synthetic tap data of known bias and variance.
 - **Silent during the take.** Enforced by architecture, not willpower — the take view has no data binding to live metrics.
 - **Never present bias as failure.** Playing ~20–40 ms ahead of the click is normal for trained musicians (negative mean asynchrony). Variance is the skill. Conflating the two would teach the wrong lesson.
+- **Measurement first, interface second.** *"We need accurate data and skill tests, that is number one priority. UI and user experience comes secondary; any indicator that may interfere needs to be hidden."* The player's rule, and it decides the cases a screen would otherwise win: the take view stays blank, the form and continuation drills get no progress indicator, and anything that would let a player locate themselves in time during a drill that measures whether they can do that unaided is not built. A pleasant surface that costs a measurement is a bad trade in a tool whose only job is to tell you something true.
 
 ---
 
@@ -7738,6 +7739,142 @@ choose between fixes; there may be other slow paths and none of them were looked
 
 ---
 
+## 7.55 M16.5 step 0 — both bubbles, and why neither was chosen
+
+The milestone rests on a musical premise §7.13 recorded as unconfirmed: *"the bubble rests on the
+beat and plays the second and third of each beat's triplet."* Asked directly, the player could see
+the argument both ways and thought it might depend on the piece. So both were built and rendered
+rather than one being picked and scored against.
+
+### Two candidates, and what they share
+
+`BubbleFeel` carries the pair. What makes both of them the skank family is the property §7.13
+generalised: **nothing on the beat, two notes after it.**
+
+| | steps | played |
+|---|---|---|
+| `triplet` | 3 to the beat | the 2nd and 3rd |
+| `sixteenth` | 4 to the beat | the "and" and the "a" |
+
+`BubbleBacking` states the figure the way the straight skank states its chop, and reuses
+`OffbeatLevel` rather than growing a second ladder — what the levels remove is the *downbeat*, and
+that does not change between figures. A parallel ladder would be two names for one idea, which is
+`LESSONS.md` shape 10 before it happens.
+
+### Writing the geometry down found what the roadmap had not
+
+§7.38 established that tempo changes this family's task rather than its speed, because a note has to
+land at a point whose neighbours nobody plays. Generalised from one position to a **set**, the
+quantity is the *closest approach* any note of the figure makes to a beat:
+
+| | closest approach |
+|---|---|
+| Straight skank — the "and" | **1/2** beat |
+| Triplet bubble | **1/3** beat |
+| Sixteenth bubble | **1/4** beat |
+
+Three different tasks at one tempo, so the offbeat drill's 70 BPM default transfers to neither.
+
+**And the sixteenth bubble's first note *is* the chop** — the same half-beat position the player
+held at 100% across five takes on 13 August (§7.53), with the "a" added after it. The triplet
+bubble contains no position the corpus has anything on. One candidate extends a measured skill and
+the other asks for a new one, which decides what the milestone measures rather than only how it
+sounds.
+
+**This was found by a failing test.** The first version measured from the *first* note of each pair
+and asserted both bubbles sit tighter than the chop, which is false. The test kept the wrong
+version's story beside the right one, because a reader would otherwise re-derive the same mistake.
+
+### The verdict, and the way it was contaminated
+
+Five files at 70 BPM: both feels at levels 0 and 2, and the straight skank beside them. On rimshot,
+deliberately — a placeholder timbre keeps a *placement* decision clean. The player's words:
+
+> They both kind of sound right and I think it would depend on the piece of music you are actually
+> playing. The 16ths sounded like the chop with a second note. Using the rimshot sound it had a nice
+> double skank feel to it. The triplets had more of a noticeable gap between the notes. […]
+> Initially I wanted to say 16ths for my choice but I think my ears were biased because that one had
+> a better baseline groove.
+
+**The "chop with a second note" observation is worth nothing as confirmation, and the reason is
+this document.** The hand-over said, before he listened, that the sixteenth bubble's first note *is*
+the chop with the "a" added. He then heard that. Two other verdicts here — the wider gap between the
+triplet's pair, and the double-skank feel — were not primed and stand on their own.
+
+That is a process failure of exactly the kind this project catalogues, in the one place it has been
+careful everywhere else: ratings are taken before numbers, experiment arms are declared before
+playing, and a style's audition is a listen before a flag. **A listening test whose conclusion is
+stated in the question is not a listening test.** §7.33 already records approving two styles on
+listening alone as "the weaker basis"; this is weaker still.
+
+The player caught the second bias himself — that the sixteenth version had the better baseline
+groove — which is a real observation and not a confound in the renders: both files carry an
+identical drum pattern, kick on 1 and 3 and snare on 2 and 4, and only the figure differs. So
+"better groove" is a property of the figure, and a legitimate reason to prefer it.
+
+### The decision: both ship, and that follows from the verdict rather than working around it
+
+*"Both kind of sound right and it would depend on the piece"* is not a failure to choose. It is the
+answer, and §7.13 already anticipated the shape of it — the milestone's whole premise was
+generalising one asked-for phase to a **set**. So `BubbleFeel` stays a two-case axis the player
+selects, the way `IntervalRung` has four rungs and `Feel` has swing ratios. Consequences:
+
+- **Each feel is its own trend group.** They differ in closest approach, so by §7.38 they are
+  different tasks and a line fitted across them measures the change (R3.5, `LESSONS.md` shape 19).
+- **Each gets its own tempo default**, derived from `closestApproachMs` rather than inherited from
+  the straight skank.
+- **The data decides what the listening could not.** With takes on both, which one this player holds
+  better is measurable — and that is a stronger answer than either of us picking one today.
+
+### What is still open, and how the listening gets redone properly
+
+**The organ voice.** `BackingKit` has thirteen drum voices and a bass; there is no organ, and the
+player was *"trying to imagine it with an organ sound to identify the bubble."* Asking someone to
+imagine past the timbre is the audition equivalent of a caveat under a verdict. It is its own
+render → listen → decide loop, and M16.5 needs it.
+
+**A blind re-listen, with the organ, and without the answer in the question.** Opaque filenames, no
+statement of which is which, and the verdict taken before the reveal — the same discipline as
+rating a take before the numbers appear. Only then is a preference worth recording as one.
+
+**Neither blocks the milestone**, which is the point of the decision above: both feels ship, so
+M16.5 does not wait on a verdict it now does not need.
+
+### The bias question, which §2 already answered
+
+The player was asked whether the 35 ms he sits ahead of the chop is the feel he wants. His answer —
+*"It isn't intentional… I just want my timing to be tight, in the pocket, and on the mark"* — is
+recorded, and the question should not have been put to him without checking §2 first, which says:
+
+> **Never present bias as failure.** Playing ~20–40 ms ahead of the click is normal for trained
+> musicians (negative mean asynchrony).
+
+His skank sits at −35 to −43 ms, **squarely inside that band**. His free jams run −1 to −20, which
+is *below* it. So the reading is the opposite of the one the question implied: the skank is
+ordinary, and his free playing is unusually close to the mark.
+
+What is real and unexplained is the **27 ms gap between the two tasks**, which a calibration
+constant cannot produce — the constant is one number for both, derived at 2.58 ms against a
+reference measured at 8.96 (SD 0.89), so it is worth about a millisecond of doubt at this scale.
+Something about holding an unarticulated position moves this player 27 ms earlier, and nothing here
+explains it.
+
+**Nothing is built to correct it.** The stated goal is added to §10 as a success criterion, because
+"on the mark" was not among them and the player says it should be — but a drill that trains bias
+toward zero would be training against §2, and the 27 ms task difference is a finding to understand
+before it is a fault to fix.
+
+### The rest of M16.5's shape, decided in conversation and recorded here
+
+| | |
+|---|---|
+| **A curated data-session mode** | The 13 August setlist done by hand. The planned session's locked slots must not adapt (R3.5), so a new drill cannot be peppered into the longitudinal one — and the offbeat drill has no planner slot precisely because of that tension (§7.52). Collect *n* takes at fixed settings, comparable by construction, unable to disturb the benchmark |
+| **The anticipation drill** | The player reframed §7.42's non-uniform backing: *"being able to feel when the music is going to change and being able to time it right with your playing is one of the skills we are developing."* That is not a robustness gotcha, it is a skill with its own measurement — signposted change, scored on where the player lands relative to it. Its own entry, not a footnote on the form backing |
+| **Hand span as a metric** | Two simultaneous note-ons an octave-plus apart are two hands; a tight cluster is one. Unreliable on the Launchkey Mini's two octaves, and **the data to answer it is already stored** — `rawNotes` has carried pitch since 4 August (R6.3). Available the day the wider keyboard arrives, with no schema change |
+| **The organ voice** | Above. Its own audition |
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -7761,10 +7898,10 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   799 cases
+└── Tests/                   808 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     411 cases against synthetic ground truth
-    ├── GrooveCoreTests/     122 cases — patterns, sequencer, styles
+    ├── GrooveCoreTests/     131 cases — patterns, sequencer, styles
     └── TrainerKitTests/     266 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
@@ -7808,4 +7945,9 @@ Not "SD under 10 ms," though that will happen. Success is:
 - `r₁` near zero **while playing something musically demanding** — the oscillator holds under load.
 - Drift under a few ms/bar through 8 bars of silence.
 - Clock variance low enough that remaining error is motor noise — at which point the training target changes entirely.
+- **On the mark.** Added on the player's own statement of what he is training for — *"I just want my
+  timing to be tight, in the pocket, and on the mark"* — because bias was not among these criteria
+  and he says it should be. It sits **beside** §2 rather than against it: bias is never presented as
+  failure, ~20–40 ms ahead is normal, and what this criterion asks is that any deviation be
+  *chosen* rather than arrived at. The measurement cannot tell those apart; the player can.
 - And the one that actually matters: an hour goes by and it felt like flow, not work.
