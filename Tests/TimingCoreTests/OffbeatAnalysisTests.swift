@@ -27,7 +27,8 @@ final class OffbeatAnalysisTests: XCTestCase {
 
     func testAPlayerHoldingTheOffbeatIsReportedAsHoldingIt() {
         let (matched, grid) = player(atPhase: 1, spreadMs: 14)
-        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid)
+        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
 
         XCTAssertEqual(report.offbeatShare, 1, accuracy: 0.01)
         XCTAssertFalse(report.slipped)
@@ -39,7 +40,8 @@ final class OffbeatAnalysisTests: XCTestCase {
     /// the wrong points. Placement alone would call this an excellent take.
     func testASlippedPlayerIsCaughtDespitePerfectPlacement() {
         let (matched, grid) = player(atPhase: 0, spreadMs: 4)     // dead on the beat
-        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid)
+        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
 
         XCTAssertTrue(report.slipped, "playing on the beat is the failure, however tightly")
         XCTAssertEqual(report.offbeatShare, 0, accuracy: 0.01)
@@ -57,7 +59,8 @@ final class OffbeatAnalysisTests: XCTestCase {
             return Tap(time: grid.time(ofIndex: index) + rng.gaussian(sd: 10) / 1000)
         }
         let report = OffbeatAnalysis.analyze(matched: Matching.match(taps: taps, to: grid).matched,
-                                             grid: grid)
+                                             grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
         XCTAssertTrue(report.slipped)
         XCTAssertEqual(report.offbeatShare, 0.5, accuracy: 0.05)
     }
@@ -66,7 +69,8 @@ final class OffbeatAnalysisTests: XCTestCase {
     /// rather than letting them be read as the take's placement.
     func testASlippedTakeSaysItsPlacementFiguresAreNotTheTake() {
         let (matched, grid) = player(atPhase: 0, spreadMs: 6)
-        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid)
+        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
         XCTAssertTrue(report.notes.contains { $0.contains("feel inverting") },
                       report.notes.description)
     }
@@ -77,8 +81,10 @@ final class OffbeatAnalysisTests: XCTestCase {
         let ahead = player(atPhase: 1, biasMs: -25, seed: 11)
         let behind = player(atPhase: 1, biasMs: +25, seed: 11)
 
-        let a = OffbeatAnalysis.analyze(matched: ahead.matched, grid: ahead.grid)
-        let b = OffbeatAnalysis.analyze(matched: behind.matched, grid: behind.grid)
+        let a = OffbeatAnalysis.analyze(matched: ahead.matched, grid: ahead.grid,
+                                        asking: OffbeatAnalysis.skankPhases(on: ahead.grid))
+        let b = OffbeatAnalysis.analyze(matched: behind.matched, grid: behind.grid,
+                                        asking: OffbeatAnalysis.skankPhases(on: behind.grid))
 
         XCTAssertEqual(a.placementMs ?? 0, -25, accuracy: 4)
         XCTAssertEqual(b.placementMs ?? 0, +25, accuracy: 4)
@@ -98,7 +104,8 @@ final class OffbeatAnalysisTests: XCTestCase {
             taps.append(Tap(time: grid.time(ofIndex: beat * 2 + 1) + rng.gaussian(sd: 28) / 1000))
         }
         let report = OffbeatAnalysis.analyze(matched: Matching.match(taps: taps, to: grid).matched,
-                                             grid: grid)
+                                             grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
         XCTAssertTrue(report.notes.contains { $0.contains("tighter than") }, report.notes.description)
     }
 
@@ -106,7 +113,8 @@ final class OffbeatAnalysisTests: XCTestCase {
 
     func testTooLittlePlayingRefusesRatherThanGuessing() {
         let (matched, grid) = player(atPhase: 1, beats: 6)
-        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid)
+        let report = OffbeatAnalysis.analyze(matched: matched, grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
 
         XCTAssertFalse(report.slipped, "six notes cannot establish that a feel was lost")
         XCTAssertTrue(report.headline.contains("Not enough"), report.headline)
@@ -118,7 +126,8 @@ final class OffbeatAnalysisTests: XCTestCase {
         let grid = Grid(startTime: 0, bpm: 100, subdivisions: 4)
         let taps = (0..<32).map { Tap(time: grid.time(ofIndex: $0 * 4 + 1)) }   // the "e"
         let report = OffbeatAnalysis.analyze(matched: Matching.match(taps: taps, to: grid).matched,
-                                             grid: grid)
+                                             grid: grid,
+                                       asking: OffbeatAnalysis.skankPhases(on: grid))
 
         XCTAssertEqual(report.onOffbeat, 0)
         XCTAssertEqual(report.onDownbeat, 0)
@@ -129,13 +138,15 @@ final class OffbeatAnalysisTests: XCTestCase {
     func testALevelIsEarnedOnlyByHoldingTheFeelTightly() {
         let held = OffbeatReport(onOffbeat: 60, onDownbeat: 1, offbeatShare: 0.98,
                                  placementMs: -5, spreadMs: 15, downbeatSpreadMs: nil,
-                                 slipped: false, headline: "", notes: [])
+                                 slipped: false, perPhase: [], completeness: 1, incomplete: false,
+                                  headline: "", notes: [])
         XCTAssertEqual(OffbeatAnalysis.suggestedLevel(current: 1, highest: 3, report: held,
                                                       spreadCeilingMs: 20), 2)
 
         let loose = OffbeatReport(onOffbeat: 60, onDownbeat: 1, offbeatShare: 0.98,
                                   placementMs: -5, spreadMs: 40, downbeatSpreadMs: nil,
-                                  slipped: false, headline: "", notes: [])
+                                  slipped: false, perPhase: [], completeness: 1, incomplete: false,
+                                  headline: "", notes: [])
         XCTAssertEqual(OffbeatAnalysis.suggestedLevel(current: 1, highest: 3, report: loose,
                                                       spreadCeilingMs: 20), 1)
     }
@@ -145,7 +156,8 @@ final class OffbeatAnalysisTests: XCTestCase {
     func testASlippedTakeEarnsNothing() {
         let slipped = OffbeatReport(onOffbeat: 10, onDownbeat: 50, offbeatShare: 0.17,
                                     placementMs: 0, spreadMs: 4, downbeatSpreadMs: 4,
-                                    slipped: true, headline: "", notes: [])
+                                    slipped: true, perPhase: [], completeness: 1, incomplete: false,
+                                    headline: "", notes: [])
         XCTAssertEqual(OffbeatAnalysis.suggestedLevel(current: 1, highest: 3, report: slipped,
                                                       spreadCeilingMs: 20), 1)
     }
@@ -153,7 +165,8 @@ final class OffbeatAnalysisTests: XCTestCase {
     func testTheTopLevelDoesNotPromotePastItself() {
         let held = OffbeatReport(onOffbeat: 60, onDownbeat: 0, offbeatShare: 1,
                                  placementMs: 0, spreadMs: 10, downbeatSpreadMs: nil,
-                                 slipped: false, headline: "", notes: [])
+                                 slipped: false, perPhase: [], completeness: 1, incomplete: false,
+                                  headline: "", notes: [])
         XCTAssertEqual(OffbeatAnalysis.suggestedLevel(current: 3, highest: 3, report: held,
                                                       spreadCeilingMs: 20), 3)
     }

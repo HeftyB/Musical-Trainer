@@ -66,9 +66,11 @@ private struct JamResults: View {
             // identity reaching storage and then dying at the surface, which is the invariant
             // "a drill's identity survives being stored" failing one step further along.
             if let level = outcome.config.offbeatLevel {
-                OffbeatResults(report: OffbeatAnalysis.analyze(matched: report.matched,
-                                                               grid: outcome.analysisGrid),
-                               level: level)
+                OffbeatResults(
+                    report: OffbeatAnalysis.analyze(
+                        matched: report.matched, grid: outcome.analysisGrid,
+                        asking: OffbeatAnalysis.skankPhases(on: outcome.analysisGrid)),
+                    level: level)
             }
 
             // What the take was scored against, since a rung changes what "on the grid" means:

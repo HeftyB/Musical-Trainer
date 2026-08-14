@@ -1,5 +1,21 @@
 import Foundation
 
+/// Where one asked-for position was actually played, on its own.
+///
+/// **Never pooled with its neighbours**, and that is `SwingReport`'s precedent rather than a new
+/// idea: the swing readout reports the spread of the swung note beside the spread of the notes on
+/// the division, because one number over both describes neither. A figure of two notes has the same
+/// problem — the feel lives in where the *second* sits relative to the first, and a single spread
+/// over the pair hides exactly that.
+public struct PhasePlacement: Equatable {
+    /// The phase within the beat, in grid steps. 0 is the beat itself.
+    public let phase: Int
+    public let count: Int
+    /// Signed placement of the notes at this phase. Negative is ahead. `nil` below two notes.
+    public let placementMs: Double?
+    public let spreadMs: Double?
+}
+
 public struct OffbeatReport: Equatable {
     /// Notes that landed on an offbeat — the ones the drill asked for.
     public let onOffbeat: Int
@@ -18,6 +34,28 @@ public struct OffbeatReport: Equatable {
 
     /// True when enough of the playing drifted onto the beat to call the feel lost.
     public let slipped: Bool
+
+    /// Each asked-for position on its own, in the order asked.
+    public let perPhase: [PhasePlacement]
+
+    /// **Is the whole figure being played, or only part of it?**
+    ///
+    /// The share the *least-played* asked-for position holds, against an even split. 1.0 is
+    /// perfectly even; 0 means one of the asked positions is not being played at all.
+    ///
+    /// A figure of one position is complete by definition and reads 1.0 — which is why this is
+    /// safe to add to the straight skank without changing a number on it.
+    ///
+    /// **It exists because `offbeatShare` cannot see this.** Asked for two notes after each beat, a
+    /// player who plays only the first is 100% off the beat: perfect by every number this report
+    /// had before, and playing half the figure. A share over a *set* has to say how the set was
+    /// covered, or it is a share of something nobody asked for.
+    public let completeness: Double
+
+    /// True when the figure is being played in part rather than whole, and enough notes exist to
+    /// say so.
+    public let incomplete: Bool
+
     public let headline: String
     public let notes: [String]
 }
@@ -52,12 +90,42 @@ public enum OffbeatAnalysis {
     /// Fewer than this and there is no placement to report.
     public static let minimumNotes = 12
 
-    public static func analyze(matched: [MatchedTap], grid: Grid) -> OffbeatReport {
-        // Odd phases are the offbeats. On a sixteenth grid that is the "e" and "a" as well as
-        // the "and", which is correct: the drill asks for the and, and anything landing on a
-        // sixteenth is neither the beat nor the offbeat and should not flatter either count.
-        let half = grid.subdivisions / 2
-        let offbeat = matched.filter { grid.phase(ofIndex: $0.gridIndex) == max(1, half) }
+    /// Below this evenness the figure is being played in part rather than whole.
+    ///
+    /// **Provisional, and said so where a reader will meet it** (`LESSONS.md` shape 11). A player
+    /// genuinely playing both notes of a bubble produces roughly one of each; a player playing only
+    /// the first produces zero on the second. Half of even is a generous line that still catches
+    /// "the first note, and the second one sometimes", and no take exists to tune it against — the
+    /// figure it is for has not been chosen (§7.56). **What would revise it:** the first bubble
+    /// takes on record, read against how the player says the take felt.
+    public static let completenessThreshold = 0.5
+
+    /// The phases a straight skank asks for: the "and", alone.
+    ///
+    /// Here rather than at each call site because it is the *drill's* definition, and it was
+    /// written inline as `max(1, subdivisions / 2)` — which is the one figure this family had when
+    /// the file was written, and is not the general case.
+    public static func skankPhases(on grid: Grid) -> [Int] { [max(1, grid.subdivisions / 2)] }
+
+    /// Analyse a take against the positions it was asked for.
+    ///
+    /// - Parameter asking: phases within the beat, in grid steps, the player was asked to play.
+    ///   `[2]` on a sixteenth grid is the straight skank's chop; `[1, 2]` on a triplet grid is one
+    ///   of M16.5's candidate bubbles.
+    ///
+    /// **No default, deliberately.** Defaulting to the skank's single phase would silently score a
+    /// bubble as a skank at any call site that forgot to pass one, and "absent means the common
+    /// case" is the trap `LESSONS.md` shape 13 catalogues. Required means the compiler finds every
+    /// caller the day a second figure arrives.
+    public static func analyze(matched: [MatchedTap], grid: Grid,
+                               asking phases: [Int]) -> OffbeatReport {
+        // Anything the drill did not ask for and is not the beat is ignored rather than counted
+        // against either side. On a sixteenth grid that is the "e" and the "a": neither the beat
+        // nor an asked-for point, and letting them flatter either count would make the share a
+        // statement about stray notes.
+        let asked = phases.isEmpty ? skankPhases(on: grid) : phases
+        let askedSet = Set(asked)
+        let offbeat = matched.filter { askedSet.contains(grid.phase(ofIndex: $0.gridIndex)) }
         let downbeat = matched.filter { grid.phase(ofIndex: $0.gridIndex) == 0 }
 
         let scored = offbeat.count + downbeat.count
@@ -92,12 +160,40 @@ public enum OffbeatAnalysis {
                                 downbeatSpread, spread))
         }
 
+        // Each asked position on its own. Pooling them would hide the asymmetry that makes a
+        // two-note figure a figure — see `PhasePlacement`.
+        let perPhase = asked.map { phase -> PhasePlacement in
+            let at = offbeat.filter { grid.phase(ofIndex: $0.gridIndex) == phase }
+            return PhasePlacement(
+                phase: phase, count: at.count,
+                placementMs: at.count > 1 ? Stats.finite(Stats.mean(at.map(\.asynchronyMs))) : nil,
+                spreadMs: at.count > 1 ? Stats.finite(Stats.sd(at.map(\.asynchronyMs))) : nil)
+        }
+
+        // The least-played asked position against an even split. One position is complete by
+        // definition, which is what keeps every skank take on record reading exactly as before.
+        let evenShare = Double(offbeat.count) / Double(asked.count)
+        let completeness = asked.count <= 1 ? 1
+            : (evenShare > 0 ? Double(perPhase.map(\.count).min() ?? 0) / evenShare : 0)
+        let incomplete = asked.count > 1 && offbeat.count >= minimumNotes
+            && completeness < completenessThreshold
+
+        if incomplete, let thin = perPhase.min(by: { $0.count < $1.count }) {
+            notes.append(String(format: "You played %d note(s) at one of the %d positions asked "
+                              + "for and %d at another. That is part of the figure rather than a "
+                              + "loose version of it — the share above counts every asked position "
+                              + "together, so it reads well while half the figure is missing.",
+                                thin.count, asked.count,
+                                perPhase.map(\.count).max() ?? 0))
+        }
+
         return OffbeatReport(
             onOffbeat: offbeat.count, onDownbeat: downbeat.count, offbeatShare: share,
             placementMs: placement, spreadMs: spread, downbeatSpreadMs: downbeatSpread,
-            slipped: slipped,
+            slipped: slipped, perPhase: perPhase,
+            completeness: completeness, incomplete: incomplete,
             headline: headline(scored: scored, share: share, slipped: slipped,
-                               placement: placement, spread: spread),
+                               placement: placement, spread: spread, incomplete: incomplete),
             notes: notes)
     }
 
@@ -117,9 +213,18 @@ public enum OffbeatAnalysis {
     }
 
     private static func headline(scored: Int, share: Double, slipped: Bool,
-                                 placement: Double?, spread: Double?) -> String {
+                                 placement: Double?, spread: Double?,
+                                 incomplete: Bool) -> String {
         guard scored >= minimumNotes else {
             return "Not enough playing to say — keep the chop going on every offbeat."
+        }
+        // Said before placement, for the same reason a slipped feel is: a figure played in part is
+        // not a loose version of the whole one, and reporting how tightly half of it was placed
+        // would answer a question nobody asked.
+        if incomplete {
+            return "You played part of the figure rather than all of it — one of the positions "
+                 + "asked for is carrying most of the notes. The placement below describes what "
+                 + "you did play."
         }
         if slipped {
             return "You slipped onto the beat. The chop went where the pulse is instead of "
