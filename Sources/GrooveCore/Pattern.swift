@@ -70,10 +70,20 @@ public struct Pattern: Equatable {
     /// a column of `nil`s.
     public static func bass(stepsPerBar: Int = 16, stepsPerBeat: Int = 4,
                            _ figure: [(step: Int, note: Int)], velocity: Int = 100) -> Pattern {
-        Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat,
-                hits: figure.map {
-                    Hit(voice: .bass, step: $0.step, velocity: velocity, note: $0.note)
-                })
+        pitched(voice: .bass, stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat,
+                figure, velocity: velocity)
+    }
+
+    /// The same, for any pitched voice. `bass` is the special case it was written as, kept
+    /// because every existing figure reads better for naming its instrument.
+    public static func pitched(voice: BackingVoice, stepsPerBar: Int = 16, stepsPerBeat: Int = 4,
+                               _ figure: [(step: Int, note: Int)],
+                               velocity: Int = 100) -> Pattern {
+        precondition(voice.isPitched, "\(voice) carries no note")
+        return Pattern(stepsPerBar: stepsPerBar, stepsPerBeat: stepsPerBeat,
+                       hits: figure.map {
+                           Hit(voice: voice, step: $0.step, velocity: velocity, note: $0.note)
+                       })
     }
 
     /// The same pattern with extra hits layered on top.

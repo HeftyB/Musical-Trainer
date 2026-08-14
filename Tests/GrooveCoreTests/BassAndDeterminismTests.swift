@@ -48,9 +48,21 @@ final class BassAndDeterminismTests: XCTestCase {
 
     // MARK: - The bass
 
-    func testOnlyTheBassIsPitched() {
-        for voice in BackingVoice.allCases {
-            XCTAssertEqual(voice.isPitched, voice == .bass, voice.rawValue)
+    /// **Was `testOnlyTheBassIsPitched`, and the rename is the change.** The bass was the only
+    /// pitched voice until M16.5 gave the skank family an organ (§7.56), and a test asserting
+    /// "only the bass" would have had to be edited by anyone adding one — which is a test that
+    /// asks permission rather than one that guards something.
+    ///
+    /// What is actually invariant is that **a pitched voice is one that carries a note**: the
+    /// drums must never be asked for one, and every pitched voice must have somewhere for its
+    /// notes to come from. The second half is asserted where the buffers are, in `OrganStabTests`.
+    func testExactlyTheVoicesThatCarryNotesArePitched() {
+        let pitched = BackingVoice.allCases.filter(\.isPitched)
+        XCTAssertEqual(Set(pitched), [.bass, .organ])
+
+        for voice in BackingVoice.allCases where !voice.isPitched {
+            XCTAssertFalse(BackingVoice.timekeepers.contains(voice) && voice.isPitched,
+                           "\(voice)")
         }
     }
 

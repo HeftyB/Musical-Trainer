@@ -70,6 +70,25 @@ he wants and is recorded as an open question rather than a fault. And **r₁ ran
 three different tasks in one afternoon**, against a historical 0.13–0.50 — an observation, not a
 finding, with fatigue as good an explanation as any, and the way to settle it written down.
 
+**M16.5 is blocked, and on an ear rather than on code** (§7.56). The organ built for it *"sounds
+like an organ"* and is *"not the right organ sound for a reggae vibe"*, and the player heard neither
+candidate figure as a bubble. He named the cause: **the same tone handicap §7.33 records**, where
+four styles sounded like "beat #3 rather than oh, a Motown beat". That handicap has now stopped a
+*measurement* decision instead of a naming one, which moves **M26 upstream of a drill** — it is no
+longer a someday item.
+
+**Do not build organ voices from descriptions.** The player asked for several — the Wailers' sound,
+Kash'd Out's — and is assembling references. `AGENT.md`'s own rules cover this: an agent cannot
+listen, and a style is never named after a genre. §7.30's capture-to-measure path is what makes it
+cheap once the references exist. What is missing structurally is a named `Registration` on
+`OrganSynth`, chosen per arrangement; it is described in §7.56 and deliberately unbuilt, because a
+seam with one implementation behind it is a guess about the second.
+
+**Two more things came out of that verdict**, both real design gaps: **articulation belongs to the
+figure** — the stab is one length for every bubble, so every bubble is staccato by construction, and
+a legato triplet wants a note twice as long — and **the root-and-fifth voicing may be why the
+triplet failed**, since a bubble without a third may not read as an organ part at all.
+
 **M16.5 step 0 is built and its musical question is answered "both"** (§7.55). `BubbleFeel` carries
 a triplet bubble and a sixteenth one; the player heard both as plausible and said it would depend on
 the piece, so **both ship as a player-selected axis** rather than one being chosen — which is what
@@ -246,7 +265,7 @@ the screen any more than it can hear the kit; both gaps close the same way.
 ./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
 ```
 
-It writes **49 files**: ten ladder and demo backings, the five skank-family auditions M16.5
+It writes **51 files**: ten ladder and demo backings, the five skank-family auditions M16.5
 turns on (§7.55), four styles × four intensities, one seeded
 piece per style, thirteen `kit-<voice>` files, and `kit-bass` — which walks E1 to E3 in one file
 rather than taking twenty-five, since the lowest note is the one that matters. Two guards run
@@ -292,7 +311,7 @@ than it looks.
 
 **Any change to a pattern must keep `CommonGridTests` green** — it compares every hit's sample
 position before and after the lift, at three tempos and four feels, and a one-step drift fails it
-3,265 times. The 49 WAVs `render` writes are the other half of that gate.
+3,265 times. The 51 WAVs `render` writes are the other half of that gate.
 
 **A style can be played over from either surface.** `jam --style driving --seed <hex>` from the
 CLI, with the seed printed as the flags that reproduce it; a band picker on Jam and Play in the
@@ -408,8 +427,8 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 542 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (266 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 544 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (273 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -427,6 +446,7 @@ never yet used for measurement**, so treat them as untested paths, not as capabi
 | Launchkey (keys + pads) | **In use.** Every take ever recorded | CoreMIDI — driver timestamps, validated in M0 |
 | TS→USB audio adapter | Owned, cheap, works | Electric guitar, bass, amplifiers, and the TDV6 drum module's line out |
 | External microphone | Owned, used for recording | Vocal capture, and the calibration test tone |
+| **Acoustic piano** | **Owned.** No data output of any kind | Onset detection from a microphone — M24's path, on an instrument with a hard attack |
 | USB→MIDI interface for the drums | **Planned purchase** | Would put the drum module on the MIDI path |
 | Better audio interface | Planned purchase | Replaces the TS→USB adapter |
 
@@ -443,6 +463,13 @@ Three things follow, and they change what the roadmap costs:
   validated — and needs no onset detection at all. Through the TS→USB line out it is an audio
   problem. Same instrument, entirely different measurement quality.
 
+**The piano is a microphone problem, and a favourable one.** It emits nothing electrical, so the
+only route is onset detection from audio — which is M24's path exactly. A struck string has a far
+sharper attack than a sung note, so if that detector works anywhere it works here, and it is the
+natural thing to validate M24's onset code against *before* pointing it at a voice. It also has the
+widest key span in the house, which is what §7.55's hand-span idea wants and what the Launchkey
+Mini's two octaves cannot give.
+
 **Headphones are a hard requirement for anything vocal** (M24), and the reason is feedback, not
 just bleed: an open microphone and a speaker in one room is a howl, and the drill would be
 unusable before it was inaccurate.
@@ -453,7 +480,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 808 tests, no hardware needed
+swift test                              # 817 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

@@ -70,8 +70,13 @@ final class RenderSubjectTests: XCTestCase {
         let skankFamily = BubbleFeel.allCases.count * 2 + 1     // two feels, two levels, plus the
                                                                // straight skank they are judged
                                                                // against (§7.55)
-        XCTAssertEqual(subjects.count, 10 + skankFamily + styles * Style.intensityRange.count
-                                          + styles + kitVoices + 1)
+        let pitchedVoices = BackingVoice.allCases.filter(\.isPitched).count
+        // Each pitched voice appears twice: a demo figure over a groove, and a walk of its own
+        // range alone. Derived from the enum rather than counted, so a third pitched voice fails
+        // here instead of being quietly missing from the audition (§7.31 finding 1).
+        XCTAssertEqual(subjects.count, 9 + pitchedVoices + skankFamily
+                                         + styles * Style.intensityRange.count + styles
+                                         + kitVoices + pitchedVoices)
         XCTAssertEqual(Set(subjects.map(\.name)).count, subjects.count,
                        "two subjects with one name would overwrite each other's file")
     }

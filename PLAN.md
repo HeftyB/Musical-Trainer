@@ -1077,6 +1077,12 @@ of forbidden ones costs very little and opens the whole family:
 | **Organ bubble** | triplets | the 2nd and 3rd of each triplet | the beat |
 | Charleston, one-drop variants | eighths | selected offbeats only | the beat, and the unselected offbeats |
 
+> **Status, 13 August (§7.55, §7.56).** Step 0 is built: both candidate figures exist, both render,
+> and the organ they are heard on exists. **The choice between them is blocked** — the player heard
+> neither as a bubble, named the cause as the same tone handicap §7.33 records, and asked for
+> keyboard voices that need references nobody has yet. What is *not* blocked is the analysis
+> generalisation below, which is independent of which figure wins.
+
 **The organ bubble is the one to build next**, and the reason it is cheap is that the analysis
 already refuses to count notes that are neither the beat nor the asked-for point — that behaviour
 was written for stray sixteenths and is exactly what a two-of-three pattern needs. What it needs
@@ -1251,6 +1257,19 @@ Five things, in order of what each buys:
 4. **Deterministic variation** — every hit is byte-identical to the last, which no acoustic
    instrument is. Seeded, because R1.2.2 is not negotiable for a bit of realism.
 5. **The bass** — a sine and an octave with a pluck, and the least convincing thing after the kick.
+6. **Keyboards, plural** — added 13 August, and it is the reason M26 stopped being a "someday"
+   item. The organ built for M16.5 sounds like an organ and **not like the right organ**: the
+   player asked for several voices across a range of vibes, naming the Wailers' sound and Kash'd
+   Out's as two poles, and is assembling references. `OrganSynth` carries one drawbar table; what
+   it needs is a named **`Registration`** — a table row per voice, rendered per registration and
+   note, chosen by the *arrangement* rather than by a hit, because a band sets the drawbars for a
+   song. **Not built without references**, for the reason in the paragraph below and in §7.56.
+
+**M26 now blocks a measurement, not just a name.** §7.33's handicap was that four styles sounded
+like "beat #3 rather than oh, a Motown beat" — a naming problem, solved by renaming. §7.56 is the
+same handicap stopping M16.5 from choosing between two candidate figures, because neither can be
+heard as the thing it is meant to be. That raises this milestone's priority above where §7.13 put
+it: it is now upstream of a drill rather than downstream of taste.
 
 **No samples.** The app ships no audio assets, which is why it is small and why a render is
 reproducible from source alone; every asset is content somebody else's licence governs, and
@@ -7875,6 +7894,111 @@ before it is a fault to fix.
 
 ---
 
+## 7.56 The organ, and the handicap it did not remove
+
+§7.55 recorded a listening test taken through the wrong timbre: the two candidate bubbles were
+auditioned on a rimshot, and the verdict was *"I was trying to imagine it with an organ sound to
+identify the bubble."* So the family got a voice.
+
+### What was built
+
+`OrganSynth` is **additive, because that is what a tonewheel organ is** — near-sinusoidal partials
+at drawbar ratios, summed, with no filter to model. Sub-octave, fundamental, the 5⅓' fifth that
+gives the instrument its edge, the octave and two upper partials; **nothing at the 5th partial**,
+which is a major third and would put a key quality inside the timbre where no voicing could remove
+it. Flat while it sounds rather than decaying, since a Hammond is on and then off, with two
+milliseconds of key click doing the work the bass's pluck does.
+
+The stab is **115 ms and that is bounded, not chosen**: the tightest gap in the family is the
+sixteenth bubble's quarter-beat, 150 ms at 100 BPM, so a longer note runs into its own neighbour.
+`OrganStabTests` holds it against `BubbleFeel`'s own geometry rather than a constant written twice.
+
+`BubbleBacking` plays the figure on it, voiced root and fifth.
+
+**Two defects surfaced while wiring it in.** `BackingKit.buffer` switched on `isPitched` alone —
+the same question as "is it the bass" while there was one pitched voice, and not afterwards; it
+would have sounded every organ note as a bass note. And the one-shot tail guard *named* the bass by
+hand, which is how the bass came to be missed there for a milestone (§7.31 finding 1); the fix at
+the time was to add it explicitly, which is the same fix waiting to be forgotten the next time a
+pitched voice arrives. It did. Both now enumerate rather than name.
+
+### The verdict: right instrument, wrong organ
+
+> The organ sounds like an organ and the click isn't too much. The organ kit we generated sounds
+> good but I don't think it's the right organ sound for a reggae vibe. […] I still do not have a
+> decision on triplets vs sixteenths yet, neither really sounded like a bubble. The triplets with
+> the right voicing and more of a legato vs a staccato might sound good and the sixteenths still
+> sound kind of like a doubled skank.
+
+**The timbre passed and the milestone did not move.** Building the organ was the right thing to do
+and it did not settle the question it was built to settle, which is worth stating plainly rather
+than filing as progress.
+
+The player named the cause himself, and it is one this project has already been caught by:
+
+> This might be the same problem we ran into when we were making the different backing tracks, we
+> got handicapped by the currently available tones.
+
+That is §7.33 exactly. Four styles came out sounding like *"beat #3 rather than oh, a Motown
+beat"*, and three of the four were renamed because a genre name was claiming something the kit could
+not deliver. **The same handicap has now blocked a measurement decision rather than a naming one**,
+which is worse: M16.5 cannot choose between two figures while neither can be heard as the thing it
+is supposed to be.
+
+### Three things the verdict adds that were not in the design
+
+**Articulation is part of the figure, and nothing models it.** *"The triplets with the right voicing
+and more of a legato vs a staccato might sound good."* `OrganSynth.bodySeconds` is one number for
+every figure, deliberately bounded by the tightest gap in the family — which makes every bubble
+staccato by construction. A legato triplet bubble wants a note that nearly fills its 1/3-beat
+spacing, 285 ms at 70 BPM, which is more than twice the current stab. So **note length belongs to
+the figure**, not to the voice, and the current bound is a floor on how staccato things are rather
+than the right model.
+
+**The voicing is unsettled and root-and-fifth may be why the triplet failed.** It was chosen to keep
+the band out of M25's territory, which is still the right instinct and may be the wrong answer here:
+a bubble with no third is a bubble missing the interval that makes it sound like an organ part
+rather than a pair of stabs. The question is now explicit rather than assumed.
+
+**Nobody here knows what a bubble is well enough to build one.** *"We really need to expand our
+understanding of the bubble so we can accurately recreate one."* That is a prerequisite, not a
+task, and it is the first time this project has been blocked on musical knowledge rather than on
+code, hardware or data.
+
+### What is deliberately not being built
+
+The player asked for several organ and keyboard voices — *"the classic Bob Marley / The Wailers
+sound, and a more modern organ sound displayed on Kash'd Out's albums"* — and said the reference
+material would take him time to assemble.
+
+**Those are not being guessed at, and the rule that forbids it is already written down.** `AGENT.md`
+says *"Do not describe how something sounds. An agent cannot listen"* and *"Do not name a new style
+after a genre"*, and §7.33 is the entry recording what happened the last time a name promised
+something the synthesis could not deliver. Building a voice called "wailers" from a description
+would be the same mistake with a shorter feedback loop.
+
+**What makes it cheap when the references exist** is §7.30's argument, which already covers this
+case: capturing a recording to *measure* — spectra, envelopes, drawbar balance, key-click level —
+and tuning synthesis to match is a measurement problem rather than a licence problem, and this
+project is good at measurement problems. The professional ear in the resources table is the other
+half.
+
+**The seam it needs**, so the next voice is a table row rather than a rewrite: the drawbar table
+becomes a named `Registration`, `BackingKit` renders per registration and note, and the registration
+is a property of the *arrangement* rather than of a hit — a band sets the drawbars for a song, not
+for a note. Not built, because a seam with one implementation behind it is a guess about the second.
+
+### What this means for M16.5
+
+**The milestone is blocked on an ear and a reference, not on code.** The analysis generalisation
+(a phase *set*, a completeness measure, per-phase placement) is still worth building and is
+independent of which figure wins — but the figure cannot be chosen, and a drill that scores a
+figure nobody can confirm is a drill measuring an assumption.
+
+The honest state: `BubbleFeel` ships both, §7.55's reasoning holds, and the decision waits.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -7898,11 +8022,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   808 cases
+└── Tests/                   817 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     411 cases against synthetic ground truth
-    ├── GrooveCoreTests/     131 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     266 cases — storage, config, sessions. macOS only, so
+    ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
+    └── TrainerKitTests/     273 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

@@ -93,6 +93,25 @@ public enum GrooveLibrary {
                 fill: snareFill),
     ])
 
+    /// A two-note organ voicing on the offbeats, over `basicRock`, for auditioning the voice.
+    ///
+    /// **Root and fifth, no third**, which is the same restraint the bass is built under
+    /// (§7.29 step 2): a third commits the band to a key quality, and keys and progressions are
+    /// M25's problem. It is also the open question this demo exists to put an ear on — whether a
+    /// bubble needs the third to read as an organ bubble at all (§7.56).
+    public static let organDemoFigure = Pattern.pitched(voice: .organ, [
+        (step: 2, note: 64), (step: 2, note: 71),      // E4 and B4, on the "and" of one
+        (step: 6, note: 64), (step: 6, note: 71),
+        (step: 10, note: 64), (step: 10, note: 71),
+        (step: 14, note: 64), (step: 14, note: 71),
+    ])
+
+    /// The demo figure over `basicRock`, for auditioning the organ voice alone.
+    public static let organDemo = Arrangement(sections: [
+        Section(name: "organ demo", pattern: basicRock.adding(organDemoFigure.hits), bars: 4,
+                fill: snareFill),
+    ])
+
     public static let jamBacking = Arrangement(sections: [
         Section(name: "A — hat",  pattern: basicRock,   bars: 8, fill: snareFill),
         Section(name: "B — ride", pattern: drivingRide, bars: 8, fill: tomFill),

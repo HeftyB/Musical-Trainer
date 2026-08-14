@@ -68,6 +68,10 @@ final class GroovePlayer {
         var keys: [SoundKey] = BackingVoice.allCases.filter { !$0.isPitched }
             .map { SoundKey(voice: $0, note: nil) }
         keys += BackingKit.bassNotes.map { SoundKey(voice: .bass, note: $0) }
+        // Every pitched voice needs its own slot per note. A voice missing from this table is a
+        // hit `schedule` drops on the floor — silently, and only for the notes nobody rendered,
+        // which is the worst way for a part to go missing.
+        keys += BackingKit.organNotes.map { SoundKey(voice: .organ, note: $0) }
         soundIndexOf = Dictionary(uniqueKeysWithValues: keys.enumerated().map { ($1, $0) })
         soundCount = keys.count
 

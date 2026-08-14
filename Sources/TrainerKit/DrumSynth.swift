@@ -17,10 +17,16 @@ struct BackingKit {
     /// callback may not allocate or synthesise (R2.3), so every sound it can be asked for has
     /// to exist before it starts.
     private(set) var bassBuffers: [Int: [Float]] = [:]
+    /// One buffer per organ note, for the same reason as the bass.
+    private(set) var organBuffers: [Int: [Float]] = [:]
 
     /// The bass range, E1 to E3. Wide enough for a root and a fifth in any key, and small
     /// enough that pre-rendering it costs a couple of megabytes and a few milliseconds.
     static let bassNotes = 28...52
+
+    /// The organ range, E3 to E5 — two octaves sitting **above** the bass rather than beside it,
+    /// which is where a bubble is played and what keeps the two from masking each other.
+    static let organNotes = 52...76
 
     init(sampleRate: Double) {
         self.sampleRate = sampleRate
@@ -30,19 +36,33 @@ struct BackingKit {
         for note in Self.bassNotes {
             bassBuffers[note] = BassSynth.render(note: note, sampleRate: sampleRate)
         }
+        for note in Self.organNotes {
+            organBuffers[note] = OrganSynth.render(note: note, sampleRate: sampleRate)
+        }
     }
 
     /// The buffer a hit sounds. A pitched voice outside the rendered range is silent rather
-    /// than wrong: a bass note nobody rendered is a programming error, and playing the nearest
+    /// than wrong: a note nobody rendered is a programming error, and playing the nearest
     /// pitch instead would put a wrong note in the music without saying so.
+    ///
+    /// **Switched on the voice, not on `isPitched` alone.** With one pitched voice those were the
+    /// same question; with two they are not, and the version that asked only whether a voice was
+    /// pitched would have sounded every organ note as a bass note — `LESSONS.md` shape 9, two
+    /// quantities equal until the day they are not.
     func buffer(for voice: BackingVoice, note: Int? = nil) -> [Float] {
         guard voice.isPitched else { return buffers[voice] ?? [] }
         guard let note else { return [] }
-        return bassBuffers[note] ?? []
+        switch voice {
+        case .bass:  return bassBuffers[note] ?? []
+        case .organ: return organBuffers[note] ?? []
+        default:     return []
+        }
     }
 
     var maxVoiceLength: Int {
-        max(buffers.values.map(\.count).max() ?? 0, bassBuffers.values.map(\.count).max() ?? 0)
+        max(buffers.values.map(\.count).max() ?? 0,
+            bassBuffers.values.map(\.count).max() ?? 0,
+            organBuffers.values.map(\.count).max() ?? 0)
     }
 }
 
@@ -227,10 +247,10 @@ enum DrumSynth {
         case .shaker:    return shaker(fs: fs)
         case .cowbell:   return cowbell(fs: fs)
         case .sidestick: return sidestick(fs: fs)
-        // Pitched, so it has no single buffer — `BackingKit` renders one per note through
-        // `BassSynth`. Returning empty here rather than trapping keeps a stray `.bass` in a
-        // drum-only context silent instead of fatal.
-        case .bass:      return []
+        // Pitched, so they have no single buffer — `BackingKit` renders one per note through
+        // `BassSynth` and `OrganSynth`. Returning empty here rather than trapping keeps a stray
+        // pitched voice in a drum-only context silent instead of fatal.
+        case .bass, .organ: return []
         }
     }
 

@@ -37,7 +37,27 @@ final class OneShotTailTests: XCTestCase {
         all += BackingKit.bassNotes.map {
             (name: "bass \($0)", buffer: Self.kit.buffer(for: .bass, note: $0))
         }
+        // **Enumerated, not listed.** The bass was missed here for a milestone because the filter
+        // above hides pitched voices, and the fix was to add the bass by hand — which is the same
+        // fix waiting to be forgotten the next time a pitched voice arrives. It did: the organ
+        // (§7.56). Every pitched voice's whole range goes through this now.
+        all += BackingKit.organNotes.map {
+            (name: "organ \($0)", buffer: Self.kit.buffer(for: .organ, note: $0))
+        }
         return all
+    }
+
+    /// Every pitched voice has buffers to be checked at all. A voice added to the enum without a
+    /// synthesiser behind it would make every assertion here pass over an empty array — which is
+    /// `LESSONS.md` shape 3, a filter that hides the thing being looked for, one level up.
+    func testEveryPitchedVoiceHasSoundToCheck() {
+        for voice in BackingVoice.allCases where voice.isPitched {
+            let range = voice == .bass ? BackingKit.bassNotes : BackingKit.organNotes
+            for note in range {
+                XCTAssertFalse(Self.kit.buffer(for: voice, note: note).isEmpty,
+                               "\(voice) \(note) renders nothing")
+            }
+        }
     }
 
     /// The defect itself: the last sample *is* the size of the step to silence, because the sample

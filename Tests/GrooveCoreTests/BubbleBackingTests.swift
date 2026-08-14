@@ -18,7 +18,7 @@ final class BubbleBackingTests: XCTestCase {
             for level in OffbeatLevel.allCases {
                 for bar in 0..<8 {
                     let pattern = BubbleBacking.pattern(feel: feel, level: level, bar: bar)
-                    let figure = pattern.hits.filter { $0.voice == .rimshot }
+                    let figure = pattern.hits.filter { $0.voice == .organ }
                     XCTAssertFalse(figure.isEmpty, "\(feel) \(level): no figure at all")
                     for hit in figure {
                         XCTAssertNotEqual(hit.step % pattern.stepsPerBeat, 0,
@@ -30,13 +30,39 @@ final class BubbleBackingTests: XCTestCase {
         }
     }
 
-    /// Two notes per beat, eight to the bar, whichever feel — so the two candidates differ in
-    /// *where* rather than in *how many*, which is what makes the A/B about placement.
-    func testBothFeelsPlayTwoNotesPerBeat() {
+    /// Two *positions* per beat, eight to the bar, whichever feel — so the two candidates differ
+    /// in *where* rather than in *how many*, which is what makes the A/B about placement.
+    ///
+    /// Counted as distinct steps rather than as hits, because a stab is a voicing: §7.56 puts two
+    /// notes on each, and a test that counted hits would have to be edited every time the chord
+    /// changed. The figure is its steps.
+    func testBothFeelsPlayTwoPositionsPerBeat() {
         for feel in BubbleFeel.allCases {
             let pattern = BubbleBacking.pattern(feel: feel, level: .stated, bar: 0)
-            XCTAssertEqual(pattern.hits.filter { $0.voice == .rimshot }.count, 8, "\(feel)")
+            let steps = Set(pattern.hits.filter { $0.voice == .organ }.map(\.step))
+            XCTAssertEqual(steps.count, 8, "\(feel)")
         }
+    }
+
+    /// Every stab sounds the whole voicing — a note missing from one of them is a chord that
+    /// changes shape mid-bar, which no test above would notice.
+    func testEveryStabSoundsTheWholeVoicing() {
+        for feel in BubbleFeel.allCases {
+            let hits = BubbleBacking.pattern(feel: feel, level: .stated, bar: 0)
+                .hits.filter { $0.voice == .organ }
+            for (step, group) in Dictionary(grouping: hits, by: \.step) {
+                XCTAssertEqual(group.compactMap(\.note).sorted(), BubbleBacking.voicing.sorted(),
+                               "\(feel) step \(step)")
+            }
+        }
+    }
+
+    /// The voicing states no key quality, which is the bass's rule (§7.29 step 2) and stays true
+    /// while harmony belongs to M25. A third would be 4 or 3 semitones off the root.
+    func testTheVoicingCommitsToNoKeyQuality() {
+        let intervals = BubbleBacking.voicing.map { $0 - BubbleBacking.voicing[0] }
+        XCTAssertFalse(intervals.contains(3), "a minor third states a key quality")
+        XCTAssertFalse(intervals.contains(4), "a major third states a key quality")
     }
 
     /// The steps each feel is named for, asserted outright rather than derived from the code under
@@ -45,12 +71,12 @@ final class BubbleBackingTests: XCTestCase {
     func testEachFeelPlaysTheStepsItIsNamedFor() {
         let triplet = BubbleBacking.pattern(feel: .triplet, level: .implied, bar: 1)
         XCTAssertEqual(triplet.stepsPerBeat, 3)
-        XCTAssertEqual(triplet.hits.filter { $0.voice == .rimshot }.map(\.step),
+        XCTAssertEqual(Set(triplet.hits.filter { $0.voice == .organ }.map(\.step)).sorted(),
                        [1, 2, 4, 5, 7, 8, 10, 11])
 
         let sixteenth = BubbleBacking.pattern(feel: .sixteenth, level: .implied, bar: 1)
         XCTAssertEqual(sixteenth.stepsPerBeat, 4)
-        XCTAssertEqual(sixteenth.hits.filter { $0.voice == .rimshot }.map(\.step),
+        XCTAssertEqual(Set(sixteenth.hits.filter { $0.voice == .organ }.map(\.step)).sorted(),
                        [2, 3, 6, 7, 10, 11, 14, 15])
     }
 
@@ -59,7 +85,7 @@ final class BubbleBackingTests: XCTestCase {
     func testTheFigureLeans() {
         for feel in BubbleFeel.allCases {
             let velocities = Set(BubbleBacking.pattern(feel: feel, level: .stated, bar: 0)
-                .hits.filter { $0.voice == .rimshot }.map(\.velocity))
+                .hits.filter { $0.voice == .organ }.map(\.velocity))
             XCTAssertGreaterThan(velocities.count, 1, "\(feel) plays at one velocity")
         }
     }
@@ -71,7 +97,7 @@ final class BubbleBackingTests: XCTestCase {
         for feel in BubbleFeel.allCases {
             let counts = OffbeatLevel.allCases.map { level -> Int in
                 BubbleBacking.pattern(feel: feel, level: level, bar: 1, phraseBars: 4)
-                    .hits.filter { $0.voice != .rimshot }.count
+                    .hits.filter { $0.voice != .organ }.count
             }
             XCTAssertEqual(counts, [4, 3, 2, 0], "\(feel): the ladder is not monotone")
         }
@@ -86,7 +112,7 @@ final class BubbleBackingTests: XCTestCase {
             XCTAssertEqual(top.hits.filter { $0.voice == .kick }.count, 1, "\(feel) phrase top")
 
             let inside = BubbleBacking.pattern(feel: feel, level: .implied, bar: 5, phraseBars: 4)
-            XCTAssertTrue(inside.hits.allSatisfy { $0.voice == .rimshot }, "\(feel) mid-phrase")
+            XCTAssertTrue(inside.hits.allSatisfy { $0.voice == .organ }, "\(feel) mid-phrase")
         }
     }
 

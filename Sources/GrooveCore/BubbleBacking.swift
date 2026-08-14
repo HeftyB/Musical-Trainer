@@ -103,6 +103,13 @@ public enum BubbleBacking {
     ///
     /// - Parameter bar: absolute bar index, so the phrase-top re-anchor at the hardest level can
     ///   be placed without the caller tracking it.
+    /// The notes a bubble stab sounds — **root and fifth, no third**.
+    ///
+    /// The same restraint the bass is built under (§7.29 step 2): a third commits the band to a
+    /// key quality, and keys and progressions belong to M25. Whether a bubble needs one to read as
+    /// a bubble at all is an open question for an ear, not an argument (§7.56).
+    public static let voicing = [64, 71]      // E4, B4
+
     public static func pattern(feel: BubbleFeel, level: OffbeatLevel, bar: Int,
                                phraseBars: Int = 4) -> Pattern {
         let perBeat = feel.stepsPerBeat
@@ -110,12 +117,19 @@ public enum BubbleBacking {
 
         // The band plays the figure the player is being asked for, exactly as the straight skank
         // states its chop. What the ladder removes is the *downbeat*, never the bubble.
-        var hits: [Hit] = (0..<4).flatMap { beat in
-            feel.playedSteps.map { step in
+        //
+        // **On the organ**, which is the point of §7.56: the first audition of these two figures
+        // ran on a rimshot and came back "I was trying to imagine it with an organ sound to
+        // identify the bubble". A figure judged through a stand-in timbre is a figure judged with
+        // a caveat attached.
+        var hits: [Hit] = (0..<4).flatMap { beat -> [Hit] in
+            feel.playedSteps.flatMap { step -> [Hit] in
                 // The second of the pair leans, which is what stops two identical hits reading as
                 // a machine — the same rule the styles are held to: no layer at one velocity.
-                Hit(voice: .rimshot, step: beat * perBeat + step,
-                    velocity: step == feel.playedSteps[0] ? 104 : 112)
+                let velocity = step == feel.playedSteps[0] ? 104 : 112
+                return voicing.map { note in
+                    Hit(voice: .organ, step: beat * perBeat + step, velocity: velocity, note: note)
+                }
             }
         }
 
