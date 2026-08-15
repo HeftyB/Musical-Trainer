@@ -8,9 +8,11 @@ import XCTest
 /// observation that says something went wrong — and the two readouts counted incidents by
 /// subtraction, so the kind that reports it would have been printed under another kind's name.
 ///
-/// The overflow itself cannot be provoked without CoreMIDI delivering tens of thousands of packets
-/// (R5.6). What is testable is the arithmetic that decides the buffer is big enough, and the
-/// readout that describes the result — which is where the second defect lived.
+/// What is here is the arithmetic that decides the buffer is big enough, and the readout that
+/// describes the result — which is where the second defect lived. **The overflow itself used to be
+/// unreachable** without CoreMIDI delivering tens of thousands of packets (R5.6); §7.58 moved the
+/// buffer's rules into `MIDIInput.Capture`, which can be handed a capacity of three, and
+/// `CaptureTests` provokes it directly.
 final class CaptureLossTests: XCTestCase {
 
     // MARK: The buffer is sized from the longest take, not from a number that looked generous

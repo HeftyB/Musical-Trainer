@@ -8071,14 +8071,83 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 550 of 823 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 273 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 550 of 832 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 282 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
-Items 1 and 2 are one branch. Item 3 is one branch and is the one with a measurement argument behind
+**Items 1 and 2 are closed — see §7.58**, which also corrects item 2's cost, stated too high here.
+
+Item 3 is one branch and is the one with a measurement argument behind
 it rather than a hygiene argument. Item 4 is a decision rather than a task — the options are a macOS
 agent on hardware that is not the workstation, or writing down that the hook is the enforcement so
 its readers know they are it (shape 21's own fallback). Items 5 and 6 are small enough to ride along.
+
+---
+
+## 7.58 The capture state stops being reachable unlocked
+
+§7.57 item 1, and it is the guard `LESSONS.md` shape 21 asks for rather than a second fix of the
+same defect. The race was already closed; what was still true is that nothing stopped the next
+field being added beside the lock instead of under it, which is exactly how `lastNoteOn` came to
+sit there for the life of the project.
+
+### The smallest thing that says no
+
+Five properties and a lock became one `Capture` struct and a `withCapture { }` accessor — the shape
+`withRegistry` and `withHandlerLock` already use twice in this file. `capture` is private, so the
+only way to reach any of it is through the closure that holds the lock. **The next field added to
+that struct is guarded by having been added to it**, which is the difference between a rule and an
+enforcement.
+
+It also removes the second way the defect could be spelled. Admitting a note and storing it used to
+be two statements with a lock boundary available to fall between them; `Capture.admit` is one call,
+so *"this note passed the dedup window"* and *"this note is in the buffer"* cannot come apart. What
+that call returns is deliberately the first of those and not the second — a note the buffer had no
+room for is still a note the player played, and the live instrument has to sound it. `dropped` is
+what says whether it was kept.
+
+### The payoff nobody was looking for
+
+`CaptureLossTests` opens by saying the overflow *"cannot be provoked without CoreMIDI delivering
+tens of thousands of packets"*, and that was true while the buffer's rules lived inside a private
+method on the class that talks to CoreMIDI. A struct carrying a pointer and a count can be handed a
+capacity of three.
+
+So the two paths this project has only ever argued about in prose now have nine tests. **The end of
+the buffer** — shape 20's fix, which has been shipped and reasoned about since §7.51 and never once
+executed under test — and **the take boundary**, where §7.57's race lived. Neither test would have
+caught the race, and no test could; what they hold is the behaviour either side of it, which had
+nothing.
+
+That is worth naming as a general result rather than a happy accident: **the refactor that made the
+state unreachable also made it constructible**, and those are the same property seen from the two
+sides. State only reachable through the object that owns a CoreMIDI port is state only testable
+through a CoreMIDI port.
+
+### Item 2, corrected downward
+
+§7.57 said `events` holds the lock across *"an allocation and up to 32,768 struct copies"* and that
+§7.51's capacity increase quadrupled the hold. **Both halves are wrong.** The snapshot maps over
+`count`, the notes actually played, not `capacity` — so a dense take is tens of kilobytes and tens
+of microseconds, and raising the buffer's ceiling changed nothing about it. The finding keeps its
+heading and has its body corrected, the way a retracted result does.
+
+What was actually wrong there was smaller and in three parts, of which only the last is a defect:
+
+- The comment justifying the lock said it is held *"for a handful of instructions"*, which is true
+  of the delivery path and not of the snapshot. `Capture.snapshot` now states its own cost where a
+  reader meets it, rather than being covered by a claim that does not describe it.
+- A comment in `runTempo` said `events` *"is written only by CoreMIDI's single delivery thread and
+  read here on the take thread; a read racing a write can miss the very latest note"*. That
+  reasoning predates the lock and describes an unsynchronised read the code has not performed for
+  some time. A stale comment about concurrency is worse than none: it is what the next reader
+  reasons from.
+- **`runJam` and `runForm` each took two snapshots and treated them as one.** `notesCaptured` came
+  from a second read of a buffer the delivery thread is still writing to, so a note arriving between
+  the two was counted in the figure reported to the player and stored with the take, without being
+  in the series that was analysed. One note, in a window of microseconds, on a number nobody fits a
+  trend to — but it is a stored figure that could disagree with the take it describes, and the fix
+  is a local variable.
 
 ---
 
@@ -8105,11 +8174,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   823 cases
+└── Tests/                   832 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     417 cases against synthetic ground truth
     ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     273 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     282 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
