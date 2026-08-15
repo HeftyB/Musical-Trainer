@@ -63,9 +63,9 @@ final class MIDIInput {
     ///
     /// The capture's own incident is merged here rather than reported separately, so the surfaces
     /// have one list to render and one place a new kind can appear. **The two locks are taken in
-    /// sequence and never nested**, which is why the overflow is kept in plain fields under
-    /// `storageLock` and turned into an incident at read time instead of being handed to the
-    /// registry from inside the delivery thread's critical section.
+    /// sequence and never nested**, which is why the overflow is counted inside `Capture` and
+    /// turned into an incident at read time instead of being handed to the registry from inside the
+    /// delivery thread's critical section.
     var incidents: [MIDIIncident] {
         var all = withRegistry { $0.incidents }
         if let overflow = captureOverflowIncident { all.append(overflow) }
@@ -73,11 +73,11 @@ final class MIDIInput {
     }
 
     private var captureOverflowIncident: MIDIIncident? {
-        os_unfair_lock_lock(&storageLock)
-        defer { os_unfair_lock_unlock(&storageLock) }
-        guard droppedNoteOns > 0 else { return nil }
-        return MIDIIncident(kind: .captureFull(dropped: droppedNoteOns),
-                            hostTime: firstDropHostTime, name: nil)
+        withCapture { capture -> MIDIIncident? in
+            guard capture.dropped > 0 else { return nil }
+            return MIDIIncident(kind: .captureFull(dropped: capture.dropped),
+                                hostTime: capture.firstDropHostTime, name: nil)
+        }
     }
 
     typealias NoteHandler = (_ note: UInt8, _ velocity: UInt8, _ on: Bool, _ channel: UInt8) -> Void
@@ -112,41 +112,113 @@ final class MIDIInput {
         return body()
     }
 
-    /// Last note-on time per note number, for duplicate rejection.
+    /// Everything CoreMIDI's delivery thread touches. Reachable only through `withCapture`.
     ///
-    /// **Guarded by `storageLock`, like everything else the delivery thread touches.** It was the
-    /// one piece of capture state left outside it: the delivery thread read and updated it before
-    /// taking the lock, and `reset()` cleared all 128 entries from the take thread after releasing
-    /// it. That is the pattern the comment under `storage` rejects — *"a data race under the
-    /// language model"* — and this field is declared immediately above that comment.
+    /// **A struct rather than five properties beside a lock, because proximity is not enforcement.**
+    /// The five were correct, adjacent and documented — and `lastNoteOn` was outside the lock for
+    /// the life of the project anyway, through a review that fixed the field next to it for exactly
+    /// that reason (§7.57, `LESSONS.md` shape 21). What a comment could not hold, the compiler can:
+    /// nothing in here is reachable without the lock, and the next field added is guarded by having
+    /// been added to it.
     ///
-    /// The window and the append are now one critical section rather than two adjacent ones, which
-    /// is also what makes "this note was accepted" and "this note was stored" the same decision.
-    private var lastNoteOn = [UInt64](repeating: 0, count: 128)
+    /// It also removes the second way that defect could be spelled. Admitting a note and storing it
+    /// used to be two statements with a lock boundary available to fall between them; `admit` is one
+    /// call, so "this note passed the dedup window" and "this note is in the buffer" cannot come
+    /// apart.
+    ///
+    /// Guarded by an unfair lock rather than by the write-data-then-publish-count pattern. That
+    /// pattern happens to be safe on x86_64's total store order, but it is a data race under the
+    /// language model and would break on Apple Silicon. This is the MIDI delivery thread, not the
+    /// audio render thread, so a lock held for a handful of instructions at a few notes per second
+    /// is free — see `snapshot` for the one call where that description does not hold.
+    ///
+    /// Internal rather than private, so `CaptureTests` can hand it a capacity of three. The guard is
+    /// not weakened by that: `capture` below stays private, so the only way to reach *this
+    /// instance's* state is still `withCapture`. What becomes reachable is the type, and with it the
+    /// two paths this project has only ever been able to reason about in prose — the end of the
+    /// buffer, and what a take boundary does to the dedup window.
+    struct Capture {
+        /// Preallocated, so the delivery thread never allocates. Sized by `captureCapacity`.
+        let storage: UnsafeMutablePointer<MIDINoteOn>
+        let capacity: Int
+        private(set) var count = 0
+
+        /// Last note-on time per note number, for duplicate rejection.
+        private var lastNoteOn = [UInt64](repeating: 0, count: 128)
+
+        /// Note-ons this take could not record, and when the first one arrived.
+        ///
+        /// A preallocated buffer has an end, and the code simply stopped writing at it. A take that
+        /// overran lost the rest of its playing with no incident, no warning and no difference from
+        /// a take where the player stopped — `LESSONS.md` shape 20, the error path discarding
+        /// exactly the data that says something went wrong.
+        private(set) var dropped = 0
+        private(set) var firstDropHostTime: UInt64 = 0
+
+        /// Written out rather than left to the memberwise initializer, which the `private` fields
+        /// above make private to `Capture` itself.
+        init(storage: UnsafeMutablePointer<MIDINoteOn>, capacity: Int) {
+            self.storage = storage
+            self.capacity = capacity
+        }
+
+        /// Take this note unless it repeats one inside `window`.
+        ///
+        /// No player retriggers one note in 3 ms, so a repeat inside the window can only be double
+        /// delivery. The window is per note number, because a chord is not a double delivery.
+        ///
+        /// A note arriving past the end of the buffer is **counted** rather than swallowed: numbers
+        /// computed from a truncated series are a fact about the buffer rather than about the
+        /// player, and a take has to be able to say that happened.
+        ///
+        /// - Returns: whether the note passed the dedup window, which is **not** the same as
+        ///   whether it was stored. The caller sonifies on this, and a note the buffer was too full
+        ///   to keep is still a note the player played and should hear. `dropped` is what says
+        ///   whether it was kept.
+        mutating func admit(_ event: MIDINoteOn, window: UInt64) -> Bool {
+            let previous = lastNoteOn[Int(event.note)]
+            guard previous == 0 || event.hostTime &- previous > window else { return false }
+            lastNoteOn[Int(event.note)] = event.hostTime
+            if count < capacity {
+                storage[count] = event
+                count += 1
+            } else {
+                if dropped == 0 { firstDropHostTime = event.hostTime }
+                dropped += 1
+            }
+            return true
+        }
+
+        /// Forget the previous take. Everything in here is per-take, the dedup window included.
+        mutating func beginTake() {
+            count = 0
+            dropped = 0
+            firstDropHostTime = 0
+            for i in 0..<lastNoteOn.count { lastNoteOn[i] = 0 }
+        }
+
+        /// A copy of what has been captured so far.
+        ///
+        /// **The one call that holds the lock for longer than a handful of instructions**, which is
+        /// worth saying where a reader meets it rather than leaving the claim above to cover a path
+        /// it does not describe. It allocates and copies `count` elements — the notes actually
+        /// played, not the 32,768 the buffer could hold — so a dense take is tens of kilobytes and
+        /// tens of microseconds. That is charged to CoreMIDI's delivery thread, never the render
+        /// thread, and it is paid a handful of times per take rather than per packet.
+        var snapshot: [MIDINoteOn] { (0..<count).map { storage[$0] } }
+    }
+
+    private var capture: Capture
+    private var captureLock = os_unfair_lock_s()
+
+    /// The only way to reach capture state. Same shape as `withRegistry` and `withHandlerLock`.
+    private func withCapture<T>(_ body: (inout Capture) -> T) -> T {
+        os_unfair_lock_lock(&captureLock)
+        defer { os_unfair_lock_unlock(&captureLock) }
+        return body(&capture)
+    }
+
     private let dedupWindow = HostClock.ticks(seconds: 0.003)
-
-    /// Written by CoreMIDI's delivery thread and read from the take thread — including
-    /// *during* a take, since the tempo drill scores each round as its silence ends.
-    ///
-    /// Guarded by an unfair lock rather than relying on the write-data-then-publish-count
-    /// pattern. That pattern happens to be safe on x86_64's total store order, but it is a
-    /// data race under the language model and would break on Apple Silicon. This is the MIDI
-    /// delivery thread, not the audio render thread, so a lock held for a handful of
-    /// instructions at a few notes per second is free.
-    private var storage: UnsafeMutablePointer<MIDINoteOn>
-    private var storageCount = 0
-    private var storageLock = os_unfair_lock_s()
-    private let capacity: Int
-
-    /// Note-ons this take could not record, and when the first one arrived.
-    ///
-    /// The buffer is preallocated so the delivery thread never allocates, which means it has an
-    /// end — and the code simply stopped writing at it. A take that overran lost the rest of its
-    /// playing with no incident, no warning and no difference from a take where the player
-    /// stopped, which is `LESSONS.md` shape 20: the error path discarding exactly the data that
-    /// says something went wrong.
-    private var droppedNoteOns = 0
-    private var firstDropHostTime: UInt64 = 0
 
     /// How many note-ons a take may record.
     ///
@@ -167,11 +239,10 @@ final class MIDIInput {
     }
 
     init(capacity: Int = MIDIInput.captureCapacity) {
-        self.capacity = capacity
-        self.storage = .allocate(capacity: capacity)
+        capture = Capture(storage: .allocate(capacity: capacity), capacity: capacity)
     }
 
-    deinit { storage.deallocate() }
+    deinit { capture.storage.deallocate() }
 
     /// The shared input, ready to receive. Safe to call before every take.
     static func started() throws -> MIDIInput {
@@ -294,26 +365,17 @@ final class MIDIInput {
     }
 
     func reset() {
-        os_unfair_lock_lock(&storageLock)
-        storageCount = 0
-        droppedNoteOns = 0
-        firstDropHostTime = 0
-        // Inside the lock with the rest of the capture state. This ran after the unlock, so a
-        // keyboard being played between takes had the delivery thread writing these entries while
-        // the take thread cleared them.
-        for i in 0..<lastNoteOn.count { lastNoteOn[i] = 0 }
-        os_unfair_lock_unlock(&storageLock)
+        withCapture { $0.beginTake() }
         // Last take's incidents are not this take's. Connections deliberately survive — see
         // `MIDISourceRegistry.beginTake`.
         withRegistry { $0.beginTake() }
     }
 
     /// A snapshot of everything captured so far. Safe to call mid-take.
-    var events: [MIDINoteOn] {
-        os_unfair_lock_lock(&storageLock)
-        defer { os_unfair_lock_unlock(&storageLock) }
-        return (0..<storageCount).map { storage[$0] }
-    }
+    ///
+    /// Costs an allocation and a copy under the lock — see `Capture.snapshot`. Callers wanting two
+    /// things from one take's capture should take one snapshot and ask it twice.
+    var events: [MIDINoteOn] { withCapture { $0.snapshot } }
 
     /// Walk the packets in place via CoreMIDI's own sequence helper.
     ///
@@ -347,34 +409,14 @@ final class MIDIInput {
                 let velocity = UInt8(word & 0x7F)
                 // Status 0x9 with velocity 0 is a note-off by convention.
                 if status == 0x9, velocity > 0 {
-                    // Reject a repeat of the same note within the dedup window. No player
-                    // retriggers one note in 3 ms, so this can only be double delivery.
-                    //
-                    // The window is read and updated **inside** the same critical section as the
-                    // append, not before it. Two adjacent sections would leave the dedup array
-                    // racing `reset()` on the take thread, and would also let the accept decision
-                    // and the store come apart if CoreMIDI ever delivered on two threads.
-                    os_unfair_lock_lock(&storageLock)
-                    let previous = lastNoteOn[Int(note)]
-                    let accepted = previous == 0 || timeStamp &- previous > dedupWindow
-                    if accepted {
-                        lastNoteOn[Int(note)] = timeStamp
-                        if storageCount < capacity {
-                            storage[storageCount] = MIDINoteOn(hostTime: timeStamp, note: note,
-                                                               velocity: velocity, channel: channel)
-                            storageCount += 1
-                        } else {
-                            // Counted rather than swallowed. A take that overran used to lose the
-                            // rest of its playing and look exactly like one where the player
-                            // stopped — and the numbers computed from a truncated series are a
-                            // fact about the buffer, not about the player.
-                            if droppedNoteOns == 0 { firstDropHostTime = timeStamp }
-                            droppedNoteOns += 1
-                        }
+                    let event = MIDINoteOn(hostTime: timeStamp, note: note,
+                                           velocity: velocity, channel: channel)
+                    // The dedup window and the append are one call, so no lock boundary can fall
+                    // between them — see `Capture`.
+                    if withCapture({ $0.admit(event, window: dedupWindow) }) {
+                        // Outside the lock: monitoring must never be able to block capture.
+                        monitor?(note, velocity, true, channel)
                     }
-                    os_unfair_lock_unlock(&storageLock)
-                    // Outside the lock: monitoring must never be able to block capture.
-                    if accepted { monitor?(note, velocity, true, channel) }
                 } else if status == 0x8 || (status == 0x9 && velocity == 0) {
                     monitor?(note, 0, false, channel)
                 }

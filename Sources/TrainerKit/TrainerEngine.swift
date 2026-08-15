@@ -340,9 +340,15 @@ public enum TrainerEngine {
         try player.run(forSeconds: runLength(config.durationSeconds, player),
                        progress: progress, cancellation: cancellation)
 
+        // One snapshot, asked twice. Two reads of `midi.events` are two different copies of a
+        // buffer CoreMIDI is still writing to, so a note arriving between them would be counted in
+        // `notesCaptured` — which is reported to the player and stored with the take — without
+        // being in the series that was analysed.
+        let captured = midi.events
+
         guard let reduced = JamAnalysis.reduce(
             outputMap: player.outputMapPairs,
-            midi: midi.events.map { ($0.hostTime, Int($0.velocity), Int($0.note)) },
+            midi: captured.map { ($0.hostTime, Int($0.velocity), Int($0.note)) },
             grooveStartSample: startSample, grooveEndSample: endSample,
             bpm: config.bpm, subdivisions: config.gridSubdivisions, feel: config.feel,
             calibrationConstantMs: env.calibrationMs ?? 0)
@@ -351,7 +357,7 @@ public enum TrainerEngine {
         let events = TapClustering.collapse(reduced.taps, windowSeconds: 0.035)
         let report = TimingAnalysis.analyze(taps: events, grid: reduced.grid, chordWindowMs: 0)
 
-        return JamOutcome(report: report, notesCaptured: midi.events.count,
+        return JamOutcome(report: report, notesCaptured: captured.count,
                           eventCount: events.count, environment: env, config: config,
                           midiIncidents: midi.incidents,
                           gridStartTime: reduced.grid.startTime,
@@ -474,14 +480,18 @@ public enum TrainerEngine {
         }
 
         let constantSec = (env.calibrationMs ?? 0) / 1000
-        let markTimes = midi.events.filter(\.isPad)
+        // One snapshot for both the marks and the note count, for the reason `runJam` gives: two
+        // reads are two copies of a buffer still being written, and the drill would then report a
+        // count that does not match the marks it scored.
+        let captured = midi.events
+        let markTimes = captured.filter(\.isPad)
             .map { HostClock.interval(from: epoch, to: $0.hostTime) - constantSec }
         let grid = Grid(startTime: startSec, bpm: config.bpm, subdivisions: 4)
 
         let report = FormAnalysis.analyze(markTimes: markTimes, grid: grid, beatsPerBar: 4,
                                           barsPerPhrase: config.phraseBars, totalBars: config.bars)
         return FormOutcome(report: report,
-                           notesPlayed: midi.events.filter { !$0.isPad }.count,
+                           notesPlayed: captured.filter { !$0.isPad }.count,
                            environment: env, config: config,
                            gridStartTime: startSec,
                            gridSubdivisions: grid.subdivisions, markTimes: markTimes)
@@ -790,9 +800,9 @@ public enum TrainerEngine {
         // feedback loop — produce, be told, correct, produce again — and feedback delivered
         // after every round is over would make it a plain measurement instead.
         //
-        // Analysis runs on the taps captured so far. `MIDIInput.events` is written only by
-        // CoreMIDI's single delivery thread and read here on the take thread; a read racing a
-        // write can miss the very latest note, which at worst defers a round to the next tick.
+        // Analysis runs on the taps captured so far. `MIDIInput.events` takes a locked snapshot, so
+        // this is a consistent prefix rather than a racing read — what it can miss is a note that
+        // had not arrived when the lock was taken, which at worst defers a round to the next tick.
         var reported = 0
         let totalSamples = Double(cursorSamples)
         let watch: (Double) -> Void = { fraction in
