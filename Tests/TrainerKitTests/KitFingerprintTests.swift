@@ -100,3 +100,21 @@ final class KitFingerprintTests: StoreBackedTestCase {
                        "an absent kit changes nothing about how the take is scored")
     }
 }
+
+/// The guard that turns a kit change into a decision rather than a surprise.
+extension KitFingerprintTests {
+
+    /// **This test failing is not a bug — it is the notification.** `KitGroup.originalFingerprint`
+    /// pins the kit all 104 takes on record were played over. The moment any voice changes, this
+    /// fails, and whoever changed it has to decide what the grouping should do: takes over the new
+    /// kit are a different task from every take before it, and `KitGroup` is where that is said.
+    ///
+    /// The pinned value is history and never moves. What moves is the kit, and a second era is
+    /// added rather than this constant being edited.
+    func testTheLiveKitIsStillTheOneEveryTakeOnRecordHeard() {
+        XCTAssertEqual(BackingKit.fingerprint, KitGroup.originalFingerprint,
+                       "A voice changed. That is allowed — but takes over this kit are a different "
+                     + "task from the 104 on record, so add the era to `KitGroup` rather than "
+                     + "editing the pinned original. See PLAN.md §7.62.")
+    }
+}

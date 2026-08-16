@@ -246,7 +246,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M23** | Jazz time | Deferred behind the instrument milestones, on a data problem rather than a code one. |
 | **M24** | Voice | Inherits M21's onset detection rather than M23's harmony. A sung or chanted skank is the same measurement as a played one. |
 | **M25** | Harmony | What the band plays under the player, rather than what the player is scored on. |
-| **M26** | The kit | **The synthesis work that makes a genre name true, and the milestone most other things are waiting on.** Blocks M16.5 today; blocked M19's style names before that. **Step 0 is built** — every take records which kit it heard. See §7.30, §7.59, §7.61. |
+| **M26** | The kit | **The synthesis work that makes a genre name true, and the milestone most other things are waiting on.** Blocks M16.5 today; blocked M19's style names before that. **Steps 0–1 are built** — every take records which kit it heard, and the kit is a grouping axis. See §7.30, §7.59, §7.61, §7.62. |
 | **M27** | What makes a genre that genre | The classification problem underneath the name. |
 | **T1** | ✅ **Test infrastructure — the take factory** | A different axis from the M-sequence: what the project can verify about itself. Synthetic takes, a degenerate corpus, a macOS-only `TrainerKitTests` target, and a seam under the drill runners. Ordered **before M13's storage step**. See §7.22. |
 | — | *Later* | TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 566 of 857 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 291 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 571 of 863 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 292 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -8448,6 +8448,62 @@ this branch; it is recorded here rather than implied.
 
 ---
 
+## 7.62 The kit becomes an axis, and changing it becomes a decision
+
+§8.1.2 step 2, after §7.61's step 1. The grouping has to be right **before** the data exists, or the
+first takes over a new kit are scored by a rule that then changes — and M26's whole job is to change
+the kit.
+
+### `nil` and the original kit are one group
+
+The obvious reading of an absent fingerprint is "unknown, so its own group". **That is wrong here,
+and expensively so.** All 104 takes on record predate the field. Grouping unrecorded apart from
+recorded would split the corpus from every take made from now on — orphaning the 21-take free-jam
+series, the longest in the project, on a bookkeeping distinction rather than an acoustic one. The
+takes either side of the field's arrival heard the same kit; one of them wrote it down.
+
+So `KitGroup(fingerprint:)` maps both `nil` and the pinned original to `.original`, and anything else
+to `.changed`. Every title and every group is byte-identical to before today, which is the property
+that says a grouping change has not quietly re-scored the history.
+
+**The cost, stated where it is decided:** the 6 and 7 August kit changes sit *inside* `.original` and
+this does not separate them. §7.61 found them; separating them needs the historical kits rendered and
+fingerprinted, which nobody has done. **The method, for whoever wants it:** check out `58412ce^`,
+`b50d678^` and `f60b14a^`, render `BackingKit` at 44.1 kHz under each, digest, and map takes to eras
+by date — with the caveat that a take heard whatever build was *installed*, which can lag a commit,
+so the attribution is bounded rather than exact. That uncertainty is why it is not being guessed at
+here.
+
+### The pin is a historical constant, and the test is the notification
+
+`KitGroup.originalFingerprint` is `227944508dd5`: `BackingKit.fingerprint` as it stood on 15 August
+2026. **It describes a kit that already existed, so it can never need updating** — which is what
+separates it from a "current version" number, the kind of thing somebody has to remember to bump
+(`LESSONS.md` shape 21, and this project's sixth encounter with that shape).
+
+`KitFingerprintTests.testTheLiveKitIsStillTheOneEveryTakeOnRecordHeard` asserts the live kit still
+matches it. **That test failing is not a defect — it is the notification.** The first change to any
+voice fails it, and its message says what to do: add an era to `KitGroup` rather than editing the
+pin, because takes over the new kit are a different task from the 104 before them. A kit change stops
+being something that can happen by accident.
+
+### All three drills, not just jams
+
+The axis is on `JamTask`, `ContinuationTask` and `FormTask`. The continuation drill's band drops out,
+but it plays either side of every silence and the re-entry error is measured against it. The form
+drill's fills and crash **are** the landmarks the ladder removes rung by rung, so which kit plays
+them is the task rather than decoration. A kit change that moved only the jam grouping would leave
+the two drills whose landmarks are drum voices pooling across it.
+
+### What this does not do
+
+**It does not change a single group today.** There is one kit in existence and every take maps to
+`.original`. That is deliberate and is the whole point of landing it before the mechanism: when M26
+changes a voice, the rule is already in place and already tested, so the first take over the new kit
+is grouped correctly rather than being grouped by a rule written after seeing it.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8471,11 +8527,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   857 cases
+└── Tests/                   863 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     433 cases against synthetic ground truth
+    ├── TimingCoreTests/     438 cases against synthetic ground truth
     ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     291 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     292 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

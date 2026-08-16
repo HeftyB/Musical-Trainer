@@ -66,9 +66,73 @@ public enum BackingGroup: Hashable, Comparable {
     }
 }
 
+/// Which kit played, for the purpose of fitting a line through a series.
+///
+/// **A kit change is a backing change and a backing change is a task change**, and until §7.61 the
+/// kit was the one axis on that list nothing keyed on. It had already moved twice under the corpus —
+/// a bass on 6 August, then accented timekeepers and a fade over every one-shot on 7 August, the
+/// last removing a truncation click an ear had named. Every one of those takes kept its groove name,
+/// so the longest series in the project spans them as a single line.
+///
+/// **`nil` and the original fingerprint are the same group, deliberately.** Every take on record
+/// predates the field, so treating "unrecorded" as its own group would split the corpus from every
+/// take recorded from now on — 104 takes orphaned on a bookkeeping distinction rather than an
+/// acoustic one, and the 21-take free-jam series would stop growing the day this merged. The takes
+/// either side of it heard the same kit; only one of them wrote down which.
+///
+/// **The cost of that choice, stated:** the 6 and 7 August changes are inside `.original` and this
+/// does not separate them. They are recoverable — a take carries its date and those changes are
+/// commits with dates — but recovering them needs the historical kits rendered and fingerprinted,
+/// which is archaeology nobody has done. §7.62 records the method. What this axis is *for* is the
+/// change that has not happened yet, where a fingerprint exists on both sides.
+public enum KitGroup: Hashable, Comparable {
+    /// The kit every take on record was played over.
+    case original
+    /// A kit that differs from it, keyed by fingerprint.
+    case changed(String)
+
+    /// `BackingKit.fingerprint` as it stood on 15 August 2026, before M26 changed a voice.
+    ///
+    /// **A historical constant, which is why pinning it cannot rot.** A "current version" number
+    /// would be a rule somebody has to remember to bump — `LESSONS.md` shape 21 — but this one
+    /// describes a kit that already existed and can never need updating. `KitFingerprintTests`
+    /// asserts the live kit still matches it, so **the first change to any voice fails that test**,
+    /// which is how whoever changes it finds out that the grouping needs a decision.
+    public static let originalFingerprint = "227944508dd5"
+
+    public init(fingerprint: String?) {
+        guard let fingerprint, fingerprint != Self.originalFingerprint else {
+            self = .original
+            return
+        }
+        self = .changed(fingerprint)
+    }
+
+    /// Empty for `original`, so every title this project has ever printed is unchanged.
+    ///
+    /// Six characters of the digest is enough to tell two kits apart in a readout and short enough
+    /// to sit in a heading. Nobody is looking one up by name; they are asking whether two lines are
+    /// the same band.
+    public var label: String {
+        switch self {
+        case .original: return ""
+        case .changed(let fingerprint): return ", kit \(fingerprint.prefix(6))"
+        }
+    }
+
+    public static func < (a: KitGroup, b: KitGroup) -> Bool {
+        switch (a, b) {
+        case (.original, .original):            return false
+        case (.original, .changed):             return true
+        case (.changed, .original):             return false
+        case (.changed(let x), .changed(let y)): return x < y
+        }
+    }
+}
+
 /// A group of jams comparable enough to fit one line through.
 ///
-/// Five axes, each of which arrived because a line fitted across it was measuring the change rather
+/// Six axes, each of which arrived because a line fitted across it was measuring the change rather
 /// than the player.
 public struct JamTask: Hashable, Comparable {
     public let bpm: Int
@@ -104,13 +168,17 @@ public struct JamTask: Hashable, Comparable {
     /// mixed-backings warning to name it (§7.24 step 8).
     public let offbeatLevel: Int?
 
+    /// Which kit the band played on. See `KitGroup`.
+    public let kit: KitGroup
+
     public init(bpm: Int, rung: String?, backing: BackingGroup,
-                swingRatio: Double?, offbeatLevel: Int?) {
+                swingRatio: Double?, offbeatLevel: Int?, kit: KitGroup) {
         self.bpm = bpm
         self.rung = rung
         self.backing = backing
         self.swingRatio = swingRatio
         self.offbeatLevel = offbeatLevel
+        self.kit = kit
     }
 
     /// The one name for this group.
@@ -129,7 +197,7 @@ public struct JamTask: Hashable, Comparable {
         let offbeatPart = offbeatLevel.flatMap { level in
             offbeatLevelName(level).map { ", offbeat level \(level) — \($0)" }
         } ?? ""
-        return "Jams at \(bpm) BPM" + rungPart + feelPart + offbeatPart + backing.label
+        return "Jams at \(bpm) BPM" + rungPart + feelPart + offbeatPart + backing.label + kit.label
     }
 
     /// Absent values sort where they always did: an absent rung before every named one, straight
@@ -144,7 +212,8 @@ public struct JamTask: Hashable, Comparable {
         if (a.offbeatLevel ?? -1) != (b.offbeatLevel ?? -1) {
             return (a.offbeatLevel ?? -1) < (b.offbeatLevel ?? -1)
         }
-        return a.backing < b.backing
+        if a.backing != b.backing { return a.backing < b.backing }
+        return a.kit < b.kit
     }
 }
 
@@ -161,20 +230,25 @@ public struct JamTask: Hashable, Comparable {
 public struct ContinuationTask: Hashable, Comparable {
     public let silentBars: Int
     public let rung: IntervalRung
+    /// The band drops out in this drill, but it is playing either side of every silence — so a
+    /// changed kit changes what is being held against, exactly as it does for a jam.
+    public let kit: KitGroup
 
-    public init(silentBars: Int, rung: String?) {
+    public init(silentBars: Int, rung: String?, kit: KitGroup) {
         self.silentBars = silentBars
         self.rung = rung.flatMap(IntervalRung.init(rawValue:)) ?? .quarters
+        self.kit = kit
     }
 
     /// One name, read by the card and the chart alike. See `JamTask.title`.
     public var title: String {
-        "Continuation drill — \(silentBars)-bar silences, \(rung.label)"
+        "Continuation drill — \(silentBars)-bar silences, \(rung.label)\(kit.label)"
     }
 
     public static func < (a: ContinuationTask, b: ContinuationTask) -> Bool {
-        a.silentBars != b.silentBars
-            ? a.silentBars < b.silentBars : a.rung.rawValue < b.rung.rawValue
+        if a.silentBars != b.silentBars { return a.silentBars < b.silentBars }
+        if a.rung != b.rung { return a.rung.rawValue < b.rung.rawValue }
+        return a.kit < b.kit
     }
 }
 
@@ -184,16 +258,24 @@ public struct ContinuationTask: Hashable, Comparable {
 public struct FormTask: Hashable, Comparable {
     public let level: Int
     public let phraseBars: Int
+    /// The fills and the crash are the landmarks this drill removes rung by rung, so which kit
+    /// plays them is part of the task rather than decoration.
+    public let kit: KitGroup
 
-    public init(level: Int, phraseBars: Int) {
+    public init(level: Int, phraseBars: Int, kit: KitGroup) {
         self.level = level
         self.phraseBars = phraseBars
+        self.kit = kit
     }
 
     /// One name, read by the card and the chart alike. See `JamTask.title`.
-    public var title: String { "Form drill — level \(level), \(phraseBars)-bar phrases" }
+    public var title: String {
+        "Form drill — level \(level), \(phraseBars)-bar phrases\(kit.label)"
+    }
 
     public static func < (a: FormTask, b: FormTask) -> Bool {
-        a.level != b.level ? a.level < b.level : a.phraseBars < b.phraseBars
+        if a.level != b.level { return a.level < b.level }
+        if a.phraseBars != b.phraseBars { return a.phraseBars < b.phraseBars }
+        return a.kit < b.kit
     }
 }
