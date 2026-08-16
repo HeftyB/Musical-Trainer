@@ -146,7 +146,14 @@ final class TaskIdentityTests: XCTestCase {
     /// stays exactly as it was — the same guarantee `BackingGroup.fixed` carries.
     func testTheOriginalKitIsNotNamedAndAChangedOneIs() {
         XCTAssertEqual(name(jam(kit: .original)), "Jams at 100 BPM")
-        XCTAssertEqual(name(jam(kit: .changed("227944508dd5"))), "Jams at 100 BPM, kit 227944")
+        XCTAssertEqual(name(jam(kit: .changed(KitGroup.velocityLayeredFingerprint))),
+                       "Jams at 100 BPM, kit velocity layers")
+    }
+
+    /// A kit nobody has named still has to be distinguishable in a heading, so it prints enough
+    /// digest to tell two apart rather than going silent.
+    func testAnUnnamedKitPrintsItsDigest() {
+        XCTAssertEqual(name(jam(kit: .changed("abcdef123456"))), "Jams at 100 BPM, kit abcdef")
     }
 
     func testTheOriginalKitSortsBeforeEveryChangedOne() {
@@ -161,8 +168,10 @@ final class TaskIdentityTests: XCTestCase {
                           ContinuationTask(silentBars: 4, rung: nil, kit: .changed("ff")))
         XCTAssertNotEqual(FormTask(level: 0, phraseBars: 8, kit: .original),
                           FormTask(level: 0, phraseBars: 8, kit: .changed("ff")))
-        XCTAssertEqual(FormTask(level: 0, phraseBars: 8, kit: .changed("227944508dd5")).title,
-                       "Form drill — level 0, 8-bar phrases, kit 227944")
+        XCTAssertEqual(
+            FormTask(level: 0, phraseBars: 8,
+                     kit: .changed(KitGroup.velocityLayeredFingerprint)).title,
+            "Form drill — level 0, 8-bar phrases, kit velocity layers")
     }
 
     // MARK: The continuation drill, whose rung rule is the opposite one

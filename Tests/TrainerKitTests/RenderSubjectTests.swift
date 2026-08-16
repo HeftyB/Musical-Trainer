@@ -49,14 +49,29 @@ final class RenderSubjectTests: XCTestCase {
     }
 
     /// A longer floor for the seeded pieces must not quietly lengthen everything else: a kit voice
-    /// is four bars of quarter notes, and a ladder backing is however much was asked for.
+    /// is four bars of quarter notes, a dynamics sweep is one bar per velocity layer, and a ladder
+    /// backing is however much was asked for.
     func testEverythingElseIsRenderedAtTheLengthRequested() {
         for requested in [4, 8, 32] {
             for subject in Commands.renderSubjects(bars: requested)
                 where BackingIdentity.parse(subject.name) == nil {
-                let expected = subject.name.hasPrefix("kit-") ? 4 : requested
-                XCTAssertEqual(subject.bars, expected, subject.name)
+                let fixedLength = subject.name.hasPrefix("kit-")
+                    || subject.name.hasPrefix("dynamics-")
+                XCTAssertEqual(subject.bars, fixedLength ? 4 : requested, subject.name)
             }
+        }
+    }
+
+    /// One bar per layer, so the ear hears the ghost bar against the hard bar with nothing else
+    /// playing. Derived from the layer list rather than written as 4, so adding a fifth layer
+    /// lengthens the file instead of silently dropping one.
+    func testADynamicsSweepIsOneBarPerVelocityLayer() {
+        let sweeps = Commands.renderSubjects(bars: 8).filter { $0.name.hasPrefix("dynamics-") }
+        XCTAssertEqual(sweeps.count, BackingVoice.allCases.filter { !$0.isPitched }.count)
+        for sweep in sweeps {
+            XCTAssertEqual(sweep.arrangement.sections.count, BackingKit.layerStrengths.count,
+                           sweep.name)
+            XCTAssertEqual(sweep.bars, BackingKit.layerStrengths.count, sweep.name)
         }
     }
 
@@ -76,7 +91,9 @@ final class RenderSubjectTests: XCTestCase {
         // here instead of being quietly missing from the audition (§7.31 finding 1).
         XCTAssertEqual(subjects.count, 9 + pitchedVoices + skankFamily
                                          + styles * Style.intensityRange.count + styles
-                                         + kitVoices + pitchedVoices)
+                                         // Each unpitched voice twice: alone, and swept across
+                                         // its velocity layers (§7.63).
+                                         + kitVoices * 2 + pitchedVoices)
         XCTAssertEqual(Set(subjects.map(\.name)).count, subjects.count,
                        "two subjects with one name would overwrite each other's file")
     }

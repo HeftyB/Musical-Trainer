@@ -100,6 +100,19 @@ public enum KitGroup: Hashable, Comparable {
     /// which is how whoever changes it finds out that the grouping needs a decision.
     public static let originalFingerprint = "227944508dd5"
 
+    /// The kit after M26 item 1 gave every drum voice velocity layers (§7.63).
+    public static let velocityLayeredFingerprint = "e4304cb6e4c3"
+
+    /// Every kit this project has shipped, oldest first.
+    ///
+    /// **Appended to, never edited.** Each row describes a kit that existed and that takes were
+    /// played over, so correcting one would re-label takes that heard something else. A kit missing
+    /// from this list still groups correctly — it just prints its digest instead of a name.
+    public static let known: [(fingerprint: String, name: String)] = [
+        (originalFingerprint, "original"),
+        (velocityLayeredFingerprint, "velocity layers"),
+    ]
+
     public init(fingerprint: String?) {
         guard let fingerprint, fingerprint != Self.originalFingerprint else {
             self = .original
@@ -115,8 +128,13 @@ public enum KitGroup: Hashable, Comparable {
     /// the same band.
     public var label: String {
         switch self {
-        case .original: return ""
-        case .changed(let fingerprint): return ", kit \(fingerprint.prefix(6))"
+        case .original:
+            return ""
+        case .changed(let fingerprint):
+            // A named kit reads as a kit; an unnamed one still has to be distinguishable, so it
+            // prints enough digest to tell two apart in a heading.
+            let name = Self.known.first { $0.fingerprint == fingerprint }?.name
+            return ", kit \(name ?? String(fingerprint.prefix(6)))"
         }
     }
 

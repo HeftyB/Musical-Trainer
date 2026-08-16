@@ -23,6 +23,9 @@ final class GroovePlayer {
     private struct SoundKey: Hashable {
         let voice: BackingVoice
         let note: Int?
+        /// Which velocity layer, for an unpitched voice. `nil` for the pitched ones, which are not
+        /// layered — see `BackingKit.layered`.
+        let layer: Int?
     }
     private let kit: BackingKit
     let outputSampleRate: Double
@@ -65,13 +68,18 @@ final class GroovePlayer {
         kit = BackingKit(sampleRate: outputSampleRate)
         instrument = LiveInstrument(sampleRate: outputSampleRate)
 
+        // One slot per voice **per layer**: a drum hit harder is a different pre-rendered sound
+        // rather than the same one turned up, so the flat table the callback indexes grows by the
+        // number of layers rather than gaining a branch (R2.3).
         var keys: [SoundKey] = BackingVoice.allCases.filter { !$0.isPitched }
-            .map { SoundKey(voice: $0, note: nil) }
-        keys += BackingKit.bassNotes.map { SoundKey(voice: .bass, note: $0) }
+            .flatMap { voice in
+                BackingKit.layerStrengths.indices.map { SoundKey(voice: voice, note: nil, layer: $0) }
+            }
+        keys += BackingKit.bassNotes.map { SoundKey(voice: .bass, note: $0, layer: nil) }
         // Every pitched voice needs its own slot per note. A voice missing from this table is a
         // hit `schedule` drops on the floor — silently, and only for the notes nobody rendered,
         // which is the worst way for a part to go missing.
-        keys += BackingKit.organNotes.map { SoundKey(voice: .organ, note: $0) }
+        keys += BackingKit.organNotes.map { SoundKey(voice: .organ, note: $0, layer: nil) }
         soundIndexOf = Dictionary(uniqueKeysWithValues: keys.enumerated().map { ($1, $0) })
         soundCount = keys.count
 
@@ -80,7 +88,8 @@ final class GroovePlayer {
         voiceData.initialize(repeating: nil, count: soundCount)
         voiceLen.initialize(repeating: 0, count: soundCount)
         for (key, index) in soundIndexOf {
-            let samples = kit.buffer(for: key.voice, note: key.note)
+            let samples = kit.buffer(for: key.voice, note: key.note,
+                                     velocity: key.layer.map { BackingKit.layerCeilings[$0] } ?? 100)
             let buffer = UnsafeMutablePointer<Float>.allocate(capacity: max(samples.count, 1))
             buffer.assign(from: samples, count: samples.count)
             voiceData[index] = buffer
@@ -148,7 +157,12 @@ final class GroovePlayer {
         // saying so (§7.29 step 2).
         let resolved: [(hit: ScheduledHit, index: Int)] = hits
             .compactMap { hit in
-                let key = SoundKey(voice: hit.voice, note: hit.voice.isPitched ? hit.note : nil)
+                // The layer is chosen here, once, before anything is written — the callback still
+                // indexes a flat table and never asks how hard a hit was.
+                let key = SoundKey(voice: hit.voice,
+                                   note: hit.voice.isPitched ? hit.note : nil,
+                                   layer: hit.voice.isPitched
+                                       ? nil : BackingKit.layer(forVelocity: hit.velocity))
                 return soundIndexOf[key].map { (hit, $0) }
             }
             .sorted { $0.hit.sample < $1.hit.sample }
