@@ -1046,8 +1046,8 @@ public enum TrainerEngine {
                 // Tempo bias is the metric worth trending: it is measured reliably every
                 // time, whereas the clock/motor split often is not.
                 metric: r.tempoBiasBpm ?? .nan, metricLabel: "tempo bias (BPM)",
-                group: ContinuationTask(silentBars: session.silentBars,
-                                  rung: session.rung).title)
+                group: ContinuationTask(silentBars: session.silentBars, rung: session.rung,
+                                        kit: KitGroup(fingerprint: session.kitFingerprint)).title)
         }
     }
 
@@ -1061,7 +1061,8 @@ public enum TrainerEngine {
                       + "\(r.cleanCount)/\(r.marksPlaced) clean",
                 feelRating: s.feelRating, headline: r.headline,
                 metric: r.onFormRate * 100, metricLabel: "on form (%)",
-                group: FormTask(level: s.level, phraseBars: s.phraseBars).title)
+                group: FormTask(level: s.level, phraseBars: s.phraseBars,
+                                kit: KitGroup(fingerprint: s.kitFingerprint)).title)
         }
     }
 
@@ -1581,7 +1582,8 @@ public enum TrainerEngine {
     private static func groupKey(_ take: JamSession) -> JamTask {
         JamTask(bpm: Int(take.bpm), rung: take.rung,
                 backing: BackingGroup(grooveName: take.grooveName),
-                swingRatio: take.swingRatio, offbeatLevel: take.offbeatLevel)
+                swingRatio: take.swingRatio, offbeatLevel: take.offbeatLevel,
+                kit: KitGroup(fingerprint: take.kitFingerprint))
     }
 
     private static func jamTrends() -> [TrendSeries] {
@@ -1669,7 +1671,8 @@ public enum TrainerEngine {
     private static func dropoutTrends() -> [TrendSeries] {
         groupedTrends(
             SessionStore.loadAllDropout(),
-            by: { ContinuationTask(silentBars: $0.silentBars, rung: $0.rung) },
+            by: { ContinuationTask(silentBars: $0.silentBars, rung: $0.rung,
+                                   kit: KitGroup(fingerprint: $0.kitFingerprint)) },
             title: { $0.title },
             rows: { group in
                 let reports = group.map { $0.report() }
@@ -1690,7 +1693,8 @@ public enum TrainerEngine {
     private static func formTrends() -> [TrendSeries] {
         groupedTrends(
             SessionStore.loadAllForm(),
-            by: { FormTask(level: $0.level, phraseBars: $0.phraseBars) },
+            by: { FormTask(level: $0.level, phraseBars: $0.phraseBars,
+                           kit: KitGroup(fingerprint: $0.kitFingerprint)) },
             title: { $0.title },
             // **Two rows, because the drill has two axes and they are peers.** §7.40 made
             // `cleanRate` a peer of `onFormRate` in the report, the planner's input and both

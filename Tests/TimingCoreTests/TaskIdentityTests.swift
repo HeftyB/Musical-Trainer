@@ -14,8 +14,10 @@ import XCTest
 final class TaskIdentityTests: XCTestCase {
 
     private func jam(bpm: Int = 100, rung: String? = nil, backing: BackingGroup = .fixed,
-                     swing: Double? = nil, offbeat: Int? = nil) -> JamTask {
-        JamTask(bpm: bpm, rung: rung, backing: backing, swingRatio: swing, offbeatLevel: offbeat)
+                     swing: Double? = nil, offbeat: Int? = nil,
+                     kit: KitGroup = .original) -> JamTask {
+        JamTask(bpm: bpm, rung: rung, backing: backing, swingRatio: swing,
+                offbeatLevel: offbeat, kit: kit)
     }
 
     private func name(_ task: JamTask) -> String {
@@ -122,37 +124,80 @@ final class TaskIdentityTests: XCTestCase {
         XCTAssertEqual(name(jam(rung: "quintuplets")), "Jams at 100 BPM")
     }
 
+    // MARK: The kit, which is the axis nothing keyed on until §7.61
+
+    /// **The design decision, and the one most likely to be "corrected" later.** Every take on
+    /// record predates the field, so if unrecorded were its own group the corpus would split from
+    /// everything recorded afterwards — 104 takes orphaned on a bookkeeping distinction rather than
+    /// an acoustic one, and the 21-take free-jam series would stop growing the day it merged.
+    func testAnUnrecordedKitAndTheOriginalOneAreTheSameGroup() {
+        XCTAssertEqual(KitGroup(fingerprint: nil), .original)
+        XCTAssertEqual(KitGroup(fingerprint: KitGroup.originalFingerprint), .original)
+        XCTAssertEqual(jam(kit: KitGroup(fingerprint: nil)),
+                       jam(kit: KitGroup(fingerprint: KitGroup.originalFingerprint)))
+    }
+
+    func testADifferentKitIsADifferentTask() {
+        XCTAssertNotEqual(jam(kit: .original), jam(kit: .changed("ffffffffffff")))
+        XCTAssertNotEqual(jam(kit: .changed("aaaaaaaaaaaa")), jam(kit: .changed("ffffffffffff")))
+    }
+
+    /// The original kit contributes nothing to a title, so every heading this project has printed
+    /// stays exactly as it was — the same guarantee `BackingGroup.fixed` carries.
+    func testTheOriginalKitIsNotNamedAndAChangedOneIs() {
+        XCTAssertEqual(name(jam(kit: .original)), "Jams at 100 BPM")
+        XCTAssertEqual(name(jam(kit: .changed("227944508dd5"))), "Jams at 100 BPM, kit 227944")
+    }
+
+    func testTheOriginalKitSortsBeforeEveryChangedOne() {
+        XCTAssertEqual([KitGroup.changed("bbb"), .original, .changed("aaa")].sorted(),
+                       [.original, .changed("aaa"), .changed("bbb")])
+    }
+
+    /// The band drops out in the continuation drill and plays the landmarks in the form drill, so a
+    /// changed kit changes both tasks as surely as it changes a jam.
+    func testTheOtherTwoDrillsCarryTheKitToo() {
+        XCTAssertNotEqual(ContinuationTask(silentBars: 4, rung: nil, kit: .original),
+                          ContinuationTask(silentBars: 4, rung: nil, kit: .changed("ff")))
+        XCTAssertNotEqual(FormTask(level: 0, phraseBars: 8, kit: .original),
+                          FormTask(level: 0, phraseBars: 8, kit: .changed("ff")))
+        XCTAssertEqual(FormTask(level: 0, phraseBars: 8, kit: .changed("227944508dd5")).title,
+                       "Form drill — level 0, 8-bar phrases, kit 227944")
+    }
+
     // MARK: The continuation drill, whose rung rule is the opposite one
 
     /// `LESSONS.md` shape 13. The drill has demanded one note per beat *in words* since M6, so
     /// grouping `nil` apart from `.quarters` would split one task on a distinction the player was
     /// never shown.
     func testAnAbsentRungReallyDoesMeanQuartersHere() {
-        XCTAssertEqual(ContinuationTask(silentBars: 4, rung: nil),
-                       ContinuationTask(silentBars: 4, rung: "quarters"))
+        XCTAssertEqual(ContinuationTask(silentBars: 4, rung: nil, kit: .original),
+                       ContinuationTask(silentBars: 4, rung: "quarters", kit: .original))
     }
 
     func testSilenceLengthAndRungAreBothTaskChanges() {
-        XCTAssertNotEqual(ContinuationTask(silentBars: 4, rung: nil),
-                          ContinuationTask(silentBars: 8, rung: nil))
-        XCTAssertNotEqual(ContinuationTask(silentBars: 4, rung: "eighths"),
-                          ContinuationTask(silentBars: 4, rung: "quarters"))
-        XCTAssertEqual(ContinuationTask(silentBars: 4, rung: nil).title,
+        XCTAssertNotEqual(ContinuationTask(silentBars: 4, rung: nil, kit: .original),
+                          ContinuationTask(silentBars: 8, rung: nil, kit: .original))
+        XCTAssertNotEqual(ContinuationTask(silentBars: 4, rung: "eighths", kit: .original),
+                          ContinuationTask(silentBars: 4, rung: "quarters", kit: .original))
+        XCTAssertEqual(ContinuationTask(silentBars: 4, rung: nil, kit: .original).title,
                        "Continuation drill — 4-bar silences, quarter notes")
     }
 
     // MARK: The form drill's two axes
 
+    private func form(_ level: Int, _ phraseBars: Int) -> FormTask {
+        FormTask(level: level, phraseBars: phraseBars, kit: .original)
+    }
+
     func testLevelAndPhraseLengthAreBothTaskChanges() {
-        XCTAssertNotEqual(FormTask(level: 0, phraseBars: 8), FormTask(level: 1, phraseBars: 8))
-        XCTAssertNotEqual(FormTask(level: 0, phraseBars: 8), FormTask(level: 0, phraseBars: 16))
-        XCTAssertEqual(FormTask(level: 2, phraseBars: 16).title,
-                       "Form drill — level 2, 16-bar phrases")
+        XCTAssertNotEqual(form(0, 8), form(1, 8))
+        XCTAssertNotEqual(form(0, 8), form(0, 16))
+        XCTAssertEqual(form(2, 16).title, "Form drill — level 2, 16-bar phrases")
     }
 
     func testFormGroupsSortByLevelThenSpan() {
-        XCTAssertEqual([FormTask(level: 1, phraseBars: 4), FormTask(level: 0, phraseBars: 16),
-                        FormTask(level: 0, phraseBars: 8)].sorted().map(\.phraseBars),
+        XCTAssertEqual([form(1, 4), form(0, 16), form(0, 8)].sorted().map(\.phraseBars),
                        [8, 16, 4])
     }
 }
