@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 572 of 874 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 302 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 572 of 877 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 305 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -8579,6 +8579,85 @@ gets answered by argument instead.
 
 ---
 
+## 7.64 The layers were inaudible, and every test passed
+
+§7.63 shipped velocity layers. The listening verdict:
+
+> I listened to the files, it sounds like the same sound just quieter to louder.
+
+**The milestone's own goal, not met** — and nothing in the suite noticed, because the tests asserted
+the layers were *different* and a difference nobody can hear satisfies that.
+
+### What the measurement said
+
+Nothing had ever measured the thing the layers exist to move. Adding a spectral centroid and an
+audible-duration function took ten minutes and settled it immediately:
+
+| Voice | Soft centroid | Hard centroid | Ratio |
+|---|---|---|---|
+| snare | 349 Hz | 1189 Hz | 0.29 |
+| **closed hat** | 6609 Hz | 6449 Hz | **1.02 — and the wrong way round** |
+| **kick** | 114 Hz | 130 Hz | **0.88** |
+| **ride** | 5183 Hz | 5292 Hz | **0.98** |
+
+The snare moved because its two components — head and rattle — sit in different registers, so
+shifting the balance between them shifts the spectrum. Every other voice's components sit on top of
+each other, and rebalancing them moves nothing. **The first pass changed what the voices were made
+of and not where their energy sat**, which is the half an ear listens to.
+
+### Three fixes, and one of them was a bug
+
+**Darkening, relative to the voice's own centroid.** A softer strike excites fewer high modes, and
+that cannot be expressed as a rebalance of components already present — it needs a filter. Cutoff
+scales with the voice's *own* centroid rather than an absolute corner, because one corner cannot
+serve a kick at 128 Hz and a hat at 6.4 kHz: it annihilates one or misses the other.
+
+**Capping the peak instead of matching it.** Matching was in §7.63 as the clipping guarantee, and
+darkening exposed what it does: filtering lowers a layer's peak, matching scales it back up, and the
+ghost snare came out carrying *more* total energy than the backbeat — 198 against 209. A quiet stroke
+that carries more energy than a loud one is not a quiet stroke. Capping keeps the guarantee (nothing
+is hotter than what already shipped) and lets a soft layer be genuinely quieter, so the timbre and
+the velocity gain pull the same way instead of against each other.
+
+**The shaker was being accented.** `raw` honoured the opt-out and `render` darkened it anyway, so
+**the one voice documented as unaccentable had the largest timbre change per unit of velocity in the
+kit** — 0.51 of its own centroid. `LESSONS.md` shape 21 inside a single file: the rule was in one of
+the two places that had to honour it. `DrumSynth.unaccented` is the one list now.
+
+After: energy ratios run 0.02–0.14 and centroid ratios 0.14–0.78, against 0.88–1.02 before.
+
+### The tom is the exception, and it is an honest one
+
+It measures 0.95 and no tuning fixes it: the tom is a pure pitch-swept sine with no noise, click or
+wash, so a softer strike has nothing to fail to excite. Every other voice in the kit has a component
+that a soft hit leaves alone. **The fix is a stick transient**, which is synthesis work rather than
+tuning, and it is not done. A test asserts the tom *stays* the exception, so if it ever moves the
+exception gets removed rather than accumulating company.
+
+### The lesson, which is about the tests rather than the synthesis
+
+**A test that a value changed cannot protect a value changing enough.** `testEveryLayeredVoiceRespondsToStrength`
+asserted `XCTAssertNotEqual` on two buffers and passed on a 2% difference in the wrong direction. It
+was not a weak test by accident — it was the strongest assertion available *without a measurement*,
+and the measurement did not exist because nothing had needed it yet.
+
+That is `LESSONS.md` shape 18's family — a guard on the wrong quantity — and shape 11 for the
+ranges themselves, which were reasoned to rather than measured and were wrong. The thresholds now in
+the suite are floors well below what the kit measures, so ordinary tuning does not trip them and a
+collapse back toward one-buffer-two-gains does.
+
+### The pin moved, which the rule usually forbids
+
+`KitGroup.velocityLayeredFingerprint` was edited rather than appended to. That is safe **only**
+because the kit it named never reached a stored take: it existed inside an open branch, was found
+inaudible, and was retuned before anything was recorded over it. A row nobody's data points at is a
+draft rather than history. After a kit has been played over, append.
+
+---
+
+## 8. Project layout
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8602,11 +8681,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   874 cases
+└── Tests/                   877 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     439 cases against synthetic ground truth
     ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     302 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     305 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

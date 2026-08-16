@@ -84,8 +84,14 @@ boundaries taken from the velocities the styles actually write; the nominal laye
 the sound 104 takes were played over, and every layer is peak-matched so loudness stays velocity's
 job. The kit is now `e4304cb6e4c3`, which `KitGroup.known` calls "velocity layers". **The bass and
 organ are not layered** — a gap rather than a decision. `render` writes a `dynamics-<voice>` file per
-voice, four bars, one per layer: **that is the file the milestone is judged on, and nobody has
-listened to it yet.**
+voice, four bars, one per layer — that is the file the milestone is judged on.
+
+**The first tuning was listened to and failed**: *"it sounds like the same sound just quieter to
+louder"* (§7.64). Nothing in the suite caught it, because the tests asserted the layers *differed*
+and a 2% difference satisfies that. The retune added spectral darkening, capped peaks instead of
+matching them, and fixed the shaker being accented despite its opt-out. Energy ratios now run
+0.02–0.14 of the hard layer and centroid ratios 0.14–0.78, against 0.88–1.02 before. **Unheard
+again** — the second listening test has not happened.
 
 M17 is a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
 six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
@@ -461,7 +467,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 572 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (302 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (305 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -513,7 +519,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 874 tests, no hardware needed
+swift test                              # 877 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

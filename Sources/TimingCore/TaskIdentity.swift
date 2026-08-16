@@ -100,8 +100,17 @@ public enum KitGroup: Hashable, Comparable {
     /// which is how whoever changes it finds out that the grouping needs a decision.
     public static let originalFingerprint = "227944508dd5"
 
-    /// The kit after M26 item 1 gave every drum voice velocity layers (§7.63).
-    public static let velocityLayeredFingerprint = "e4304cb6e4c3"
+    /// The kit after M26 item 1 gave every drum voice velocity layers (§7.63, §7.64).
+    ///
+    /// **Edited once, before it had ever been played over.** The rule on `known` is append-never-
+    /// edit, and it protects kits that *takes were recorded against* — correcting one of those would
+    /// re-label takes that heard something else. This value moved while the branch was still open:
+    /// the listening test said the first tuning was inaudible, the retune changed every voice, and no
+    /// take had been recorded over either. A row nobody's data points at is a draft, not history.
+    ///
+    /// The distinction is worth keeping sharp, because it is the only circumstance in which editing
+    /// this list is safe: **the kit must never have reached a stored take.** After that, append.
+    public static let velocityLayeredFingerprint = "ebb01fc6aed0"
 
     /// Every kit this project has shipped, oldest first.
     ///

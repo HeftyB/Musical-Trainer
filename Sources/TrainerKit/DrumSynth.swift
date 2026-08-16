@@ -353,6 +353,17 @@ enum DrumSynth {
     /// strength-dependent term goes through `tilt`, which is exactly 1 there, so the layer a
     /// backbeat plays on is the sound the project has thirty takes over. What changes is what
     /// happens above and below it.
+    /// Voices that do not respond to strength at all.
+    ///
+    /// **One place says so, and both halves read it.** `raw` ignored strength for the shaker while
+    /// `render` darkened it anyway, so the voice documented as unaccentable was the one whose timbre
+    /// moved most per unit of velocity — measured at 0.51 of its own centroid (§7.64). A rule
+    /// spelled in one of two places is `LESSONS.md` shape 21 again, inside a single file this time.
+    ///
+    /// The shaker's own comment carries the argument: *"a shaker that could be accented would become
+    /// a second snare"*. Its job is to be the surface a groove sits on.
+    static let unaccented: Set<BackingVoice> = [.shaker]
+
     static let nominalStrength = 0.75
 
     /// A multiplier that is exactly 1 at `nominalStrength`, `soft` at 0 and `hard` at 1.
@@ -377,28 +388,100 @@ enum DrumSynth {
         buffer.reduce(0) { $0 + Double($1) * Double($1) }
     }
 
-    /// Scale a layer so its peak matches the nominal layer's.
+    /// Spectral centroid in Hz — where the energy sits, which is what an ear calls brightness.
     ///
-    /// **Strength carries timbre and length; loudness stays velocity's job.** That is how a sampled
-    /// kit does it, and here it is also what keeps the mix safe: `selftest` checks the mix stays off
-    /// the rails, and a hard layer that were both brighter *and* hotter than the nominal one could
-    /// push a coincident kick and crash past 0 dBFS on a downbeat.
-    static func matchingPeak(of layer: [Float], to reference: [Float]) -> [Float] {
+    /// **The quantity a velocity layer is supposed to move**, and the one nothing measured until
+    /// §7.64: the first pass varied balances and decays, asserted the buffers differed, and shipped
+    /// a difference too small to hear. A test that a value *changed* cannot protect a value changing
+    /// *enough* (`LESSONS.md` shape 18's family).
+    ///
+    /// Goertzel over a coarse log-spaced band set rather than a full FFT: this runs in tests and in
+    /// no audio path, and the question is a ratio between two layers rather than a spectrum.
+    static func centroid(of buffer: [Float], sampleRate fs: Double) -> Double {
+        guard !buffer.isEmpty else { return 0 }
+        var weighted = 0.0, total = 0.0
+        var f = 100.0
+        while f < min(16_000, fs / 2) {
+            let w = 2 * Double.pi * f / fs
+            let coeff = 2 * cos(w)
+            var s1 = 0.0, s2 = 0.0
+            for sample in buffer {
+                let s0 = Double(sample) + coeff * s1 - s2
+                s2 = s1
+                s1 = s0
+            }
+            let power = s1 * s1 + s2 * s2 - coeff * s1 * s2
+            weighted += f * power
+            total += power
+            f *= 1.25
+        }
+        return total > 0 ? weighted / total : 0
+    }
+
+    /// How long the voice stays within 20 dB of its own peak, in seconds — its audible length.
+    static func durationSeconds(of buffer: [Float], sampleRate fs: Double) -> Double {
+        guard let peak = buffer.map(abs).max(), peak > 0 else { return 0 }
+        let floor = peak * 0.1
+        let last = buffer.lastIndex { abs($0) >= floor } ?? 0
+        return Double(last) / fs
+    }
+
+    /// Darken a layer struck softer than nominal.
+    ///
+    /// **The missing ingredient, and why the first pass was inaudible** (§7.64). A softer strike
+    /// excites fewer high modes — most of what an ear calls a soft hit — and shifting the balance
+    /// between components that are *already there* cannot express that. Measured, the first pass
+    /// moved the closed hat's spectral centroid by 2% and the ride's by 2%, and the hat's in the
+    /// wrong direction. Reasoned to and wrong: `LESSONS.md` shape 11.
+    ///
+    /// **Cutoff is relative to the voice's own centroid**, not absolute. One absolute corner cannot
+    /// serve a kick sitting at 128 Hz and a hat at 6.4 kHz: it annihilates one or misses the other.
+    /// Scaling by where the voice already lives darkens each by the same proportion of its own
+    /// spectrum.
+    ///
+    /// Two poles rather than one, because 6 dB/octave is barely audible as a timbre change at these
+    /// ratios. Nominal is skipped outright rather than filtered at Nyquist, so the layer 104 takes
+    /// were played over stays bit-identical.
+    static func darkened(_ buffer: [Float], strength: Double, sampleRate fs: Double) -> [Float] {
+        guard strength < nominalStrength, !buffer.isEmpty else { return buffer }
+        let centre = centroid(of: buffer, sampleRate: fs)
+        guard centre > 0 else { return buffer }
+
+        let cutoff = min(centre * tilt(strength, soft: 0.35, hard: 1), fs / 2 - 1)
+        var a = OnePole(cutoff: cutoff, fs: fs)
+        var b = OnePole(cutoff: cutoff, fs: fs)
+        return buffer.map { b.lowpass(a.lowpass($0)) }
+    }
+
+    /// Cap a layer at the nominal layer's peak — never lift it to meet one.
+    ///
+    /// **Matching was wrong and the measurement said so.** Darkening a soft layer lowers its peak,
+    /// and scaling it back up returned *more* total energy than the backbeat had: the ghost snare
+    /// measured 198 against the nominal 209, and the ghost kick 1508 against 1349. A quiet stroke
+    /// that carries more energy than a loud one is not a quiet stroke.
+    ///
+    /// Capping keeps the whole reason matching existed — `selftest` checks the mix stays off the
+    /// rails, and nothing here is ever hotter than what already shipped — while letting a soft layer
+    /// be naturally quieter, which is what makes the velocity gain and the timbre pull in the same
+    /// direction instead of against each other.
+    static func peakCapped(_ layer: [Float], to reference: [Float]) -> [Float] {
         let peak = layer.map(abs).max() ?? 0
-        let target = reference.map(abs).max() ?? 0
-        guard peak > 0, target > 0 else { return layer }
-        let gain = target / peak
-        return layer.map { $0 * gain }
+        let ceiling = reference.map(abs).max() ?? 0
+        guard peak > ceiling, ceiling > 0 else { return layer }
+        return layer.map { $0 * (ceiling / peak) }
     }
 
     /// One voice at one strength, faded and level-matched to the nominal layer.
     static func render(_ voice: BackingVoice, sampleRate fs: Double,
                        strength: Double = nominalStrength) -> [Float] {
-        let layer = fadedOut(raw(voice, sampleRate: fs, strength: strength), sampleRate: fs)
-        guard strength != nominalStrength else { return layer }
-        return matchingPeak(of: layer,
-                            to: fadedOut(raw(voice, sampleRate: fs, strength: nominalStrength),
-                                         sampleRate: fs))
+        let force = unaccented.contains(voice) ? nominalStrength : strength
+        let voiced = darkened(raw(voice, sampleRate: fs, strength: force),
+                              strength: force, sampleRate: fs)
+        let layer = fadedOut(voiced, sampleRate: fs)
+        guard force != nominalStrength else { return layer }
+        return peakCapped(layer,
+                          to: fadedOut(raw(voice, sampleRate: fs, strength: nominalStrength),
+                                       sampleRate: fs))
     }
 
     /// The voice before its release fade. Private, so there is no way to obtain a buffer that
@@ -417,8 +500,7 @@ enum DrumSynth {
         case .crash:     return crash(fs: fs, strength: v)
         case .ride:      return ride(fs: fs, strength: v)
         case .tambourine: return tambourine(fs: fs, strength: v)
-        // The one voice that ignores it, and the doc comment says why: a shaker that
-        // could be accented would become a second snare.
+        // Strength never reaches here for it — see `unaccented`.
         case .shaker:    return shaker(fs: fs)
         case .cowbell:   return cowbell(fs: fs, strength: v)
         case .sidestick: return sidestick(fs: fs, strength: v)
@@ -444,9 +526,9 @@ enum DrumSynth {
         var phase = 0.0
         var clickNoise = Noise()
         var clickHP = OnePole(cutoff: 1500, fs: fs)
-        let click = tilt(strength, soft: 0.30, hard: 1.55)
-        let sweep = tilt(strength, soft: 0.65, hard: 1.20)
-        let ring = tilt(strength, soft: 0.72, hard: 1.18)
+        let click = tilt(strength, soft: 0.08, hard: 1.80)
+        let sweep = tilt(strength, soft: 0.40, hard: 1.30)
+        let ring = tilt(strength, soft: 0.45, hard: 1.25)
         for i in 0..<n {
             let t = Double(i) / fs
             let freq = 45 + 140 * sweep * exp(-t / 0.024)   // snappier sweep, 185 → 45 Hz
@@ -474,7 +556,7 @@ enum DrumSynth {
         var noise = Noise()
         let rattle = tilt(strength, soft: 0.45, hard: 1.30)
         let head = tilt(strength, soft: 1.35, hard: 0.88)
-        let ring = tilt(strength, soft: 0.55, hard: 1.20)
+        let ring = tilt(strength, soft: 0.3, hard: 1.3)
         for i in 0..<n {
             let t = Double(i) / fs
             let tone = (sin(2 * .pi * 180 * t) + 0.6 * sin(2 * .pi * 330 * t))
@@ -494,7 +576,7 @@ enum DrumSynth {
     /// buffer. A hard hat is noisier and rings longer; a soft one is nearly pure tone bank and
     /// stops almost immediately.
     private static func hat(fs: Double, decay: Double, strength: Double) -> [Float] {
-        let ring = tilt(strength, soft: 0.55, hard: 1.25)
+        let ring = tilt(strength, soft: 0.28, hard: 1.35)
         let air = tilt(strength, soft: 0.60, hard: 1.30)
         let n = Int((decay * 4) * fs)
         var out = [Float](repeating: 0, count: n)
@@ -514,7 +596,7 @@ enum DrumSynth {
 
     /// Strength lengthens the smear: more hands, later, when it is hit harder.
     private static func clap(fs: Double, strength: Double) -> [Float] {
-        let ring = tilt(strength, soft: 0.65, hard: 1.20)
+        let ring = tilt(strength, soft: 0.4, hard: 1.25)
         let n = Int(0.18 * fs)
         var out = [Float](repeating: 0, count: n)
         var noise = Noise()
@@ -534,7 +616,7 @@ enum DrumSynth {
 
     /// Barely moves: a rimshot is a rimshot. The 50 ms decay shifts a little and nothing else.
     private static func rimshot(fs: Double, strength: Double) -> [Float] {
-        let ring = tilt(strength, soft: 0.80, hard: 1.12)
+        let ring = tilt(strength, soft: 0.65, hard: 1.15)
         let n = Int(0.05 * fs)
         var out = [Float](repeating: 0, count: n)
         for i in 0..<n {
@@ -548,7 +630,7 @@ enum DrumSynth {
     /// A hard tom bends further and rings longer — the head is driven past its resting pitch.
     private static func tom(fs: Double, strength: Double) -> [Float] {
         let bend = tilt(strength, soft: 0.60, hard: 1.25)
-        let ring = tilt(strength, soft: 0.70, hard: 1.18)
+        let ring = tilt(strength, soft: 0.45, hard: 1.25)
         let n = Int(0.30 * fs)
         var out = [Float](repeating: 0, count: n)
         var phase = 0.0
@@ -563,7 +645,7 @@ enum DrumSynth {
 
     /// The voice where length *is* the dynamic: a crash struck harder simply rings for longer.
     private static func crash(fs: Double, strength: Double) -> [Float] {
-        let ring = tilt(strength, soft: 0.45, hard: 1.25)
+        let ring = tilt(strength, soft: 0.3, hard: 1.3)
         let n = Int(1.4 * fs)
         var out = [Float](repeating: 0, count: n)
         var noise = Noise()
@@ -590,7 +672,7 @@ enum DrumSynth {
     /// mostly ping.
     private static func ride(fs: Double, strength: Double) -> [Float] {
         let stickLevel = tilt(strength, soft: 0.35, hard: 1.50)
-        let ring = tilt(strength, soft: 0.75, hard: 1.15)
+        let ring = tilt(strength, soft: 0.55, hard: 1.2)
         let n = Int(0.4 * fs)
         var out = [Float](repeating: 0, count: n)
         // Bright, inharmonic — a metallic ting, not a low knock and not a single pitch.
