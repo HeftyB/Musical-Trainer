@@ -24,10 +24,10 @@ final class GeneratedBackingTrendTests: StoreBackedTestCase {
     // MARK: - What the group key does
 
     func testAFixedNameAndAGeneratedOneAreDifferentGroups() {
-        XCTAssertEqual(TrainerEngine.BackingGroup(grooveName: "jamBacking"), .fixed)
-        XCTAssertEqual(TrainerEngine.BackingGroup(grooveName: "basicRock"), .fixed)
-        XCTAssertEqual(TrainerEngine.BackingGroup(grooveName: "offbeat-2"), .fixed)
-        XCTAssertEqual(TrainerEngine.BackingGroup(grooveName: driving(1).name), .style("driving"))
+        XCTAssertEqual(BackingGroup(grooveName: "jamBacking"), .fixed)
+        XCTAssertEqual(BackingGroup(grooveName: "basicRock"), .fixed)
+        XCTAssertEqual(BackingGroup(grooveName: "offbeat-2"), .fixed)
+        XCTAssertEqual(BackingGroup(grooveName: driving(1).name), .style("driving"))
     }
 
     /// **The preservation guarantee.** Every fixed backing is one bucket, so `basicRock` beside
@@ -37,22 +37,22 @@ final class GeneratedBackingTrendTests: StoreBackedTestCase {
     /// the wrong cause.
     func testEveryFixedBackingStaysInOneBucket() {
         let fixed = ["jamBacking", "basicRock", "ladder-eighths", "offbeat-0"]
-        XCTAssertEqual(Set(fixed.map(TrainerEngine.BackingGroup.init(grooveName:))), [.fixed])
+        XCTAssertEqual(Set(fixed.map(BackingGroup.init(grooveName:))), [.fixed])
     }
 
     func testTwoSeedsOfOneStyleAreTheSameGroupAndTwoStylesAreNot() {
-        XCTAssertEqual(TrainerEngine.BackingGroup(grooveName: driving(1).name),
-                       TrainerEngine.BackingGroup(grooveName: driving(999).name))
+        XCTAssertEqual(BackingGroup(grooveName: driving(1).name),
+                       BackingGroup(grooveName: driving(999).name))
         XCTAssertNotEqual(
-            TrainerEngine.BackingGroup(grooveName: driving(1).name),
-            TrainerEngine.BackingGroup(grooveName: BackingIdentity(style: "pocket", seed: 1).name))
+            BackingGroup(grooveName: driving(1).name),
+            BackingGroup(grooveName: BackingIdentity(style: "pocket", seed: 1).name))
     }
 
     /// A fixed group's title has to be byte-identical to what it has always printed, or every
     /// figure quoted against "Jams at 100 BPM" stops matching the readout it came from.
     func testAFixedGroupAddsNothingToItsTitle() {
-        XCTAssertEqual(TrainerEngine.BackingGroup.fixed.label, "")
-        XCTAssertEqual(TrainerEngine.BackingGroup.style("driving").label, ", driving")
+        XCTAssertEqual(BackingGroup.fixed.label, "")
+        XCTAssertEqual(BackingGroup.style("driving").label, ", driving")
     }
 
     // MARK: - End to end, through the path that ships

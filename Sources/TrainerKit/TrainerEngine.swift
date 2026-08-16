@@ -1043,7 +1043,7 @@ public enum TrainerEngine {
                 // Tempo bias is the metric worth trending: it is measured reliably every
                 // time, whereas the clock/motor split often is not.
                 metric: r.tempoBiasBpm ?? .nan, metricLabel: "tempo bias (BPM)",
-                group: DropoutKey(silentBars: session.silentBars,
+                group: ContinuationTask(silentBars: session.silentBars,
                                   rung: session.rung).title)
         }
     }
@@ -1058,7 +1058,7 @@ public enum TrainerEngine {
                       + "\(r.cleanCount)/\(r.marksPlaced) clean",
                 feelRating: s.feelRating, headline: r.headline,
                 metric: r.onFormRate * 100, metricLabel: "on form (%)",
-                group: FormKey(level: s.level, phraseBars: s.phraseBars).title)
+                group: FormTask(level: s.level, phraseBars: s.phraseBars).title)
         }
     }
 
@@ -1570,119 +1570,15 @@ public enum TrainerEngine {
         }
     }
 
-    /// Which band played, for the purpose of fitting a line through a series.
-    ///
-    /// **The split is fixed against generated, and the generated side keys on the style rather
-    /// than the seed.** `BackingIdentity.parse` already draws exactly that line — a name without
-    /// an `@` is a fixed backing, which is every take recorded before M19 — so this is not a new
-    /// concept and needs no schema change.
-    ///
-    /// Three ways to do it and this is the third. Keying on the full `grooveName` makes every seed
-    /// a group of one, and `TrendAnalysis.minimumPoints` is 3, so the 21-take free-jam series —
-    /// the longest in the project — would vanish along with the fixed group worth keeping.
-    /// Excluding generated takes keeps the history and throws away every future training take,
-    /// which is where most playing happens. This keeps the old series intact and lets `driving`
-    /// accumulate its own across sittings.
-    ///
-    /// **Every fixed backing is one bucket, deliberately.** `basicRock` and `jamBacking` pool
-    /// together exactly as they did before this change, with the same warning naming the mix.
-    /// Splitting them would be a defensible readout and a different one, and re-scoring the
-    /// project's headline series while building something else is how a finding gets attributed
-    /// to the wrong cause.
-    ///
-    /// Whether two seeds of one style pool honestly is argued in §7.29 step 7 and **not measured**:
-    /// no take over a generated backing exists yet. §9 open question 10 carries it, and the group
-    /// says so out loud rather than implying it is settled.
-    enum BackingGroup: Hashable, Comparable {
-        /// Every take recorded before M19, whichever fixed groove it played.
-        case fixed
-        /// A generated backing, keyed on the style. Two seeds land here together.
-        case style(String)
-
-        init(grooveName: String) {
-            self = BackingIdentity.parse(grooveName).map { .style($0.style) } ?? .fixed
-        }
-
-        /// Empty for `fixed`, so every title this project has ever printed is unchanged.
-        var label: String {
-            switch self {
-            case .fixed: return ""
-            case .style(let name): return ", \(name)"
-            }
-        }
-
-        static func < (a: BackingGroup, b: BackingGroup) -> Bool {
-            switch (a, b) {
-            case (.fixed, .fixed):            return false
-            case (.fixed, .style):            return true
-            case (.style, .fixed):            return false
-            case (.style(let x), .style(let y)): return x < y
-            }
-        }
-    }
-
-    /// A group of jams comparable enough to fit one line through: same tempo, same rung.
-    private struct GroupKey: Hashable, Comparable {
-        let bpm: Int
-        let rung: String?
-        /// Which band, at the resolution a trend can honestly use.
-        ///
-        /// A fourth confound axis beside tempo, rung, feel and the offbeat level, and it arrives
-        /// for the reason the other three did: §7.24 step 8 and §7.27 between them retracted three
-        /// verdicts that were the *task* changing rather than the player. Naming a confound is the
-        /// floor and separating it is the fix (R3.4 against R3.5, `LESSONS.md` shape 19) — and the
-        /// closing jam rotating its style between sittings would otherwise put a new backing into
-        /// this group every evening, with the warning growing an entry each time.
-        let backing: BackingGroup
-        /// Feel joins tempo and rung as a confound axis: a swung take and a straight one at the
-        /// same tempo and rung are different tasks, and a line fitted across the change would
-        /// be measuring the change.
-        let swingRatio: Double?
-        /// So does the offbeat drill, and it is the sharpest case of the three.
-        ///
-        /// An offbeat take stores no rung and no swing, so without this it keys identically to a
-        /// free jam and lands in the group the project reads its progress from. The first one
-        /// ever recorded did exactly that: a 48.4 ms spread — by a wide margin the worst take on
-        /// record, and a different task — fitted into "Jams at 100 BPM" alongside 21 free jams,
-        /// with only a mixed-backings warning to name it (§7.24 step 8).
-        let offbeatLevel: Int?
-
-        var label: String {
-            let rungPart = rung.flatMap { IntervalRung(rawValue: $0)?.label }.map { ", \($0)" } ?? ""
-            let feelPart = swingRatio.flatMap { Feel(swingRatio: $0) }
-                .map { ", \($0.label)" } ?? ""
-            let offbeatPart = offbeatLevel.flatMap(OffbeatLevel.init(rawValue:))
-                .map { ", offbeat level \($0.rawValue) — \($0.label)" } ?? ""
-            return rungPart + feelPart + offbeatPart + backing.label
-        }
-
-        /// The one name for this group.
-        ///
-        /// **Read by the trend card and by the history chart**, so the two cannot draw different
-        /// groups under one heading. The chart used to plot a single line through every take of a
-        /// drill while the cards beneath it split the same takes four ways and warned about the
-        /// confounds — a reader who sees one line has been shown one line (`LESSONS.md` shape 19).
-        var title: String { "Jams at \(bpm) BPM\(label)" }
-
-        static func < (a: GroupKey, b: GroupKey) -> Bool {
-            if a.bpm != b.bpm { return a.bpm < b.bpm }
-            if (a.rung ?? "") != (b.rung ?? "") { return (a.rung ?? "") < (b.rung ?? "") }
-            if (a.swingRatio ?? 1) != (b.swingRatio ?? 1) {
-                return (a.swingRatio ?? 1) < (b.swingRatio ?? 1)
-            }
-            if (a.offbeatLevel ?? -1) != (b.offbeatLevel ?? -1) {
-                return (a.offbeatLevel ?? -1) < (b.offbeatLevel ?? -1)
-            }
-            return a.backing < b.backing
-        }
-    }
-
     /// The group a take belongs to. One construction site, because two would let the set of
     /// groups and the filter that fills them disagree about what a group is.
-    private static func groupKey(_ take: JamSession) -> GroupKey {
-        GroupKey(bpm: Int(take.bpm), rung: take.rung,
-                 backing: BackingGroup(grooveName: take.grooveName),
-                 swingRatio: take.swingRatio, offbeatLevel: take.offbeatLevel)
+    ///
+    /// The rules themselves are `TimingCore.JamTask`'s (§7.60). What is left here is the part that
+    /// needs storage and `GrooveCore`: reading the fields off a stored take.
+    private static func groupKey(_ take: JamSession) -> JamTask {
+        JamTask(bpm: Int(take.bpm), rung: take.rung,
+                backing: BackingGroup(grooveName: take.grooveName),
+                swingRatio: take.swingRatio, offbeatLevel: take.offbeatLevel)
     }
 
     private static func jamTrends() -> [TrendSeries] {
@@ -1767,38 +1663,10 @@ public enum TrainerEngine {
         }
     }
 
-    /// Silence length **and** rung: both change the task. A longer silence is harder, and a
-    /// rung changes the note value being sustained, which is §7.23 trap 3 inside this drill.
-    ///
-    /// **Here an absent rung really does mean quarters**, and that is the opposite of the rule
-    /// for jams. The two are decided by what the player was told, not by the field: a jam with
-    /// no rung says *play what you like*, which is a different task from quarters, while
-    /// `DrillInstructions.dropout(rung:)` returns the *same text* for `nil` and for `.quarters`
-    /// — "Play exactly ONE NOTE PER BEAT" — because this drill has demanded one note per beat in
-    /// words since M6. Grouping them apart would split one task in two on a distinction the
-    /// player was never shown (`LESSONS.md` shape 13, and §7.24 step 1 for the jam side).
-    private struct DropoutKey: Hashable, Comparable {
-        let silentBars: Int
-        let rung: IntervalRung
-
-        init(silentBars: Int, rung: String?) {
-            self.silentBars = silentBars
-            self.rung = rung.flatMap(IntervalRung.init(rawValue:)) ?? .quarters
-        }
-
-        /// One name, read by the card and the chart alike. See `GroupKey.title`.
-        var title: String { "Continuation drill — \(silentBars)-bar silences, \(rung.label)" }
-
-        static func < (a: DropoutKey, b: DropoutKey) -> Bool {
-            a.silentBars != b.silentBars
-                ? a.silentBars < b.silentBars : a.rung.rawValue < b.rung.rawValue
-        }
-    }
-
     private static func dropoutTrends() -> [TrendSeries] {
         groupedTrends(
             SessionStore.loadAllDropout(),
-            by: { DropoutKey(silentBars: $0.silentBars, rung: $0.rung) },
+            by: { ContinuationTask(silentBars: $0.silentBars, rung: $0.rung) },
             title: { $0.title },
             rows: { group in
                 let reports = group.map { $0.report() }
@@ -1816,24 +1684,10 @@ public enum TrainerEngine {
             })
     }
 
-    /// Level and phrase length. The level is a *ladder* — it is meant to rise — so a line fitted
-    /// across it measures the promotion rather than the player, and on-form rate falling as the
-    /// landmarks are removed is the drill working rather than the player getting worse.
-    private struct FormKey: Hashable, Comparable {
-        let level: Int
-        let phraseBars: Int
-        /// One name, read by the card and the chart alike. See `GroupKey.title`.
-        var title: String { "Form drill — level \(level), \(phraseBars)-bar phrases" }
-
-        static func < (a: FormKey, b: FormKey) -> Bool {
-            a.level != b.level ? a.level < b.level : a.phraseBars < b.phraseBars
-        }
-    }
-
     private static func formTrends() -> [TrendSeries] {
         groupedTrends(
             SessionStore.loadAllForm(),
-            by: { FormKey(level: $0.level, phraseBars: $0.phraseBars) },
+            by: { FormTask(level: $0.level, phraseBars: $0.phraseBars) },
             title: { $0.title },
             // **Two rows, because the drill has two axes and they are peers.** §7.40 made
             // `cleanRate` a peer of `onFormRate` in the report, the planner's input and both
@@ -1954,5 +1808,32 @@ public enum TrainerEngine {
         }
         try player.run(forSeconds: runLength(config.durationSeconds, player),
                        progress: progress, cancellation: cancellation)
+    }
+}
+
+/// Which group a stored take's groove name falls in.
+///
+/// `BackingGroup` is `TimingCore`'s, because the *rule* — fixed against generated, generated keyed
+/// on the style rather than the seed — is a grouping decision and belongs with the rest of them
+/// (§7.60). Reading it off a name is `BackingIdentity`'s job and `BackingIdentity` is `GrooveCore`'s,
+/// so the parse cannot live beside the enum. It lives here instead, and it is still the one place
+/// the rule is spelled — `groupKey` and `GeneratedBackingTrendTests` both come through it.
+extension BackingGroup {
+    init(grooveName: String) {
+        self = BackingIdentity.parse(grooveName).map { .style($0.style) } ?? .fixed
+    }
+}
+
+/// `JamTask`'s name, with the offbeat level's word filled in.
+///
+/// **The one place that resolves it.** `OffbeatLevel` is `GrooveCore`'s, and `TimingCore` depends on
+/// nothing (R1.1.3), so the pure key takes the level's name as a function instead of looking it up.
+/// This is the only caller that supplies one — which is what keeps *"one name, read by the card and
+/// the chart alike"* true across the module boundary rather than in spite of it.
+///
+/// An unrecognised level drops the clause rather than printing a raw number beside a missing word.
+private extension JamTask {
+    var title: String {
+        title(offbeatLevelName: { OffbeatLevel(rawValue: $0)?.label })
     }
 }

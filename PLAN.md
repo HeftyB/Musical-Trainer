@@ -237,7 +237,7 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M15** | The feels | ✅ Done. Swing measured as placement, and the ska/reggae offbeat drill. Three offbeat takes and two swung ones. **Jazz comping moved to M23** and latin was never scoped — the original line promised both. See §7.24, §7.38. |
 | **M16** | Form ladder v2 | ✅ Done, steps 0–4. The form drill's two axes split into peers, then a ladder each: the levels promoted on landing cleanly, the phrase span on knowing the bar, and a named chooser between them. See §7.26 and §7.40–§7.45. |
 | **M16.5** | The skank family | Step 0 built — both candidate figures, both rendered, the organ to hear them on. **The choice between them is blocked on M26**, not on code: the player heard neither as a bubble and named the tone handicap as the cause. See §7.55, §7.56, §7.59. |
-| **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. **A correctness milestone, not a tidying one** — §7.52 is what four rules reading one corpus through four filters costs. Step 0 is §7.57 item 3. See §7.59. |
+| **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. **A correctness milestone, not a tidying one** — §7.52 is what four rules reading one corpus through four filters costs. **Step 0 is built** — one list of what makes a task, in `TimingCore`. See §7.59, §7.60. |
 | **M18** | Longitudinal model | Within-session vs between-session effects, separated properly. **Gated on sittings rather than scheduled**; §7.59 states how many. |
 | **M19** | Musical depth | ✅ Done and proven live. A style format, a bass, four approved styles, a seeded arranger, and the planner picking a band for the closing jam. See §7.29, §7.33, §7.34. |
 | **M20** | Drum mode | Pads and keys become the kit; the click becomes the band. |
@@ -8127,13 +8127,15 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 550 of 832 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 282 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 566 of 848 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 282 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
 **Items 1 and 2 are closed — see §7.58**, which also corrects item 2's cost, stated too high here.
+**Item 3 is closed — see §7.60**, which landed it as M17's step 0 rather than as a chore, and moved
+what CI covers from 550 of 832 cases to 566 of 848.
 
-Item 3 is one branch and is the one with a measurement argument behind
+Item 3 was the one with a measurement argument behind
 it rather than a hygiene argument. Item 4 is a decision rather than a task — the options are a macOS
 agent on hardware that is not the workstation, or writing down that the hook is the enforcement so
 its readers know they are it (shape 21's own fallback). Items 5 and 6 are small enough to ride along.
@@ -8302,6 +8304,67 @@ correlation nobody has measured.
 
 ---
 
+## 7.60 M17 step 0 — one list of what makes a task, where CI can read it
+
+§7.57 item 3, and the first commit of M17 rather than a chore done beside it (§7.59).
+
+### What moved
+
+`GroupKey`, `BackingGroup`, `DropoutKey` and `FormKey` were private types inside `TrainerEngine` —
+in the module that links CoreAudio, CoreMIDI and AVFoundation, on the side of the boundary the
+Linux CI leg cannot compile. They are now `JamTask`, `BackingGroup`, `ContinuationTask` and
+`FormTask` in `TimingCore/TaskIdentity.swift`, unchanged.
+
+R1.1.1 says anything analysable goes in a pure module, and *"are these two takes the same task"* is
+the most analysable question in the project. It is also the question three shipped defects were
+about — §7.24 step 8 pooled the first skank ever recorded with 21 free jams, §7.48 drew one chart
+line through groups the cards beneath it refused to pool, and §7.52 fed every skank to the **planner**
+as an ordinary jam. All three were reachable only through a type that needs audio hardware to
+instantiate, so none of them was reachable by the leg of CI that runs on every push.
+
+**Sixteen tests now cover the list, and CI runs them.** What CI covers goes from 550 of 832 cases to
+**566 of 848** — the first movement in that ratio since the review recorded it, and it lands on the
+rules with the worst defect history in the codebase.
+
+### The boundary, and what stayed behind
+
+`TimingCore` depends on nothing (R1.1.3), and two things this logic used live in `GrooveCore`:
+`BackingIdentity`, which parses a groove name, and `OffbeatLevel`, which names a level. Neither
+could come. Both are resolved at the boundary rather than by weakening the rule:
+
+- **The groove-name parse** is an `extension BackingGroup` in `TrainerKit`, where both modules are
+  visible. The *rule* — fixed against generated, generated keyed on the style rather than the seed —
+  is a grouping decision and sits with the other grouping decisions; reading it off a stored string
+  is not. One construction site still, and `GeneratedBackingTrendTests` comes through it.
+- **The offbeat level's word** is injected: `JamTask.title(offbeatLevelName:)` takes a function, and
+  `TrainerKit` supplies the one implementation. `OffbeatAnalysis.suggestedLevel` already crosses this
+  boundary the same way, taking an `Int` because the enum is `GrooveCore`'s. The level *number* is an
+  axis and belongs here; what it is called is the backing module's word.
+
+An unrecognised level now **drops its clause** rather than printing `offbeat level 9 — ` with nothing
+after it, which is the honest behaviour and was not reachable before.
+
+### The guard that came out of writing it down
+
+`JamTask.rung` is a `String?` — the stored raw value, not an `IntervalRung`. That was true before the
+move and looked like laziness; writing the doc comment made it load-bearing. **Decoding to the enum
+would fold every unrecognised string into `nil`, and `nil` is free playing** — the largest and oldest
+group in the corpus, and the series this project reads its progress from. A rung written by a newer
+build would join it silently. As a string it groups on its own, and `title` gives it no name, so it
+appears as a distinct unnamed group rather than as extra free jams.
+
+That is `LESSONS.md` shape 13's shape again — a default that is not the identity — caught in a field
+that already had the right behaviour for no recorded reason. It has a test now.
+
+### What did not change, and how that is known
+
+Every title, every grouping and every sort order. The evidence is that **all 832 tests that existed
+before this branch pass unmodified**, including `TrendGroupingTests` and `ChartsAndTrendsAgreeTests`,
+which are the two suites that exercise grouping through the engine. The only test edit was
+`GeneratedBackingTrendTests` naming `BackingGroup` instead of `TrainerEngine.BackingGroup`.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8325,9 +8388,9 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   832 cases
+└── Tests/                   848 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     417 cases against synthetic ground truth
+    ├── TimingCoreTests/     433 cases against synthetic ground truth
     ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
     └── TrainerKitTests/     282 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
