@@ -66,15 +66,16 @@ place the distinction now lives.
 the capture's dedup window, `gappyLag1`'s misattached argument, the unguarded capture state and a
 take reporting a note count from a different read than the one it analysed (§7.58) — and four items
 remain. **The gate passed before that review and passes after it**, so read §7.57's table before
-assuming green means reviewed. The two worth knowing before touching anything: task identity
-(`GroupKey` and its siblings) is pure logic sitting in `TrainerKit` where CI cannot reach it, and CI
-compiles **none** of the macOS code — the pre-commit hook is the only thing that ever builds
-`TrainerKit`, the app or `TimingSpike`.
+assuming green means reviewed. **Item 3 is also closed** (§7.60): task identity now lives in
+`TimingCore/TaskIdentity.swift` as `JamTask`, `ContinuationTask`, `FormTask` and `BackingGroup`,
+which is where to go to change what makes two takes comparable. Three items remain, and the one
+worth knowing before touching anything is that CI compiles **none** of the macOS code — the
+pre-commit hook is the only thing that ever builds `TrainerKit`, the app or `TimingSpike`.
 
 **The roadmap was reordered on 15 August** (§7.59), and the number is an identifier rather than an
 order. **M26, the kit, sits in front of M16.5, M20 and M23** — a kit that cannot deliver a genre
 has blocked twice, and the second time it blocked a measurement decision rather than a name. M17 is
-a correctness milestone rather than a tidying one, and its step 0 is §7.57 item 3. M18 is gated on
+a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
 six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
 entirely while being cited here as the thing to trust; it now carries them.
 
@@ -446,7 +447,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 550 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 566 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (282 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -499,7 +500,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 832 tests, no hardware needed
+swift test                              # 848 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
