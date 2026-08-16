@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 571 of 863 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 292 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 572 of 877 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 305 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -8504,6 +8504,160 @@ is grouped correctly rather than being grouped by a rule written after seeing it
 
 ---
 
+## 7.63 M26 item 1 — a drum hit harder is a different sound
+
+The first change to the kit itself, and the first to trip §7.62's guard.
+
+### What changed
+
+Every unpitched voice now renders at **four strengths** instead of one, and the player picks the
+layer from the hit's velocity before anything is scheduled. The render callback still indexes a flat
+table and still never asks how hard a hit was (R2.3); the table just has four times as many rows.
+
+**The boundaries come from what the styles actually write**, not from a tidy split. The patterns use
+velocities from 40 to 108, clustered hard at 100: 40–60 for ghost notes and quiet timekeeper steps,
+80–100 for everything that marks the beat. Four layers put the ghosts genuinely on their own —
+three would have grouped 40 with 76, and the distance between those two is the milestone.
+
+| Layer | Velocities | Strength | What it is |
+|---|---|---|---|
+| 0 | 1–55 | 0.30 | ghost notes, quiet timekeeper steps |
+| 1 | 56–79 | 0.55 | the middle of an accented hat line |
+| 2 | 80–103 | **0.75 — nominal** | the backbeat, and every take on record |
+| 3 | 104–127 | 1.00 | the hardest thing a pattern asks for |
+
+### Two properties that hold it together
+
+**The nominal layer is the sound this kit has always made.** Every strength-dependent term goes
+through `tilt`, which returns exactly 1 at nominal — *returns*, rather than computing `soft + (1 −
+soft)·1`, which in binary floating point is 0.9999999999999999 at `soft = 0.3`. A hair on every
+sample would have moved the kit fingerprint and re-scored the backing of 104 takes to no purpose. A
+test walks the soft/hard pairs the voices actually use and asserts an exact 1.
+
+**Strength carries timbre and length; loudness stays velocity's job.** Every layer is peak-matched to
+the nominal one, so the gain formula is untouched and no new clipping is reachable — a hard layer
+that were both brighter *and* hotter could push a coincident kick and crash past 0 dBFS on a
+downbeat. `selftest` reports the mix peaking at 0.59 and every dynamics render lands between 0.12
+and 0.58.
+
+### What each voice does with it
+
+Per voice, not one global tilt — §7.30's direction was *"no shortcuts"*, and a shelving filter over
+a finished buffer is the shortcut. The snare is the voice §7.30 names: a hard hit throws the snares
+and the rattle dominates, a ghost barely engages them and what is left is the head, over much sooner.
+The kick moves the beater against the body, because on a hard kick the click *is* the attack. The hat
+gets noisier and rings longer. The crash is the voice where length simply is the dynamic.
+
+**The shaker ignores strength, and that is the interesting one.** Its own doc comment already said
+why — *"a shaker that could be accented would become a second snare"* — so it is the one voice where
+the correct response to a harder hit is no response. There is a test asserting it stays that way.
+
+### The guard worked, and so did its instruction
+
+`testTheLiveKitIsStillTheOneEveryTakeOnRecordHeard` failed on the first build, which is what §7.62
+built it to do. It also caught something else: the fingerprint moved *before* the layers existed,
+because one edit had routed the cowbell's `tanh` through `saturate`, which works in `Float` where the
+original was `Double`. A rounding difference in one voice, found by a test written for a different
+purpose an hour earlier.
+
+The kit is now `e4304cb6e4c3`, and `KitGroup.known` names it "velocity layers". **The list is appended
+to, never edited**: each row describes a kit that takes were played over, so correcting one would
+re-label takes that heard something else. A kit missing from the list still groups correctly and
+prints its digest instead of a name.
+
+### What is not done
+
+**The bass and organ are not layered.** They are pitched, so layering them multiplies buffers by
+notes — 25 bass notes × 4 layers — and neither has a dynamic role in any current pattern. A gap
+rather than a decision, and it is where this should go next if the ear asks for it.
+
+**Nobody has heard it yet.** `render` now writes a `dynamics-<voice>` file per voice: four bars, one
+per layer, four hits a bar, nothing else playing. That is the file this milestone is judged on.
+`selftest` can say the mix does not clip and a test can say the buffers differ; whether a ghost note
+stops sounding like a fader move is a listening question, and §7.56 is what happens when one of those
+gets answered by argument instead.
+
+---
+
+## 7.64 The layers were inaudible, and every test passed
+
+§7.63 shipped velocity layers. The listening verdict:
+
+> I listened to the files, it sounds like the same sound just quieter to louder.
+
+**The milestone's own goal, not met** — and nothing in the suite noticed, because the tests asserted
+the layers were *different* and a difference nobody can hear satisfies that.
+
+### What the measurement said
+
+Nothing had ever measured the thing the layers exist to move. Adding a spectral centroid and an
+audible-duration function took ten minutes and settled it immediately:
+
+| Voice | Soft centroid | Hard centroid | Ratio |
+|---|---|---|---|
+| snare | 349 Hz | 1189 Hz | 0.29 |
+| **closed hat** | 6609 Hz | 6449 Hz | **1.02 — and the wrong way round** |
+| **kick** | 114 Hz | 130 Hz | **0.88** |
+| **ride** | 5183 Hz | 5292 Hz | **0.98** |
+
+The snare moved because its two components — head and rattle — sit in different registers, so
+shifting the balance between them shifts the spectrum. Every other voice's components sit on top of
+each other, and rebalancing them moves nothing. **The first pass changed what the voices were made
+of and not where their energy sat**, which is the half an ear listens to.
+
+### Three fixes, and one of them was a bug
+
+**Darkening, relative to the voice's own centroid.** A softer strike excites fewer high modes, and
+that cannot be expressed as a rebalance of components already present — it needs a filter. Cutoff
+scales with the voice's *own* centroid rather than an absolute corner, because one corner cannot
+serve a kick at 128 Hz and a hat at 6.4 kHz: it annihilates one or misses the other.
+
+**Capping the peak instead of matching it.** Matching was in §7.63 as the clipping guarantee, and
+darkening exposed what it does: filtering lowers a layer's peak, matching scales it back up, and the
+ghost snare came out carrying *more* total energy than the backbeat — 198 against 209. A quiet stroke
+that carries more energy than a loud one is not a quiet stroke. Capping keeps the guarantee (nothing
+is hotter than what already shipped) and lets a soft layer be genuinely quieter, so the timbre and
+the velocity gain pull the same way instead of against each other.
+
+**The shaker was being accented.** `raw` honoured the opt-out and `render` darkened it anyway, so
+**the one voice documented as unaccentable had the largest timbre change per unit of velocity in the
+kit** — 0.51 of its own centroid. `LESSONS.md` shape 21 inside a single file: the rule was in one of
+the two places that had to honour it. `DrumSynth.unaccented` is the one list now.
+
+After: energy ratios run 0.02–0.14 and centroid ratios 0.14–0.78, against 0.88–1.02 before.
+
+### The tom is the exception, and it is an honest one
+
+It measures 0.95 and no tuning fixes it: the tom is a pure pitch-swept sine with no noise, click or
+wash, so a softer strike has nothing to fail to excite. Every other voice in the kit has a component
+that a soft hit leaves alone. **The fix is a stick transient**, which is synthesis work rather than
+tuning, and it is not done. A test asserts the tom *stays* the exception, so if it ever moves the
+exception gets removed rather than accumulating company.
+
+### The lesson, which is about the tests rather than the synthesis
+
+**A test that a value changed cannot protect a value changing enough.** `testEveryLayeredVoiceRespondsToStrength`
+asserted `XCTAssertNotEqual` on two buffers and passed on a 2% difference in the wrong direction. It
+was not a weak test by accident — it was the strongest assertion available *without a measurement*,
+and the measurement did not exist because nothing had needed it yet.
+
+That is `LESSONS.md` shape 18's family — a guard on the wrong quantity — and shape 11 for the
+ranges themselves, which were reasoned to rather than measured and were wrong. The thresholds now in
+the suite are floors well below what the kit measures, so ordinary tuning does not trip them and a
+collapse back toward one-buffer-two-gains does.
+
+### The pin moved, which the rule usually forbids
+
+`KitGroup.velocityLayeredFingerprint` was edited rather than appended to. That is safe **only**
+because the kit it named never reached a stored take: it existed inside an open branch, was found
+inaudible, and was retuned before anything was recorded over it. A row nobody's data points at is a
+draft rather than history. After a kit has been played over, append.
+
+---
+
+## 8. Project layout
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8527,11 +8681,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   863 cases
+└── Tests/                   877 cases
     ├── TestSupport/         shared generators — not a test target
-    ├── TimingCoreTests/     438 cases against synthetic ground truth
+    ├── TimingCoreTests/     439 cases against synthetic ground truth
     ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     292 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     305 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

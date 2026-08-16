@@ -111,10 +111,18 @@ extension KitFingerprintTests {
     ///
     /// The pinned value is history and never moves. What moves is the kit, and a second era is
     /// added rather than this constant being edited.
-    func testTheLiveKitIsStillTheOneEveryTakeOnRecordHeard() {
-        XCTAssertEqual(BackingKit.fingerprint, KitGroup.originalFingerprint,
+    func testTheLiveKitIsOneThisProjectHasNamed() {
+        XCTAssertEqual(BackingKit.fingerprint, KitGroup.known.last?.fingerprint,
                        "A voice changed. That is allowed — but takes over this kit are a different "
-                     + "task from the 104 on record, so add the era to `KitGroup` rather than "
-                     + "editing the pinned original. See PLAN.md §7.62.")
+                     + "task from every take before it, so **append** an era to `KitGroup.known` "
+                     + "rather than editing one. See PLAN.md §7.62 and §7.63.")
+    }
+
+    /// The list is history, so a row may be added and none may be altered: editing one would
+    /// re-label takes that heard a different kit.
+    func testEveryKnownKitIsDistinctAndTheOriginalIsFirst() {
+        let fingerprints = KitGroup.known.map(\.fingerprint)
+        XCTAssertEqual(Set(fingerprints).count, fingerprints.count, "a kit is listed twice")
+        XCTAssertEqual(fingerprints.first, KitGroup.originalFingerprint)
     }
 }

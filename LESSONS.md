@@ -494,6 +494,20 @@ data that spoiled the answer.
 
 ---
 
+**A newer instance, and it is a *test* rather than a gate.** M26's velocity layers asserted
+`XCTAssertNotEqual` between a soft buffer and a hard one — the presence of a difference, where what
+mattered was its size. It passed on a closed hat whose spectral centroid had moved 2%, in the wrong
+direction, and the milestone shipped inaudible (§7.64). The assertion was not weak by accident: it
+was the strongest thing available *without a measurement*, and no measurement existed because
+nothing had needed one yet.
+
+**Guard:** when the point of a change is that something moves *enough*, the test needs a quantity
+and a threshold. If neither exists, building the measurement is part of the work rather than a
+follow-up — and the threshold belongs well below what the implementation achieves, so ordinary
+tuning does not trip it and a collapse does.
+
+---
+
 ## 19. A confound named rather than separated
 
 Printing a warning beside a verdict, and printing the verdict anyway.
@@ -603,6 +617,11 @@ paying attention and stops the first time an afternoon gets productive.
 the right file, in the right words, in the comment the broken field is declared immediately above,
 by a pass explicitly hunting for that defect. Proximity is not enforcement, and neither is having
 just thought about it.
+
+- **"The shaker is deliberately unaccentable"** was a doc comment on the voice and a `case` in
+  `raw` that ignored strength — and `render`, eight lines away, darkened every layer including that
+  one. **The one voice documented as unable to be accented had the largest timbre change per unit of
+  velocity in the kit** (§7.64). Both halves now read one `DrumSynth.unaccented`.
 
 **The tell is uniform**: the rule reads as advice, the cost of ignoring it is diffuse and lands
 later, and whoever breaks it is being productive rather than careless. That is precisely the

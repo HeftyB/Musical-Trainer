@@ -1540,6 +1540,22 @@ public enum Commands {
              bars: 4)
         }
 
+        // **One file per voice showing what velocity now does to it** (§7.63). Four bars, one per
+        // layer, each bar four hits at that layer's own velocity — so the ear hears a ghost bar,
+        // then two middles, then a hard bar, on one voice with nothing else playing.
+        //
+        // This is the file the milestone is judged on. `selftest` can say the mix does not clip and
+        // a test can say the buffers differ; whether a ghost note stops sounding like a fader move
+        // is a listening question, and §7.56 is what happens when one gets answered by argument.
+        kitSubjects += BackingVoice.allCases.filter { !$0.isPitched }.map { voice in
+            (name: "dynamics-\(voice.rawValue)", rung: nil, feel: .straight,
+             arrangement: Arrangement(sections: BackingKit.layerCeilings.map { velocity in
+                Section(name: "v\(velocity)",
+                        pattern: Pattern.make([voice: [0, 4, 8, 12]], velocity: velocity), bars: 1)
+             }),
+             bars: 4)
+        }
+
         // **The bass, which this pass could not see and which was the worst offender.** Filtering
         // on `!isPitched` above is what kept the loudest truncation click in the kit out of
         // §7.29 step 6b's table for a whole milestone — `LESSONS.md` shape 3, a filter that hides

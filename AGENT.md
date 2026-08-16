@@ -74,11 +74,26 @@ pre-commit hook is the only thing that ever builds `TrainerKit`, the app or `Tim
 
 **The roadmap was reordered on 15 August** (§7.59), and the number is an identifier rather than an
 order. **M26, the kit, sits in front of M16.5, M20 and M23** — a kit that cannot deliver a genre
-has blocked twice, and the second time it blocked a measurement decision rather than a name. **M26's
-steps 0 and 1 are done** (§7.61, §7.62): every take records which kit it heard, and the kit is an
-axis on all three drill tasks — because it had already changed twice under the corpus with nothing
-keying on it, and M26 changes every voice at once. Changing a voice now fails a test by design. M17 is
-a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
+has blocked twice, and the second time it blocked a measurement decision rather than a name. **M26's steps 0 and 1 are
+done** (§7.61, §7.62): every take records which kit it heard, and the kit is an axis on all three
+drill tasks — because it had already changed twice under the corpus with nothing keying on it.
+Changing a voice now fails a test by design.
+
+**M26 item 1 is built and unheard** (§7.63). Every drum voice renders at four velocity layers, the
+boundaries taken from the velocities the styles actually write; the nominal layer is bit-identical to
+the sound 104 takes were played over, and every layer is peak-matched so loudness stays velocity's
+job. The kit is now `e4304cb6e4c3`, which `KitGroup.known` calls "velocity layers". **The bass and
+organ are not layered** — a gap rather than a decision. `render` writes a `dynamics-<voice>` file per
+voice, four bars, one per layer — that is the file the milestone is judged on.
+
+**The first tuning was listened to and failed**: *"it sounds like the same sound just quieter to
+louder"* (§7.64). Nothing in the suite caught it, because the tests asserted the layers *differed*
+and a 2% difference satisfies that. The retune added spectral darkening, capped peaks instead of
+matching them, and fixed the shaker being accented despite its opt-out. Energy ratios now run
+0.02–0.14 of the hard layer and centroid ratios 0.14–0.78, against 0.88–1.02 before. **Unheard
+again** — the second listening test has not happened.
+
+M17 is a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
 six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
 entirely while being cited here as the thing to trust; it now carries them.
 
@@ -288,9 +303,10 @@ the screen any more than it can hear the kit; both gaps close the same way.
 ./.build/release/TimingSpike render 100 8      # writes temp/renders/*.wav
 ```
 
-It writes **51 files**: ten ladder and demo backings, the five skank-family auditions M16.5
+It writes **64 files**: ten ladder and demo backings, the five skank-family auditions M16.5
 turns on (§7.55), four styles × four intensities, one seeded
-piece per style, thirteen `kit-<voice>` files, and `kit-bass` — which walks E1 to E3 in one file
+piece per style, thirteen `kit-<voice>` files, thirteen `dynamics-<voice>` files walking the velocity
+layers (§7.63), and `kit-bass` — which walks E1 to E3 in one file
 rather than taking twenty-five, since the lowest note is the one that matters. Two guards run
 automatically: `render` warns on any clipped sample,
 and `StyleHeadroomTests` mixes real buffers at 100 and 160 BPM because a mix goes hot where voices
@@ -450,8 +466,8 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 571 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (292 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 572 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (305 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -503,7 +519,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 863 tests, no hardware needed
+swift test                              # 877 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
