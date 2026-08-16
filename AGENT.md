@@ -75,8 +75,9 @@ pre-commit hook is the only thing that ever builds `TrainerKit`, the app or `Tim
 **The roadmap was reordered on 15 August** (§7.59), and the number is an identifier rather than an
 order. **M26, the kit, sits in front of M16.5, M20 and M23** — a kit that cannot deliver a genre
 has blocked twice, and the second time it blocked a measurement decision rather than a name. **M26's
-step 0 is done** (§7.61): every take now records which kit it heard, because the kit had already
-changed twice under the corpus with nothing keying on it, and M26 changes every voice at once. M17 is
+steps 0 and 1 are done** (§7.61, §7.62): every take records which kit it heard, and the kit is an
+axis on all three drill tasks — because it had already changed twice under the corpus with nothing
+keying on it, and M26 changes every voice at once. Changing a voice now fails a test by design. M17 is
 a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
 six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
 entirely while being cited here as the thing to trust; it now carries them.
@@ -449,8 +450,8 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 566 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (291 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 571 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (292 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -502,7 +503,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 857 tests, no hardware needed
+swift test                              # 863 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -688,6 +689,7 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 | Invariant | What happened without it |
 |---|---|
+| A kit change is a task change | The kit moved twice mid-corpus — a bass on 6 Aug, accented timekeepers and a fade over every one-shot on 7 Aug — while `BackingGroup` keys on the groove name, which did not change (§7.61). `KitGroup` is now an axis on all three drill tasks, and `KitFingerprintTests` pins the live kit to the one all 104 takes heard. **That test failing is the notification, not a defect**: add an era to `KitGroup` rather than editing the pin (§7.62). |
 | A take records which kit it heard | The kit changed twice mid-corpus — a bass on 6 Aug, accented timekeepers and a fade over every one-shot on 7 Aug — while `BackingGroup` keys on the groove name, which did not change. The longest series in the project, 21 free jams at 100 BPM, spans that with nothing saying so (§7.61). `kitFingerprint` is written on every take now and read by nothing; `nil` means unrecorded, never "the current kit". |
 | One CoreMIDI client per process, never disposed | `MIDIServer` is on-demand; disposing the last client lets it exit, and the next create fails with −50. First take worked, second didn't. |
 | Every field CoreMIDI's delivery thread touches is under `storageLock` | The dedup window was not. The delivery thread updated it before taking the lock and `reset()` cleared it after releasing, so a keyboard played between takes had both at once — one note swallowed as a duplicate or one double delivery admitted, with no incident raised either way. The field that broke it is declared immediately above the comment making the argument (§7.57). |
