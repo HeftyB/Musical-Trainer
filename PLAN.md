@@ -236,14 +236,26 @@ Ordered by risk, not by visibility. M0 is a throwaway console app that de-risks 
 | **M14** | Subdivision ladder + tempo | ✅ Done. Rungs, tempo ceilings derived from the matching window, a tempo-rotating training block, and `slow-vs-fast`. Six ladder takes on record across 80–140 BPM. See §7.23. |
 | **M15** | The feels | ✅ Done. Swing measured as placement, and the ska/reggae offbeat drill. Three offbeat takes and two swung ones. **Jazz comping moved to M23** and latin was never scoped — the original line promised both. See §7.24, §7.38. |
 | **M16** | Form ladder v2 | ✅ Done, steps 0–4. The form drill's two axes split into peers, then a ladder each: the levels promoted on landing cleanly, the phrase span on knowing the bar, and a named chooser between them. See §7.26 and §7.40–§7.45. |
-| **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. |
-| **M18** | Longitudinal model | Within-session vs between-session effects, separated properly. |
+| **M16.5** | The skank family | Step 0 built — both candidate figures, both rendered, the organ to hear them on. **The choice between them is blocked on M26**, not on code: the player heard neither as a bubble and named the tone handicap as the cause. See §7.55, §7.56, §7.59. |
+| **M17** | Unified adaptive difficulty | One progression model across all drills, replacing four ad-hoc rules. **A correctness milestone, not a tidying one** — §7.52 is what four rules reading one corpus through four filters costs. Step 0 is §7.57 item 3. See §7.59. |
+| **M18** | Longitudinal model | Within-session vs between-session effects, separated properly. **Gated on sittings rather than scheduled**; §7.59 states how many. |
 | **M19** | Musical depth | ✅ Done and proven live. A style format, a bass, four approved styles, a seeded arranger, and the planner picking a band for the closing jam. See §7.29, §7.33, §7.34. |
 | **M20** | Drum mode | Pads and keys become the kit; the click becomes the band. |
 | **M21** | Guitar input | Audio onset detection. Needs an interface. |
 | **M22** | Computer-keyboard input | For anyone who doesn't own a MIDI controller. |
+| **M23** | Jazz time | Deferred behind the instrument milestones, on a data problem rather than a code one. |
+| **M24** | Voice | Inherits M21's onset detection rather than M23's harmony. A sung or chanted skank is the same measurement as a played one. |
+| **M25** | Harmony | What the band plays under the player, rather than what the player is scored on. |
+| **M26** | The kit | **The synthesis work that makes a genre name true, and the milestone most other things are waiting on.** Blocks M16.5 today; blocked M19's style names before that. See §7.30, §7.59. |
+| **M27** | What makes a genre that genre | The classification problem underneath the name. |
 | **T1** | ✅ **Test infrastructure — the take factory** | A different axis from the M-sequence: what the project can verify about itself. Synthetic takes, a degenerate corpus, a macOS-only `TrainerKitTests` target, and a seam under the drill runners. Ordered **before M13's storage step**. See §7.22. |
 | — | *Later* | TD-6V; GarageBand via IAC Driver; MIDI/audio export of takes. |
+
+**The number is an identifier, not an order.** Six milestones were added after the original
+M9–M22 list and sit at the end of it because that is where the next free number was, not because
+that is when they happen — §7.13 has always ordered them by dependency in prose, and this table
+did not carry them at all until §7.59. What is actually next, and why, is in §7.59; the short
+version is that **M26 sits in front of M16.5, M20 and M23** rather than behind them.
 
 ---
 
@@ -1137,11 +1149,36 @@ Four drills now have four ad-hoc progression rules. Replace them with one model:
 difficulty estimate updated from measured performance, so the app can say "you are ready for
 8 silent bars but not 16" consistently and across drills.
 
+**This reads as consolidation and it is correctness.** There are now more than four ladders —
+interval rungs, form levels, phrase spans, offbeat levels — and behind them a spread estimate that
+decides *which rungs exist at all*. They are separate rules reading one corpus through separate
+filters, and §7.52 is what that costs: the planner's own input counted every skank as a free jam
+for the whole life of the offbeat drill, so the take that widened a trend also narrowed the ladder,
+and unlike a readout nothing about it was visible. One model is the guard against the next one.
+
+**Step 0 is §7.57 item 3**, moving task identity — `GroupKey`, `BackingGroup`, `DropoutKey`,
+`FormKey` — out of `TrainerKit` and into `TimingCore`. Three defects have been about that list
+(§7.24 step 8, §7.48, §7.52), it is pure logic, and it is currently on the side of the module
+boundary that CI cannot compile. M17 needs exactly that vocabulary, so it is the first commit
+rather than a chore done alongside.
+
 ### M18 — Longitudinal model
 Separate the two effects properly — within-session improvement (warm-up) from
 between-session improvement (learning) — instead of fitting one slope across everything.
 M10 does this for one metric at a time; this generalises it into a single model over all of
 them, and subsumes the current `review trend`.
+
+**It now has a live question and still not the data to answer it.** §7.53 recorded r₁ running
++0.44 to +0.72 across three different tasks in one afternoon, against a historical 0.13–0.50 —
+which is precisely the within-sitting-versus-between-sitting confound this milestone exists to
+separate, and precisely what a single slope through everything would report as learning.
+
+**Gated rather than scheduled, and the gate is stated so it can be met.** A model that separates
+two effects needs both to be estimable: **six sittings carrying the same task, with at least three
+takes of it per sitting.** Fewer than that and the between-sitting term is fitted on a handful of
+points whose spread is dominated by the within-sitting one — the failure §7.25 and §7.32 both
+found in smaller forms. The 13 August setlist is one such sitting. Playing is what advances this,
+not building.
 
 ### M19 — Musical depth
 Sectional arrangements with real dynamics, more styles, longer forms. No new measurement —
@@ -1246,6 +1283,25 @@ recordings that define what each requirement actually sounds like.
 **The synthesis work that makes a genre name true**, settled with the player on 7 August and
 argued in full in §7.30. The direction is explicit: keep the genre names, and make the kit good
 enough to deserve them. No shortcuts.
+
+**Promoted in front of M16.5, M20 and M23** — see §7.59. It is not a polish milestone; it is the
+one other milestones are waiting on, and it has now blocked twice with the second worse than the
+first. §7.33 cost four *style names*, renamed because a genre name claimed what the kit could not
+deliver. §7.56 cost a *measurement decision*: M16.5 cannot choose between the triplet bubble and
+the sixteenth one while neither can be heard as the thing it is supposed to be. A naming problem
+is embarrassing; a milestone that cannot be decided is stopped.
+
+**Items 1, 3 and 4 are what M16.5 needs**, and they are a smaller piece of work than the whole:
+velocity layers, room and deterministic variation. A bubble is articulation and dynamics before it
+is anything else, and the current kit has neither — one buffer scaled by gain, bone dry, every hit
+byte-identical to the last. Item 2 is architectural and can follow; item 5, the bass, is not in
+this figure's path.
+
+**Note length belongs to the figure, not to the voice**, which §7.56 found and nothing yet models.
+`OrganSynth.bodySeconds` is one number bounded by the tightest gap in the family, so every bubble
+is staccato by construction, and *"the triplets with the right voicing and more of a legato"* is
+outside what can currently be rendered. That seam is M16.5's, not M26's, but it is the same
+discovery and neither is much use without the other.
 
 Five things, in order of what each buys:
 
@@ -8151,6 +8207,101 @@ What was actually wrong there was smaller and in three parts, of which only the 
 
 ---
 
+## 7.59 The plan comes level with what is known
+
+Two reviews and one conversation with the player left the roadmap describing a project slightly
+different from this one. Nothing here is new work; it is the plan catching up to what §7.56, §7.57
+and the player have already established.
+
+### The milestone table was missing a third of the milestones
+
+`AGENT.md` says *"PLAN.md §7's milestone table carries the status of each and is the one to trust."*
+It carried M0–M22 and T1. **M16.5, M23, M24, M25, M26 and M27 were not in it at all** — they exist
+as prose in §7.13, which is where their dependency order lives, and the table that a reader is
+directed to as authoritative simply did not list them.
+
+That is `LESSONS.md` shape 17 in the structural register rather than the numeric one: not a stale
+figure, but a document pointing at another document as the source of truth for a set it does not
+contain. Six rows added, and a line under the table saying the number is an identifier rather than
+an order — because with these six included, numeric order and dependency order disagree badly
+enough that the table would mislead on its own.
+
+### M26 moves in front of the things waiting on it
+
+Argued at M26's own entry. The short form: a kit that cannot deliver a genre has now blocked twice,
+and the second block is worse than the first. §7.33 cost four style *names*. §7.56 cost a
+*decision* — M16.5 cannot choose between two figures while neither can be heard as what it is meant
+to be, and the player named the cause himself as the same handicap.
+
+Only items 1, 3 and 4 are on M16.5's path — velocity layers, room, deterministic variation. The
+whole milestone does not have to land to unblock the one waiting on it.
+
+### M17 is a correctness milestone, and its step 0 already exists
+
+Argued at M17's entry. §7.52 is the evidence and §7.57 item 3 is the first commit.
+
+### M18 is gated on sittings, and the gate is now a number
+
+Six sittings carrying the same task, three takes of it per sitting. Stated so it can be met and so
+nobody builds against one afternoon.
+
+### M21 and M22 stay, and the instrument axis is the genre axis
+
+A review draft proposed parking both on the grounds that they serve players who do not exist. **The
+player rejected that, and was right to.** He is the only user today and a public release is not
+ruled out; more to the point, *"not everyone plays keys"* is the design stance rather than an
+afterthought — he is a guitarist first, chose keys because it is the skill he is actively learning
+and the best-instrumented input available, and wants guitar, bass, mic'd piano and voice when the
+work reaches them.
+
+What he added is the shape the roadmap should be read in: **instrument and genre are one axis, not
+two.** Jazz is piano, drums and scat. Ska and reggae are guitar, organ and drums. A genre arrives
+with its instruments and its kit or it does not arrive.
+
+**The plan already contained that argument and had not connected it to the ordering.** The "M20
+note" says a guitar skank, an organ bubble and a drum one-drop are *the same measurement* with
+three inputs and three backings, and that a vocal skank is the same measurement again. M21's entry
+already knows the TS→USB adapter exists, already says the thing to characterise is **spread rather
+than offset**, and already warns that a driven amp smears the attack a detector needs. None of that
+needed writing. What it needed was to be read together: the seam M20/M21/M24 widen is the seam
+M26's kits sit in, and that is a third argument for M26 being early rather than late.
+
+### The 35 ms is not a chosen feel — the player says so
+
+§7.53 recorded the chop sitting ~35 ms ahead in every take and filed it as *"may be the feel he
+wants… an open question rather than a fault"*. **Asked directly, the answer is no:**
+
+> I do not know if the 35 ms I am ahead is intentional or not. Nor am I intentionally playing
+> loose. I just want my timing to be tight, in the pocket, and on the mark in a general sense.
+
+The question is answered and closed. It was worth asking rather than assuming, and the assumption
+the readouts were carrying — that a consistent deviation is probably a preference — was wrong for
+this player.
+
+**What it exposes is a different gap from the one it closes.** §10 added "on the mark" on the
+player's own words, with the rider that *"the measurement cannot tell those apart; the player
+can."* That rider assumed the player knows which side of the beat he is on. He has just said he
+does not. So the gap is not intent, it is **perception** — and a bias you cannot feel is one no
+amount of practice corrects, because nothing tells you which way to move.
+
+**The candidate instrument already exists in another form.** `review feel` asks whether a sense of a
+good take matches the measurement, and gets a correlation. The same pattern one level down: before
+any numbers, say whether that take felt **ahead, behind, or on it**, and correlate the answer
+against the measured bias. It is the rate-before-results discipline applied to direction rather
+than to quality, it needs no new drill and no new capture, and it settles which of two very
+different problems "on the mark" is:
+
+| If the correlation is | Then | And the work is |
+|---|---|---|
+| near zero | he cannot feel the direction he is off in | perception first — nothing else will stick |
+| strong | he can feel it and is not acting on it | a correction target, and bias stops being decoration |
+
+Not built, and deliberately not given a milestone number yet: it is one question on one screen, and
+the honest first move is to ask it on the next few takes rather than to design a subsystem around a
+correlation nobody has measured.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8225,5 +8376,10 @@ Not "SD under 10 ms," though that will happen. Success is:
   timing to be tight, in the pocket, and on the mark"* — because bias was not among these criteria
   and he says it should be. It sits **beside** §2 rather than against it: bias is never presented as
   failure, ~20–40 ms ahead is normal, and what this criterion asks is that any deviation be
-  *chosen* rather than arrived at. The measurement cannot tell those apart; the player can.
+  *chosen* rather than arrived at. ~~The measurement cannot tell those apart; the player can.~~
+  **The player cannot either, and said so** (§7.59): the ~35 ms is not a chosen feel and the looseness
+  is not deliberate. So this criterion has no instrument today — neither the app nor the player can
+  currently say which side of the beat a take sat on before the numbers appear, and a bias nobody
+  can feel is one nothing corrects. §7.59 carries the candidate: ask for the direction before the
+  numbers, the way `review feel` asks for the quality.
 - And the one that actually matters: an hour goes by and it felt like flow, not work.

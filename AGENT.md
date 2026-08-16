@@ -17,7 +17,7 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 
 ## Where the project is
 
-**M0–M16 and M19 are built.** M17, M18 and M20–M22 are not started; PLAN.md §7's milestone table
+**M0–M16 and M19 are built.** M17, M18, M20–M27 and M16.5's decision are not; PLAN.md §7's milestone table
 carries the status of each and is the one to trust. M14 has six ladder takes across 80–140 BPM,
 M15 has three swung takes and — as of 13 August — twelve offbeat ones. **The skank at 70 BPM /
 level 0 now has five takes and is the first offbeat series that can be fitted**: 100% off the beat
@@ -62,19 +62,30 @@ is the most transferable thing this review produced: a wrong readout shows a wro
 decision quietly changes what you are told to practise. `SessionStore.loadAllPlayAlong()` is the one
 place the distinction now lives.
 
-**A fourth codebase review ran on 14 August and left a queue** (§7.57). Two defects are closed — a
-data race on the capture's dedup window, and thirty-eight lines of `gappyLag1`'s argument bound to
-the wrong declaration — and six items are recorded rather than acted on. **The gate passed before it
-and passes after it**, so read §7.57's table before assuming green means reviewed. The two worth
-knowing before touching anything: task identity (`GroupKey` and its siblings) is pure logic sitting
-in `TrainerKit` where CI cannot reach it, and CI compiles **none** of the macOS code — the
-pre-commit hook is the only thing that ever builds `TrainerKit`, the app or `TimingSpike`.
+**A fourth codebase review ran on 14 August and left a queue** (§7.57). Four defects are closed —
+the capture's dedup window, `gappyLag1`'s misattached argument, the unguarded capture state and a
+take reporting a note count from a different read than the one it analysed (§7.58) — and four items
+remain. **The gate passed before that review and passes after it**, so read §7.57's table before
+assuming green means reviewed. The two worth knowing before touching anything: task identity
+(`GroupKey` and its siblings) is pure logic sitting in `TrainerKit` where CI cannot reach it, and CI
+compiles **none** of the macOS code — the pre-commit hook is the only thing that ever builds
+`TrainerKit`, the app or `TimingSpike`.
+
+**The roadmap was reordered on 15 August** (§7.59), and the number is an identifier rather than an
+order. **M26, the kit, sits in front of M16.5, M20 and M23** — a kit that cannot deliver a genre
+has blocked twice, and the second time it blocked a measurement decision rather than a name. M17 is
+a correctness milestone rather than a tidying one, and its step 0 is §7.57 item 3. M18 is gated on
+six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
+entirely while being cited here as the thing to trust; it now carries them.
 
 **The 13 August setlist is the first data since the review** (§7.53), and it carries three things
 worth knowing before touching a drill. **Holding a position the band never plays costs this player
 nothing in precision** — offbeat spread ~23 ms against ~25 for free jams — which is the number
-M16.5's whole premise has to beat. **The chop sits 35 ms ahead in every take**, which may be the feel
-he wants and is recorded as an open question rather than a fault. And **r₁ ran +0.44 to +0.72 across
+M16.5's whole premise has to beat. **The chop sits 35 ms ahead in every take, and it is not a feel he
+chose** — asked directly, he says he does not know whether it is intentional, is not playing loose
+on purpose, and wants to be *"tight, in the pocket, and on the mark"* (§7.59). The open question is
+closed, and it opened a different one: the criterion has no instrument, because neither the app nor
+the player can say which side of the beat a take sat on before the numbers appear. And **r₁ ran +0.44 to +0.72 across
 three different tasks in one afternoon**, against a historical 0.13–0.50 — an observation, not a
 finding, with fatigue as good an explanation as any, and the way to settle it written down.
 
