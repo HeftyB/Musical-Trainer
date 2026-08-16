@@ -37,14 +37,17 @@ enum TakeFactory {
                     generatedBacking: BackingIdentity? = nil,
                     // A day apart, like the other four factories. Two takes sharing a timestamp
                     // overwrite each other on disk (§7.22), so a trend needs distinct dates.
-                    dayOffset: Int = 0) -> JamSession {
+                    dayOffset: Int = 0,
+                    // `nil` is what every take recorded before §7.61 carries, so it is the
+                    // honest default for a synthetic one. A test about the kit axis sets it.
+                    kitFingerprint: String? = nil) -> JamSession {
         let g = customGrid ?? grid()
         let raw = p.taps(grid: g)
         let events = TapClustering.collapse(raw, windowSeconds: 0.035)
         let r = TimingAnalysis.analyze(taps: events, grid: g)
         return JamSession(
             date: Date(timeIntervalSince1970: 1_770_000_000 + Double(dayOffset) * 86_400),
-            bpm: g.bpm, device: "test-device",
+            bpm: g.bpm, device: "test-device", kitFingerprint: kitFingerprint,
             calibrationConstantMs: 2.58, calibrationSource: "measured",
             // The name the engine would have written, not a literal: an offbeat take is stored
             // under its backing, and a test that says "jamBacking" cannot see a confound the
@@ -79,6 +82,7 @@ enum TakeFactory {
                                      barsPerPhrase: phraseBars, totalBars: 64)
         return FormSession(
             date: Date(timeIntervalSince1970: 1_770_000_100 + Double(dayOffset) * 86_400),
+            kitFingerprint: nil,
             bpm: g.bpm, bars: 64,
             phraseBars: phraseBars, level: level, feelRating: 3, gridStartTime: g.startTime,
             subdivisions: g.subdivisions, markTimes: markTimes, phrasesAvailable: r.phrasesAvailable,
@@ -97,6 +101,7 @@ enum TakeFactory {
         let g = grid(subdivisions: 1)
         let session = DropoutSession(
             date: Date(timeIntervalSince1970: 1_770_000_200 + Double(dayOffset) * 86_400),
+            kitFingerprint: nil,
             bpm: g.bpm, pacedBars: 4,
             silentBars: silentBars, cycles: cycles, feelRating: 4, gridStartTime: g.startTime,
             subdivisions: g.subdivisions, tapTimes: p.taps(grid: g).map(\.time),
@@ -110,7 +115,8 @@ enum TakeFactory {
         let (t, gr, sections) = session.reconstruct()
         let r = DropoutAnalysis.analyze(taps: t, grid: gr, sections: sections)
         return DropoutSession(
-            date: session.date, bpm: session.bpm, pacedBars: session.pacedBars,
+            date: session.date, kitFingerprint: session.kitFingerprint,
+            bpm: session.bpm, pacedBars: session.pacedBars,
             silentBars: session.silentBars, cycles: session.cycles, feelRating: session.feelRating,
             gridStartTime: session.gridStartTime, subdivisions: session.subdivisions,
             tapTimes: session.tapTimes,
@@ -133,6 +139,7 @@ enum TakeFactory {
         let starts = (0..<rounds).map { 1_000 + Double($0) * 20 }
         return TempoSession(
             date: Date(timeIntervalSince1970: 1_770_000_300 + Double(dayOffset) * 86_400),
+            kitFingerprint: nil,
             targets: targets, leadBars: 4,
             holdBars: 4, rounds: rounds, feelRating: 3,
             tapTimes: starts.flatMap { start in (0..<16).map { start + Double($0) * 0.6 } },
@@ -148,6 +155,7 @@ enum TakeFactory {
         let starts = (0..<rounds).map { 1_000 + Double($0) * 30 }
         return MemorySession(
             date: Date(timeIntervalSince1970: 1_770_000_400 + Double(dayOffset) * 86_400),
+            kitFingerprint: nil,
             bpm: 100, referenceBars: 4,
             retentionBars: retentionBars, reproduceBars: 4, rounds: rounds, feelRating: 3,
             tapTimes: starts.flatMap { start in (0..<16).map { start + 10 + Double($0) * 0.6 } },

@@ -64,6 +64,69 @@ struct BackingKit {
             bassBuffers.values.map(\.count).max() ?? 0,
             organBuffers.values.map(\.count).max() ?? 0)
     }
+
+    // MARK: - Which kit this is
+
+    /// The sample rate the fingerprint is taken at, which is **not** the rate anything is played
+    /// at.
+    ///
+    /// A fingerprint over the buffers the device happens to render would change with the output
+    /// device, and two takes played on headphones and speakers would read as two different kits.
+    /// Rendering once at a fixed rate makes it a property of the synthesis, which is the question
+    /// being asked.
+    static let fingerprintSampleRate: Double = 44_100
+
+    /// A short digest of every sound the band can make.
+    ///
+    /// **The take records which kit it heard**, because a kit change is a backing change and a
+    /// backing change is a task change — §7.28's list, and the invariant in `AGENT.md` that a
+    /// changed backing once produced a "real" 8 ms spread move that was partly just different
+    /// music. Nothing keyed on the kit before this, so the sounds could change under a series
+    /// while every take in it kept the same groove name (§7.61).
+    ///
+    /// **Derived rather than declared**, and that is the whole point. A hand-bumped version number
+    /// is a rule nobody is stopped from breaking — `LESSONS.md` shape 21, which this project has
+    /// now collected five instances of. A digest over the rendered samples cannot be forgotten:
+    /// change a decay constant and it changes, leave the kit alone and it does not.
+    ///
+    /// **What it does not cover:** the patterns. This answers *"did the sounds change"*, not *"did
+    /// the music change"* — a style's steps and velocities are `GrooveCore`'s and are keyed by name
+    /// and seed already. The fixed backing's patterns are keyed by neither, which is a gap this
+    /// does not close and §7.61 records.
+    ///
+    /// Computed once per process and only when something asks, since the only caller is `save`.
+    static let fingerprint: String = {
+        let kit = BackingKit(sampleRate: fingerprintSampleRate)
+        var voices: [[Float]] = BackingVoice.allCases
+            .sorted { $0.rawValue < $1.rawValue }
+            .compactMap { kit.buffers[$0] }
+        voices += kit.bassBuffers.keys.sorted().compactMap { kit.bassBuffers[$0] }
+        voices += kit.organBuffers.keys.sorted().compactMap { kit.organBuffers[$0] }
+        return digest(voices)
+    }()
+
+    /// FNV-1a over the raw sample bits, as 12 hex characters.
+    ///
+    /// Written out rather than reaching for `Hasher`, which is seeded per process: it would give a
+    /// different answer every launch, so every take would record a kit nobody else had heard.
+    /// Bit patterns rather than rounded values, because the question is whether the synthesis
+    /// changed at all and a rounding tolerance would be a judgement about how much change matters.
+    static func digest(_ voices: [[Float]]) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        func mix(_ byte: UInt8) {
+            hash ^= UInt64(byte)
+            hash &*= 0x1000_0000_01b3
+        }
+        for voice in voices {
+            // The length is mixed in as well, so a truncated voice and a faded one differ even if
+            // every sample they share is identical.
+            withUnsafeBytes(of: UInt64(voice.count).littleEndian) { $0.forEach(mix) }
+            for sample in voice {
+                withUnsafeBytes(of: sample.bitPattern.littleEndian) { $0.forEach(mix) }
+            }
+        }
+        return String(format: "%012llx", hash & 0xffff_ffff_ffff)
+    }
 }
 
 enum DrumSynth {
