@@ -373,6 +373,7 @@ public enum TrainerEngine {
         let r = outcome.report
         let session = JamSession(
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
+            kitFingerprint: BackingKit.fingerprint,
             calibrationConstantMs: outcome.environment.calibrationMs,
             calibrationSource: outcome.environment.calibrationSource,
             // The backing that actually played, not a literal. Every confound check keyed on
@@ -504,7 +505,8 @@ public enum TrainerEngine {
                             wasProbe: Bool = false) throws -> URL {
         let r = outcome.report
         let session = FormSession(
-            date: Date(), bpm: outcome.config.bpm, bars: outcome.config.bars,
+            date: Date(), kitFingerprint: BackingKit.fingerprint,
+            bpm: outcome.config.bpm, bars: outcome.config.bars,
             phraseBars: outcome.config.phraseBars, level: outcome.config.level.rawValue,
             feelRating: feelRating, gridStartTime: outcome.gridStartTime,
             subdivisions: outcome.gridSubdivisions,
@@ -680,7 +682,7 @@ public enum TrainerEngine {
                             experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = DropoutSession(
-            date: Date(), bpm: outcome.config.bpm,
+            date: Date(), kitFingerprint: BackingKit.fingerprint, bpm: outcome.config.bpm,
             pacedBars: outcome.config.pacedBars, silentBars: outcome.config.silentBars,
             cycles: outcome.config.cycles, feelRating: feelRating,
             gridStartTime: outcome.gridStartTime, subdivisions: outcome.gridSubdivisions,
@@ -869,7 +871,8 @@ public enum TrainerEngine {
                             experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = TempoSession(
-            date: Date(), targets: outcome.config.targets,
+            date: Date(), kitFingerprint: BackingKit.fingerprint,
+            targets: outcome.config.targets,
             leadBars: outcome.config.leadBars, holdBars: outcome.config.holdBars,
             rounds: outcome.config.rounds, feelRating: feelRating,
             tapTimes: outcome.tapTimes,
@@ -1232,7 +1235,7 @@ public enum TrainerEngine {
                             experiment: ExperimentAssignment? = nil) throws -> URL {
         let r = outcome.report
         let session = MemorySession(
-            date: Date(), bpm: outcome.config.bpm,
+            date: Date(), kitFingerprint: BackingKit.fingerprint, bpm: outcome.config.bpm,
             referenceBars: outcome.config.referenceBars,
             retentionBars: outcome.config.retentionBars,
             reproduceBars: outcome.config.reproduceBars,

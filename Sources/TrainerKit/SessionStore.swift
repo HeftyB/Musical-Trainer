@@ -71,6 +71,21 @@ struct JamSession: Codable, StoredTake {
     let date: Date
     let bpm: Double
     let device: String
+    /// Which kit this take heard, as `BackingKit.fingerprint`.
+    ///
+    /// **A kit change is a backing change, and a backing change is a task change** — §7.28's list,
+    /// and the invariant that a changed backing once produced a "real" 8 ms spread move that was
+    /// partly just different music. Nothing keyed on the kit before this, and the kit has already
+    /// changed under the corpus twice: on 7 August every one-shot gained a fade and every style's
+    /// timekeeper gained accents. Takes either side of that heard different bands under the same
+    /// groove name (§7.61).
+    ///
+    /// `nil` on every take recorded before the field existed, and it means *unrecorded* rather than
+    /// any particular kit — which is recoverable, because a take carries its date and the changes
+    /// are commits with dates. **Nothing reads this yet.** Same reasoning as `experiment`: the field
+    /// has to exist before the data does, because a take recorded without it is lost to the question
+    /// for good (R6.3), and M26 is about to change every voice in the kit at once.
+    let kitFingerprint: String?
     let calibrationConstantMs: Double?
     let calibrationSource: String?
     let grooveName: String
@@ -244,6 +259,9 @@ struct JamSession: Codable, StoredTake {
 /// be meaningless.
 struct FormSession: Codable, StoredTake {
     let date: Date
+    /// Which kit this take heard. See `JamSession.kitFingerprint`; written since §7.61, read by
+    /// nothing yet.
+    let kitFingerprint: String?
     let bpm: Double
     let bars: Int
     let phraseBars: Int
@@ -297,6 +315,9 @@ struct FormSession: Codable, StoredTake {
 /// clock/motor split, because it is the only one with unpaced playing in it.
 struct DropoutSession: Codable, StoredTake {
     let date: Date
+    /// Which kit this take heard. See `JamSession.kitFingerprint`; written since §7.61, read by
+    /// nothing yet.
+    let kitFingerprint: String?
     let bpm: Double
     let pacedBars: Int
     let silentBars: Int
@@ -395,6 +416,9 @@ struct DropoutSession: Codable, StoredTake {
 /// A recorded tempo-calibration session.
 struct TempoSession: Codable, StoredTake {
     let date: Date
+    /// Which kit this take heard. See `JamSession.kitFingerprint`; written since §7.61, read by
+    /// nothing yet.
+    let kitFingerprint: String?
     let targets: [Double]
     let leadBars: Int
     let holdBars: Int
@@ -458,6 +482,9 @@ struct TempoSession: Codable, StoredTake {
 /// them with anything else would throw away the contrast.
 struct MemorySession: Codable, StoredTake {
     let date: Date
+    /// Which kit this take heard. See `JamSession.kitFingerprint`; written since §7.61, read by
+    /// nothing yet.
+    let kitFingerprint: String?
     let bpm: Double
     let referenceBars: Int
     let retentionBars: Int
