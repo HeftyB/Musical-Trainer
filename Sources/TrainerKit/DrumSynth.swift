@@ -471,6 +471,30 @@ enum DrumSynth {
         return s1 * s1 + s2 * s2 - coeff * s1 * s2
     }
 
+    /// The share of a buffer's energy sitting above `hz`, 0…1.
+    ///
+    /// **The measure to reach for with modal content**, where `centroid` is unreliable: a bank of
+    /// discrete modes may fall between its probe frequencies and read far darker than it is (§7.67,
+    /// §7.70). A filter does not care where the energy sits inside the band, only how much of it
+    /// there is, so it answers "is this bright" without needing to know where the modes are.
+    ///
+    /// Two one-pole sections, which is a gentle 12 dB/octave slope rather than a brick wall — good
+    /// enough to compare two versions of the same voice, and not a spectrum analyser.
+    static func energyAbove(_ hz: Double, of buffer: [Float], sampleRate fs: Double) -> Double {
+        guard !buffer.isEmpty else { return 0 }
+        var lowA = OnePole(cutoff: hz, fs: fs)
+        var lowB = OnePole(cutoff: hz, fs: fs)
+        var high = 0.0, all = 0.0
+        for sample in buffer {
+            // Subtracting a low-pass from the signal leaves the high-pass.
+            let low = lowB.lowpass(lowA.lowpass(sample))
+            let above = Double(sample - low)
+            high += above * above
+            all += Double(sample) * Double(sample)
+        }
+        return all > 0 ? high / all : 0
+    }
+
     /// How long the voice stays within 20 dB of its own peak, in seconds — its audible length.
     static func durationSeconds(of buffer: [Float], sampleRate fs: Double) -> Double {
         guard let peak = buffer.map(abs).max(), peak > 0 else { return 0 }
@@ -589,12 +613,12 @@ enum DrumSynth {
         switch voice {
         case .kick:      return kick(fs: fs, strength: v, spec: spec)
         case .snare:     return snare(fs: fs, strength: v, spec: spec)
-        case .closedHat: return hat(fs: fs, decay: 0.045 * spec.cymbalDecay, strength: v)
-        case .openHat:   return hat(fs: fs, decay: 0.30 * spec.cymbalDecay, strength: v)
+        case .closedHat: return hat(fs: fs, decay: 0.045, strength: v, spec: spec)
+        case .openHat:   return hat(fs: fs, decay: 0.30, strength: v, spec: spec)
         case .clap:      return clap(fs: fs, strength: v)
         case .rimshot:   return rimshot(fs: fs, strength: v)
         case .tom:       return tom(fs: fs, strength: v)
-        case .crash:     return crash(fs: fs, strength: v)
+        case .crash:     return crash(fs: fs, strength: v, spec: spec)
         case .ride:      return ride(fs: fs, strength: v, spec: spec)
         case .tambourine: return tambourine(fs: fs, strength: v)
         // Strength never reaches here for it — see `unaccented`.
@@ -667,34 +691,89 @@ enum DrumSynth {
         return out
     }
 
-    /// A bank of inharmonic high partials plus band-passed noise — the 808-style metallic
-    /// "tss," which reads as a hi-hat rather than the radio static a plain high-passed
-    /// noise burst gives. Closed vs open is just the decay time.
+    /// The hi-hat, as a small stiff plate. See `CymbalSynth` for what every number here does and
+    /// what to listen for.
     ///
-    /// **Strength is what turns a timekeeper into a groove.** §7.31 gave every style's hat a
-    /// velocity per step, and until now that only moved a fader — eight accented copies of one
-    /// buffer. A hard hat is noisier and rings longer; a soft one is nearly pure tone bank and
-    /// stops almost immediately.
-    private static func hat(fs: Double, decay: Double, strength: Double) -> [Float] {
-        let ring = tilt(strength, soft: 0.28, hard: 1.35)
-        let air = tilt(strength, soft: 0.60, hard: 1.30)
-        let n = Int((decay * 4) * fs)
-        var out = [Float](repeating: 0, count: n)
-        // Inharmonic ratios keep the tone bank metallic instead of pitched.
-        let partials = [6200.0, 7300, 8600, 9700, 11400]
-        var band = BandNoise(low: 6000, high: 12000, fs: fs)
-        for i in 0..<n {
-            let t = Double(i) / fs
-            var tone = 0.0
-            for f in partials { tone += sin(2 * .pi * f * t) }
-            tone /= Double(partials.count)
-            let env = Float(exp(-t / (decay * ring)))
-            out[i] = (Float(tone) * 0.6 + band.next() * Float(0.5 * air)) * env * 0.7
-        }
-        return out
+    /// **Closed and open are one cymbal with two decay times**, which is exactly what they are: the
+    /// same pair of plates, held together or let go. Everything else about them is identical.
+    ///
+    /// Small and stiff, so its lowest mode is high — a 14-inch hat sits far above a 20-inch ride —
+    /// and it is struck with the tip, so the strike favours the high modes (`excitationTilt` below
+    /// zero). `damping` is high because a hat's tail is very short and goes dull almost at once.
+    private static func hat(fs: Double, decay: Double, strength: Double, spec: KitSpec) -> [Float] {
+        let plate = cymbal(lowestModeHz: 520, modeCount: 26, stretch: 1.15, inharmonicity: 0.30,
+                           decaySeconds: decay, damping: 0.60, baseTilt: -0.25,
+                           strikeSeconds: 0.0015, strikeNoise: 0.22, level: 0.62,
+                           strength: strength, spec: spec)
+        return CymbalSynth.render(plate, seconds: max(decay * 3.5, 0.12), sampleRate: fs)
     }
 
-    /// Strength lengthens the smear: more hands, later, when it is hit harder.
+    /// The ride, as a large plate struck on the bow.
+    ///
+    /// **The ping is the point.** A ride has to give a clear articulation on every stroke or a
+    /// pattern on it turns to soup, and that comes from a few strong low modes rather than from a
+    /// bright attack — so its `excitationTilt` is *positive*, favouring the low end, where the hat's
+    /// is negative. It rings far longer than a hat and darkens more slowly.
+    ///
+    /// Two earlier versions missed in opposite directions: pure sines with a long ring (a bell), then
+    /// a low-partial noise wash (wooden, and it piled into static as eighth notes). Modal synthesis
+    /// gets both halves at once, because the ping and the wash are the same modes at different rates.
+    private static func ride(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
+        let plate = cymbal(lowestModeHz: 285, modeCount: 30, stretch: 1.22, inharmonicity: 0.24,
+                           decaySeconds: 0.85, damping: 0.62, baseTilt: 0.20,
+                           strikeSeconds: 0.002, strikeNoise: 0.16, level: 0.42,
+                           strength: strength, spec: spec)
+        return CymbalSynth.render(plate, seconds: 0.8, sampleRate: fs)
+    }
+
+    /// The crash: the largest plate, the longest ring, the densest wash.
+    ///
+    /// **This was the crudest voice in the kit** — high-passed noise times one exponential, with no
+    /// modes at all, asked to sound like the biggest piece of metal on the stand (§7.69). The player
+    /// named the cymbals as the weakest thing he heard, and this is why.
+    ///
+    /// Low, dense and slow to darken: `damping` is the lowest here, so the wash sustains its colour
+    /// rather than collapsing to a dull hum, and `modeCount` is the highest so nothing in it is
+    /// separable by ear.
+    private static func crash(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
+        let plate = cymbal(lowestModeHz: 190, modeCount: 38, stretch: 1.10, inharmonicity: 0.36,
+                           decaySeconds: 1.6, damping: 0.45, baseTilt: -0.15,
+                           strikeSeconds: 0.003, strikeNoise: 0.26, level: 0.55,
+                           strength: strength, spec: spec)
+        return CymbalSynth.render(plate, seconds: 1.5, sampleRate: fs)
+    }
+
+    /// One place where a cymbal's written description, the player's strength and the style's kit are
+    /// combined into a plate.
+    ///
+    /// **Strength reaches the plate rather than the finished buffer**, which is the point of building
+    /// them this way. A harder strike genuinely excites the high modes more — fact 3 in
+    /// `CymbalSynth` — so tilting the excitation is the same operation the physics performs, where
+    /// §7.64's low-pass on a rendered buffer was an approximation of it from outside.
+    private static func cymbal(lowestModeHz: Double, modeCount: Int, stretch: Double,
+                               inharmonicity: Double, decaySeconds: Double, damping: Double,
+                               baseTilt: Double, strikeSeconds: Double, strikeNoise: Double,
+                               level: Double,
+                               strength: Double, spec: KitSpec) -> CymbalSynth.Plate {
+        // Harder is brighter and longer. `tilt` falls as strength rises, which moves the strike's
+        // energy up into the high modes; the ring lengthens a little as well, since a harder strike
+        // puts in more energy for the same damping to remove.
+        let strikeBrightness = baseTilt - (tilt(strength, soft: 0.45, hard: 1.55) - 1) * 0.55
+        let ring = tilt(strength, soft: 0.45, hard: 1.25)
+
+        return CymbalSynth.Plate(
+            lowestModeHz: lowestModeHz * spec.cymbalTuning,
+            modeCount: max(4, Int((Double(modeCount) * spec.cymbalDensity).rounded())),
+            stretch: stretch,
+            inharmonicity: inharmonicity,
+            lowestModeDecaySeconds: decaySeconds * ring * spec.cymbalDecay,
+            damping: damping * spec.cymbalDarkening,
+            excitationTilt: strikeBrightness - spec.cymbalBrightness,
+            strikeSeconds: strikeSeconds,
+            level: level,
+            strikeNoise: strikeNoise)
+    }
+
     private static func clap(fs: Double, strength: Double) -> [Float] {
         let ring = tilt(strength, soft: 0.4, hard: 1.25)
         let n = Int(0.18 * fs)
@@ -739,58 +818,6 @@ enum DrumSynth {
             let freq = 120 + 90 * bend * exp(-t / 0.05)
             phase += 2 * .pi * freq / fs
             out[i] = Float(sin(phase) * exp(-t / (0.14 * ring))) * 0.7
-        }
-        return out
-    }
-
-    /// The voice where length *is* the dynamic: a crash struck harder simply rings for longer.
-    private static func crash(fs: Double, strength: Double) -> [Float] {
-        let ring = tilt(strength, soft: 0.3, hard: 1.3)
-        let n = Int(1.4 * fs)
-        var out = [Float](repeating: 0, count: n)
-        var noise = Noise()
-        var prev: Float = 0
-        for i in 0..<n {
-            let t = Double(i) / fs
-            let white = noise.next()
-            let hp = white - 0.5 * prev; prev = white
-            out[i] = hp * Float(exp(-t / (0.6 * ring))) * 0.4
-        }
-        return out
-    }
-
-    /// A bright metallic "ting": a stick-click attack, a bank of bright inharmonic partials,
-    /// and only a touch of quickly-decaying shimmer.
-    ///
-    /// Two earlier versions missed in opposite directions — pure sines with a long ring
-    /// (a bell), then a low-partial noise wash (wooden, and it piled up into static when
-    /// played as 8th notes because each wash outlasted the gap to the next hit). This keeps
-    /// the tonal ping in charge but bright and inharmonic so it reads as a cymbal, and keeps
-    /// every decay shorter than an eighth note so a ride pattern stays articulate.
-    ///
-    /// Strength moves the stick against the bow: a hard ride is stick first, a soft one is
-    /// mostly ping.
-    private static func ride(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
-        let stickLevel = tilt(strength, soft: 0.35, hard: 1.50)
-        let ring = tilt(strength, soft: 0.55, hard: 1.2)
-        let n = Int(0.4 * fs)
-        var out = [Float](repeating: 0, count: n)
-        // Bright, inharmonic — a metallic ting, not a low knock and not a single pitch.
-        let partials = [2760.0, 3700, 4560, 5800, 7300]
-        var shimmer = BandNoise(low: 5000, high: 11000, fs: fs)
-        var stick = Noise()
-        var stickHP = OnePole(cutoff: 3000, fs: fs)
-        for i in 0..<n {
-            let t = Double(i) / fs
-            var ping = 0.0
-            for f in partials { ping += sin(2 * .pi * f * t) }
-            ping = ping / Double(partials.count) * exp(-t / (0.13 * ring * spec.cymbalDecay))
-
-            let raw = stick.next()
-            let click = (raw - stickHP.lowpass(raw)) * Float(exp(-t / 0.003))  // stick attack
-            let wash = shimmer.next() * Float(exp(-t / 0.09))                  // short, subtle
-
-            out[i] = (Float(ping) * 0.55 + click * Float(0.2 * stickLevel) + wash * 0.22) * 0.5
         }
         return out
     }
