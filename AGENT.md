@@ -115,6 +115,16 @@ field multiplies and `standard` is 1 everywhere, so the standard kit is bit-iden
 branch*: `x * 1.0 == x`. **No style has been given a kit yet**, deliberately — tuning them is a
 listening job and §8.1.2 says the mechanism lands first.
 
+**M26 item 2's tuning half is built and unheard** (§7.68). The four styles carry kits derived from
+their own descriptions rather than from genres — `driving` tight and dry, `pocket` low and roomy,
+`syncopated` high and tight so ghost notes read, `half-time` deep and wet. **Every audition is
+withdrawn**, because what was approved no longer exists: the planner schedules no band, the app
+offers none, and the CLI wants `--probe`, until somebody listens and sets the flags back.
+
+**`render` was rendering the wrong kit.** It built its own with no spec, so the audition mechanism
+produced files on the standard drums whatever style it was rendering — caught only because the first
+four came out byte-identical. `Subject` carries a `KitSpec` now.
+
 **One measurement caveat worth knowing before trusting a centroid.** `DrumSynth.centroid` probes a
 1.25×-spaced ladder with no window, so it is unreliable for tonal content: the snare's centroid
 *falls* threefold when tuned **up**, because its partials move nearer a probe (§7.67). Use
@@ -494,7 +504,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 588 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 590 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (318 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -547,7 +557,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 906 tests, no hardware needed
+swift test                              # 908 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

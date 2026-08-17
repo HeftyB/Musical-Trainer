@@ -129,7 +129,9 @@ final class KitSpecSynthesisTests: XCTestCase {
     /// arrangement and the kit come out of the same `backing` property for exactly this reason —
     /// `Feel`/`Swing`'s failure mode, which §7.24 step 7 already paid for once.
     func testAGeneratedBackingCarriesItsStylesKitAndAFixedOneDoesNot() throws {
-        let style = try XCTUnwrap(StyleLibrary.auditioned.first)
+        // `all` rather than `auditioned`: every audition is withdrawn while the new kits wait to
+        // be heard (§7.68), and this is a question about resolution rather than about approval.
+        let style = try XCTUnwrap(StyleLibrary.all.first)
         let generated = TrainerEngine.JamConfig(
             bpm: 100, bars: 8, tag: nil,
             generatedBacking: BackingIdentity(style: style.name, seed: 1))

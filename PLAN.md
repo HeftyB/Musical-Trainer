@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 588 of 906 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 318 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 590 of 908 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 318 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -8904,6 +8904,66 @@ that needs an ear.
 
 ---
 
+## 7.68 Four kits, from the styles' own names
+
+M26 item 2's tuning half. The mechanism landed in §7.67 with every style still on the standard kit;
+this gives the four styles kits of their own.
+
+### The names are the brief
+
+**These four are not genre names, deliberately.** §7.33 renamed three of them because a genre name
+promises what the synthesis cannot deliver. So the kits deliver what the names actually claim, which
+is a *feel* — and each style's own entry is the specification:
+
+| Style | Its own words | The kit |
+|---|---|---|
+| `driving` | *"straight eighths, hat-led"*, heard as *"a Nine Inch Nails vibe"* | Tight and cracking, drier than the house room — the kit gets out of the way of the eighths |
+| `pocket` | *"sits in a steady pocket"*, clap backbeat, walking bass | Lower, longer, further away: body rather than crack |
+| `syncopated` | *"a kick that lands off the beat as often as on it, ghost snares, sixteenths on the hat"* | High, tight, dry — **the ghost notes have to read** |
+| `half-time` | *"one snare, on beat three, and a great deal of air"* | The lowest, longest, wettest kit here |
+
+Every number is a multiplier on the standard kit, so they read as intent rather than as absolutes,
+and they are conservative: this is a first pass from convention, and **no ear has judged it**.
+
+### Every audition is withdrawn, and that is the rule working
+
+`Style.auditioned` means a person heard this style and said yes. §7.29 step 5's rule is that nothing
+promotes a player onto music nobody has heard — and **what was approved no longer exists**, because
+all four kits changed underneath it.
+
+So all four flags went back to `false`, which is the state the library started in and which the
+planner is built to cope with. Three tests failed on the change, which is exactly what §7.29 step 5
+built them for: an approval that arrives in a diff rather than drifting. Each now asserts the
+withdrawn state and says what to do when the styles are re-heard.
+
+**The consequence while it stands:** the planner schedules no band, the app's picker offers none, and
+the CLI wants `--probe` for any style. That is the safe direction — something becomes unreachable
+rather than something half-built becoming reachable (§8.1.2) — and it is undone by listening.
+
+### The finding: the audition mechanism could not hear the thing being auditioned
+
+`render` writes the WAVs the listening test is done on. It built its kit with **no spec**, so every
+file it produced used the standard drums regardless of which style it was rendering.
+
+The first four renders came out byte-for-byte identical to the untuned ones, which is the only reason
+this was caught: the peaks did not move. Had the kits happened to shift a peak, the files would have
+looked plausible and the player would have approved four kits **nobody had heard** — an approval
+mechanism deaf to its own subject, and `LESSONS.md` shape 1 in the place it would do the most damage.
+
+`Subject` carries a `KitSpec` now, and `render` builds one kit per distinct spec.
+
+### A pre-existing figure worth writing down
+
+`driving` at intensity 2 renders at **0.95 of full scale**, and it did so before this branch as well —
+the kits moved it from 0.96 to 0.95 rather than causing it. `StyleHeadroomTests` guards this at
+`≤ 1.0`, which is a detector rather than a guard: a mix that peaks at 0.95 is one unlucky seed from
+clipping, and the test walks specific seeds and intensities rather than all of them.
+
+Not changed here, because it predates the branch and trimming it means touching pattern velocities
+rather than kit parameters. Recorded with the number so it is not rediscovered from scratch.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8927,10 +8987,10 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   906 cases
+└── Tests/                   908 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     439 cases against synthetic ground truth
-    ├── GrooveCoreTests/     149 cases — patterns, sequencer, styles
+    ├── GrooveCoreTests/     151 cases — patterns, sequencer, styles
     └── TrainerKitTests/     318 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
