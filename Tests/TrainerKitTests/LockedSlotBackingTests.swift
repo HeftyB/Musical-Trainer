@@ -104,8 +104,13 @@ final class LockedSlotBackingTests: XCTestCase {
     /// reach past the gate. What matters now is the other half of that rule — **the planner sees
     /// `auditioned`, never `all`** — so a style authored tomorrow cannot be scheduled by anything
     /// until somebody says it may be.
+    /// **Two of four as of §7.69**: every kit changed in §7.68 so every audition was withdrawn, and
+    /// two came back when they were heard. The planner schedules from those two and cannot reach the
+    /// pair still waiting, which is the whole point of the flag.
     func testThePlannerSchedulesFromTheApprovedLibraryAndNotTheWholeOne() {
         XCTAssertFalse(StyleLibrary.auditioned.isEmpty)
+        XCTAssertLessThan(StyleLibrary.auditioned.count, StyleLibrary.all.count,
+                          "with everything approved this cannot tell the two lists apart")
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy(\.auditioned))
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy { StyleLibrary.all.contains($0) })
     }

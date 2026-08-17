@@ -1407,8 +1407,12 @@ public enum Commands {
     /// A tuple with a bar count rather than a bare arrangement, because a seeded piece has to be
     /// long enough to contain its own intensity arc while a kit voice needs four bars and a ladder
     /// backing needs whatever was asked for (§7.31 finding 3).
+    /// **`kit` is part of a subject, because `render` is the audition** (§7.68). A style carries its
+    /// own drums now, and a render that built the standard kit regardless would let a listener
+    /// approve music nobody had played — the audition mechanism deaf to the thing being auditioned.
+    /// `LESSONS.md` shape 1 in the place it would do the most damage.
     typealias Subject = (name: String, rung: IntervalRung?, feel: Feel,
-                         arrangement: Arrangement, bars: Int)
+                         arrangement: Arrangement, bars: Int, kit: KitSpec)
 
     /// Everything `render` will write, before any of it is rendered.
     ///
@@ -1452,50 +1456,50 @@ public enum Commands {
             return [(name: only.name, rung: nil, feel: .straight,
                      arrangement: StyleArranger.arrangement(style: style, seed: only.seed,
                                                             bars: pieceBars),
-                     bars: pieceBars)]
+                     bars: pieceBars, kit: style.kit)]
         }
         return allRenderSubjects(bars: bars)
     }
 
     private static func allRenderSubjects(bars: Int) -> [Subject] {
         let ladder: [Subject] =
-            [("quarters", .quarters, .straight, LadderBackings.backing(notesPerBeat: 1), bars),
-             ("eighths", .eighths, .straight, LadderBackings.backing(notesPerBeat: 2), bars),
-             ("triplet-eighths", .tripletEighths, .straight, LadderBackings.backing(notesPerBeat: 3), bars),
-             ("sixteenths", .sixteenths, .straight, LadderBackings.backing(notesPerBeat: 4), bars),
+            [("quarters", .quarters, .straight, LadderBackings.backing(notesPerBeat: 1), bars, .standard),
+             ("eighths", .eighths, .straight, LadderBackings.backing(notesPerBeat: 2), bars, .standard),
+             ("triplet-eighths", .tripletEighths, .straight, LadderBackings.backing(notesPerBeat: 3), bars, .standard),
+             ("sixteenths", .sixteenths, .straight, LadderBackings.backing(notesPerBeat: 4), bars, .standard),
              ("eighths-swung-1.5", .eighths, Feel(swingRatio: 1.5) ?? .straight,
-              LadderBackings.swungBacking(notesPerBeat: 2), bars),
+              LadderBackings.swungBacking(notesPerBeat: 2), bars, .standard),
              ("eighths-swung-2.0", .eighths, .swung,
-              LadderBackings.swungBacking(notesPerBeat: 2), bars),
+              LadderBackings.swungBacking(notesPerBeat: 2), bars, .standard),
              ("eighths-swung-3.0", .eighths, Feel(swingRatio: 3) ?? .straight,
-              LadderBackings.swungBacking(notesPerBeat: 2), bars),
+              LadderBackings.swungBacking(notesPerBeat: 2), bars, .standard),
              ("sixteenths-swung-1.5", .sixteenths, Feel(swingRatio: 1.5) ?? .straight,
-              LadderBackings.swungBacking(notesPerBeat: 4), bars),
-             ("jam-backing", nil, .straight, GrooveLibrary.jamBacking, bars),
+              LadderBackings.swungBacking(notesPerBeat: 4), bars, .standard),
+             ("jam-backing", nil, .straight, GrooveLibrary.jamBacking, bars, .standard),
              // M16.5's open musical question, rendered rather than argued (§7.55). Both rest on
              // the beat and play two notes after it; only the grid differs, and that is the thing
              // an ear can settle and a step list cannot. Level 0 states the downbeat so the figure
              // is heard against it, and level 2 is the same figure with the kick gone — which is
              // where the two feels stop sounding alike.
              ("bubble-triplet-L0", nil, .straight,
-              BubbleBacking.backing(feel: .triplet, level: .stated, bars: bars), bars),
+              BubbleBacking.backing(feel: .triplet, level: .stated, bars: bars), bars, .standard),
              ("bubble-sixteenth-L0", nil, .straight,
-              BubbleBacking.backing(feel: .sixteenth, level: .stated, bars: bars), bars),
+              BubbleBacking.backing(feel: .sixteenth, level: .stated, bars: bars), bars, .standard),
              ("bubble-triplet-L2", nil, .straight,
-              BubbleBacking.backing(feel: .triplet, level: .backbeatOnly, bars: bars), bars),
+              BubbleBacking.backing(feel: .triplet, level: .backbeatOnly, bars: bars), bars, .standard),
              ("bubble-sixteenth-L2", nil, .straight,
-              BubbleBacking.backing(feel: .sixteenth, level: .backbeatOnly, bars: bars), bars),
+              BubbleBacking.backing(feel: .sixteenth, level: .backbeatOnly, bars: bars), bars, .standard),
              // The straight skank beside them, so the comparison has the drill that already
              // exists in it rather than only the two candidates.
              ("skank-straight-L0", nil, .straight,
-              OffbeatBacking.backing(level: .stated, bars: bars), bars),
+              OffbeatBacking.backing(level: .stated, bars: bars), bars, .standard),
              // The bass, so it can be judged by ear before a style is built on it. Nothing
              // frozen carries it (§7.29 step 2).
-             ("bass-demo", nil, .straight, GrooveLibrary.bassDemo, bars),
+             ("bass-demo", nil, .straight, GrooveLibrary.bassDemo, bars, .standard),
              // And the organ, for the same reason and a sharper one: M16.5's figure decision was
              // made through a rimshot because this voice did not exist (§7.56). A voice nobody has
              // heard alone is a voice whose faults get attributed to the part playing it.
-             ("organ-demo", nil, .straight, GrooveLibrary.organDemo, bars)]
+             ("organ-demo", nil, .straight, GrooveLibrary.organDemo, bars, .standard)]
 
         // Every style at every intensity, because intensity is the thing that has to be judged:
         // a layer entering should sound like the music getting more sure of itself and not like
@@ -1506,7 +1510,7 @@ public enum Commands {
                 styleSubjects.append((name: "\(style.name)-\(intensity)", rung: nil,
                                       feel: .straight,
                                       arrangement: style.auditionArrangement(intensity: intensity),
-                                      bars: bars))
+                                      bars: bars, kit: style.kit))
             }
         }
 
@@ -1525,7 +1529,7 @@ public enum Commands {
             styleSubjects.append((name: identity.name, rung: nil, feel: .straight,
                                   arrangement: StyleArranger.arrangement(
                                       style: style, seed: identity.seed, bars: pieceBars),
-                                  bars: pieceBars))
+                                  bars: pieceBars, kit: style.kit))
         }
 
         // One file per voice, four bars of quarter notes. Nothing to do with grooves — it is
@@ -1537,7 +1541,7 @@ public enum Commands {
              arrangement: Arrangement(sections: [
                 Section(name: voice.rawValue,
                         pattern: Pattern.make([voice: [0, 4, 8, 12]], velocity: 100), bars: 4)]),
-             bars: 4)
+             bars: 4, kit: .standard)
         }
 
         // **One file per voice showing what velocity now does to it** (§7.63). Four bars, one per
@@ -1553,7 +1557,7 @@ public enum Commands {
                 Section(name: "v\(velocity)",
                         pattern: Pattern.make([voice: [0, 4, 8, 12]], velocity: velocity), bars: 1)
              }),
-             bars: 4)
+             bars: 4, kit: .standard)
         }
 
         // **The bass, which this pass could not see and which was the worst offender.** Filtering
@@ -1572,7 +1576,7 @@ public enum Commands {
                     (step: 8, note: BackingKit.bassNotes.upperBound),
                     (step: 12, note: 40),
                 ]), bars: 4)]),
-            bars: 4))
+            bars: 4, kit: .standard))
 
         // The organ, on the same argument one voice later. Two pitched voices means two that this
         // pass cannot see by filtering, and the bass's absence cost a milestone — so the rule is
@@ -1586,7 +1590,7 @@ public enum Commands {
                     (step: 8, note: BackingKit.organNotes.upperBound),
                     (step: 12, note: 64),
                 ]), bars: 4)]),
-            bars: 4))
+            bars: 4, kit: .standard))
 
         return ladder + styleSubjects + kitSubjects
     }
@@ -1603,7 +1607,9 @@ public enum Commands {
         guard (1...64).contains(bars) else { throw SpikeError("Bars must be 1–64.") }
 
         let fs = 44_100.0
-        let kit = BackingKit(sampleRate: fs)
+        // One kit per distinct spec, built on demand: most subjects share the standard
+        // one, and a kit costs 184 ms to build.
+        var kits: [KitSpec: BackingKit] = [:]
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         // The ceiling is a fact about *this* player, so it comes from their own takes rather
@@ -1623,7 +1629,7 @@ public enum Commands {
                      Int(bpm), bars, spreadMs,
                      spreads.isEmpty ? " (no takes yet — assumed)" : ""))
         print("")
-        for (name, rung, feel, arrangement, subjectBars) in subjects {
+        for (name, rung, feel, arrangement, subjectBars, spec) in subjects {
             // The same conversion the engine makes, so what is rendered is what would be played.
             let swing = Swing(ratio: feel.swingRatio, notesPerBeat: rung?.subdivisions ?? 1)
             let sequencer = Sequencer(bpm: bpm, sampleRate: fs, swing: swing)
@@ -1633,6 +1639,11 @@ public enum Commands {
             }
             // A beat of tail so the last hit is not cut off mid-decay.
             let frames = Int((Double(subjectBars) * 4 + 1) * 60 / bpm * fs)
+            let kit = kits[spec] ?? {
+                let built = BackingKit(sampleRate: fs, spec: spec)
+                kits[spec] = built
+                return built
+            }()
             let samples = GrooveOfflineRender.mix(hits: hits, kit: kit, frames: frames)
 
             let url = directory.appendingPathComponent("\(name)-\(Int(bpm))bpm.wav")

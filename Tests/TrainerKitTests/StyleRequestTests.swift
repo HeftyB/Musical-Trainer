@@ -46,12 +46,18 @@ final class StyleRequestTests: XCTestCase {
         }
     }
 
-    /// And the four that *are* approved go through without one, or the approval bought nothing.
-    func testAnApprovedStyleNeedsNoProbe() throws {
+    /// An approved style goes through without one, or the approval bought nothing — and the two
+    /// still waiting on a listen need one, which is the same rule seen from the other side (§7.69).
+    func testAnApprovedStyleNeedsNoProbeAndAnUnheardOneDoes() throws {
+        XCTAssertFalse(StyleLibrary.auditioned.isEmpty, "nothing to prove if nothing is approved")
         for style in StyleLibrary.all {
-            XCTAssertTrue(style.auditioned, "\(style.name) — see PLAN.md §7.33")
-            XCTAssertNotNil(try Commands.resolveStyle(flags(style: style.name), rung: nil,
-                                                      now: clock))
+            let resolved = try? Commands.resolveStyle(flags(style: style.name), rung: nil,
+                                                      now: clock)
+            if style.auditioned {
+                XCTAssertNotNil(resolved, "\(style.name) is approved and still refused")
+            } else {
+                XCTAssertNil(resolved, "\(style.name) is unheard and went through anyway")
+            }
         }
     }
 

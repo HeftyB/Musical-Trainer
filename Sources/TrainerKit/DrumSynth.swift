@@ -547,11 +547,26 @@ enum DrumSynth {
     static func renderLayers(_ voice: BackingVoice, sampleRate fs: Double,
                              strengths: [Double], spec: KitSpec = .standard) -> [[Float]] {
         let reference = voiced(voice, sampleRate: fs, strength: nominalStrength, spec: spec)
+
+        // **A kit's tuning must not change how loud it is**, which is the same rule as strength
+        // carrying timbre while loudness stays velocity's job (§7.64). Tuning a kick tighter raises
+        // its peak for the same energy, so a tuned kit mixed hotter than the one that shipped: at
+        // `driving`'s first numbers the mix reached 0.96 of full scale (§7.68). Capping every kit
+        // against the *standard* kit's peaks makes headroom a property of the mix rather than of
+        // whatever numbers a style happens to carry.
+        //
+        // For `.standard` the ceiling is the reference itself, so nothing is scaled and the kit 104
+        // takes heard stays bit-identical.
+        let ceiling = spec == .standard
+            ? reference
+            : voiced(voice, sampleRate: fs, strength: nominalStrength, spec: .standard)
+
         return strengths.map { strength in
             let force = unaccented.contains(voice) ? nominalStrength : strength
-            guard force != nominalStrength else { return reference }
-            return peakCapped(voiced(voice, sampleRate: fs, strength: force, spec: spec),
-                              to: reference)
+            let layer = force == nominalStrength
+                ? reference
+                : voiced(voice, sampleRate: fs, strength: force, spec: spec)
+            return peakCapped(layer, to: ceiling)
         }
     }
 
