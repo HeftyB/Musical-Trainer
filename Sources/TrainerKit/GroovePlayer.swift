@@ -168,11 +168,17 @@ final class GroovePlayer {
             .sorted { $0.hit.sample < $1.hit.sample }
 
         let count = min(resolved.count, capacity)
+        // Computed over the sorted hits, so the variation follows the order the piece is heard in
+        // rather than the order the arrangement happened to build. The rule itself is `GrooveCore`'s,
+        // where a test can reach it (§7.66).
+        let scales = Variation.gainScales(for: resolved.map(\.hit))
         for i in 0..<count {
             let (hit, index) = resolved[i]
             state.pointee.starts[i] = hit.sample
             state.pointee.voiceIndex[i] = Int32(index)
-            state.pointee.gains[i] = Float(hit.velocity) / 127 * masterGain
+            // Level varies per hit; the *layer* does not. Jitter that crossed a velocity boundary
+            // would change the accent the pattern wrote, and the accents are the groove.
+            state.pointee.gains[i] = Float(Double(hit.velocity) / 127 * scales[i]) * masterGain
         }
         state.pointee.scheduledCount = count
         state.pointee.cursor = 0
