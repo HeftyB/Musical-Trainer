@@ -104,9 +104,13 @@ final class LockedSlotBackingTests: XCTestCase {
     /// reach past the gate. What matters now is the other half of that rule — **the planner sees
     /// `auditioned`, never `all`** — so a style authored tomorrow cannot be scheduled by anything
     /// until somebody says it may be.
+    /// **Empty again as of §7.68**, and that is the rule working rather than a regression: every
+    /// kit changed, so nothing in the library has been heard in its current form. The planner
+    /// schedules no band until somebody listens — which is the state this started in.
     func testThePlannerSchedulesFromTheApprovedLibraryAndNotTheWholeOne() {
-        XCTAssertFalse(StyleLibrary.auditioned.isEmpty)
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy(\.auditioned))
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy { StyleLibrary.all.contains($0) })
+        XCTAssertFalse(StyleLibrary.all.isEmpty,
+                       "a library with nothing in it would pass the two above vacuously")
     }
 }

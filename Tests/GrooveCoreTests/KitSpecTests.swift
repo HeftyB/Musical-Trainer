@@ -24,11 +24,36 @@ final class KitSpecTests: XCTestCase {
         XCTAssertEqual(KitSpec(name: "standard"), KitSpec.standard)
     }
 
-    /// Until somebody has tuned a kit and heard it, a style sounds exactly as it did.
-    func testAStyleWithoutATunedKitGetsTheStandardOne() {
-        for style in StyleLibrary.all {
-            XCTAssertEqual(style.kit, .standard, "\(style.name) carries an untested kit")
+    /// Four styles, four kits, all different — §7.68. A kit shared between two styles would make the
+    /// parameter set decoration.
+    func testEachStyleCarriesItsOwnDistinctKit() {
+        let kits = StyleLibrary.all.map(\.kit)
+        XCTAssertEqual(Set(kits).count, kits.count, "two styles share a kit")
+        for kit in kits {
+            XCTAssertNotEqual(kit, .standard, "\(kit.name) was never tuned")
         }
+    }
+
+    /// **The audition is withdrawn when the kit changes, and this is what says so.**
+    ///
+    /// `auditioned` means a person heard this style and said yes; §7.29 step 5's rule is that nothing
+    /// promotes a player onto music nobody has heard. The kits changed in §7.68, so what was approved
+    /// no longer exists and every flag went back to `false`.
+    ///
+    /// **This test is the acknowledgement, not an obstacle.** When the styles are re-heard, whoever
+    /// sets a flag back to `true` has to come here and say which — a deliberate act that shows up in
+    /// a diff, rather than a flag nobody remembers is stale (`LESSONS.md` shape 21).
+    func testNoStyleIsAuditionedWhileItsNewKitIsUnheard() {
+        XCTAssertTrue(StyleLibrary.auditioned.isEmpty,
+                      "A style is marked auditioned. If its kit has been heard and approved, name it "
+                    + "here; if not, the flag is claiming something nobody checked.")
+    }
+
+    /// The planner has to cope with nothing being approved rather than reaching past it, which is the
+    /// state the library is in right now.
+    func testAnEmptyAuditionedListIsAValidLibraryState() {
+        XCTAssertFalse(StyleLibrary.all.isEmpty)
+        XCTAssertTrue(StyleLibrary.auditioned.allSatisfy(\.auditioned))
     }
 
     func testAStyleCanCarryItsOwnKit() {

@@ -189,7 +189,10 @@ final class StyleTests: XCTestCase {
         // What each rests on differs and §7.33 says so: `driving` and `half-time` were played over,
         // `pocket` and `syncopated` were listened to at every intensity and never played. A style
         // added later starts at `false` again and this test fails until somebody says otherwise.
-        XCTAssertEqual(StyleLibrary.auditioned.count, 4,
+        // **Withdrawn in §7.68**, because all four kits changed and what was approved no longer
+        // exists. Re-approving is the same deliberate edit in the other direction: hear them, set
+        // the flags, and change this number back.
+        XCTAssertEqual(StyleLibrary.auditioned.count, 0,
                        "approving or retiring a style is a deliberate edit, and this is where it "
                      + "shows up")
     }

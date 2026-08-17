@@ -16,6 +16,58 @@ public enum StyleLibrary {
     /// cope with that rather than reaching past it (§7.29 step 5).
     public static var auditioned: [Style] { all.filter(\.auditioned) }
 
+    // MARK: - The kits
+
+    /// **Derived from each style's own description, not from a genre.** These four are named for what
+    /// they *do* — §7.33 renamed three of them precisely because a genre name promises what the
+    /// synthesis cannot deliver — so the kits deliver what the names actually claim, which is a feel
+    /// rather than a record.
+    ///
+    /// Every number is a multiplier on the standard kit (`KitSpec`), so they read as intent and the
+    /// untuned default stays exact. Conservative on purpose: these are a first pass from convention,
+    /// and §7.68 records that an ear has not judged them yet.
+
+    /// Close-miked and forward. Tight, cracking, and drier than the house room.
+    ///
+    /// Its own entry says *"straight eighths, hat-led"* and it was heard as *"a Nine Inch Nails
+    /// vibe"* — so the kit gets out of the way of the eighths: a snare that snaps rather than rings,
+    /// tight hats so the eighths articulate, and less room than anything else here.
+    static let drivingKit = KitSpec(name: "driving",
+                                    snareTuning: 1.12, snareDecay: 0.80, snareRattle: 1.15,
+                                    kickTuning: 1.10, kickDecay: 0.85,
+                                    cymbalDecay: 0.85, roomAmount: 0.60)
+
+    /// Warm, fat and roomy. The one that sits back.
+    ///
+    /// *"Sits in a steady pocket"*, with a clap on the backbeat and a walking bass. A pocket is a
+    /// feel of things arriving slightly unhurried, so the drums are lower, longer and further away:
+    /// a snare with body rather than crack, and the most air after `half-time`.
+    static let pocketKit = KitSpec(name: "pocket",
+                                   snareTuning: 0.90, snareDecay: 1.20, snareRattle: 0.90,
+                                   kickTuning: 0.92, kickDecay: 1.15,
+                                   cymbalDecay: 1.10, roomAmount: 1.35)
+
+    /// High, tight and dry, because **the ghost notes have to read**.
+    ///
+    /// Its entry names *"a kick that lands off the beat as often as on it, ghost snares, sixteenths
+    /// on the hat"* — the busiest thing in the library. Everything here serves articulation: a
+    /// high-tuned snare with the wires up so a ghost is audible as a ghost rather than as a smudge,
+    /// the shortest decays, and the driest room, so sixteenths do not run into each other.
+    static let syncopatedKit = KitSpec(name: "syncopated",
+                                       snareTuning: 1.25, snareDecay: 0.65, snareRattle: 1.30,
+                                       kickTuning: 1.05, kickDecay: 0.75,
+                                       cymbalDecay: 0.75, roomAmount: 0.50)
+
+    /// Deep, long and wet. The opposite pole from `syncopated`.
+    ///
+    /// *"One snare, on beat three, and a great deal of air."* With one backbeat every other bar's
+    /// worth of time, each hit has to fill the space it is given rather than get out of the way — so
+    /// this is the lowest, longest kit here, and by a distance the wettest.
+    static let halfTimeKit = KitSpec(name: "half-time",
+                                     snareTuning: 0.82, snareDecay: 1.45, snareRattle: 1.10,
+                                     kickTuning: 0.88, kickDecay: 1.35,
+                                     cymbalDecay: 1.25, roomAmount: 1.80)
+
     public static func named(_ name: String) -> Style? {
         all.first { $0.name == name }
     }
@@ -63,7 +115,11 @@ public enum StyleLibrary {
         // Played over twice on 8 August — 32 bars, then 128. The longer take is where the
         // intensity arc first repeated, and the verdict was that it alternated subtly enough to
         // stay interesting without pulling the player off it (§7.29 step 5).
-        auditioned: true)
+        // **The audition is withdrawn because the kit changed** (§7.68). `auditioned` means a person
+        // has heard this style and said yes, and what they said yes to was a different set of drums.
+        // §7.29 step 5's rule is that nothing promotes a player onto music nobody has heard; a style
+        // whose kit was swapped under a `true` would be that rule failing quietly.
+        auditioned: false, kit: drivingKit)
 
     // MARK: - Pocket
 
@@ -112,7 +168,11 @@ public enum StyleLibrary {
         // **Listened to, not played over.** Approved on the renders — every intensity and the
         // seeded piece — rather than on a take. That is a weaker basis than `driving`'s and it is
         // recorded as such in §7.33 rather than smoothed over.
-        auditioned: true)
+        // **The audition is withdrawn because the kit changed** (§7.68). `auditioned` means a person
+        // has heard this style and said yes, and what they said yes to was a different set of drums.
+        // §7.29 step 5's rule is that nothing promotes a player onto music nobody has heard; a style
+        // whose kit was swapped under a `true` would be that rule failing quietly.
+        auditioned: false, kit: pocketKit)
 
     // MARK: - Syncopated
 
@@ -150,7 +210,11 @@ public enum StyleLibrary {
         playerVoices: [.kick, .snare, .closedHat, .openHat, .crash, .tom],
         density: .busy,
         // Listened to, not played over — see `pocket`.
-        auditioned: true)
+        // **The audition is withdrawn because the kit changed** (§7.68). `auditioned` means a person
+        // has heard this style and said yes, and what they said yes to was a different set of drums.
+        // §7.29 step 5's rule is that nothing promotes a player onto music nobody has heard; a style
+        // whose kit was swapped under a `true` would be that rule failing quietly.
+        auditioned: false, kit: syncopatedKit)
 
     // MARK: - Half-time
 
@@ -189,5 +253,9 @@ public enum StyleLibrary {
         // what §7.29 step 5 predicted for the sparsest style: with a backbeat every other bar's
         // worth of time there is nothing to lean on between the landmarks. Approved as a style
         // worth practising over, not as an easy one.
-        auditioned: true)
+        // **The audition is withdrawn because the kit changed** (§7.68). `auditioned` means a person
+        // has heard this style and said yes, and what they said yes to was a different set of drums.
+        // §7.29 step 5's rule is that nothing promotes a player onto music nobody has heard; a style
+        // whose kit was swapped under a `true` would be that rule failing quietly.
+        auditioned: false, kit: halfTimeKit)
 }
