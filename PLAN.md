@@ -8964,6 +8964,66 @@ rather than kit parameters. Recorded with the number so it is not rediscovered f
 
 ---
 
+## 7.69 The first listening pass on the kits
+
+§7.68's four kits, heard. **Two landed, two were retuned on the verdict**, and the retune is a numbers
+change rather than anything structural — which is what the parameter set was built for.
+
+> `driving` and `pocket` sounded alright. Syncopated is almost there, not quite ghosty enough. Half
+> time was washy.
+
+### `syncopated` — the wires came up
+
+*"Not quite ghosty enough."* The kit exists for the ghost notes, and the reason they were thin is
+worth writing down: **a ghost plays on the softest velocity layer, and that layer is darkened as well
+as attenuated** (§7.64). Darkening removes high content — and the wire rattle *is* the high content.
+So the one thing that makes a ghost read as a ghost rather than a dull tap is exactly what a soft hit
+has least of.
+
+Nothing in the layer machinery is wrong; a real soft stroke does excite fewer high modes. What it
+means is that a kit which wants audible ghosts has to **start** with more wire than one that does not,
+so there is some left after the darkening. `snareRattle` 1.30 → 1.60, and the decay a little tighter
+still at 0.60 so a ghost does not smear into the next sixteenth.
+
+### `half-time` — air is not the same as wash
+
+*"Washy."* This is precisely the failure §7.65 named when the room went in: a wash softens the attack,
+and it makes the kit more convincing and the ruler blurrier at the same time. `half-time` is the style
+where that costs most, because its backbeat is scarce enough that blurring one matters.
+
+The lesson is that **air comes from the room being present, not from it being large**. `roomAmount`
+1.80 → 1.25 — still the wettest of the four — with `cymbalDecay` 1.25 → 1.10 and `snareDecay` 1.45 →
+1.30, since a long snare in a big room is two washes rather than one.
+
+The low tuning is untouched: *big* was not the complaint.
+
+### Half the auditions come back
+
+`driving` and `pocket` are approved and their flags are set, so the planner can schedule a band again.
+`syncopated` and `half-time` stay `false` until the retune has been heard — which is the flag doing
+exactly its job, at the granularity of one style rather than the whole library.
+
+Four tests moved with the verdict. That is not friction: it is §7.29 step 5's design, where an
+approval is a deliberate edit that shows up in a diff rather than a default nobody revisits.
+
+### What the pass says about the kit as a whole
+
+The player named the next thing without being asked:
+
+> I can't wait to tackle the cymbals, they are the weakest part of the kit that I am hearing.
+
+That is a straight read of where the synthesis is thinnest, and it agrees with the code. The hat and
+ride are five fixed inharmonic partials plus band-passed noise; **the crash is high-passed noise with
+one exponential decay and nothing else** — the crudest voice in the kit by a distance, and the one
+asked to sound like the largest piece of metal. A real cymbal is dense inharmonic modes, nonlinear
+coupling that shifts energy upward as it is struck harder, and a decay whose colour changes across
+its length rather than staying put.
+
+Recorded here as the next piece of M26 rather than started, because §7.68 is still waiting on a
+listen and one branch at a time is the rule (§8.2.2).
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the

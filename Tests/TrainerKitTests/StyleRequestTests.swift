@@ -46,18 +46,19 @@ final class StyleRequestTests: XCTestCase {
         }
     }
 
-    /// An approved style goes through without one, or the approval bought nothing.
-    ///
-    /// **Nothing is approved right now** (§7.68): the kits changed and none has been heard in its
-    /// current form, so every style needs `--probe` exactly as an unheard one always did. The loop
-    /// closes when they are listened to — set the flags, and this test asserts the other half again.
-    func testAnApprovedStyleNeedsNoProbe() throws {
-        for style in StyleLibrary.all where style.auditioned {
-            XCTAssertNotNil(try Commands.resolveStyle(flags(style: style.name), rung: nil,
-                                                      now: clock))
+    /// An approved style goes through without one, or the approval bought nothing — and the two
+    /// still waiting on a listen need one, which is the same rule seen from the other side (§7.69).
+    func testAnApprovedStyleNeedsNoProbeAndAnUnheardOneDoes() throws {
+        XCTAssertFalse(StyleLibrary.auditioned.isEmpty, "nothing to prove if nothing is approved")
+        for style in StyleLibrary.all {
+            let resolved = try? Commands.resolveStyle(flags(style: style.name), rung: nil,
+                                                      now: clock)
+            if style.auditioned {
+                XCTAssertNotNil(resolved, "\(style.name) is approved and still refused")
+            } else {
+                XCTAssertNil(resolved, "\(style.name) is unheard and went through anyway")
+            }
         }
-        XCTAssertTrue(StyleLibrary.auditioned.isEmpty,
-                      "a style is approved again — drop this line and assert the four go through")
     }
 
     /// And `--probe` is the way through, because auditioning a style *is* a deliberate look at a

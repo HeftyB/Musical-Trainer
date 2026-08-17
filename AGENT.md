@@ -115,11 +115,16 @@ field multiplies and `standard` is 1 everywhere, so the standard kit is bit-iden
 branch*: `x * 1.0 == x`. **No style has been given a kit yet**, deliberately — tuning them is a
 listening job and §8.1.2 says the mechanism lands first.
 
-**M26 item 2's tuning half is built and unheard** (§7.68). The four styles carry kits derived from
+**M26 item 2's tuning half is built and half-approved** (§7.68, §7.69). The four styles carry kits derived from
 their own descriptions rather than from genres — `driving` tight and dry, `pocket` low and roomy,
-`syncopated` high and tight so ghost notes read, `half-time` deep and wet. **Every audition is
-withdrawn**, because what was approved no longer exists: the planner schedules no band, the app
-offers none, and the CLI wants `--probe`, until somebody listens and sets the flags back.
+`syncopated` high and tight so ghost notes read, `half-time` deep and wet. Every audition was withdrawn when the
+kits changed, and **`driving` and `pocket` came back on the §7.69 listening pass**. `syncopated` was
+*"not quite ghosty enough"* and `half-time` was *"washy"*; both were retuned and both stay
+unapproved until that retune is heard, so the planner can reach two styles and not the other two.
+
+**The next piece of M26 is the cymbals**, named by the player unprompted as the weakest thing he
+hears — and the code agrees: the crash is high-passed noise with one exponential decay, the crudest
+voice in the kit and the one asked to sound like the largest piece of metal (§7.69).
 
 **`render` was rendering the wrong kit.** It built its own with no spec, so the audition mechanism
 produced files on the standard drums whatever style it was rendering — caught only because the first

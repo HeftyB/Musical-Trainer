@@ -43,10 +43,10 @@ final class KitSpecTests: XCTestCase {
     /// **This test is the acknowledgement, not an obstacle.** When the styles are re-heard, whoever
     /// sets a flag back to `true` has to come here and say which — a deliberate act that shows up in
     /// a diff, rather than a flag nobody remembers is stale (`LESSONS.md` shape 21).
-    func testNoStyleIsAuditionedWhileItsNewKitIsUnheard() {
-        XCTAssertTrue(StyleLibrary.auditioned.isEmpty,
-                      "A style is marked auditioned. If its kit has been heard and approved, name it "
-                    + "here; if not, the flag is claiming something nobody checked.")
+    func testOnlyTheKitsThatHaveBeenHeardAreApproved() {
+        XCTAssertEqual(Set(StyleLibrary.auditioned.map(\.name)), ["driving", "pocket"],
+                       "The approved set changed. `auditioned` is set by the person who plays over "
+                     + "the style, so this is where their verdict is recorded — §7.68, §7.69.")
     }
 
     /// The planner has to cope with nothing being approved rather than reaching past it, which is the
