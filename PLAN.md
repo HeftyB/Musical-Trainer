@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 572 of 878 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 306 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 582 of 888 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 306 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -8752,6 +8752,85 @@ change.
 
 ---
 
+## 7.66 M26 item 4 — no two hits alike, and what the measurement changed
+
+§7.30 item 4: *"every hit is byte-identical to the last, which no acoustic instrument is."* The last
+of the three items §7.59 pulled forward, and the one where the design changed because a measurement
+contradicted the plan.
+
+### The plan was round-robin variants. The measurement killed it.
+
+§7.30 proposed *"round-robin sample selection or small seeded parameter jitter"*. Round-robin is the
+better of the two — a genuinely different waveform rather than the same one at a different level — so
+that is what was scoped.
+
+Then the render chain was timed, per voice, per stage:
+
+| Stage | One pass over 13 voices |
+|---|---|
+| `raw` synthesis | 0.4 s |
+| centroid, for the darkening corner | 1.2 s |
+| **the room** | **4.5 s** |
+
+A kit renders four layers per voice, so a kit build is four of those passes — 24 seconds in a debug
+build, which matches what it measures. **Every extra variant is another 18 seconds**, and the suite
+that runs on every commit is 167 seconds total. Three variants would have tripled the gate's cost;
+and the alignment problem below means two or four are *worse than none*, so three is the floor.
+
+So: **level variation now, timbral variants deferred with the number attached.** Not abandoned — the
+render chain has to get cheaper first, and §7.65 already found that the room dominates it.
+
+### The trap that decides the mechanism
+
+**A cycle whose length divides the bar makes the machine quality worse.** Patterns here are 16 steps
+to the bar. Four variants put the same one on every downbeat and the same one on every backbeat: a
+pattern *inside* the variation, aligned to the pattern it exists to break up. Two alternate, which is
+more audible still. Three shares a factor with the 24-step grid M19 re-voiced onto.
+
+A hash of the hit's index has no period short of the mixer's, so nothing lines up with anything. It
+is also **stateless**, which a generator advanced per hit is not: the same arrangement has to produce
+the same audio however the hits were sorted or filtered (R1.2.2), and a running RNG cannot promise
+that. A test samples the stream at every bar-aligned stride and requires it to keep varying.
+
+### What varies, and what deliberately does not
+
+**Level only.** Not timing — the backing is the ruler this project measures against, and a band that
+moved would put its own jitter into every number. Not the layer either: jitter crossing a velocity
+boundary would change the *accent* the pattern wrote, and the accents are the groove.
+
+**Attenuation only, never boost**, so nothing is louder than the mix that already shipped and the
+clipping guarantee needs no re-checking — the same reasoning as capping a layer rather than matching
+it (§7.64). The cost is the band sitting about 0.8 dB lower on average, which is below noticing and
+well inside the headroom. Depth is 0.17, roughly 1.6 dB at the extreme.
+
+**The kit fingerprint does not move.** Variation happens when a piece is scheduled, not when a voice
+is rendered, so it changes the performance rather than the instrument — no new `KitGroup` era, and
+takes over this build group with the room takes.
+
+### Where it lives, and why that is not where it started
+
+The per-voice occurrence counting began inside `GroovePlayer.schedule`, which runs behind an audio
+device — `LESSONS.md` shape 1, the most common shape in this project, committed while writing the
+milestone that has been citing it. `Variation.gainScales(for:)` is `GrooveCore`'s now, so the ten
+tests over it run on the Linux CI leg with no hardware, and what CI covers goes from 572 of 878 cases
+to **582 of 888**.
+
+Counting is per voice rather than across the schedule, so adding a cowbell does not re-roll every
+hi-hat — a piece must not change because something else was added to it. That has its own test.
+
+### A speedup that was left on the floor on purpose
+
+Measuring the darkening corner once per voice rather than once per layer saves about 0.8 seconds of a
+24-second build. It also changes what the soft layers are filtered against, which changes the kit,
+which costs a new era and another listening test. **Not worth it**, and recorded here so the next
+person to spot it does not spend the afternoon finding out why it was passed over.
+
+What was kept is the room's inner loops rewritten onto unsafe buffers, which is output-identical —
+the fingerprint test confirms it — and modest: 26.6 s to 24.0 s. The cost is not bounds checking; it
+is four room passes per voice.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8775,10 +8854,10 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   878 cases
+└── Tests/                   888 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     439 cases against synthetic ground truth
-    ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
+    ├── GrooveCoreTests/     143 cases — patterns, sequencer, styles
     └── TrainerKitTests/     306 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```

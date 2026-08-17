@@ -97,7 +97,19 @@ one-shot — legitimate because a room is linear, so filtering each voice and su
 summing and filtering, which is what lets it live outside the render callback (R2.3). Kit is now
 `0a99f6f3a74e`, named "room". **What it needs an ear for is not whether there is a room but whether
 the transient survived**: this project measures placement against the backing, and a wash that
-softens the attack blurs the ruler while making the kit more convincing.
+softens the attack blurs the ruler while making the kit more convincing. **Confirmed by ear** — the
+beat is still easy to lock into.
+
+**M26 item 4 is built** (§7.66): no two hits of one voice come out at the same level. Level only —
+not timing, because the backing is the ruler, and not the layer, because that would change the accents
+the pattern wrote. **The timbral round-robin §7.30 asked for was measured and deferred**: the room
+costs 4.5 s per pass over the kit and a kit is four passes, so every extra variant is 18 s on a
+167 s suite. The kit fingerprint does not move — variation is applied when a piece is scheduled, not
+when a voice is rendered, so it changes the performance rather than the instrument.
+
+**That closes the M26 subset §7.59 pulled forward** (items 1, 3, 4). Item 2 — a kit as a parameter
+set, which is what lets a style carry its own snare — is the next architectural one, and M16.5's
+re-audition is what the subset was for.
 
 M17 is a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
 six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
@@ -472,7 +484,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 572 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  is the 582 pure-module tests, because `Package.swift` excludes the Apple-only targets off
   macOS. `TrainerKitTests` (306 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
@@ -525,7 +537,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 878 tests, no hardware needed
+swift test                              # 888 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

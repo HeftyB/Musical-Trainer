@@ -141,40 +141,72 @@ enum Room {
         // once per voice per layer at launch. Each comb is independent, so running the whole signal
         // through one at a time is the same arithmetic in a shape the optimiser can keep in cache.
         var early = [Float](repeating: 0, count: total)
-        for (delayMs, gain) in earlyReflections {
-            let delay = Int(delayMs / 1000 * fs)
-            for i in 0..<buffer.count where i + delay < total {
-                early[i + delay] += buffer[i] * gain
-            }
-        }
-
-        var excitation = [Float](repeating: 0, count: total)
-        for i in 0..<total {
-            excitation[i] = (i < buffer.count ? buffer[i] : 0) + early[i]
-        }
-
         var wet = [Float](repeating: 0, count: total)
-        for ms in combDelaysMs {
-            // Feedback is set from each comb's own delay so they all reach −60 dB at the same
-            // moment. One feedback figure across different delays gives the short combs a much
-            // shorter tail, and the decay audibly arrives in stages.
-            var comb = Comb(delaySamples: Int(ms / 1000 * fs),
-                            feedback: Float(pow(10, -3 * (ms / 1000) / reverbTimeSeconds)),
-                            damping: dampingHz, fs: fs)
-            for i in 0..<total { wet[i] += comb.process(excitation[i]) }
-        }
-        let scale = 1 / Float(combDelaysMs.count)
-        for i in 0..<total { wet[i] *= scale }
-
-        for ms in allpassDelaysMs {
-            var allpass = Allpass(delaySamples: Int(ms / 1000 * fs), gain: 0.7)
-            for i in 0..<total { wet[i] = allpass.process(wet[i]) }
-        }
-
         var out = [Float](repeating: 0, count: total)
-        for i in 0..<total {
-            out[i] = (i < buffer.count ? buffer[i] : 0) + (early[i] + wet[i]) * mix
-        }
+
+        // **Unsafe buffers, and the reason is the gate rather than the audio.** This runs once per
+        // voice per layer at launch, where a few milliseconds either way is invisible — but it also
+        // runs in every test that builds a kit, in a debug build, where Swift's bounds and
+        // exclusivity checks on `[Float]` subscripts dominate. A kit took 26.6 seconds to build that
+        // way. `check.sh --fast` runs on every commit, so that is the number that decides whether the
+        // gate stays worth running (§7.65, §7.66).
+        buffer.withUnsafeBufferPointer { dry in
+        early.withUnsafeMutableBufferPointer { early in
+        wet.withUnsafeMutableBufferPointer { wet in
+        out.withUnsafeMutableBufferPointer { out in
+
+            for (delayMs, gain) in earlyReflections {
+                let delay = Int(delayMs / 1000 * fs)
+                for i in 0..<dry.count where i + delay < total {
+                    early[i + delay] += dry[i] * gain
+                }
+            }
+
+            for ms in combDelaysMs {
+                // Feedback is set from each comb's own delay so they all reach −60 dB at the same
+                // moment. One feedback figure across different delays gives the short combs a much
+                // shorter tail, and the decay audibly arrives in stages.
+                let feedback = Float(pow(10, -3 * (ms / 1000) / reverbTimeSeconds))
+                let length = max(Int(ms / 1000 * fs), 1)
+                var line = [Float](repeating: 0, count: length)
+                let damping = Float(1 - exp(-2 * .pi * dampingHz / fs))
+                var damped: Float = 0
+                var cursor = 0
+                line.withUnsafeMutableBufferPointer { line in
+                    for i in 0..<total {
+                        let stored = line[cursor]
+                        damped += damping * (stored - damped)
+                        let x = (i < dry.count ? dry[i] : 0) + early[i]
+                        line[cursor] = x + damped * feedback
+                        cursor += 1
+                        if cursor == length { cursor = 0 }
+                        wet[i] += stored
+                    }
+                }
+            }
+
+            let scale = 1 / Float(combDelaysMs.count)
+            for i in 0..<total { wet[i] *= scale }
+
+            for ms in allpassDelaysMs {
+                let length = max(Int(ms / 1000 * fs), 1)
+                var line = [Float](repeating: 0, count: length)
+                var cursor = 0
+                line.withUnsafeMutableBufferPointer { line in
+                    for i in 0..<total {
+                        let stored = line[cursor]
+                        line[cursor] = wet[i] + stored * 0.7
+                        wet[i] = stored - wet[i]
+                        cursor += 1
+                        if cursor == length { cursor = 0 }
+                    }
+                }
+            }
+
+            for i in 0..<total {
+                out[i] = (i < dry.count ? dry[i] : 0) + (early[i] + wet[i]) * mix
+            }
+        }}}}
         return out
     }
 }
