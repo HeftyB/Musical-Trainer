@@ -26,9 +26,14 @@ final class VelocityLayerTests: XCTestCase {
     }
 
     /// Voices whose energy sits below the room's own return, so its reflections dominate their
-    /// spectral centroid. Measured rather than listed — see the test that pins the membership.
+    /// colour. Measured rather than listed — see the test that pins the membership.
+    ///
+    /// **Asked with `energyAbove` rather than `centroid`**, which the modal cymbals forced (§7.70):
+    /// a bank of discrete modes can fall between the centroid's probe frequencies and read far
+    /// darker than it is, and on the new ride it did — putting a bright cymbal in the set of *low*
+    /// voices. A filter does not care where inside the band the energy sits, only how much is there.
     private static let lowVoices: [BackingVoice] = accented.filter {
-        DrumSynth.centroid(of: kit.buffer(for: $0, velocity: 100), sampleRate: 44_100) < 400
+        DrumSynth.energyAbove(1_000, of: kit.buffer(for: $0, velocity: 100), sampleRate: 44_100) < 0.2
     }
 
     // MARK: The nominal layer is the kit that already existed

@@ -136,10 +136,29 @@ public enum TrainerEngine {
         /// point of there being one (§7.67). A style carries its own drums now, so resolving the
         /// steps here and the kit somewhere else would be `Feel`/`Swing`'s failure mode exactly: a
         /// take played on one kit and stored as having heard another.
-        var backing: (name: String, arrangement: Arrangement, kit: KitSpec) {
+        /// What one resolution produced: the name a take is stored under, the music, and the drums.
+        ///
+        /// A named type rather than a `(String, Arrangement, KitSpec)` tuple, for readability — three
+        /// labelled fields read better than a tuple at every call site, and the third arrived only
+        /// when styles gained kits (§7.67).
+        ///
+        /// **It was not introduced for the reason it looked like at the time.** Adding the kit made a
+        /// test start reporting a `KitSpec` with uninitialised memory in three of its fields, which
+        /// read as a miscompile and was not: `KitSpec` had grown from eight fields to twelve, and an
+        /// incremental build left `TrainerKit` reading it at the old layout. Everything up to field
+        /// eight was right and everything after it was garbage — which is the tell, and `swift
+        /// package clean` is the fix (§7.70).
+        struct Resolved {
+            let name: String
+            let arrangement: Arrangement
+            let kit: KitSpec
+        }
+
+        var backing: Resolved {
             if let level = offbeatLevel {
-                return ("offbeat-\(level.rawValue)",
-                        OffbeatBacking.backing(level: level, bars: max(1, bars)), .standard)
+                return Resolved(name: "offbeat-\(level.rawValue)",
+                                arrangement: OffbeatBacking.backing(level: level, bars: max(1, bars)),
+                                kit: .standard)
             }
             // A generated backing is free playing over a style, so it sits below the offbeat
             // drill and above the fixed fallback but never beside a rung: a ladder groove exists
@@ -152,23 +171,30 @@ public enum TrainerEngine {
             // swallowed — and a wrong groove played confidently is worse than a familiar one.
             if rung == nil, let identity = generatedBacking {
                 if let style = StyleLibrary.named(identity.style) {
-                    return (identity.name,
-                            StyleArranger.arrangement(style: style, seed: identity.seed,
-                                                      bars: max(1, bars)),
-                            style.kit)
+                    return Resolved(name: identity.name,
+                                    arrangement: StyleArranger.arrangement(
+                                        style: style, seed: identity.seed, bars: max(1, bars)),
+                                    kit: style.kit)
                 }
-                return ("jamBacking", GrooveLibrary.jamBacking, .standard)
+                return Resolved(name: "jamBacking", arrangement: GrooveLibrary.jamBacking,
+                                kit: .standard)
             }
-            guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking, .standard) }
+            guard let rung else {
+                return Resolved(name: "jamBacking", arrangement: GrooveLibrary.jamBacking,
+                                kit: .standard)
+            }
             // A feel gets its own groove, not the straight one with warped timing. Warping alone
             // leaves every loud event on an even grid and the feel inaudible — see
             // `LadderBackings.swungPattern`.
             guard feel.isStraight || !feel.applies(toSubdivisions: rung.subdivisions) else {
-                return ("ladder-\(rung.rawValue)-swung",
-                        LadderBackings.swungBacking(notesPerBeat: rung.subdivisions), .standard)
+                return Resolved(name: "ladder-\(rung.rawValue)-swung",
+                                arrangement: LadderBackings.swungBacking(
+                                    notesPerBeat: rung.subdivisions),
+                                kit: .standard)
             }
-            return ("ladder-\(rung.rawValue)",
-                    LadderBackings.backing(notesPerBeat: rung.subdivisions), .standard)
+            return Resolved(name: "ladder-\(rung.rawValue)",
+                            arrangement: LadderBackings.backing(notesPerBeat: rung.subdivisions),
+                            kit: .standard)
         }
 
         /// The grid a take with no prescribed rung is scored on.
