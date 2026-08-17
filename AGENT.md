@@ -15,7 +15,43 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 - **AGENT.md** (this file) — the operating manual.
 - **[README.md](README.md)** — what the app is and how to use it.
 
+## Start here
+
+**A macOS app that trains an autonomous internal pulse.** The player is one person — a guitarist of
+25 years learning keys, theory-strong, whose weak axis is timing and feel. Everything is built for
+him, eyes-off, and every number it shows has to be true or it is worse than no number.
+
+Read these five documents in this order and nothing else first: this file for how to work,
+`PLAN.md` §7's milestone table for what exists, `LESSONS.md` for the twenty-two ways this project has
+gone wrong, `STANDARDS.md` §8 for the branch and commit rules, and `README.md` for what the player
+sees.
+
+**Six things that will save you a day each:**
+
+1. **`./scripts/check.sh` is the gate and it must pass before every commit.** It takes about three
+   minutes. A green gate bounds what has been *checked*, not what is true — §7.47 found two rules
+   that could not fail, and every codebase review since has found defects it could not see.
+2. **Anything analysable belongs in `TimingCore` or `GrooveCore`.** Those are the only modules CI
+   compiles, and `LESSONS.md` shape 1 — logic living where no test can reach it — is the most common
+   failure here by a distance.
+3. **A test that a value *changed* cannot protect a value changing *enough*.** §7.64 shipped an
+   inaudible feature with every test passing. When the point is that something moves, the test needs
+   a quantity and a threshold.
+4. **Audio verdicts come from the player, not from you or from a test.** `render` writes WAVs to
+   `temp/renders`; send them and ask. `Style.auditioned` records his answer, and changing a kit
+   withdraws it — see the cycle in §7.68–§7.71.
+5. **A take is primary data.** Stored takes are never rewritten (R6.2), everything recomputes from
+   raw taps (R3.1), and a field that does not exist when a take is recorded is lost for good (R6.3).
+6. **If a struct reads garbage past field N, `swift package clean` before debugging.** A stale
+   incremental build looks exactly like a miscompile (§7.70).
+
+**What is in flight right now:** M26's cymbals (§7.70, §7.71) are built and awaiting a listening
+verdict, with every style's audition withdrawn until then. **What is open:** §7.57's queue — items 4,
+5 and 6 — and M16.5, blocked on an ear since §7.56.
+
 ## Where the project is
+
+The detail behind the summary above, newest first.
 
 **M0–M16 and M19 are built.** M17, M18, M20–M27 and M16.5's decision are not; PLAN.md §7's milestone table
 carries the status of each and is the one to trust. M14 has six ladder takes across 80–140 BPM,
@@ -131,10 +167,20 @@ rings, and a strike that gets brighter with force. `KitSpec` gains four cymbal k
 with **what to listen for** as well as what it changes. The kit is `9a40d4268492`, "modal cymbals",
 and **every audition is withdrawn again** — expected, and what §7.69 said to expect.
 
-Two measurement notes worth carrying: **`DrumSynth.centroid` is the wrong tool for modal content** —
-this is its second false reading (§7.67, §7.70) — use `energyAbove(_:of:)` instead. And normalising a
-resonator uses `sin(ω)` when it is *struck* and `1 - r` when it is *driven*; the wrong one collapses
-every cymbal to a tick.
+**The first pass was heard and rejected** — *"a tin can… hollow… the closed hats sound too much like
+a click"* — and the cause was one thing: too few modes, spread *further apart* as they climbed, which
+is backwards for a plate (§7.71). Retuned to dense, evenly spaced modes plus a noise band standing in
+for the hundreds too high to model. **The retune is itself unheard**; the kit is `21effa71350e`.
+
+Three notes worth carrying into any further synthesis work:
+
+- **`DrumSynth.centroid` is the wrong tool for modal content.** Two false readings so far (§7.67,
+  §7.70) — use `energyAbove(_:of:)`, which asks how much energy is above a frequency rather than
+  where it sits.
+- **Normalising a resonator uses `sin(ω)` when it is *struck* and `1 - r` when it is *driven*.** The
+  wrong one collapses every cymbal to a tick (§7.70).
+- **In a plate, modal density is roughly constant in frequency.** Spreading modes apart as they climb
+  makes gaps the ear hears as hollowness (§7.71).
 
 **`render` was rendering the wrong kit.** It built its own with no spec, so the audition mechanism
 produced files on the standard drums whatever style it was rendering — caught only because the first
