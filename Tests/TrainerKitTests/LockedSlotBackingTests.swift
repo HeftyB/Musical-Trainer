@@ -109,7 +109,6 @@ final class LockedSlotBackingTests: XCTestCase {
     /// authored tomorrow — or a kit changed under an existing one — cannot be scheduled until
     /// somebody says it may be.
     func testThePlannerSchedulesFromTheApprovedLibraryAndNotTheWholeOne() {
-        XCTAssertFalse(StyleLibrary.auditioned.isEmpty)
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy(\.auditioned))
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy { StyleLibrary.all.contains($0) })
 

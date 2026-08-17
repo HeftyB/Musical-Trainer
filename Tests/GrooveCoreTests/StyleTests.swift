@@ -189,10 +189,10 @@ final class StyleTests: XCTestCase {
         // What each rests on differs and §7.33 says so: `driving` and `half-time` were played over,
         // `pocket` and `syncopated` were listened to at every intensity and never played. A style
         // added later starts at `false` again and this test fails until somebody says otherwise.
-        // **Withdrawn in §7.68** because all four kits changed, then given back across two listening
-        // passes in §7.69: `driving` and `pocket` on the first, `syncopated` and `half-time` after
-        // the retune their verdicts asked for. Back to four, on new drums this time.
-        XCTAssertEqual(StyleLibrary.auditioned.count, 4,
+        // Withdrawn in §7.68, given back across two listening passes in §7.69, and **withdrawn
+        // again in §7.70** when the cymbals were rebuilt. Every style is on a kit nobody has heard.
+        // This number is the record of who has listened to what, and it moves in both directions.
+        XCTAssertEqual(StyleLibrary.auditioned.count, 0,
                        "approving or retiring a style is a deliberate edit, and this is where it "
                      + "shows up")
     }

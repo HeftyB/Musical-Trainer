@@ -118,6 +118,9 @@ public enum KitGroup: Hashable, Comparable {
     /// a draft. That one had never reached a stored take; the list grows from here.
     public static let roomFingerprint = "0a99f6f3a74e"
 
+    /// The kit after M26 item 6 rebuilt the cymbals as struck plates (§7.70).
+    public static let modalCymbalsFingerprint = "9a40d4268492"
+
     /// Every kit this project has shipped, oldest first.
     ///
     /// **Appended to, never edited.** Each row describes a kit that existed and that takes were
@@ -127,6 +130,7 @@ public enum KitGroup: Hashable, Comparable {
         (originalFingerprint, "original"),
         (velocityLayeredFingerprint, "velocity layers"),
         (roomFingerprint, "room"),
+        (modalCymbalsFingerprint, "modal cymbals"),
     ]
 
     public init(fingerprint: String?) {

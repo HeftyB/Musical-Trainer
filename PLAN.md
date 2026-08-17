@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 590 of 908 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 318 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 590 of 922 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 332 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -9039,6 +9039,108 @@ listen and one branch at a time is the rule (§8.2.2).
 
 ---
 
+## 7.70 M26 item 6 — cymbals as struck plates
+
+The player named this without being asked: *"I can't wait to tackle the cymbals, they are the weakest
+part of the kit that I am hearing."* The code agreed. The hat and ride were five fixed partials plus
+band-passed noise; **the crash was high-passed noise times one exponential and nothing else** — no
+modes at all, on the voice asked to sound like the largest piece of metal on the stand.
+
+### What a cymbal is, and what the old synthesis was missing
+
+A cymbal is a thin plate flexing in a great many patterns at once. Three facts about those modes are
+what make metal sound like metal, and the old voices had none of them. `CymbalSynth`'s documentation
+carries the full version — the player asked for detail he can learn from, so the *what to listen for*
+lives beside each parameter. In brief:
+
+1. **The modes are inharmonic and there are hundreds.** A harmonic series fuses into a pitch, which
+   is what a musical note is. A plate's modes do not, so you hear a sound rather than a note. Five
+   partials is a *chime* you can hum along with; thirty is a *shimmer*.
+2. **High modes die faster, so a cymbal darkens as it rings.** This is the biggest omission: the old
+   crash was one colour from beginning to end, which is exactly what a noise burst is.
+3. **Hit harder and it gets brighter, not just louder.** Approximated here at the strike rather than
+   modelled as mode coupling, and `CymbalSynth` says so rather than implying a physical model.
+
+### Built as resonators, not as sines
+
+A bank of two-pole resonators excited by a short noise burst — which is how the physics reads: the
+stick delivers a broadband push and the plate rings where it prefers. Four multiplies and two adds
+per mode per sample, where forty `sin()` calls would not have been affordable.
+
+Measured after, against the honest questions: **attack energy above 2 kHz runs 0.68–0.99 and tail
+energy 0.08–0.26** — a real darkening — and a soft strike carries 0.06–0.58 of a hard one's
+brightness.
+
+### Normalising a resonator: the wrong number and the right one
+
+The first attempt scaled each mode by `1 - r`, on the reasoning that a two-pole resonator amplifies a
+tone at its own frequency by about `1 / (1 - r)`.
+
+**That is right for a resonator being driven and wrong for one being struck.** A plate gets a very
+short burst and then rings on its own, which is an impulse response: its peak goes as `1 / sin(ω)`,
+not `1 / (1 - r)`. A mode ringing for two seconds has `r` within a hair of 1, so `1 - r` is about
+2 × 10⁻⁵ — the modal content vanished under the strike noise and every cymbal came out as a
+50-millisecond tick with a ghost behind it. `sin(ω)` is the correct normalisation and makes
+`Mode.amplitude` mean what it says.
+
+Before that, with no normalisation at all, the long low modes were amplified thousands of times
+harder than the short high ones: the crash peaked at 4.08 of full scale **and** measured a spectral
+centroid of 247 Hz — a cymbal darker than a floor tom. One error, two symptoms, and the second is the
+one that would have been mistaken for a tuning problem.
+
+### The cost, and where it went
+
+A kit build went 24 s → 43 s. Most of it came back by **stopping each mode once it is inaudible**
+rather than running it to the end of the buffer: high modes are damped hardest, so in a crash whose
+lowest mode rings 1.6 s the top ones are finished in a tenth of that, and running them over the whole
+buffer was multiplying nothing by 44,100 samples a second. 43 s → 33 s, with every measurement
+identical, which is what "inaudible by construction" should look like.
+
+### Five knobs, and what each one is for
+
+`KitSpec` gains `cymbalTuning`, `cymbalDarkening`, `cymbalBrightness` and `cymbalDensity` beside the
+existing `cymbalDecay`. Each is documented with what it changes *and what to listen for*, because the
+player asked to learn what these settings do rather than only that they do something. The one worth
+repeating here: **`cymbalBrightness` is an offset with 0 as its identity**, not a multiplier, because
+it moves a tilt and a tilt crosses zero.
+
+### Two measurement lessons, one of them expensive
+
+**`centroid` is the wrong tool for modal content, and this is the second time it has said so.** §7.67
+found it reading a snare's centroid *falling* when the snare was tuned up. Here it put the new ride —
+a bright cymbal — into `VelocityLayerTests`' set of *low* voices, because thirty discrete modes can
+fall between probe frequencies spaced 1.25× apart. `DrumSynth.energyAbove(_:of:)` answers "how much
+energy is up there" with a filter, which does not care where inside the band it sits, and the
+exemption now uses it.
+
+**A stale incremental build reads a struct at the wrong offsets, and it looks exactly like a
+miscompile.** `KitSpec` grew from eight fields to twelve, and a test began reporting a spec whose
+last three fields held uninitialised memory — on a type whose initialiser assigns every one of them.
+Time went into rewriting a tuple return as a struct on the theory that a large tuple was at fault. It
+was not. **The tell is that everything up to the old field count is correct and everything after it is
+garbage**, and the fix is `swift package clean`. Recorded in `AGENT.md` where somebody debugging will
+meet it.
+
+The struct is kept, because three labelled fields read better than a 3-tuple — but the note explaining
+it now says what actually happened rather than what it looked like.
+
+### Unheard, and every audition withdrawn
+
+The kit is `9a40d4268492`, named "modal cymbals". All four styles go back to `auditioned: false`,
+which §7.69 said to expect: a style approved on one set of drums has not been approved on another.
+
+**What to listen for**, in the order the changes matter:
+
+- **The crash.** It had no modes at all. If the rebuild worked it should now sound like metal rather
+  than like a burst of noise — and its tail should be *darker* than its attack rather than the same
+  sound fading.
+- **The ride's ping.** A ride has to articulate every stroke or a pattern on it turns to soup. Its
+  modes are tilted toward the low end for exactly that reason.
+- **The hats at speed.** Eighths on a closed hat are where a decay that is too long stops sounding
+  like eighths.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -9062,11 +9164,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   908 cases
+└── Tests/                   922 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     439 cases against synthetic ground truth
     ├── GrooveCoreTests/     151 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     318 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     332 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

@@ -96,12 +96,17 @@ final class KitSpecSynthesisTests: XCTestCase {
 
     /// One knob for both cymbals, because a kit with a tight hat and a washy ride is two decisions
     /// nobody has asked for yet.
+    ///
+    /// **Measured by energy rather than by audible length**, which is a change the modal cymbals
+    /// forced (§7.70). `durationSeconds` asks when the signal falls 20 dB below its own peak, and a
+    /// struck plate's peak is a sharp transient — so a hat whose *ring* is halved barely moves that
+    /// figure while losing a great deal of what it carries. Total energy sees the ring.
     func testCymbalDecayShortensTheHatAndTheRideTogether() {
         let tight = KitSpec(name: "tight", cymbalDecay: 0.5)
-        XCTAssertLessThan(duration(voice(.closedHat, tight)),
-                          duration(voice(.closedHat, .standard)) * 0.85)
-        XCTAssertLessThan(duration(voice(.ride, tight)),
-                          duration(voice(.ride, .standard)) * 0.9)
+        XCTAssertLessThan(DrumSynth.energy(of: voice(.closedHat, tight)),
+                          DrumSynth.energy(of: voice(.closedHat, .standard)) * 0.85)
+        XCTAssertLessThan(DrumSynth.energy(of: voice(.ride, tight)),
+                          DrumSynth.energy(of: voice(.ride, .standard)) * 0.85)
     }
 
     /// **A genre parameter as much as any drum's tuning**, and the one that most separates a sixties
@@ -140,5 +145,61 @@ final class KitSpecSynthesisTests: XCTestCase {
         let fixed = TrainerEngine.JamConfig(bpm: 100, bars: 8, tag: nil)
         XCTAssertEqual(fixed.backing.kit, .standard)
         XCTAssertEqual(fixed.backing.name, "jamBacking")
+    }
+}
+
+/// The five cymbal knobs, each checked against the thing its documentation says it moves.
+extension KitSpecSynthesisTests {
+
+    private func hatBrightness(_ spec: KitSpec) -> Double {
+        DrumSynth.energyAbove(2_000, of: voice(.closedHat, spec), sampleRate: 44_100)
+    }
+
+    /// Lower is bigger. Measured at a mode's own frequency, because that is exact where a centroid
+    /// over discrete modes is not (§7.67, §7.70).
+    func testCymbalTuningMovesTheWholePlate() {
+        let big = KitSpec(name: "big", cymbalTuning: 0.6)
+        let low = voice(.ride, big), standard = voice(.ride, .standard)
+
+        XCTAssertGreaterThan(DrumSynth.power(of: low, atHz: 171, sampleRate: fs),
+                             DrumSynth.power(of: standard, atHz: 171, sampleRate: fs) * 2,
+                             "the ride's lowest mode should have moved from 285 Hz to 171")
+    }
+
+    /// The knob that most separates metal from noise: how fast the top goes as the sound rings.
+    func testCymbalDarkeningChangesTheTailAndNotTheAttack() {
+        let dark = KitSpec(name: "dark", cymbalDarkening: 2.0)
+        let sustained = KitSpec(name: "sustained", cymbalDarkening: 0.3)
+
+        let darkTail = Array(voice(.crash, dark).dropFirst(Int(0.3 * fs)))
+        let sustainedTail = Array(voice(.crash, sustained).dropFirst(Int(0.3 * fs)))
+
+        XCTAssertLessThan(DrumSynth.energyAbove(2_000, of: darkTail, sampleRate: fs),
+                          DrumSynth.energyAbove(2_000, of: sustainedTail, sampleRate: fs) * 0.6,
+                          "a heavily damped tail must lose its top far faster")
+    }
+
+    /// **An offset, not a multiplier — 0 is the identity**, because it moves a tilt and a tilt
+    /// crosses zero. Positive is a hard tip on the edge; negative is a mallet on the bow.
+    func testCymbalBrightnessMovesTheAttack() {
+        XCTAssertGreaterThan(hatBrightness(KitSpec(name: "bright", cymbalBrightness: 0.5)),
+                             hatBrightness(KitSpec(name: "dull", cymbalBrightness: -0.5)) * 1.1)
+        XCTAssertEqual(hatBrightness(KitSpec(name: "identity", cymbalBrightness: 0)),
+                       hatBrightness(.standard), accuracy: 1e-9,
+                       "zero has to be exactly the identity or every untuned style shifts")
+    }
+
+    /// Chime against cymbal. Fewer modes is not quieter or shorter — only more separable.
+    func testCymbalDensityChangesHowManyModesRing() {
+        let sparse = KitSpec(name: "sparse", cymbalDensity: 0.25)
+        XCTAssertNotEqual(voice(.ride, sparse), voice(.ride, .standard))
+        XCTAssertEqual((voice(.ride, sparse).map(abs).max() ?? 0),
+                       (voice(.ride, .standard).map(abs).max() ?? 0), accuracy: 1e-4,
+                       "density must not double as a volume control")
+    }
+
+    func testCymbalDecayStillChangesTheLength() {
+        let tight = KitSpec(name: "tight", cymbalDecay: 0.4)
+        XCTAssertLessThan(duration(voice(.ride, tight)), duration(voice(.ride, .standard)) * 0.9)
     }
 }

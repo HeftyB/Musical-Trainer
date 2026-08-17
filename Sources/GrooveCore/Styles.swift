@@ -125,9 +125,10 @@ public enum StyleLibrary {
         // Played over twice on 8 August — 32 bars, then 128. The longer take is where the
         // intensity arc first repeated, and the verdict was that it alternated subtly enough to
         // stay interesting without pulling the player off it (§7.29 step 5).
-        // **Heard and approved on the §7.69 listening pass.** `auditioned` is set by the person who
-        // has to play over it, and he did.
-        auditioned: true, kit: drivingKit)
+        // **Withdrawn again in §7.70**, and expected: the cymbals were rebuilt as struck plates, so
+        // every style is playing a kit nobody has heard. The flag tracks what a person approved, not
+        // what a person approved something *like*.
+        auditioned: false, kit: drivingKit)
 
     // MARK: - Pocket
 
@@ -176,9 +177,10 @@ public enum StyleLibrary {
         // **Listened to, not played over.** Approved on the renders — every intensity and the
         // seeded piece — rather than on a take. That is a weaker basis than `driving`'s and it is
         // recorded as such in §7.33 rather than smoothed over.
-        // **Heard and approved on the §7.69 listening pass.** `auditioned` is set by the person who
-        // has to play over it, and he did.
-        auditioned: true, kit: pocketKit)
+        // **Withdrawn again in §7.70**, and expected: the cymbals were rebuilt as struck plates, so
+        // every style is playing a kit nobody has heard. The flag tracks what a person approved, not
+        // what a person approved something *like*.
+        auditioned: false, kit: pocketKit)
 
     // MARK: - Syncopated
 
@@ -216,10 +218,10 @@ public enum StyleLibrary {
         playerVoices: [.kick, .snare, .closedHat, .openHat, .crash, .tom],
         density: .busy,
         // Listened to, not played over — see `pocket`.
-        // **Approved on the second listening pass** (§7.69). Withdrawn in §7.68 when the kits
-        // changed, retuned on the first verdict, and heard again — which is the whole cycle the flag
-        // exists for, at the granularity of one style rather than the library.
-        auditioned: true, kit: syncopatedKit)
+        // **Withdrawn again in §7.70**, and expected: the cymbals were rebuilt as struck plates, so
+        // every style is playing a kit nobody has heard. The flag tracks what a person approved, not
+        // what a person approved something *like*.
+        auditioned: false, kit: syncopatedKit)
 
     // MARK: - Half-time
 
@@ -258,8 +260,8 @@ public enum StyleLibrary {
         // what §7.29 step 5 predicted for the sparsest style: with a backbeat every other bar's
         // worth of time there is nothing to lean on between the landmarks. Approved as a style
         // worth practising over, not as an easy one.
-        // **Approved on the second listening pass** (§7.69). Withdrawn in §7.68 when the kits
-        // changed, retuned on the first verdict, and heard again — which is the whole cycle the flag
-        // exists for, at the granularity of one style rather than the library.
-        auditioned: true, kit: halfTimeKit)
+        // **Withdrawn again in §7.70**, and expected: the cymbals were rebuilt as struck plates, so
+        // every style is playing a kit nobody has heard. The flag tracks what a person approved, not
+        // what a person approved something *like*.
+        auditioned: false, kit: halfTimeKit)
 }
