@@ -90,8 +90,14 @@ voice, four bars, one per layer — that is the file the milestone is judged on.
 louder"* (§7.64). Nothing in the suite caught it, because the tests asserted the layers *differed*
 and a 2% difference satisfies that. The retune added spectral darkening, capped peaks instead of
 matching them, and fixed the shaker being accented despite its opt-out. Energy ratios now run
-0.02–0.14 of the hard layer and centroid ratios 0.14–0.78, against 0.88–1.02 before. **Unheard
-again** — the second listening test has not happened.
+0.02–0.14 of the hard layer and centroid ratios 0.14–0.78, against 0.88–1.02 before. **Confirmed by ear** on the sweeps and on a full `driving` groove.
+
+**M26 item 3, the room, is built and unheard** (§7.65). A damped Schroeder network baked into every
+one-shot — legitimate because a room is linear, so filtering each voice and summing is identical to
+summing and filtering, which is what lets it live outside the render callback (R2.3). Kit is now
+`0a99f6f3a74e`, named "room". **What it needs an ear for is not whether there is a room but whether
+the transient survived**: this project measures placement against the backing, and a wash that
+softens the attack blurs the ruler while making the kit more convincing.
 
 M17 is a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
 six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
@@ -467,7 +473,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 572 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (305 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (306 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -519,7 +525,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 877 tests, no hardware needed
+swift test                              # 878 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

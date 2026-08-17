@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 572 of 877 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 305 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 572 of 878 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 306 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -8655,7 +8655,101 @@ draft rather than history. After a kit has been played over, append.
 
 ---
 
-## 8. Project layout
+## 7.65 M26 item 3 — the kit gets a room
+
+§7.30 item 3, and its own claim: *"the kit is bone dry, and dryness is most of what reads as
+electronic. Early reflections and a short tail would do more for believability than any amount of
+spectral work on the voices themselves."*
+
+### Why this can be baked into the one-shots
+
+The render callback may not synthesise anything (R2.3), so a reverb *in the mix* has nowhere to run.
+Baking the room into each voice at startup is not a workaround for that. **A room is a linear
+time-invariant filter, so filtering each voice and summing is identical to summing and filtering** —
+every voice goes through the same room, and the result is the signal a shared reverb would produce,
+computed once instead of per sample.
+
+That equivalence is the whole licence, and it holds only while the filter is the same for every voice
+and constant in time. A per-voice room, or one reacting to what was playing, would be neither bakeable
+nor a room.
+
+**A recursive network rather than an impulse response**, because convolving a 0.32 s kick with a
+0.35 s tail is 200 million multiply-adds and there are 52 buffers — minutes of startup for something
+four combs and two allpasses give in milliseconds.
+
+### What was built
+
+Five early reflections as taps on the dry signal, then a damped Schroeder network: comb delays at
+mutually incommensurate spacings so the tail builds density rather than ringing at a pitch, feedback
+set per comb from its own delay so they all reach −60 dB together, and a one-pole in each feedback
+path because a real tail darkens as it decays. 0.34 s reverb time — a drum room, short enough that a
+sixteenth at 160 BPM is not still sounding when the next three arrive. 20% wet: the *cue* that a room
+exists, not an audible effect.
+
+**The order in the chain is not arbitrary.** Darkening is a property of the strike and belongs on the
+dry voice before it reaches the walls — filtering the room's return instead would darken a hard hit's
+reflections as though the room changed with velocity. The fade comes after the room, because the room
+is now what ends last and a truncated tail is the same step discontinuity §7.31 removed from the
+voices, one level further out.
+
+### The room compresses the low voices' colour, and that is acoustics
+
+`VelocityLayerTests` asserts a soft layer is substantially darker than a hard one. The room broke it
+for the kick, which went from 0.78 of its own centroid dry to **0.85** in the room. Not a tuning
+failure: **a room returns something brighter than a kick, so the reflections dominate a low voice's
+centroid and compress the ratio.** It is why a real kick is close-miked.
+
+Measured across the kit, the split is clean rather than a judgement call:
+
+| | Nominal centroid | Soft ÷ hard |
+|---|---|---|
+| kick | 117 Hz | 0.85 |
+| tom | 144 Hz | 0.90 |
+| *everything else* | 478 Hz – 10 kHz | 0.24 – 0.60 |
+
+So the exemption is defined by **where a voice sits**, not by a list of names that failed — and a
+test pins the membership at exactly `{kick, tom}`, so it cannot quietly grow to cover a voice that
+merely stopped working. Those two are asserted on energy instead, which they carry as strongly as
+anything else.
+
+The tom remains the weaker of the two for its own separate reason (§7.64): a pure swept sine with no
+transient has nothing for a soft strike to fail to excite.
+
+### What it cost, and the part worth watching
+
+**`swift test` went from 145 seconds to 246.** Building a kit means 52 buffers through the comb
+network in a debug build, and four suites were each building their own — 210 of those seconds were in
+those four.
+
+That is not a patience problem. `check.sh --fast` runs through the pre-commit hook on every commit,
+and **a gate slow enough to be worth skipping is a gate that gets skipped** — `LESSONS.md` shape 21
+arriving by way of the clock rather than by way of an unenforced rule. A shared `TestKit` and one
+hoisted measurement brought it to 167 seconds, which is a 15% rise over the pre-room suite for a
+feature that genuinely costs something.
+
+Two smaller wastes surfaced on the way. `render` was rebuilding the nominal reference for *every*
+layer of every voice, so the whole chain ran twice per layer; `renderLayers` builds it once. And a
+`where` clause was recomputing the low-voice set once per voice.
+
+### A duplicated heading, found while writing this
+
+§7.64's edit left `## 8. Project layout` in the file twice: the inserted text ended with the same
+anchor it was inserted before. Harmless to a reader and invisible to `check.sh`, which checks quoted
+figures and shape citations and has no opinion about structure — worth noting because it is the
+second documentation defect this month that a green gate had nothing to say about (§7.60's
+misattached doc comment was the first).
+
+### Unheard, and what to listen for
+
+The kit is `0a99f6f3a74e`, which `KitGroup.known` names "room" — appended, not edited, since
+"velocity layers" has now shipped. Mix peak is unchanged at 0.59 and no render clips.
+
+**What this needs an ear for is not "is there a room"** — there is, by construction. It is whether the
+transient survived. This project measures placement against the backing, and a wash that softens the
+attack would make the ruler blurrier at the same time as it makes the kit more convincing. If the
+groove sounds better but the beat feels harder to locate, the mix is too high and that is a one-line
+change.
+
 ---
 
 ## 8. Project layout
@@ -8681,11 +8775,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   877 cases
+└── Tests/                   878 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     439 cases against synthetic ground truth
     ├── GrooveCoreTests/     133 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     305 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     306 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

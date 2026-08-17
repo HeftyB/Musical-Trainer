@@ -66,8 +66,8 @@ final class KitFingerprintTests: StoreBackedTestCase {
     /// would make headphones and speakers read as two different bands.
     func testTheSameKitAtTwoSampleRatesWouldOtherwiseDigestDifferently() throws {
         let voice = try XCTUnwrap(BackingVoice.allCases.first { !$0.isPitched })
-        let a = try XCTUnwrap(BackingKit(sampleRate: 44_100).buffers[voice])
-        let b = try XCTUnwrap(BackingKit(sampleRate: 48_000).buffers[voice])
+        let a = try XCTUnwrap(TestKit.at(44_100).buffers[voice])
+        let b = try XCTUnwrap(TestKit.at(48_000).buffers[voice])
 
         XCTAssertNotEqual(BackingKit.digest([a]), BackingKit.digest([b]),
                           "the rate changes the buffers, which is why it must not reach the field")
