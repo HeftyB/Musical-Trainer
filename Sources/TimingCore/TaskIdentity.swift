@@ -112,6 +112,12 @@ public enum KitGroup: Hashable, Comparable {
     /// this list is safe: **the kit must never have reached a stored take.** After that, append.
     public static let velocityLayeredFingerprint = "ebb01fc6aed0"
 
+    /// The kit after M26 item 3 put it in a room (§7.65).
+    ///
+    /// **Appended, not edited** — unlike `velocityLayeredFingerprint`, which moved while it was still
+    /// a draft. That one had never reached a stored take; the list grows from here.
+    public static let roomFingerprint = "0a99f6f3a74e"
+
     /// Every kit this project has shipped, oldest first.
     ///
     /// **Appended to, never edited.** Each row describes a kit that existed and that takes were
@@ -120,6 +126,7 @@ public enum KitGroup: Hashable, Comparable {
     public static let known: [(fingerprint: String, name: String)] = [
         (originalFingerprint, "original"),
         (velocityLayeredFingerprint, "velocity layers"),
+        (roomFingerprint, "room"),
     ]
 
     public init(fingerprint: String?) {

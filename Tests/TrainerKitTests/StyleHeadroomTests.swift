@@ -19,7 +19,7 @@ final class StyleHeadroomTests: XCTestCase {
     /// Built once. `BackingKit` renders twenty-five bass buffers, and paying for that per
     /// assertion turned a fast test into a forty-second one.
     private static let fs = 44_100.0
-    private static let kit = BackingKit(sampleRate: fs)
+    private static let kit = TestKit.at(fs)
 
     private func peak(_ style: Style, intensity: Int, bpm: Double) -> Float {
         let fs = Self.fs

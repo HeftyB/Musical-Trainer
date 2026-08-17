@@ -23,7 +23,7 @@ final class OneShotTailTests: XCTestCase {
     /// Built once. `BackingKit` renders twenty-five bass buffers and paying for that per assertion
     /// turns a fast test into a slow one — the same reason `StyleHeadroomTests` shares its kit.
     private static let fs = 44_100.0
-    private static let kit = BackingKit(sampleRate: fs)
+    private static let kit = TestKit.at(fs)
 
     /// −80 dBFS. Far below anything audible over a groove, and far above the floor a raised-cosine
     /// fade actually lands on, so the threshold is not measuring rounding. The defect it excludes
