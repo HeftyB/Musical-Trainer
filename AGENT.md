@@ -107,9 +107,19 @@ costs 4.5 s per pass over the kit and a kit is four passes, so every extra varia
 167 s suite. The kit fingerprint does not move — variation is applied when a piece is scheduled, not
 when a voice is rendered, so it changes the performance rather than the instrument.
 
-**That closes the M26 subset §7.59 pulled forward** (items 1, 3, 4). Item 2 — a kit as a parameter
-set, which is what lets a style carry its own snare — is the next architectural one, and M16.5's
-re-audition is what the subset was for.
+**That closes the M26 subset §7.59 pulled forward** (items 1, 3, 4).
+
+**M26 item 2 is built and changes no audio** (§7.67). `KitSpec` carries seven numbers — snare tuning,
+decay and rattle, kick tuning and decay, cymbal decay, room amount — and `Style` carries one. Every
+field multiplies and `standard` is 1 everywhere, so the standard kit is bit-identical *without a
+branch*: `x * 1.0 == x`. **No style has been given a kit yet**, deliberately — tuning them is a
+listening job and §8.1.2 says the mechanism lands first.
+
+**One measurement caveat worth knowing before trusting a centroid.** `DrumSynth.centroid` probes a
+1.25×-spaced ladder with no window, so it is unreliable for tonal content: the snare's centroid
+*falls* threefold when tuned **up**, because its partials move nearer a probe (§7.67). Use
+`DrumSynth.power(of:atHz:)` when the frequency is known. `darkened` keeps reading the centroid, which
+is fine for placing a filter corner and is why the kit is unchanged.
 
 M17 is a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
 six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
@@ -484,8 +494,8 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   agent cannot fetch it or read the remote — take his word for what merged, and look commits up
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
-  is the 582 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (306 tests) is macOS-only and runs in `check.sh` alone, so a
+  is the 588 pure-module tests, because `Package.swift` excludes the Apple-only targets off
+  macOS. `TrainerKitTests` (318 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -537,7 +547,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 888 tests, no hardware needed
+swift test                              # 906 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

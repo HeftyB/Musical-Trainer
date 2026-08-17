@@ -130,7 +130,10 @@ enum Room {
     /// The buffer is extended by the tail before filtering, because the reverb has to keep sounding
     /// after the dry voice has stopped — which is the entire point. Callers fade the result, so the
     /// tail does not truncate into a step (§7.31 finding 1's defect, one level further out).
-    static func applied(to buffer: [Float], sampleRate fs: Double) -> [Float] {
+    /// - Parameter amount: multiplies `mix`, so a style can be drier or wetter than the house room
+    ///   (§7.67). Exactly 1 for the standard kit, and a `Float` times 1 is exact.
+    static func applied(to buffer: [Float], sampleRate fs: Double, amount: Double = 1) -> [Float] {
+        let mix = Self.mix * Float(amount)
         guard !buffer.isEmpty, mix > 0 else { return buffer }
 
         let total = buffer.count + tailSamples(sampleRate: fs)

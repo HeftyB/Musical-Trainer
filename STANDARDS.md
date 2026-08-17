@@ -680,10 +680,10 @@ looks like the player's own timing.
 
 | Pipeline | Runs on | Where | Covers |
 |---|---|---|---|
-| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 582 pure-module tests |
+| `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 588 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
-**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 306 tests
+**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 318 tests
 run only in `./scripts/check.sh`, which the pre-commit hook enforces. A green pipeline therefore
 covers less than a green `check.sh`, and saying so is the point: the gap that destroyed a take
 existed because the split between tested and untested had stopped being visible.

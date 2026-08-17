@@ -63,6 +63,16 @@ public struct Style: Equatable {
     public let playerVoices: Set<BackingVoice>
     public let density: Density
 
+    /// The drums this style is played on.
+    ///
+    /// **A style is steps *and* a kit** (§7.30 item 2, §7.67). Until this existed every style in the
+    /// library played the same drums, so a genre name could only ever be a claim about the pattern —
+    /// which is what §7.33 heard as *"beat #3 rather than oh, a Motown beat"*.
+    ///
+    /// Defaults to `.standard`, so a style says nothing about its kit until somebody has tuned one
+    /// and heard it. An untuned style sounds exactly as it did.
+    public let kit: KitSpec
+
     /// Whether the player has listened to this style and said yes.
     ///
     /// **A flag rather than a promise in a document.** §7.23's rule — do not promote a player
@@ -81,10 +91,11 @@ public struct Style: Equatable {
 
     public init(name: String, layers: [Layer], fills: [Pattern],
                 playerVoices: Set<BackingVoice>, density: Density,
-                auditioned: Bool = false) {
+                auditioned: Bool = false, kit: KitSpec = .standard) {
         precondition(!layers.isEmpty, "a style needs at least one layer")
         precondition(layers.contains { $0.entersAt == 0 },
                      "a style needs a skeleton — something that plays at intensity 0")
+        self.kit = kit
         self.name = name
         self.layers = layers
         self.fills = fills

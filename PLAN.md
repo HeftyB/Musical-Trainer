@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 582 of 888 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 306 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 588 of 906 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 318 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -8831,6 +8831,79 @@ is four room passes per voice.
 
 ---
 
+## 7.67 M26 item 2 — a kit is a parameter set
+
+§7.30 item 2: *"a Motown snare is tuned high and damped; a rock snare is fatter and rings. Same
+synthesis, different tuning, decay and noise balance."* Called out there as **architectural rather
+than tuning**, and that is exactly how it lands: the mechanism, with every style still on the kit it
+already had, and **not one sample of audio changed**.
+
+### What a style can now say
+
+`KitSpec` carries seven numbers — snare tuning, decay and rattle; kick tuning and decay; cymbal
+decay; room amount — and `Style` carries one. Until this existed every style in the library played
+the same drums, so a genre name could only ever be a claim about the *steps*. That is what §7.33
+heard: four styles that came out as *"beat #3 rather than oh, a Motown beat"*, three of them renamed
+because the name promised what the kit could not deliver.
+
+**Room amount is a kit parameter, not a global.** A sixties soul record and a modern rock one differ
+in the room before they differ in the snare, and putting it on the spec is what lets one style be
+drier than another rather than the whole app being.
+
+### Multipliers, and why that makes the default free
+
+Every field multiplies, and `standard` is 1 everywhere. **The standard kit is bit-identical without a
+branch**, because IEEE guarantees `x * 1.0 == x` — the synthesis applies the parameters
+unconditionally and there is no default-only path to get wrong. That is a stronger guarantee than
+`DrumSynth.tilt`'s, which genuinely needs its early return: `soft + (1 - soft)` is not exact, a bare
+multiply is (§7.63).
+
+It also keeps the numbers readable as intent. `snareDecay: 0.7` says *damped* to anybody;
+an absolute 42 ms says it only to whoever remembers the default.
+
+### The kit resolves where the arrangement does
+
+`JamConfig.backing` returns the name, the arrangement **and the kit** from one place. That property's
+doc comment already explained why it is one place — a style resolving differently in two would be
+`Feel`/`Swing`'s failure mode, a backing that disagrees with the take stored beside it (§7.24 step 7,
+which cost both swung takes on record). Adding a third thing that has to agree made the argument
+concrete rather than hypothetical, and the take now records the fingerprint of the kit **it actually
+heard** rather than the build's default.
+
+### The finding: the centroid lies about tonal content
+
+Two knob tests failed, and the failure was more interesting than the knobs. Raising the snare's
+tuning by 1.35 made its measured spectral centroid **fall from 918 Hz to 278** — a threefold drop
+from tuning something *up*.
+
+`DrumSynth.centroid` probes a log-spaced ladder at 1.25× spacing with no window. A pure sine landing
+between two probes reads far weaker than the same sine landing on one, so raising the partials from
+180/330 Hz to 243/446 moved them nearer a probe and the tonal energy suddenly registered — pulling
+the average down toward it. **The knob was right and the ruler was wrong.**
+
+Three consequences, in descending order of how much they matter:
+
+- **Tests about known frequencies now ask at those frequencies.** `DrumSynth.power(of:atHz:)` is a
+  single-bin Goertzel, which is exact when you already know where to look. The snare test asserts the
+  power at 243 Hz rose fourfold and at 180 Hz fell to a quarter.
+- **`darkened` reads the same centroid and keeps it.** It needs the voice's rough register to place a
+  filter corner, not its spectrum, and whatever it reads it reads consistently — the kit is stable and
+  the player has approved how it sounds. Changing it would change the kit for a measurement nicety.
+- **The velocity-layer centroid ratios inherit the same limitation**, and the tom is the voice most
+  exposed to it: a pure swept sine is exactly the content this measure is worst at. §7.65 records the
+  tom at 0.90 and reasons about it as physics; part of that number may be the ladder rather than the
+  drum. The energy assertions beside it are unaffected, which is why the exemption is safe.
+
+### What is deliberately not here
+
+**No style has been given a kit.** Every one is still `.standard`, so the library sounds exactly as it
+did and the fingerprint has not moved. Tuning four styles is a listening job, and doing it in the same
+branch as the mechanism would mean an architectural change and an audible one arriving together with
+no way to tell which broke what — §8.1.2's whole argument. That is the next branch, and it is the one
+that needs an ear.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -8854,11 +8927,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   888 cases
+└── Tests/                   906 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     439 cases against synthetic ground truth
-    ├── GrooveCoreTests/     143 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     306 cases — storage, config, sessions. macOS only, so
+    ├── GrooveCoreTests/     149 cases — patterns, sequencer, styles
+    └── TrainerKitTests/     318 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 
