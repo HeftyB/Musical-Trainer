@@ -9006,6 +9006,21 @@ exactly its job, at the granularity of one style rather than the whole library.
 Four tests moved with the verdict. That is not friction: it is §7.29 step 5's design, where an
 approval is a deliberate edit that shows up in a diff rather than a default nobody revisits.
 
+### Second pass: the retune lands
+
+`syncopated` and `half-time` were heard again after the retune and approved. **All four styles are
+back to `auditioned: true`, on kits nobody had heard three days ago**, and the planner can schedule
+any of them.
+
+The cycle is worth naming because it is the first time it has run end to end: a kit changed → every
+audition was withdrawn by rule → a listening pass approved half → the other half was retuned on
+specific complaints → a second pass approved those. **Four tests moved twice**, once in each
+direction, and each move was somebody's verdict rather than a default drifting.
+
+One consequence to expect rather than be surprised by: **the cymbal work below will withdraw all four
+again.** That is not churn to be avoided — a style approved on one set of drums has not been approved
+on another, and the flag exists to say exactly that.
+
 ### What the pass says about the kit as a whole
 
 The player named the next thing without being asked:
