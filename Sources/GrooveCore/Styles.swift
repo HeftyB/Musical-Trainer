@@ -216,11 +216,10 @@ public enum StyleLibrary {
         playerVoices: [.kick, .snare, .closedHat, .openHat, .crash, .tom],
         density: .busy,
         // Listened to, not played over — see `pocket`.
-        // **The audition is withdrawn because the kit changed** (§7.68). `auditioned` means a person
-        // has heard this style and said yes, and what they said yes to was a different set of drums.
-        // §7.29 step 5's rule is that nothing promotes a player onto music nobody has heard; a style
-        // whose kit was swapped under a `true` would be that rule failing quietly.
-        auditioned: false, kit: syncopatedKit)
+        // **Approved on the second listening pass** (§7.69). Withdrawn in §7.68 when the kits
+        // changed, retuned on the first verdict, and heard again — which is the whole cycle the flag
+        // exists for, at the granularity of one style rather than the library.
+        auditioned: true, kit: syncopatedKit)
 
     // MARK: - Half-time
 
@@ -259,9 +258,8 @@ public enum StyleLibrary {
         // what §7.29 step 5 predicted for the sparsest style: with a backbeat every other bar's
         // worth of time there is nothing to lean on between the landmarks. Approved as a style
         // worth practising over, not as an easy one.
-        // **The audition is withdrawn because the kit changed** (§7.68). `auditioned` means a person
-        // has heard this style and said yes, and what they said yes to was a different set of drums.
-        // §7.29 step 5's rule is that nothing promotes a player onto music nobody has heard; a style
-        // whose kit was swapped under a `true` would be that rule failing quietly.
-        auditioned: false, kit: halfTimeKit)
+        // **Approved on the second listening pass** (§7.69). Withdrawn in §7.68 when the kits
+        // changed, retuned on the first verdict, and heard again — which is the whole cycle the flag
+        // exists for, at the granularity of one style rather than the library.
+        auditioned: true, kit: halfTimeKit)
 }

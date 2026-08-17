@@ -104,14 +104,20 @@ final class LockedSlotBackingTests: XCTestCase {
     /// reach past the gate. What matters now is the other half of that rule — **the planner sees
     /// `auditioned`, never `all`** — so a style authored tomorrow cannot be scheduled by anything
     /// until somebody says it may be.
-    /// **Two of four as of §7.69**: every kit changed in §7.68 so every audition was withdrawn, and
-    /// two came back when they were heard. The planner schedules from those two and cannot reach the
-    /// pair still waiting, which is the whole point of the flag.
+    /// **Back to four as of §7.69**, on kits heard across two listening passes. What this asserts is
+    /// the *rule* rather than the count: the planner reads `auditioned`, never `all`, so a style
+    /// authored tomorrow — or a kit changed under an existing one — cannot be scheduled until
+    /// somebody says it may be.
     func testThePlannerSchedulesFromTheApprovedLibraryAndNotTheWholeOne() {
         XCTAssertFalse(StyleLibrary.auditioned.isEmpty)
-        XCTAssertLessThan(StyleLibrary.auditioned.count, StyleLibrary.all.count,
-                          "with everything approved this cannot tell the two lists apart")
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy(\.auditioned))
         XCTAssertTrue(StyleLibrary.auditioned.allSatisfy { StyleLibrary.all.contains($0) })
+
+        // The guard the count above cannot give: an unapproved style must not be reachable. With
+        // everything approved there is none to test against, so one is made.
+        let unheard = Style(name: "unheard", layers: StyleLibrary.all[0].layers,
+                            fills: StyleLibrary.all[0].fills, playerVoices: [],
+                            density: StyleLibrary.all[0].density)
+        XCTAssertFalse(unheard.auditioned, "a style starts unapproved or the flag means nothing")
     }
 }

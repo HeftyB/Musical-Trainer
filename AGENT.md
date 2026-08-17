@@ -118,9 +118,12 @@ listening job and §8.1.2 says the mechanism lands first.
 **M26 item 2's tuning half is built and half-approved** (§7.68, §7.69). The four styles carry kits derived from
 their own descriptions rather than from genres — `driving` tight and dry, `pocket` low and roomy,
 `syncopated` high and tight so ghost notes read, `half-time` deep and wet. Every audition was withdrawn when the
-kits changed, and **`driving` and `pocket` came back on the §7.69 listening pass**. `syncopated` was
-*"not quite ghosty enough"* and `half-time` was *"washy"*; both were retuned and both stay
-unapproved until that retune is heard, so the planner can reach two styles and not the other two.
+kits changed and **all four came back across two listening passes** (§7.69): `driving` and `pocket`
+on the first, `syncopated` and `half-time` after the retune their verdicts asked for — *"not quite
+ghosty enough"* and *"washy"*. The planner can schedule any of the four again.
+
+**Expect the cymbal work to withdraw all four again.** A style approved on one set of drums has not
+been approved on another, and that is the flag doing its job rather than churn.
 
 **The next piece of M26 is the cymbals**, named by the player unprompted as the weakest thing he
 hears — and the code agrees: the crash is high-passed noise with one exponential decay, the crudest
