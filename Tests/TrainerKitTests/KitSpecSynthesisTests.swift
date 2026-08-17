@@ -161,9 +161,9 @@ extension KitSpecSynthesisTests {
         let big = KitSpec(name: "big", cymbalTuning: 0.6)
         let low = voice(.ride, big), standard = voice(.ride, .standard)
 
-        XCTAssertGreaterThan(DrumSynth.power(of: low, atHz: 171, sampleRate: fs),
-                             DrumSynth.power(of: standard, atHz: 171, sampleRate: fs) * 2,
-                             "the ride's lowest mode should have moved from 285 Hz to 171")
+        XCTAssertGreaterThan(DrumSynth.power(of: low, atHz: 105, sampleRate: fs),
+                             DrumSynth.power(of: standard, atHz: 105, sampleRate: fs) * 2,
+                             "the ride's lowest mode should have moved from 175 Hz to 105")
     }
 
     /// The knob that most separates metal from noise: how fast the top goes as the sound rings.

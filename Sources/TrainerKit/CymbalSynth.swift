@@ -110,12 +110,18 @@ enum CymbalSynth {
 
         /// How quickly the modes spread out as you go up.
         ///
-        /// Mode *i* sits near `lowestModeHz · i^stretch`. At 1.0 the modes are evenly spaced in
-        /// frequency; above 1.0 they spread out as they climb, which is what a stiff plate does.
+        /// Mode *i* sits near `lowestModeHz · i^stretch`. At 1.0 they are evenly spaced in frequency;
+        /// above 1.0 they spread apart as they climb.
         ///
-        /// **Listen for:** the character of the high end. A low stretch packs many modes into the top
-        /// octaves and sounds hissy and white; a high stretch thins them out up there and sounds more
-        /// like distinct shimmering metal.
+        /// **1.0 is roughly what a thin plate does, and the first version of this had it wrong.** The
+        /// number of modes below a given frequency grows about *linearly* with frequency in a plate —
+        /// unlike a room, where it grows with the cube — so the spacing stays about constant and the
+        /// modes get denser relative to how the ear hears pitch. Values above 1 thin the mid and top
+        /// out, leaving audible gaps between individual ringing partials.
+        ///
+        /// **Listen for:** *hollowness*. Gaps between modes read as a tin can, a pipe, or a pitched
+        /// drum — a small resonant object with a few strong frequencies rather than a plate. That was
+        /// the verdict on the first attempt at 1.10–1.22 (§7.71).
         let stretch: Double
 
         /// How far each mode is nudged off its ideal position, as a fraction.
@@ -179,6 +185,37 @@ enum CymbalSynth {
         /// The values match what each voice peaked at before the rewrite, so the balance between the
         /// cymbals and the drums is unchanged and only their *character* moved.
         let level: Double
+
+        /// The level of a dense noise band standing in for the modes too high to model one at a time.
+        ///
+        /// **A real cymbal has hundreds of modes and this is how the top of them get in.** Above
+        /// roughly 3 kHz they are packed closer than the ear can separate, so resolving them
+        /// individually costs a resonator each and buys nothing you could hear: what a listener gets
+        /// from that region is a *texture*, not a set of pitches. Band-limited noise is that texture
+        /// for the price of one filter.
+        ///
+        /// The old voices used only this, with no modes underneath — which is why they read as noise
+        /// bursts. The modes give it a body to sit on; without the shimmer the body sounds hollow,
+        /// because the gaps between the modelled modes have nothing filling them.
+        ///
+        /// **Listen for:** air and sizzle. Too little and the cymbal is a pitched object; too much
+        /// and it is a hiss with a thud at the front.
+        let shimmerLevel: Double
+
+        /// How long the shimmer lasts relative to the lowest mode.
+        ///
+        /// Below 1 the sizzle goes before the body does, which is what a cymbal does — those very
+        /// high modes are the fastest to give their energy up. This is the same darkening `damping`
+        /// applies to the modelled modes, for the part that is not modelled.
+        ///
+        /// **Listen for:** whether the sound gets *duller* as it rings or merely quieter.
+        let shimmerDecayFraction: Double
+
+        /// Where the shimmer band starts, in Hz.
+        ///
+        /// **Listen for:** the seam. Too low and the shimmer covers modes you wanted to hear as
+        /// distinct metal; too high and there is an audible hole between the top mode and the sizzle.
+        let shimmerFromHz: Double
 
         /// How much unresonated strike noise is mixed in alongside the modes.
         ///
@@ -314,13 +351,30 @@ enum CymbalSynth {
                     }
                 }
 
-                // A little raw strike noise alongside the modes: the stick's own sound, plus the very
-                // high modes too densely packed to be worth modelling one at a time.
+                // A little raw strike noise alongside the modes: the stick's own sound.
                 if plate.strikeNoise > 0 {
                     for i in 0..<count {
                         out[i] += Float(excitation[i] * plate.strikeNoise)
                     }
                 }
+            }
+        }
+
+        // The shimmer: the modes above `shimmerFromHz`, as a band of noise rather than as hundreds of
+        // resonators. High-passed by subtracting a low-pass, and decaying faster than the body, which
+        // is what makes the sound darken rather than merely fade.
+        if plate.shimmerLevel > 0 {
+            var noise = Noise()
+            var lowA = 0.0, lowB = 0.0
+            let a = 1 - exp(-2 * Double.pi * plate.shimmerFromHz / fs)
+            let decay = max(plate.lowestModeDecaySeconds * plate.shimmerDecayFraction, 0.002)
+            for i in 0..<count {
+                let white = noise.next()
+                lowA += a * (white - lowA)
+                lowB += a * (lowA - lowB)
+                let high = white - lowB
+                let envelope = exp(-3 * Double(i) / (decay * fs))
+                out[i] += Float(high * envelope * plate.shimmerLevel)
             }
         }
 

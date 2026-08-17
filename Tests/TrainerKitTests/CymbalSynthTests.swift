@@ -15,10 +15,13 @@ final class CymbalSynthTests: XCTestCase {
     private let fs = 44_100.0
 
     private func plate(modes: Int = 24, damping: Double = 0.6, tilt: Double = 0,
-                       decay: Double = 0.5, lowest: Double = 400) -> CymbalSynth.Plate {
-        CymbalSynth.Plate(lowestModeHz: lowest, modeCount: modes, stretch: 1.15,
-                          inharmonicity: 0.3, lowestModeDecaySeconds: decay, damping: damping,
-                          excitationTilt: tilt, strikeSeconds: 0.002, level: 0.6, strikeNoise: 0.2)
+                       decay: Double = 0.5, lowest: Double = 400,
+                       shimmer: Double = 0.3) -> CymbalSynth.Plate {
+        CymbalSynth.Plate(lowestModeHz: lowest, modeCount: modes, stretch: 1.0,
+                          inharmonicity: 0.22, lowestModeDecaySeconds: decay, damping: damping,
+                          excitationTilt: tilt, strikeSeconds: 0.002, level: 0.6,
+                          shimmerLevel: shimmer, shimmerDecayFraction: 0.2, shimmerFromHz: 4_000,
+                          strikeNoise: 0.1)
     }
 
     private func bright(_ buffer: [Float]) -> Double {
@@ -54,7 +57,8 @@ final class CymbalSynthTests: XCTestCase {
         let regular = CymbalSynth.Plate(
             lowestModeHz: 400, modeCount: 12, stretch: 1, inharmonicity: 0,
             lowestModeDecaySeconds: 0.5, damping: 0.6, excitationTilt: 0,
-            strikeSeconds: 0.002, level: 0.6, strikeNoise: 0.2)
+            strikeSeconds: 0.002, level: 0.6, shimmerLevel: 0, shimmerDecayFraction: 0.5,
+            shimmerFromHz: 4_000, strikeNoise: 0.2)
         let ratios = CymbalSynth.modes(of: regular).map { $0.frequency / 400 }
         XCTAssertEqual(ratios, (1...12).map(Double.init))
     }
@@ -92,6 +96,10 @@ final class CymbalSynthTests: XCTestCase {
 
     /// **The headline property.** Ignore the first fiftieth of a second and what remains has to be a
     /// different, darker sound — not the attack turned down.
+    ///
+    /// The shimmer's decay fraction is part of this rather than incidental: it stands in for the
+    /// modes too high to model, and if it outlasts the body then the tail is *brighter* than the
+    /// attack. That is what the first pass at the shimmer did, and this test is what said so (§7.71).
     func testTheTailIsFarDarkerThanTheAttack() {
         let rendered = CymbalSynth.render(plate(decay: 0.8), seconds: 1.0, sampleRate: fs)
         let head = Array(rendered.prefix(Int(0.05 * fs)))
@@ -104,8 +112,10 @@ final class CymbalSynthTests: XCTestCase {
     /// Fact 3: a harder strike is brighter, not merely louder. Approximated at the strike rather than
     /// modelled as mode coupling — §7.70 says so plainly.
     func testAHarderStrikeIsBrighterAndNotJustLouder() {
-        let soft = CymbalSynth.render(plate(tilt: 0.6), seconds: 0.6, sampleRate: fs)
-        let hard = CymbalSynth.render(plate(tilt: -0.6), seconds: 0.6, sampleRate: fs)
+        // Shimmer off: this is a claim about where the *strike* puts its energy across the
+        // modes, and a broadband band sitting on top would mask it.
+        let soft = CymbalSynth.render(plate(tilt: 0.6, shimmer: 0), seconds: 0.6, sampleRate: fs)
+        let hard = CymbalSynth.render(plate(tilt: -0.6, shimmer: 0), seconds: 0.6, sampleRate: fs)
 
         XCTAssertGreaterThan(bright(hard), bright(soft) * 1.5)
         XCTAssertEqual(hard.map(abs).max() ?? 0, soft.map(abs).max() ?? 0, accuracy: 0.01,
@@ -117,7 +127,7 @@ final class CymbalSynthTests: XCTestCase {
     func testTheRenderedPeakIsWhatThePlateAsksFor() {
         for modes in [6, 24, 40] {
             for decay in [0.1, 0.5, 2.0] {
-                let rendered = CymbalSynth.render(plate(modes: modes, decay: decay),
+                let rendered = CymbalSynth.render(plate(modes: modes, decay: decay, shimmer: 0),
                                                   seconds: 0.5, sampleRate: fs)
                 XCTAssertEqual(rendered.map(abs).max() ?? 0, 0.6, accuracy: 1e-5,
                                "\(modes) modes, \(decay)s")
@@ -128,8 +138,8 @@ final class CymbalSynthTests: XCTestCase {
     /// Denser is not louder and not longer — it is only less separable, which is the whole point of
     /// the knob.
     func testMoreModesChangesTheSoundWithoutChangingItsLevel() {
-        let sparse = CymbalSynth.render(plate(modes: 6), seconds: 0.5, sampleRate: fs)
-        let dense = CymbalSynth.render(plate(modes: 36), seconds: 0.5, sampleRate: fs)
+        let sparse = CymbalSynth.render(plate(modes: 6, shimmer: 0), seconds: 0.5, sampleRate: fs)
+        let dense = CymbalSynth.render(plate(modes: 36, shimmer: 0), seconds: 0.5, sampleRate: fs)
         XCTAssertNotEqual(sparse, dense)
         XCTAssertEqual(sparse.map(abs).max() ?? 0, dense.map(abs).max() ?? 0, accuracy: 1e-5)
     }

@@ -9141,6 +9141,69 @@ which §7.69 said to expect: a style approved on one set of drums has not been a
 
 ---
 
+## 7.71 The cymbals were hollow, and the model was backwards
+
+§7.70's verdict:
+
+> The crash sounds more a tin can than a crash. Both the ride and the crash sound more like a high
+> pitched metallic drum than a cymbal. They have like a hollow sound maybe. The closed hats sound too
+> much like a click.
+
+Four complaints, one cause. **"Hollow", "tin can" and "pitched drum" are all the sound of too few
+modes**: a small resonant object has a handful of strong, widely separated frequencies, and that is
+exactly what the first bank was. A listener hears the gaps.
+
+### The spread was the wrong way round
+
+`stretch` put mode *i* at `f₀ · (i+1)^stretch`, and the three cymbals used 1.10 to 1.22 — so the
+modes spread **further apart** as they climbed. The doc comment said this was "what a stiff plate
+does". It is not.
+
+**In a thin plate the number of modes below a given frequency grows roughly linearly with frequency**
+— unlike a room, where it grows with the cube — so the spacing stays about constant and `stretch` is
+close to 1.0. Above 1 the mid and top thin out into isolated ringing partials with audible gaps
+between them, which is precisely the reported sound.
+
+The crash was the worst case: 38 modes from 190 Hz spread to about 10 kHz, so its low end had modes
+hundreds of hertz apart. Now 56 modes at roughly 120 Hz spacing, evenly.
+
+### Where the rest of the modes went
+
+A real cymbal has hundreds of modes and a resonator each is neither affordable nor audible. Above
+about 3 kHz they are packed closer than the ear can separate, and what a listener takes from that
+region is a **texture** rather than a set of pitches.
+
+So the top is a band of noise — `shimmerLevel`, `shimmerFromHz`, `shimmerDecayFraction` — with its
+own faster decay. This is not a return to the old design: the old voices were *only* that band, with
+nothing underneath, which is why they read as noise bursts. The modes give it a body to sit on, and
+the band fills the gaps between the modes that read as hollowness.
+
+**The shimmer has to die well before the body**, and the first attempt did not: at a decay fraction
+of 0.4–0.55 the tail measured *brighter* than the attack — 0.94 above 2 kHz against 0.92 — which
+inverts fact 2 entirely. `testTheTailIsFarDarkerThanTheAttack` caught it, which is what a test
+written about a magnitude rather than a difference is for. At 0.14–0.30 the tails now measure 0.08 to
+0.47 against attacks of 0.89 to 0.97.
+
+### The hat's click
+
+Same cause, different symptom: with the modal body thin, what was left was the strike. Its
+`strikeNoise` came down from 0.22 to 0.10, its modes from 26 sparse to 34 dense at 340 Hz spacing,
+and its ring lengthened — a closed hat that is *only* a transient is a click by definition.
+
+### Costs and the state of the kit
+
+Kit build 33 s → 35 s: more modes, but each still stops when inaudible, and the shimmer is one filter
+rather than the hundred resonators it replaces.
+
+The kit is `21effa71350e`. **`modalCymbalsFingerprint` was edited rather than appended to**, on the
+same terms as §7.64's: the value it replaced was heard, rejected and retuned before any take was
+recorded over it, and a row nobody's data points at is a draft. After a kit reaches a stored take,
+append.
+
+**Still unheard.** All four styles remain `auditioned: false`.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the

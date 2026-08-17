@@ -118,8 +118,13 @@ public enum KitGroup: Hashable, Comparable {
     /// a draft. That one had never reached a stored take; the list grows from here.
     public static let roomFingerprint = "0a99f6f3a74e"
 
-    /// The kit after M26 item 6 rebuilt the cymbals as struck plates (§7.70).
-    public static let modalCymbalsFingerprint = "9a40d4268492"
+    /// The kit after M26 item 6 rebuilt the cymbals as struck plates (§7.70, §7.71).
+    ///
+    /// **Edited once while it was still a draft**, on the same terms as `velocityLayeredFingerprint`
+    /// and for the same reason: the first pass was heard as *"a tin can"* and retuned before any take
+    /// was recorded over it. The rule stays what it was — the kit must never have reached a stored
+    /// take — and after that, append.
+    public static let modalCymbalsFingerprint = "21effa71350e"
 
     /// Every kit this project has shipped, oldest first.
     ///
