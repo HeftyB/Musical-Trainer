@@ -60,12 +60,15 @@ final class GroovePlayer {
 
     // 0.6 leaves headroom so coincident voices (kick + hat on a downbeat) do not stack past
     // 0 dBFS and clip. selftest's "mix stays near the rails" check enforces this.
-    init(masterGain: Float = 0.6, capacity: Int = 200_000) throws {
+    /// - Parameter kit: the drums to play on. A style carries its own (§7.67); `.standard` is what
+    ///   every take on record heard and what a style without a tuned kit still gets.
+    init(masterGain: Float = 0.6, capacity: Int = 200_000,
+         kit spec: KitSpec = .standard) throws {
         self.capacity = capacity
         outputSampleRate = engine.outputNode.inputFormat(forBus: 0).sampleRate
         guard outputSampleRate > 0 else { throw SpikeError("No usable audio output device.") }
 
-        kit = BackingKit(sampleRate: outputSampleRate)
+        kit = BackingKit(sampleRate: outputSampleRate, spec: spec)
         instrument = LiveInstrument(sampleRate: outputSampleRate)
 
         // One slot per voice **per layer**: a drum hit harder is a different pre-rendered sound

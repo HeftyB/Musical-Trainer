@@ -13,6 +13,9 @@ import GrooveCore
 struct BackingKit {
     let sampleRate: Double
 
+    /// Which kit this is, as numbers. `.standard` is the one every take on record heard.
+    let spec: KitSpec
+
     /// Every unpitched voice at every velocity layer, softest first.
     ///
     /// **A drum hit harder is not the same sound louder** (§7.30 item 1, §7.63). One buffer scaled
@@ -59,11 +62,12 @@ struct BackingKit {
         layerCeilings.firstIndex { velocity <= $0 } ?? layerCeilings.count - 1
     }
 
-    init(sampleRate: Double) {
+    init(sampleRate: Double, spec: KitSpec = .standard) {
         self.sampleRate = sampleRate
+        self.spec = spec
         for voice in BackingVoice.allCases where !voice.isPitched {
             layered[voice] = DrumSynth.renderLayers(voice, sampleRate: sampleRate,
-                                                    strengths: Self.layerStrengths)
+                                                    strengths: Self.layerStrengths, spec: spec)
         }
         for note in Self.bassNotes {
             bassBuffers[note] = BassSynth.render(note: note, sampleRate: sampleRate)
@@ -132,8 +136,27 @@ struct BackingKit {
     /// does not close and §7.61 records.
     ///
     /// Computed once per process and only when something asks, since the only caller is `save`.
-    static let fingerprint: String = {
-        let kit = BackingKit(sampleRate: fingerprintSampleRate)
+    static let fingerprint: String = fingerprint(of: .standard)
+
+    /// The digest of a kit built to this spec.
+    ///
+    /// **Per spec, because a style may now carry its own kit** (§7.67). A take records the
+    /// fingerprint of the kit it actually heard, so two styles with different drums group apart on
+    /// the kit axis as well as the backing one — and a style given its own kit later cannot silently
+    /// pool with the takes played before it had one.
+    ///
+    /// Cached, since a session plays one style at a time and `save` asks once per take.
+    static func fingerprint(of spec: KitSpec) -> String {
+        if let hit = fingerprintCache[spec] { return hit }
+        let value = computeFingerprint(of: spec)
+        fingerprintCache[spec] = value
+        return value
+    }
+
+    private static var fingerprintCache: [KitSpec: String] = [:]
+
+    private static func computeFingerprint(of spec: KitSpec) -> String {
+        let kit = BackingKit(sampleRate: fingerprintSampleRate, spec: spec)
         // **Every layer, not just the nominal one.** They are all sounds the band can make, so a
         // kit whose ghost layer changed while its backbeat did not is still a different kit.
         var voices: [[Float]] = BackingVoice.allCases
@@ -142,7 +165,7 @@ struct BackingKit {
         voices += kit.bassBuffers.keys.sorted().compactMap { kit.bassBuffers[$0] }
         voices += kit.organBuffers.keys.sorted().compactMap { kit.organBuffers[$0] }
         return digest(voices)
-    }()
+    }
 
     /// FNV-1a over the raw sample bits, as 12 hex characters.
     ///
@@ -396,6 +419,15 @@ enum DrumSynth {
     ///
     /// Goertzel over a coarse log-spaced band set rather than a full FFT: this runs in tests and in
     /// no audio path, and the question is a ratio between two layers rather than a spectrum.
+    ///
+    /// **It is not trustworthy for narrowband content, and that matters here.** The probes are spaced
+    /// 1.25× apart with no window, so a pure sine landing between two of them reads far weaker than
+    /// the same sine landing on one. Fine for the noise-bearing voices this compares, wrong for a
+    /// tonal one: §7.67 measured the snare's centroid *fall* threefold when its partials were tuned
+    /// **up**, because they moved nearer a probe. Use `power(of:atHz:)` when the frequency is known.
+    ///
+    /// `darkened` reads this to set its corner, and that is acceptable for the same reason: it needs
+    /// the voice's rough register, not its spectrum, and whatever it reads it reads consistently.
     static func centroid(of buffer: [Float], sampleRate fs: Double) -> Double {
         guard !buffer.isEmpty else { return 0 }
         var weighted = 0.0, total = 0.0
@@ -415,6 +447,28 @@ enum DrumSynth {
             f *= 1.25
         }
         return total > 0 ? weighted / total : 0
+    }
+
+    /// Power at one known frequency, by Goertzel.
+    ///
+    /// **Reliable where `centroid` is not.** A single-bin evaluation is exact for a component you
+    /// already know the frequency of, and misleading for one you do not: `centroid` probes a
+    /// log-spaced ladder and a pure sine landing between two probes reads far weaker than one landing
+    /// on a probe. That is why raising the snare's tuning appeared to *lower* its centroid by a
+    /// factor of three (§7.67) — the partials moved nearer a probe, not lower.
+    ///
+    /// So a test asking "did the tonal partials move" asks here, where the answer does not depend on
+    /// where the ladder happens to fall.
+    static func power(of buffer: [Float], atHz frequency: Double, sampleRate fs: Double) -> Double {
+        let w = 2 * Double.pi * frequency / fs
+        let coeff = 2 * cos(w)
+        var s1 = 0.0, s2 = 0.0
+        for sample in buffer {
+            let s0 = Double(sample) + coeff * s1 - s2
+            s2 = s1
+            s1 = s0
+        }
+        return s1 * s1 + s2 * s2 - coeff * s1 * s2
     }
 
     /// How long the voice stays within 20 dB of its own peak, in seconds — its audible length.
@@ -479,8 +533,9 @@ enum DrumSynth {
     /// after the room, because the room is now what ends last and a tail that truncates is the same
     /// step discontinuity §7.31 removed from the voices, one level further out.
     static func render(_ voice: BackingVoice, sampleRate fs: Double,
-                       strength: Double = nominalStrength) -> [Float] {
-        renderLayers(voice, sampleRate: fs, strengths: [strength])[0]
+                       strength: Double = nominalStrength,
+                       spec: KitSpec = .standard) -> [Float] {
+        renderLayers(voice, sampleRate: fs, strengths: [strength], spec: spec)[0]
     }
 
     /// Every requested layer of one voice, with the nominal reference built once.
@@ -490,12 +545,13 @@ enum DrumSynth {
     /// chain was cheap; once the room arrived it took `swift test` from 145 seconds to 421, because
     /// the gate constructs a kit in a dozen tests. Same output, half the work.
     static func renderLayers(_ voice: BackingVoice, sampleRate fs: Double,
-                             strengths: [Double]) -> [[Float]] {
-        let reference = voiced(voice, sampleRate: fs, strength: nominalStrength)
+                             strengths: [Double], spec: KitSpec = .standard) -> [[Float]] {
+        let reference = voiced(voice, sampleRate: fs, strength: nominalStrength, spec: spec)
         return strengths.map { strength in
             let force = unaccented.contains(voice) ? nominalStrength : strength
             guard force != nominalStrength else { return reference }
-            return peakCapped(voiced(voice, sampleRate: fs, strength: force), to: reference)
+            return peakCapped(voiced(voice, sampleRate: fs, strength: force, spec: spec),
+                              to: reference)
         }
     }
 
@@ -503,27 +559,28 @@ enum DrumSynth {
     /// nominal one and the two have to have travelled the same path — a reference computed without
     /// the room would cap every layer against a quieter signal than it is actually being compared to.
     private static func voiced(_ voice: BackingVoice, sampleRate fs: Double,
-                               strength: Double) -> [Float] {
-        let struck = darkened(raw(voice, sampleRate: fs, strength: strength),
+                               strength: Double, spec: KitSpec) -> [Float] {
+        let struck = darkened(raw(voice, sampleRate: fs, strength: strength, spec: spec),
                               strength: strength, sampleRate: fs)
-        return fadedOut(Room.applied(to: struck, sampleRate: fs), sampleRate: fs)
+        return fadedOut(Room.applied(to: struck, sampleRate: fs, amount: spec.roomAmount),
+                        sampleRate: fs)
     }
 
     /// The voice before its release fade. Private, so there is no way to obtain a buffer that
     /// still truncates — the defect this file exists to have fixed was one call site away from
     /// coming back the moment somebody added a synthesiser.
     private static func raw(_ voice: BackingVoice, sampleRate fs: Double,
-                            strength v: Double) -> [Float] {
+                            strength v: Double, spec: KitSpec = .standard) -> [Float] {
         switch voice {
-        case .kick:      return kick(fs: fs, strength: v)
-        case .snare:     return snare(fs: fs, strength: v)
-        case .closedHat: return hat(fs: fs, decay: 0.045, strength: v)
-        case .openHat:   return hat(fs: fs, decay: 0.30, strength: v)
+        case .kick:      return kick(fs: fs, strength: v, spec: spec)
+        case .snare:     return snare(fs: fs, strength: v, spec: spec)
+        case .closedHat: return hat(fs: fs, decay: 0.045 * spec.cymbalDecay, strength: v)
+        case .openHat:   return hat(fs: fs, decay: 0.30 * spec.cymbalDecay, strength: v)
         case .clap:      return clap(fs: fs, strength: v)
         case .rimshot:   return rimshot(fs: fs, strength: v)
         case .tom:       return tom(fs: fs, strength: v)
         case .crash:     return crash(fs: fs, strength: v)
-        case .ride:      return ride(fs: fs, strength: v)
+        case .ride:      return ride(fs: fs, strength: v, spec: spec)
         case .tambourine: return tambourine(fs: fs, strength: v)
         // Strength never reaches here for it — see `unaccented`.
         case .shaker:    return shaker(fs: fs)
@@ -545,7 +602,7 @@ enum DrumSynth {
     /// **Strength moves the beater, the sweep and the length.** A hard kick is mostly beater —
     /// the click is what a listener hears as attack, and it grows far faster than the body does.
     /// The pitch sweep starts higher, and the body rings longer.
-    private static func kick(fs: Double, strength: Double) -> [Float] {
+    private static func kick(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
         let n = Int(0.32 * fs)
         var out = [Float](repeating: 0, count: n)
         var phase = 0.0
@@ -556,9 +613,11 @@ enum DrumSynth {
         let ring = tilt(strength, soft: 0.45, hard: 1.25)
         for i in 0..<n {
             let t = Double(i) / fs
-            let freq = 45 + 140 * sweep * exp(-t / 0.024)   // snappier sweep, 185 → 45 Hz
+            // `spec` multiplies by exactly 1 for the standard kit, and a Double times 1 is exact —
+            // which is what keeps the kit 104 takes heard bit-identical without a branch.
+            let freq = (45 + 140 * sweep * exp(-t / 0.024)) * spec.kickTuning
             phase += 2 * .pi * freq / fs
-            let body = Float(sin(phase) * exp(-t / (0.10 * ring)))
+            let body = Float(sin(phase) * exp(-t / (0.10 * ring * spec.kickDecay)))
 
             // A few ms of high-passed noise: the beater attack that reads as punch.
             let raw = clickNoise.next()
@@ -575,7 +634,7 @@ enum DrumSynth {
     /// different instruments"*. Strength moves the balance between them. A hard hit throws the
     /// snares hard and the rattle dominates; a ghost note barely engages them and what is left is
     /// the head — more tone, less hiss, and over much sooner.
-    private static func snare(fs: Double, strength: Double) -> [Float] {
+    private static func snare(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
         let n = Int(0.20 * fs)
         var out = [Float](repeating: 0, count: n)
         var noise = Noise()
@@ -584,9 +643,10 @@ enum DrumSynth {
         let ring = tilt(strength, soft: 0.3, hard: 1.3)
         for i in 0..<n {
             let t = Double(i) / fs
-            let tone = (sin(2 * .pi * 180 * t) + 0.6 * sin(2 * .pi * 330 * t))
-                     * exp(-t / (0.06 * ring))
-            let hiss = Double(noise.next()) * exp(-t / (0.09 * ring))
+            let tone = (sin(2 * .pi * 180 * spec.snareTuning * t)
+                        + 0.6 * sin(2 * .pi * 330 * spec.snareTuning * t))
+                     * exp(-t / (0.06 * ring * spec.snareDecay))
+            let hiss = Double(noise.next()) * spec.snareRattle * exp(-t / (0.09 * ring * spec.snareDecay))
             out[i] = Float(0.45 * head * tone + 0.6 * rattle * hiss) * 0.7
         }
         return out
@@ -695,7 +755,7 @@ enum DrumSynth {
     ///
     /// Strength moves the stick against the bow: a hard ride is stick first, a soft one is
     /// mostly ping.
-    private static func ride(fs: Double, strength: Double) -> [Float] {
+    private static func ride(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
         let stickLevel = tilt(strength, soft: 0.35, hard: 1.50)
         let ring = tilt(strength, soft: 0.55, hard: 1.2)
         let n = Int(0.4 * fs)
@@ -709,7 +769,7 @@ enum DrumSynth {
             let t = Double(i) / fs
             var ping = 0.0
             for f in partials { ping += sin(2 * .pi * f * t) }
-            ping = ping / Double(partials.count) * exp(-t / (0.13 * ring))
+            ping = ping / Double(partials.count) * exp(-t / (0.13 * ring * spec.cymbalDecay))
 
             let raw = stick.next()
             let click = (raw - stickHP.lowpass(raw)) * Float(exp(-t / 0.003))  // stick attack

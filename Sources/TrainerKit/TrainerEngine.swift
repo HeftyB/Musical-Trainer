@@ -131,10 +131,15 @@ public enum TrainerEngine {
         /// A free jam keeps `jamBacking` exactly as every recorded take had it. A rung gets the
         /// ladder groove that makes its division audible — asked for sixteenths over a backing
         /// that only marks beats, the player is really being asked to subdivide from memory.
-        var backing: (name: String, arrangement: Arrangement) {
+        ///
+        /// **The kit comes out of the same resolution as the arrangement**, and that is the whole
+        /// point of there being one (§7.67). A style carries its own drums now, so resolving the
+        /// steps here and the kit somewhere else would be `Feel`/`Swing`'s failure mode exactly: a
+        /// take played on one kit and stored as having heard another.
+        var backing: (name: String, arrangement: Arrangement, kit: KitSpec) {
             if let level = offbeatLevel {
                 return ("offbeat-\(level.rawValue)",
-                        OffbeatBacking.backing(level: level, bars: max(1, bars)))
+                        OffbeatBacking.backing(level: level, bars: max(1, bars)), .standard)
             }
             // A generated backing is free playing over a style, so it sits below the offbeat
             // drill and above the fixed fallback but never beside a rung: a ladder groove exists
@@ -149,20 +154,21 @@ public enum TrainerEngine {
                 if let style = StyleLibrary.named(identity.style) {
                     return (identity.name,
                             StyleArranger.arrangement(style: style, seed: identity.seed,
-                                                      bars: max(1, bars)))
+                                                      bars: max(1, bars)),
+                            style.kit)
                 }
-                return ("jamBacking", GrooveLibrary.jamBacking)
+                return ("jamBacking", GrooveLibrary.jamBacking, .standard)
             }
-            guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking) }
+            guard let rung else { return ("jamBacking", GrooveLibrary.jamBacking, .standard) }
             // A feel gets its own groove, not the straight one with warped timing. Warping alone
             // leaves every loud event on an even grid and the feel inaudible — see
             // `LadderBackings.swungPattern`.
             guard feel.isStraight || !feel.applies(toSubdivisions: rung.subdivisions) else {
                 return ("ladder-\(rung.rawValue)-swung",
-                        LadderBackings.swungBacking(notesPerBeat: rung.subdivisions))
+                        LadderBackings.swungBacking(notesPerBeat: rung.subdivisions), .standard)
             }
             return ("ladder-\(rung.rawValue)",
-                    LadderBackings.backing(notesPerBeat: rung.subdivisions))
+                    LadderBackings.backing(notesPerBeat: rung.subdivisions), .standard)
         }
 
         /// The grid a take with no prescribed rung is scored on.
@@ -312,7 +318,8 @@ public enum TrainerEngine {
         try config.validate()
         let env = try environment()
 
-        let player = try GroovePlayer()
+        // The kit the style asked for, resolved with its arrangement so the two cannot disagree.
+        let player = try GroovePlayer(kit: config.backing.kit)
         let seq = Sequencer(bpm: config.bpm, sampleRate: player.outputSampleRate,
                             swing: config.swing)
         let backing = config.backing.arrangement
@@ -373,7 +380,9 @@ public enum TrainerEngine {
         let r = outcome.report
         let session = JamSession(
             date: Date(), bpm: outcome.config.bpm, device: outcome.environment.outputIdentity,
-            kitFingerprint: BackingKit.fingerprint,
+            // The kit this take actually heard, which since §7.67 is a property of the style it
+            // played over rather than of the build.
+            kitFingerprint: BackingKit.fingerprint(of: outcome.config.backing.kit),
             calibrationConstantMs: outcome.environment.calibrationMs,
             calibrationSource: outcome.environment.calibrationSource,
             // The backing that actually played, not a literal. Every confound check keyed on
