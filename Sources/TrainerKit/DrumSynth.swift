@@ -62,9 +62,8 @@ struct BackingKit {
     init(sampleRate: Double) {
         self.sampleRate = sampleRate
         for voice in BackingVoice.allCases where !voice.isPitched {
-            layered[voice] = Self.layerStrengths.map {
-                DrumSynth.render(voice, sampleRate: sampleRate, strength: $0)
-            }
+            layered[voice] = DrumSynth.renderLayers(voice, sampleRate: sampleRate,
+                                                    strengths: Self.layerStrengths)
         }
         for note in Self.bassNotes {
             bassBuffers[note] = BassSynth.render(note: note, sampleRate: sampleRate)
@@ -471,17 +470,43 @@ enum DrumSynth {
         return layer.map { $0 * (ceiling / peak) }
     }
 
-    /// One voice at one strength, faded and level-matched to the nominal layer.
+    /// One voice at one strength: struck, coloured, put in the room, faded, and capped against the
+    /// nominal layer.
+    ///
+    /// **The order is not arbitrary.** Darkening is a property of the *strike* and belongs on the dry
+    /// voice, before it reaches the walls — filtering the room's return instead would darken the
+    /// reflections of a hard hit as though the room itself changed with velocity. The fade comes
+    /// after the room, because the room is now what ends last and a tail that truncates is the same
+    /// step discontinuity §7.31 removed from the voices, one level further out.
     static func render(_ voice: BackingVoice, sampleRate fs: Double,
                        strength: Double = nominalStrength) -> [Float] {
-        let force = unaccented.contains(voice) ? nominalStrength : strength
-        let voiced = darkened(raw(voice, sampleRate: fs, strength: force),
-                              strength: force, sampleRate: fs)
-        let layer = fadedOut(voiced, sampleRate: fs)
-        guard force != nominalStrength else { return layer }
-        return peakCapped(layer,
-                          to: fadedOut(raw(voice, sampleRate: fs, strength: nominalStrength),
-                                       sampleRate: fs))
+        renderLayers(voice, sampleRate: fs, strengths: [strength])[0]
+    }
+
+    /// Every requested layer of one voice, with the nominal reference built once.
+    ///
+    /// **Rendering a layer used to build its own reference**, which meant the nominal voice — room,
+    /// filters and all — was synthesised again for every layer of every voice. Harmless while the
+    /// chain was cheap; once the room arrived it took `swift test` from 145 seconds to 421, because
+    /// the gate constructs a kit in a dozen tests. Same output, half the work.
+    static func renderLayers(_ voice: BackingVoice, sampleRate fs: Double,
+                             strengths: [Double]) -> [[Float]] {
+        let reference = voiced(voice, sampleRate: fs, strength: nominalStrength)
+        return strengths.map { strength in
+            let force = unaccented.contains(voice) ? nominalStrength : strength
+            guard force != nominalStrength else { return reference }
+            return peakCapped(voiced(voice, sampleRate: fs, strength: force), to: reference)
+        }
+    }
+
+    /// The whole chain bar the cap. One function, because the cap compares a layer against the
+    /// nominal one and the two have to have travelled the same path — a reference computed without
+    /// the room would cap every layer against a quieter signal than it is actually being compared to.
+    private static func voiced(_ voice: BackingVoice, sampleRate fs: Double,
+                               strength: Double) -> [Float] {
+        let struck = darkened(raw(voice, sampleRate: fs, strength: strength),
+                              strength: strength, sampleRate: fs)
+        return fadedOut(Room.applied(to: struck, sampleRate: fs), sampleRate: fs)
     }
 
     /// The voice before its release fade. Private, so there is no way to obtain a buffer that
