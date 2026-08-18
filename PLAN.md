@@ -9200,6 +9200,42 @@ same terms as §7.64's: the value it replaced was heard, rejected and retuned be
 recorded over it, and a row nobody's data points at is a draft. After a kit reaches a stored take,
 append.
 
+### A third pass: still hollow, and the counts go up again
+
+> The crash and ride still sound a little hollow. The closed hat is closer but not there yet.
+> Overall the Jam backing sounded much better than before but it still needs some tweaking.
+
+Right direction, short magnitude — twice. So the third pass is deliberately large rather than another
+increment, and it rests on a fact about hearing that the first two missed.
+
+**The modes are evenly spaced in hertz and the ear hears in octaves.** At 120 Hz spacing the crash had
+*one* mode in the octave from 120 to 240 Hz and about twenty-eight in the octave from 3 to 6 kHz. A
+count that looks generous is still sparse exactly where hollowness lives, which is the bottom. Counts
+went to 60, 84 and 110, spacings to 180, 90 and 55 Hz.
+
+**And the bigger lever was the band, not the modes.** The shimmer started at 3.2 kHz, so everything
+below that was modes-and-gaps. It starts at 1.4 kHz on the crash now, filling the mid where the ear
+was hearing holes. Inharmonicity also rose — 0.24 to 0.34 on the crash — since regularity is audible
+as pitch and the gaps made it easier to hear.
+
+Kit build 35 s → 42 s. Sublinear in the mode count, because a mode stops once it is inaudible and the
+new ones are mostly high and heavily damped.
+
+### Two tests moved with the retune, and one of them was measuring wrongly
+
+`testCymbalTuningMovesTheWholePlate` asked at 105 Hz because the ride's lowest mode was 175; it is 90
+now, so the question moved to 54.
+
+`testCymbalDarkeningChangesTheTailAndNotTheAttack` was the interesting one. It compared
+`energyAbove(2 kHz)` between a darkened crash and a sustained one — and `energyAbove` returns a
+**share**. A heavily darkened tail is so quiet by 0.3 s that whatever residue remains dominates its
+share: the dark crash measured 0.60 of its own tail above 2 kHz while carrying a fraction of the
+energy. *"Loses its top"* is a claim about how much is up there, so the test multiplies the share back
+by the energy it is a share of.
+
+That is the same shape as §7.67 and §7.70 — a measure answering a slightly different question from
+the one being asked — and the third instance in this milestone alone. **A ratio is not a quantity.**
+
 **Still unheard.** All four styles remain `auditioned: false`.
 
 ---

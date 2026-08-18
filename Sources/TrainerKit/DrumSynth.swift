@@ -701,12 +701,12 @@ enum DrumSynth {
     /// and it is struck with the tip, so the strike favours the high modes (`excitationTilt` below
     /// zero). `damping` is high because a hat's tail is very short and goes dull almost at once.
     private static func hat(fs: Double, decay: Double, strength: Double, spec: KitSpec) -> [Float] {
-        let plate = cymbal(lowestModeHz: 340, modeCount: 34, stretch: 1.0, inharmonicity: 0.22,
-                           decaySeconds: decay * 1.6, damping: 0.55, baseTilt: -0.15,
-                           strikeSeconds: 0.0012, strikeNoise: 0.10, level: 0.62,
-                           shimmerLevel: 0.35, shimmerDecayFraction: 0.30, shimmerFromHz: 5_000,
+        let plate = cymbal(lowestModeHz: 180, modeCount: 60, stretch: 1.0, inharmonicity: 0.32,
+                           decaySeconds: decay * 2.2, damping: 0.50, baseTilt: -0.10,
+                           strikeSeconds: 0.0012, strikeNoise: 0.06, level: 0.62,
+                           shimmerLevel: 0.42, shimmerDecayFraction: 0.35, shimmerFromHz: 2_600,
                            strength: strength, spec: spec)
-        return CymbalSynth.render(plate, seconds: max(decay * 5, 0.16), sampleRate: fs)
+        return CymbalSynth.render(plate, seconds: max(decay * 6, 0.20), sampleRate: fs)
     }
 
     /// The ride, as a large plate struck on the bow.
@@ -720,10 +720,10 @@ enum DrumSynth {
     /// a low-partial noise wash (wooden, and it piled into static as eighth notes). Modal synthesis
     /// gets both halves at once, because the ping and the wash are the same modes at different rates.
     private static func ride(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
-        let plate = cymbal(lowestModeHz: 175, modeCount: 44, stretch: 1.0, inharmonicity: 0.20,
-                           decaySeconds: 1.1, damping: 0.62, baseTilt: 0.10,
-                           strikeSeconds: 0.0018, strikeNoise: 0.08, level: 0.42,
-                           shimmerLevel: 0.30, shimmerDecayFraction: 0.16, shimmerFromHz: 4_000,
+        let plate = cymbal(lowestModeHz: 90, modeCount: 84, stretch: 1.0, inharmonicity: 0.30,
+                           decaySeconds: 1.3, damping: 0.58, baseTilt: 0.08,
+                           strikeSeconds: 0.0018, strikeNoise: 0.05, level: 0.42,
+                           shimmerLevel: 0.34, shimmerDecayFraction: 0.22, shimmerFromHz: 1_600,
                            strength: strength, spec: spec)
         return CymbalSynth.render(plate, seconds: 0.8, sampleRate: fs)
     }
@@ -738,10 +738,10 @@ enum DrumSynth {
     /// rather than collapsing to a dull hum, and `modeCount` is the highest so nothing in it is
     /// separable by ear.
     private static func crash(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
-        let plate = cymbal(lowestModeHz: 120, modeCount: 56, stretch: 1.0, inharmonicity: 0.24,
-                           decaySeconds: 2.0, damping: 0.58, baseTilt: -0.10,
-                           strikeSeconds: 0.0025, strikeNoise: 0.10, level: 0.55,
-                           shimmerLevel: 0.48, shimmerDecayFraction: 0.14, shimmerFromHz: 3_200,
+        let plate = cymbal(lowestModeHz: 55, modeCount: 110, stretch: 1.0, inharmonicity: 0.34,
+                           decaySeconds: 2.4, damping: 0.55, baseTilt: -0.05,
+                           strikeSeconds: 0.0025, strikeNoise: 0.06, level: 0.55,
+                           shimmerLevel: 0.52, shimmerDecayFraction: 0.20, shimmerFromHz: 1_400,
                            strength: strength, spec: spec)
         return CymbalSynth.render(plate, seconds: 1.5, sampleRate: fs)
     }

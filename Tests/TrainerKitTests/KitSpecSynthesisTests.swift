@@ -161,21 +161,26 @@ extension KitSpecSynthesisTests {
         let big = KitSpec(name: "big", cymbalTuning: 0.6)
         let low = voice(.ride, big), standard = voice(.ride, .standard)
 
-        XCTAssertGreaterThan(DrumSynth.power(of: low, atHz: 105, sampleRate: fs),
-                             DrumSynth.power(of: standard, atHz: 105, sampleRate: fs) * 2,
-                             "the ride's lowest mode should have moved from 175 Hz to 105")
+        XCTAssertGreaterThan(DrumSynth.power(of: low, atHz: 54, sampleRate: fs),
+                             DrumSynth.power(of: standard, atHz: 54, sampleRate: fs) * 2,
+                             "the ride's lowest mode should have moved from 90 Hz to 54")
     }
 
     /// The knob that most separates metal from noise: how fast the top goes as the sound rings.
+    ///
+    /// **Measured as absolute high-frequency energy, not as a share of the tail.** `energyAbove`
+    /// returns a ratio, and a heavily darkened tail is so quiet by 0.3 s that whatever residue is
+    /// left dominates its ratio — the dark crash measured 0.60 of its own tail above 2 kHz while
+    /// carrying a fraction of the energy (§7.72). "Loses its top" is a claim about how much is up
+    /// there, so the test multiplies the share back by the energy it is a share of.
     func testCymbalDarkeningChangesTheTailAndNotTheAttack() {
-        let dark = KitSpec(name: "dark", cymbalDarkening: 2.0)
-        let sustained = KitSpec(name: "sustained", cymbalDarkening: 0.3)
+        func highEnergy(_ spec: KitSpec) -> Double {
+            let tail = Array(voice(.crash, spec).dropFirst(Int(0.3 * fs)))
+            return DrumSynth.energyAbove(2_000, of: tail, sampleRate: fs) * DrumSynth.energy(of: tail)
+        }
 
-        let darkTail = Array(voice(.crash, dark).dropFirst(Int(0.3 * fs)))
-        let sustainedTail = Array(voice(.crash, sustained).dropFirst(Int(0.3 * fs)))
-
-        XCTAssertLessThan(DrumSynth.energyAbove(2_000, of: darkTail, sampleRate: fs),
-                          DrumSynth.energyAbove(2_000, of: sustainedTail, sampleRate: fs) * 0.6,
+        XCTAssertLessThan(highEnergy(KitSpec(name: "dark", cymbalDarkening: 2.0)),
+                          highEnergy(KitSpec(name: "sustained", cymbalDarkening: 0.3)) * 0.5,
                           "a heavily damped tail must lose its top far faster")
     }
 

@@ -101,11 +101,19 @@ enum CymbalSynth {
         /// How many modes are synthesised.
         ///
         /// **Listen for:** whether you can pick out individual pitches. Below about a dozen you hear
-        /// separate ringing tones — a chime, a bell, a triangle. Above about twenty-five they blur
-        /// into a wash and your ear stops trying to name them. This is the difference between "that
+        /// separate ringing tones — a chime, a bell, a triangle. This is the difference between "that
         /// is a metal object" and "that is a cymbal".
         ///
-        /// The cost is linear: each mode is a two-pole filter run over the whole buffer.
+        /// **Far more of them than seems necessary, and here is why.** The modes are evenly spaced in
+        /// *hertz*, and the ear hears in *octaves*: 60 modes spaced 180 Hz apart put one mode in the
+        /// octave from 180 to 360 Hz and twenty-five in the octave from 3 to 6 kHz. So a count that
+        /// looks generous is still sparse exactly where hollowness lives, down at the bottom. Two
+        /// listening passes said "hollow" and "tin can" before the counts went to 60, 84 and 110
+        /// (§7.71, §7.72).
+        ///
+        /// The cost is sublinear rather than linear, because a mode stops once it is inaudible and
+        /// the high ones are damped hardest — doubling the count adds mostly short modes.
+
         let modeCount: Int
 
         /// How quickly the modes spread out as you go up.
