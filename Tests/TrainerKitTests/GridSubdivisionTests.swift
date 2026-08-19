@@ -5,7 +5,7 @@ import TestSupport
 
 /// A take is re-analysed on the grid it was measured on, not on a constant that happens to match.
 ///
-/// The defect this closes (PLAN.md §7.23, step 0): a jam was analysed on
+/// The defect this closes (JOURNAL.md §7.23, step 0): a jam was analysed on
 /// `Grid(subdivisions: backing.stepsPerBeat)` and stored with a hardcoded `4`, while
 /// `reconstruct()` rebuilt from the stored value. They agreed only because `Pattern` defaults to
 /// 4. Since everything recomputes from raw taps (R3.1), the first backing with a different step

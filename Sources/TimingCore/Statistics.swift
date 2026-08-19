@@ -140,7 +140,7 @@ public enum Stats {
     /// sat between them.** For a stream of notes that is exactly right; across a rest it is not,
     /// because the question r₁ answers — *did the last error predict this one* — presumes the two
     /// notes are close enough for the second to be a response to the first. Two notes either side
-    /// of four beats of silence get paired as though they were adjacent (PLAN.md §7.32).
+    /// of four beats of silence get paired as though they were adjacent (JOURNAL.md §7.32).
     ///
     /// Same shape as `DropoutAnalysis.continuationRuns`, and for the same reason: §7.25 found a
     /// gap breaking the x-axis a slope was fitted against, and this is a gap breaking the

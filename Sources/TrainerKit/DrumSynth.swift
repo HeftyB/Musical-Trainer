@@ -339,7 +339,7 @@ enum DrumSynth {
     /// offset after every hit: the kick at −31.8 dBFS 0.320 s later, which at 100 BPM is 0.53 of a
     /// beat — an audible click sitting just past the offbeat, in every take recorded since M3. The
     /// bass was five times worse still and nobody had measured it, because `render` wrote no file
-    /// for a pitched voice. See PLAN.md §7.29 step 6b and §7.31 finding 1.
+    /// for a pitched voice. See JOURNAL.md §7.29 step 6b and §7.31 finding 1.
     ///
     /// Fading rather than lengthening the buffer, because an exponential never reaches zero: the
     /// bass would need 2.4 s to decay to −60 dB, and `BassSynth` wants a note that is over inside

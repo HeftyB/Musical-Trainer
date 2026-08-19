@@ -9,7 +9,7 @@ import XCTest
 /// intensity, and the arc had never been heard. `ArcLengthTests` proves a full-arc-length piece
 /// moves; **this proves `render` asks for one**, which is the half that was missing: the decision
 /// lived inside a function that writes files to disk, so nothing could observe it either way
-/// (`LESSONS.md` shape 1). See PLAN.md §7.31 finding 3.
+/// (`LESSONS.md` shape 1). See JOURNAL.md §7.31 finding 3.
 final class RenderSubjectTests: XCTestCase {
 
     private func seeded(_ subjects: [Commands.Subject]) -> [Commands.Subject] {

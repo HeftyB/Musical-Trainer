@@ -11,7 +11,7 @@ import TestSupport
 /// values and deliberate breaks.
 ///
 /// Same shape as §7.25, where a gap broke the x-axis a slope was fitted against, and the same fix
-/// — split at the gap, and report what was dropped. See PLAN.md §7.32.
+/// — split at the gap, and report what was dropped. See JOURNAL.md §7.32.
 final class GappyCorrectionGainTests: XCTestCase {
 
     /// A series whose lag-1 correlation is planted by construction: each value carries `rho` of

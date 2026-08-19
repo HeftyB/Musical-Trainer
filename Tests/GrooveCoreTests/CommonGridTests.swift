@@ -10,7 +10,7 @@ import XCTest
 /// resolution anything here is authored at.
 ///
 /// **The lift must be exact.** A hit that moves is the backing moving under a measurement, and
-/// it would be attributed to the player. See PLAN.md §7.29 step 1.
+/// it would be attributed to the player. See JOURNAL.md §7.29 step 1.
 final class CommonGridTests: XCTestCase {
 
     /// Everything in the codebase that is or becomes a pattern.

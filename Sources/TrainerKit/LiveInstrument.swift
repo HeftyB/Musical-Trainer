@@ -60,7 +60,7 @@ final class LiveInstrument {
     /// `release(note:)` was the only way out of a sounding voice, so a note whose note-off never
     /// arrived rang until the engine stopped. That is not hypothetical: the instrument hung twice,
     /// on 8 and 10 August 2026, one tone sustaining while the keyboard went silent underneath it
-    /// (PLAN.md §7.34, §7.35). This ceiling does not fix the cause — which is still not
+    /// (JOURNAL.md §7.34, §7.35). This ceiling does not fix the cause — which is still not
     /// established — it converts "for ever" into "a few seconds" whatever the cause turns out to
     /// be.
     ///

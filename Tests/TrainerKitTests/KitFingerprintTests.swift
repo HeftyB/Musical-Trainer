@@ -115,7 +115,7 @@ extension KitFingerprintTests {
         XCTAssertEqual(BackingKit.fingerprint, KitGroup.known.last?.fingerprint,
                        "A voice changed. That is allowed — but takes over this kit are a different "
                      + "task from every take before it, so **append** an era to `KitGroup.known` "
-                     + "rather than editing one. See PLAN.md §7.62 and §7.63.")
+                     + "rather than editing one. See JOURNAL.md §7.62 and §7.63.")
     }
 
     /// The list is history, so a row may be added and none may be altered: editing one would

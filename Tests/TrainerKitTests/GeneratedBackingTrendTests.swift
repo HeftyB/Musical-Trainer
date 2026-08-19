@@ -14,7 +14,7 @@ import TestSupport
 ///
 /// The split is fixed against generated, and the generated side keys on the **style** rather than
 /// the seed. Keying on the seed would make every take a group of one — `minimumPoints` is 3 — and
-/// take the 21-take free-jam series with it. See PLAN.md §7.29 step 7.
+/// take the 21-take free-jam series with it. See JOURNAL.md §7.29 step 7.
 final class GeneratedBackingTrendTests: StoreBackedTestCase {
 
     private func driving(_ seed: UInt64) -> BackingIdentity {

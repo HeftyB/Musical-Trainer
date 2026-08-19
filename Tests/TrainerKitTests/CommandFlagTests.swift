@@ -7,7 +7,7 @@ import XCTest
 /// Every drill command opens an audio device and waits, so nothing that goes through one can be
 /// tested — which is why argument handling lives in functions like this one and never inside the
 /// command (§7.22, and §7.24 step 5 where a real take was started from a shell to check an
-/// argument). See PLAN.md §7.26.
+/// argument). See JOURNAL.md §7.26.
 final class CommandFlagTests: XCTestCase {
 
     private func parse(_ line: String) throws -> (flags: CommandFlags, positional: [String]) {

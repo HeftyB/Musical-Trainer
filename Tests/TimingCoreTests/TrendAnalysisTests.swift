@@ -4,7 +4,7 @@ import XCTest
 final class TrendAnalysisTests: XCTestCase {
 
     /// An unscorable take leaves a gap in the axis; it does not close it
-    /// (PLAN.md §7.20 finding 4).
+    /// (JOURNAL.md §7.20 finding 4).
     ///
     /// Filtering the non-finite values and then numbering `0..<count` slides every later take
     /// one place earlier, so the slope becomes per *usable* take while every label, unit string

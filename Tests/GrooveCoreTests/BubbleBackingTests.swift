@@ -127,7 +127,7 @@ final class BubbleBackingTests: XCTestCase {
     /// This test was written asserting the wrong thing first: that both bubbles sit tighter than
     /// the straight chop, measured from the *first* note of each pair. The sixteenth bubble's first
     /// note **is** the chop, and it is its second note that is tight. Kept as an ordering assertion
-    /// on real fractions rather than a claim about which note matters (PLAN.md §7.55).
+    /// on real fractions rather than a claim about which note matters (JOURNAL.md §7.55).
     func testTheCandidatesSitAtDifferentDistancesFromTheBeat() {
         XCTAssertEqual(BubbleFeel.triplet.closestApproachFraction, 1.0 / 3, accuracy: 1e-9)
         XCTAssertEqual(BubbleFeel.sixteenth.closestApproachFraction, 0.25, accuracy: 1e-9)

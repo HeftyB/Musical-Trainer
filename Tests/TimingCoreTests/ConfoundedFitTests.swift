@@ -9,7 +9,7 @@ import XCTest
 ///
 /// Stated here rather than only in `TrendGroupingTests` because that suite proves the *split*
 /// happens and this one proves the split was *needed* — a grouping test alone would pass just as
-/// happily if the confound had never mattered. See PLAN.md §7.27.
+/// happily if the confound had never mattered. See JOURNAL.md §7.27.
 final class ConfoundedFitTests: XCTestCase {
 
     /// Five easy takes then five hard ones, each group steady within itself.

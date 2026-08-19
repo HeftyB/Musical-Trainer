@@ -11,7 +11,7 @@ import TestSupport
 ///
 /// Found on real data, not by reasoning. One take reported a clock SD of 193.5 ms at a 600 ms
 /// beat — a third of a beat, one sigma, from a player whose every other take reads 11–41 ms.
-/// Nine intervals out of 232 did it. See PLAN.md §7.25.
+/// Nine intervals out of 232 did it. See JOURNAL.md §7.25.
 final class ContinuationRunTests: XCTestCase {
 
     // MARK: - Splitting

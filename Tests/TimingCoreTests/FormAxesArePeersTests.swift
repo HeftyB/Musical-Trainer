@@ -7,7 +7,7 @@ import XCTest
 /// Before M16 step 0 the placement figures were computed over on-form marks only, so the
 /// temporal score was conditioned on the spatial one succeeding. That makes it a statistic about
 /// a population that changes whenever the other axis improves, which is fatal for a ladder about
-/// to be promoted on it (PLAN.md §7.40).
+/// to be promoted on it (JOURNAL.md §7.40).
 final class FormAxesArePeersTests: XCTestCase {
 
     private let bpm = 100.0

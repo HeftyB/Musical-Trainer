@@ -2,11 +2,12 @@ import Foundation
 
 /// Which subdivision the organ bubble's pair of notes sits on.
 ///
-/// **The musical premise M16.5 rests on, and it is not settled.** PLAN.md §7.13 assumed the bubble
+/// **The musical premise M16.5 rests on, and it is not settled.** JOURNAL.md §7.13 assumed the
+/// bubble
 /// rests on the beat and plays the second and third of each beat's triplet. That is one of two
 /// characterisations a working player would recognise, and the measurement follows entirely from
 /// which one is right — so both are built, rendered, and decided by ear before anything is scored
-/// against either (PLAN.md §7.55).
+/// against either (JOURNAL.md §7.55).
 ///
 /// What they have in common is the part that makes this the skank family: **nothing on the beat,
 /// two notes after it.** What differs is the grid those two notes land on, and that is audible in
@@ -84,7 +85,7 @@ public enum BubbleFeel: String, CaseIterable {
     ///
     /// That is the difference that decides what M16.5 measures. One candidate extends a skill with
     /// five takes and a 100% hold behind it; the other asks for a position the corpus has nothing
-    /// on (PLAN.md §7.55).
+    /// on (JOURNAL.md §7.55).
     public var containsTheStraightChop: Bool {
         playedSteps.contains { Double($0) / Double(stepsPerBeat) == 0.5 }
     }

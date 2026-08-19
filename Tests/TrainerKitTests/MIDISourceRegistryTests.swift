@@ -5,7 +5,7 @@ import XCTest
 ///
 /// These used to live inside `MIDIInput.connectSources()`, which talks to CoreMIDI and therefore
 /// cannot be reached by any test — `LESSONS.md` shape 1. The connection set being insert-only was
-/// found by reading, not by a failing test, because no test could have run (PLAN.md §7.35).
+/// found by reading, not by a failing test, because no test could have run (JOURNAL.md §7.35).
 final class MIDISourceRegistryTests: XCTestCase {
 
     /// The defect itself: a device that returns under the same unique ID must be reconnected.

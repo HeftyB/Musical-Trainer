@@ -87,7 +87,7 @@ final class TempoMemoryTests: XCTestCase {
          (true, 100, 3), (false, 91, 0), (true, 100, 0), (false, 90, 0)]
     }
 
-    // MARK: - Differential attrition (PLAN.md §7.20 finding 2)
+    // MARK: - Differential attrition (JOURNAL.md §7.20 finding 2)
 
     func testAttritionIsCountedPerConditionRatherThanAsOneTotal() {
         let r = reportWithAttrition(theRetractedShape)

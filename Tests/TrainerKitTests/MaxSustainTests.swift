@@ -6,7 +6,8 @@ import XCTest
 /// `LiveInstrument.release(note:)` was the only path out of a sounding voice, so a missing
 /// note-off meant a tone that rang until the engine stopped. The instrument hung exactly that way
 /// twice — 8 and 10 August 2026 — one note sustaining while the keyboard went silent underneath it
-/// (PLAN.md §7.34, §7.35). The cause is still not established; this ceiling is the half of the fix
+/// (JOURNAL.md §7.34, §7.35). The cause is still not established; this ceiling is the half of
+/// the fix
 /// that does not depend on knowing it.
 ///
 /// These assert against `LiveInstrument` itself rather than a reimplementation of its envelope,

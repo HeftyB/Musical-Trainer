@@ -11,7 +11,7 @@ import TestSupport
 ///
 /// It hid for thirty takes because this player's r₁ had never left 0.13–0.50. The take that
 /// exposed it reported **r₁ = +0.64 with an interval of [+0.36, +0.63]**, excluding its own point
-/// estimate. See PLAN.md §7.32.
+/// estimate. See JOURNAL.md §7.32.
 final class CorrectionGainIntervalTests: XCTestCase {
 
     /// AR(1) with the correlation planted by construction, from the project's seeded generator so

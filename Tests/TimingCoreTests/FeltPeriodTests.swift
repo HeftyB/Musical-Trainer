@@ -5,7 +5,7 @@ import XCTest
 ///
 /// The regularity gate was ±35%, which spans a factor of 2.08 — wider than a doubling, while the
 /// phrase lengths it describes sit a factor of two apart. The first irregular take through it
-/// reported "a steady 13.2-bar phrase" from gaps of 4.1, 12.4, 16.0 and 14.0 (PLAN.md §7.45).
+/// reported "a steady 13.2-bar phrase" from gaps of 4.1, 12.4, 16.0 and 14.0 (JOURNAL.md §7.45).
 final class FeltPeriodTests: XCTestCase {
 
     private let bpm = 100.0

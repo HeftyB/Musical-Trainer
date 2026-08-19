@@ -50,7 +50,7 @@ public struct MemoryRoundResult: Equatable {
 /// *between* conditions.
 ///
 /// Attrition that is not equal across the two conditions is the artefact that produced this
-/// drill's first finding and then forced its retraction (PLAN.md §7.17, §7.19). Three of eight
+/// drill's first finding and then forced its retraction (JOURNAL.md §7.17, §7.19). Three of eight
 /// silent waits were played through against one of eight filled, so the silent rounds that
 /// survived were a self-selected subset, and the "interference hurts" result was measuring the
 /// selection. Counting the losses into a single total, as this used to, hides exactly that.
@@ -148,7 +148,7 @@ public enum TempoMemoryAnalysis {
                                seed: UInt64 = 0x3EE1) -> TempoMemoryReport {
         // Per-round scoring is the tempo drill's, not a second copy of it. Those rules — the
         // five-note floor, the isochrony gate, normalising steady subdivision — were each
-        // added to fix a real wrong number (PLAN.md §7.8), and a parallel implementation here
+        // added to fix a real wrong number (JOURNAL.md §7.8), and a parallel implementation here
         // would be a second place for them to be wrong.
         let scored = TempoCalibrationAnalysis.analyze(
             taps: taps,

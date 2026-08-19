@@ -3,9 +3,13 @@
 macOS app that trains an autonomous internal pulse. One user: Andrew, 25+ years playing,
 theory-strong, timing is the weak axis.
 
-Five documents, five jobs — putting content in the wrong one is a defect:
+Six documents, six jobs — putting content in the wrong one is a defect:
 
-- **[PLAN.md](PLAN.md)** — design, rationale, findings, roadmap. **The reasoning lives here.**
+- **[PLAN.md](PLAN.md)** — the design as it stands, the metrics, the milestone table and the open
+  questions. **The reasoning lives here.**
+- **[docs/JOURNAL.md](docs/JOURNAL.md)** — the build journal, §7.1 to §7.73: every milestone,
+  session, review and defect in the order it happened. **`§7.x` is never renumbered** — over a
+  thousand citations point at it, and a citation names the section, not the file.
 - **[STANDARDS.md](STANDARDS.md)** — binding engineering rules and the procedures that enforce
   them. Read it before writing code.
 - **[LESSONS.md](LESSONS.md)** — the twenty-two failure *shapes* this project has produced, each with
@@ -15,16 +19,20 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 - **AGENT.md** (this file) — the operating manual.
 - **[README.md](README.md)** — what the app is and how to use it.
 
+Outside the map, and not about this project: **[docs/PREFERENCES.md](docs/PREFERENCES.md)** — how
+Andrew wants to be worked with, across every project. **Read it before the list above.**
+`docs/baseline-kit/` holds the generalised templates; STANDARDS.md §9.7 keeps them level.
+
 ## Start here
 
 **A macOS app that trains an autonomous internal pulse.** The player is one person — a guitarist of
 25 years learning keys, theory-strong, whose weak axis is timing and feel. Everything is built for
 him, eyes-off, and every number it shows has to be true or it is worse than no number.
 
-Read these five documents in this order and nothing else first: this file for how to work,
-`PLAN.md` §7's milestone table for what exists, `LESSONS.md` for the twenty-two ways this project has
-gone wrong, `STANDARDS.md` §8 for the branch and commit rules, and `README.md` for what the player
-sees.
+Read these in this order and nothing else first: this file for how to work, `PLAN.md` §7's
+milestone table for what exists, `LESSONS.md` for the twenty-two ways this project has gone wrong,
+`STANDARDS.md` §8 for the branch and commit rules, and `README.md` for what the player sees.
+`docs/JOURNAL.md` is not a read-through — it is where a `§7.x` citation goes when you follow one.
 
 **Six things that will save you a day each:**
 
@@ -45,359 +53,51 @@ sees.
 6. **If a struct reads garbage past field N, `swift package clean` before debugging.** A stale
    incremental build looks exactly like a miscompile (§7.70).
 
-**What is in flight right now:** M26's cymbals (§7.70, §7.71) are built and awaiting a listening
-verdict, with every style's audition withdrawn until then. **What is open:** §7.57's queue — items 4,
-5 and 6 — and M16.5, blocked on an ear since §7.56.
+**What is in flight right now:** M26's cymbals, through five listening passes and still unheard in
+their current form (§7.73) — every style's audition stays withdrawn until they are heard.
+**What is open:** §7.57's queue, items 4, 5 and 6; and M16.5, blocked on an ear rather than on code.
+Check `PLAN.md` §7's table before trusting this paragraph — it is the one that goes stale.
 
 ## Where the project is
 
-The detail behind the summary above, newest first.
+**One source, and it is not this file.** `PLAN.md` §7's milestone table carries the status of every
+milestone; `docs/JOURNAL.md` carries the entry behind each one. This section used to retell the
+journal in narrative form, 350 lines of it, and the retelling is what went stale — it claimed all
+four styles were approved and, four paragraphs later, that the cymbal work had withdrawn them, while
+the code said `auditioned: false` for all four. **A second copy of a status is a second thing to get
+wrong.**
 
-**M0–M16 and M19 are built.** M17, M18, M20–M27 and M16.5's decision are not; PLAN.md §7's milestone table
-carries the status of each and is the one to trust. M14 has six ladder takes across 80–140 BPM,
-M15 has three swung takes and — as of 13 August — twelve offbeat ones. **The skank at 70 BPM /
-level 0 now has five takes and is the first offbeat series that can be fitted**: 100% off the beat
-in every one, and the drill says *"Ready for level 1"* (§7.53). **M16 has finally been played under
-its finished ladders**, twice on 13 August, and what those two takes settled is in §7.53.
+So: read the table for what exists, follow a `§7.x` into the journal for why. What is recorded below
+is only what an agent needs *before* touching anything, and none of it is a summary of a journal
+entry.
 
-**The pre-M16.5 review is closed — eight findings, six branches** (§7.46–§7.51). Nothing in it is
-outstanding. What it changed, and what each one is worth remembering for:
+**Before you start:**
 
-| | Found | Closed |
-|---|---|---|
-| The app handed a **swung** jam the *straight* instructions | §7.46 | Both surfaces build a drill's text from the config the engine will run |
-| Two `check.sh` rules proved nothing — one passed a **valid, resolving** dependency | §7.47 | And a rule that cannot run now fails instead of going green |
-| `review trend` fitted `onFormRate` only, so M16's own axis had no trend line | §7.48 | Both axes fitted, on both surfaces |
-| The history chart pooled what the cards refuse to pool | §7.48 | One line per comparable group, and only groups big enough to fit |
-| The Alone chart plotted a different quantity from its own card | §7.49 | **Found by a screenshot, not by the suite** |
-| Two lists of legal phrase spans, and a ladder you could be stranded off | §7.50 | One list; `nextSpan` returns the first rung wider than where you are |
-| The capture dropped notes in silence, four notes a beat from full | §7.51 | Counted and reported; the buffer is derived from the longest take |
-| `onNoteEvent` crossed threads unsynchronised | §7.51 | Behind the same lock as the field beside it |
+- **`M0–M16` and `M19` are built; `M17`, `M18`, `M20–M27` and `M16.5`'s decision are not.** The
+  table is the one to trust, and the number is an identifier rather than an order — **M26 sits in
+  front of M16.5, M20 and M23.**
+- **CI compiles none of the macOS code.** `TrainerKit`, the app and `TimingSpike` never build in the
+  pipeline, so `TrainerKitTests`' 333 cases and `selftest`'s 41 checks never run there. The
+  pre-commit hook is the only thing that builds them, and `--no-verify` is the only thing between
+  that and nothing.
+- **`Style.auditioned` is `false` for all four styles**, so `StyleLibrary.auditioned` is empty and
+  the planner can schedule no band at all. That is the cymbal work withdrawing every standing
+  verdict, which is the flag working rather than churn.
+- **M16.5 is blocked on an ear, not on code**, and M26 is what it is blocked behind.
 
-**Two things about that review are worth carrying forward.** A green gate bounded what had been
-*checked*, not what was true — and until §7.47 it also covered rules that checked nothing. And
-§7.49 is the one nobody predicted: two defects a **screenshot** found after §7.48 had already
-shipped, neither reachable by any test this project can write.
+**Two instrumentation caveats, because both look like good news:**
 
-**The review has now been played** — the 13 August setlist (§7.53), ten takes, which is what closed
-the gap this paragraph used to describe. Two of the three things it was waiting on are answered:
-M16 ran under its finished ladders, and a swung take was recorded from the app, verifying §7.46's
-fix on the surface where the defect lived. **The incident readout still draws nothing**, and cannot
-be made to: it needs an occurrence.
+- **An empty `midIncidents` list is not evidence the connection was fine.** None of the MIDI
+  instrumentation has ever fired, none of it can be unit tested (R5.6 — no test can remove a
+  device), and *"delivery stopped with no notification"* is still a live candidate that would look
+  exactly like a clean take.
+- **A take spoiled by an incident is handled by hand, not quarantined.** There is no debug build
+  flag; a mode switched on when trouble is expected cannot catch trouble that is not.
 
-**A ninth finding came out of planning M16.5** (§7.52), and it is the one worth reading. The
-planner built its jam input with `map` over every stored jam, and **the offbeat drill is stored as a
-jam** — so a skank's spread, half again as wide as free playing, went into the estimate that decides
-which rungs the interval ladder may schedule and which the app's subdivision picker offers at all.
-Five of the six most recent takes were skanks; triplet eighths had already vanished from the picker
-at 100 BPM with nothing saying why.
+**One structural gap that is deliberately unbuilt:** `OrganSynth` has no named `Registration` chosen
+per arrangement. It is described in the journal and left alone on purpose, because a seam with one
+implementation behind it is a guess about the second.
 
-**The same confound had been found and fixed twice before, both times in a readout** (§7.24 step 8,
-§7.48). Neither touched what *acts* on the corpus. That asymmetry is `LESSONS.md` shape 22, and it
-is the most transferable thing this review produced: a wrong readout shows a wrong number, a wrong
-decision quietly changes what you are told to practise. `SessionStore.loadAllPlayAlong()` is the one
-place the distinction now lives.
-
-**A fourth codebase review ran on 14 August and left a queue** (§7.57). Four defects are closed —
-the capture's dedup window, `gappyLag1`'s misattached argument, the unguarded capture state and a
-take reporting a note count from a different read than the one it analysed (§7.58) — and four items
-remain. **The gate passed before that review and passes after it**, so read §7.57's table before
-assuming green means reviewed. **Item 3 is also closed** (§7.60): task identity now lives in
-`TimingCore/TaskIdentity.swift` as `JamTask`, `ContinuationTask`, `FormTask` and `BackingGroup`,
-which is where to go to change what makes two takes comparable. Three items remain, and the one
-worth knowing before touching anything is that CI compiles **none** of the macOS code — the
-pre-commit hook is the only thing that ever builds `TrainerKit`, the app or `TimingSpike`.
-
-**The roadmap was reordered on 15 August** (§7.59), and the number is an identifier rather than an
-order. **M26, the kit, sits in front of M16.5, M20 and M23** — a kit that cannot deliver a genre
-has blocked twice, and the second time it blocked a measurement decision rather than a name. **M26's steps 0 and 1 are
-done** (§7.61, §7.62): every take records which kit it heard, and the kit is an axis on all three
-drill tasks — because it had already changed twice under the corpus with nothing keying on it.
-Changing a voice now fails a test by design.
-
-**M26 item 1 is built and unheard** (§7.63). Every drum voice renders at four velocity layers, the
-boundaries taken from the velocities the styles actually write; the nominal layer is bit-identical to
-the sound 104 takes were played over, and every layer is peak-matched so loudness stays velocity's
-job. The kit is now `e4304cb6e4c3`, which `KitGroup.known` calls "velocity layers". **The bass and
-organ are not layered** — a gap rather than a decision. `render` writes a `dynamics-<voice>` file per
-voice, four bars, one per layer — that is the file the milestone is judged on.
-
-**The first tuning was listened to and failed**: *"it sounds like the same sound just quieter to
-louder"* (§7.64). Nothing in the suite caught it, because the tests asserted the layers *differed*
-and a 2% difference satisfies that. The retune added spectral darkening, capped peaks instead of
-matching them, and fixed the shaker being accented despite its opt-out. Energy ratios now run
-0.02–0.14 of the hard layer and centroid ratios 0.14–0.78, against 0.88–1.02 before. **Confirmed by ear** on the sweeps and on a full `driving` groove.
-
-**M26 item 3, the room, is built and unheard** (§7.65). A damped Schroeder network baked into every
-one-shot — legitimate because a room is linear, so filtering each voice and summing is identical to
-summing and filtering, which is what lets it live outside the render callback (R2.3). Kit is now
-`0a99f6f3a74e`, named "room". **What it needs an ear for is not whether there is a room but whether
-the transient survived**: this project measures placement against the backing, and a wash that
-softens the attack blurs the ruler while making the kit more convincing. **Confirmed by ear** — the
-beat is still easy to lock into.
-
-**M26 item 4 is built** (§7.66): no two hits of one voice come out at the same level. Level only —
-not timing, because the backing is the ruler, and not the layer, because that would change the accents
-the pattern wrote. **The timbral round-robin §7.30 asked for was measured and deferred**: the room
-costs 4.5 s per pass over the kit and a kit is four passes, so every extra variant is 18 s on a
-167 s suite. The kit fingerprint does not move — variation is applied when a piece is scheduled, not
-when a voice is rendered, so it changes the performance rather than the instrument.
-
-**That closes the M26 subset §7.59 pulled forward** (items 1, 3, 4).
-
-**M26 item 2 is built and changes no audio** (§7.67). `KitSpec` carries seven numbers — snare tuning,
-decay and rattle, kick tuning and decay, cymbal decay, room amount — and `Style` carries one. Every
-field multiplies and `standard` is 1 everywhere, so the standard kit is bit-identical *without a
-branch*: `x * 1.0 == x`. **No style has been given a kit yet**, deliberately — tuning them is a
-listening job and §8.1.2 says the mechanism lands first.
-
-**M26 item 2's tuning half is built and half-approved** (§7.68, §7.69). The four styles carry kits derived from
-their own descriptions rather than from genres — `driving` tight and dry, `pocket` low and roomy,
-`syncopated` high and tight so ghost notes read, `half-time` deep and wet. Every audition was withdrawn when the
-kits changed and **all four came back across two listening passes** (§7.69): `driving` and `pocket`
-on the first, `syncopated` and `half-time` after the retune their verdicts asked for — *"not quite
-ghosty enough"* and *"washy"*. The planner can schedule any of the four again.
-
-**Expect the cymbal work to withdraw all four again.** A style approved on one set of drums has not
-been approved on another, and that is the flag doing its job rather than churn.
-
-**M26 item 6 is built and unheard** (§7.70). The cymbals are struck plates now — a bank of two-pole
-resonators excited by a noise burst, with inharmonic modes, per-mode decay so the sound darkens as it
-rings, and a strike that gets brighter with force. `KitSpec` gains four cymbal knobs, each documented
-with **what to listen for** as well as what it changes. The kit is `9a40d4268492`, "modal cymbals",
-and **every audition is withdrawn again** — expected, and what §7.69 said to expect.
-
-**Five listening passes so far and still unheard in its current form** (§7.70–§7.72). The most useful
-verdict identified what the voices *were* rather than what was wrong with them: all four were landing
-as hi-hat articulations — tight closed, loose closed, open-struck, and a pedal choke. **Those three
-non-hat sounds are worth keeping for M20's drum mode** rather than deleting.
-
-Two causes found from it. Both the ride and the crash were **truncated mid-ring** — decays of 1.3 s
-and 2.4 s into buffers of 0.8 s and 1.5 s — and a cymbal cut short is a hi-hat;
-`testEveryCymbalIsGivenRoomToRingOut` now compares the two numbers that have to agree. And a ride's
-ping is an *articulation*, not a pitch: the first one sustained 1.8 s and was heard as a cowbell,
-which is what a single strong resonator ringing on actually is.
-
-**The first pass was heard and rejected** — *"a tin can… hollow… the closed hats sound too much like
-a click"* — and the cause was one thing: too few modes, spread *further apart* as they climbed, which
-is backwards for a plate (§7.71). Retuned to dense, evenly spaced modes plus a noise band standing in
-for the hundreds too high to model. **The retune is itself unheard**; the kit is `21effa71350e`.
-
-Three notes worth carrying into any further synthesis work:
-
-- **`DrumSynth.centroid` is the wrong tool for modal content.** Two false readings so far (§7.67,
-  §7.70) — use `energyAbove(_:of:)`, which asks how much energy is above a frequency rather than
-  where it sits.
-- **Normalising a resonator uses `sin(ω)` when it is *struck* and `1 - r` when it is *driven*.** The
-  wrong one collapses every cymbal to a tick (§7.70).
-- **In a plate, modal density is roughly constant in frequency.** Spreading modes apart as they climb
-  makes gaps the ear hears as hollowness (§7.71).
-
-**`render` was rendering the wrong kit.** It built its own with no spec, so the audition mechanism
-produced files on the standard drums whatever style it was rendering — caught only because the first
-four came out byte-identical. `Subject` carries a `KitSpec` now.
-
-**One measurement caveat worth knowing before trusting a centroid.** `DrumSynth.centroid` probes a
-1.25×-spaced ladder with no window, so it is unreliable for tonal content: the snare's centroid
-*falls* threefold when tuned **up**, because its partials move nearer a probe (§7.67). Use
-`DrumSynth.power(of:atHz:)` when the frequency is known. `darkened` keeps reading the centroid, which
-is fine for placing a filter corner and is why the kit is unchanged.
-
-M17 is a correctness milestone rather than a tidying one, and **its step 0 is done** (§7.60). M18 is gated on
-six sittings of one task rather than scheduled. The milestone table was missing M16.5 and M23–M27
-entirely while being cited here as the thing to trust; it now carries them.
-
-**The 13 August setlist is the first data since the review** (§7.53), and it carries three things
-worth knowing before touching a drill. **Holding a position the band never plays costs this player
-nothing in precision** — offbeat spread ~23 ms against ~25 for free jams — which is the number
-M16.5's whole premise has to beat. **The chop sits 35 ms ahead in every take, and it is not a feel he
-chose** — asked directly, he says he does not know whether it is intentional, is not playing loose
-on purpose, and wants to be *"tight, in the pocket, and on the mark"* (§7.59). The open question is
-closed, and it opened a different one: the criterion has no instrument, because neither the app nor
-the player can say which side of the beat a take sat on before the numbers appear. And **r₁ ran +0.44 to +0.72 across
-three different tasks in one afternoon**, against a historical 0.13–0.50 — an observation, not a
-finding, with fatigue as good an explanation as any, and the way to settle it written down.
-
-**M16.5 is blocked, and on an ear rather than on code** (§7.56). The organ built for it *"sounds
-like an organ"* and is *"not the right organ sound for a reggae vibe"*, and the player heard neither
-candidate figure as a bubble. He named the cause: **the same tone handicap §7.33 records**, where
-four styles sounded like "beat #3 rather than oh, a Motown beat". That handicap has now stopped a
-*measurement* decision instead of a naming one, which moves **M26 upstream of a drill** — it is no
-longer a someday item.
-
-**Do not build organ voices from descriptions.** The player asked for several — the Wailers' sound,
-Kash'd Out's — and is assembling references. `AGENT.md`'s own rules cover this: an agent cannot
-listen, and a style is never named after a genre. §7.30's capture-to-measure path is what makes it
-cheap once the references exist. What is missing structurally is a named `Registration` on
-`OrganSynth`, chosen per arrangement; it is described in §7.56 and deliberately unbuilt, because a
-seam with one implementation behind it is a guess about the second.
-
-**Two more things came out of that verdict**, both real design gaps: **articulation belongs to the
-figure** — the stab is one length for every bubble, so every bubble is staccato by construction, and
-a legato triplet wants a note twice as long — and **the root-and-fifth voicing may be why the
-triplet failed**, since a bubble without a third may not read as an organ part at all.
-
-**M16.5 step 0 is built and its musical question is answered "both"** (§7.55). `BubbleFeel` carries
-a triplet bubble and a sixteenth one; the player heard both as plausible and said it would depend on
-the piece, so **both ship as a player-selected axis** rather than one being chosen — which is what
-§7.13's "generalise one phase to a set" was for. They differ in *closest approach* to a beat — 1/3 of
-a beat against 1/4, where the straight chop is 1/2 — so each is its own trend group with its own
-tempo default, and the data will settle what the listening could not.
-
-**That listening test was contaminated, and by this repository.** The hand-over stated the
-conclusion — that the sixteenth bubble's first note is the chop — before the player heard the files,
-and he then reported hearing it. **Do not put the answer in the question.** A listening verdict is
-taken the way a take's rating is: before the numbers, before the explanation. `render` writes the
-five skank-family auditions; a blind re-listen with an organ voice is what M16.5 still owes.
-
-**The procedure that came out of it: `render → look → decide`**, beside the `render → listen →
-decide` this project already had for audio. Hand over a build, ask for a screenshot of the surface
-that changed, and read it — an agent cannot see a screen any more than it can hear the kit, and
-`MusicalTrainerApp` has no test target (R5.6). It has paid for itself once already.
-
-M14 (§7.23) is the interval ladder — subdivision and tempo built as one axis, because both move
-the inter-onset interval. M15 (§7.24) is the feels: where within the beat a note is *expected*,
-plus the offbeat drill. PLAN.md §7 has the milestone table with an "as built" section for each;
-§7.13 is the roadmap through M22, plus M23 (jazz timing, deferred behind the instrument
-milestones for the reason given there) and M24 (voice — onsets from the microphone, no
-instrument, and the only milestone that can ask whether the "clock" this project measures is
-the timekeeper or partly the hands) and M25 (harmony — its own milestone because a key and a
-progression are a different problem from rhythm, with the framework for it already in
-`Hit.note`).
-
-**M19 is built.** Steps 0–8 are complete (§7.29, §7.33): the pattern
-format, the bass, four approved styles, the seeded generator, the planner picking a band for the
-closing jam, band pickers in the app, and `render --style` reproducing any take's music from the
-name it is stored under.
-
-**M19 is proven as of 8 August** (§7.34). A full 45-minute session ran end to end: the band the
-plan announced reached both closing takes, both shared one seed, the locked slots kept `jamBacking`,
-and the two closing takes landed in their own trend group. Nothing has yet been recorded from the
-**app's** picker.
-
-**That session also found three things.** A **voice hung** mid-take and the keyboard went silent
-with it — the app creates its CoreMIDI client with a **nil notify block**, so a source disconnecting
-mid-take is invisible, and nothing can recover a stuck voice because `release(note:)` is the only
-path out of one. **Block 10 of that session is compromised and deliberately kept**, not excluded;
-its 33.1 ms spread is not a fact about the player. And `AppModel.feelAdvice` explains a disabled
-Feel picker by talking about triplets even when the rung is quarters.
-
-**The hang recurred on 10 August** (§7.35), from the *start* of a swung take over `jamBacking`, with
-a retry over `pocket` running clean immediately after — which is also the first take ever played
-over that style. **The backing is not the variable**: a generated backing sits on both sides of the
-outcome and a fixed one produced a hang, and no single configuration value is common to both
-failures. Reading the audio path narrows it by elimination — voices are *stolen* rather than
-exhausted, the event ring is drained every callback, the drums prove the callback was running, and
-player and instrument are per-take — **so the events stopped reaching `enqueue` at all**, upstream
-of the synthesis.
-
-**Three things are fixed and the cause is still not established.** A stuck voice releases itself
-after 8 s (`LiveInstrument.maxSustainSeconds`, §7.35), which makes a hang survivable rather than
-take-ending and cannot move a measured number, because everything analysed comes from note onsets
-and nothing reads a duration. The CoreMIDI **notify block** is installed where it was `nil` for the
-life of the project, and `MIDISourceRegistry` **forgets a removed source** so a device returning
-under the same unique ID reconnects instead of staying dead until relaunch — the two are one fix,
-since being told the device left is worth nothing while the reconnect path refuses to run (§7.36).
-`JamOutcome.midiIncidents` records what happened, with host times on the same clock as the notes.
-
-**None of the instrumentation has ever fired, and none of it can be unit tested** (R5.6) — no test
-can remove a device, so only the registry's rules are covered and the wiring is live-run-only.
-**An empty incident list is not evidence the connection was fine**: "delivery stopped with no
-notification" is still a live candidate and would look exactly like a clean take.
-
-**A deliberately instrumented session on 11 August produced nothing** (§7.37) — no hang, and the
-`midimon` log came back empty because piped stdout is block-buffered and `^C` does not flush. Both
-halves are fixed: `setvbuf` line-buffers every CLI readout, and a watch over a minute prints a
-five-second heartbeat with a `— silent —` marker, because the monitor only ever printed its first
-twelve packets and so could never have shown *when* delivery stopped. The app could not show an
-incident at all until now — R3.4, and both hangs happened in the app.
-
-**The quarantine is dropped and there is no debug build flag** (§7.37). A take spoiled by an
-incident is handled by hand, as §7.34 handled block 10. A mode switched on when trouble is expected
-cannot catch trouble that is not: the hang fired twice, unpredictably, and a flag would have been
-off both times.
-
-Steps 0 and 1 changed no audio by design: the grid a free jam is scored on is a named constant
-rather than the drum programming's resolution, and every arrangement now speaks **one grid of 24
-steps to the beat** so a triplet section and a straight one can share a piece of music. Patterns
-are still authored at whatever reads naturally and `Arrangement` lifts them.
-
-The band now has a **bass** — `BackingVoice.bass`, pitch on the hit, `BassSynth` — and a
-**style format**: layers that enter at an intensity, plus fills, `playerVoices` for M20 and
-`density` for M21/M24. **Four styles are authored and all four are approved** (8 August, §7.33) — `driving`, `pocket`,
-`syncopated`, `half-time` — and `StyleArranger` turns any of them into a piece from a seed.
-**Nothing frozen carries any of it**: `jamBacking` is the music every take was measured against and
-stays exactly as it is, and the cold probe, benchmark and experiment arms keep it for ever (R3.5).
-The **closing jam** is the one planned slot that gets a band, rotating style between sittings and
-holding one seed within one. Hear all of it with `render`.
-
-**All four styles have now been played over**, two takes each — `driving`, `half-time`,
-`pocket` and `syncopated`. §7.33 records that two of them were *approved* on listening alone,
-which is the weaker basis and stays on the record; what it no longer means is that they are
-unplayed.
-
-**A style that clips is heard as bad playing, not as a bad gain.** `StyleHeadroomTests` mixes the
-real buffers at 100 and 160 BPM — a mix goes hot because voices stack, and a style that clears
-the rails at 100 can exceed them where sixteenths overlap.
-
-**The kit is synthesised, ships no audio assets, and that is deliberate** — `DrumSynth` builds
-all thirteen voices procedurally, which is why the app is small, needs nothing installed, and
-renders byte-reproducibly from source alone. It is also why the first four styles were heard as
-*"beat #3 rather than oh, a Motown beat"*.
-
-**The styles are named for what they do, not for genres.** `driving`, `pocket`, `syncopated`,
-`half-time`. They were `rock`, `motown`, `funk` and `half-time`, and three of the four were
-claiming something the kit cannot deliver — a name is a promise, and this project does not let a
-label imply a measurement nobody made. **Do not name a new style after a genre.** The ambition is
-unchanged and it has two milestones behind it: **M26** makes the kit sound convincing, **M27**
-works out how to say what a genre *is* so the claim has a falsifier. Neither is part of M19.
-
-**Four rules an ear found that a step list cannot show:**
-
-- **No style may have two timekeepers on the same steps.** A ride and a hat playing one rhythm
-  reads as a bell over a hat rather than as either. A hat on the downbeats against a shaker on
-  the offbeats is *interlocking* and fine — the rule is about doubling, and the first version of
-  it wrongly forbade both.
-- **No layer may run at one velocity.** Eight identical hi-hat hits a bar is a metronome by
-  construction. Use `Pattern.line` and lean on the beat. Velocity only, never position.
-- **One hi-hat, one state.** An open hat on a step the closed hat already plays is not a louder
-  hat, it is two hats — a thing no drummer can do. Fixed — `BackingVoice.articulationGroups` lists
-  the voices that are one instrument in two states, and `Style.pattern` keeps one per step as it
-  merges. Author the figure naturally; the open hat supersedes the closed one.
-- **A one-shot must not stop mid-decay.** Fixed — `DrumSynth.fadedOut`, and there is a test.
-
-**Every one-shot now ends on a release fade**, so nothing steps to zero mid-decay. The fade is
-50 ms — two cycles of E1, the lowest note the band can sound — clamped to a quarter of the buffer
-so the 50 ms rimshot is not swallowed by it, and raised-cosine rather than linear so the start of
-the fade is not itself a corner. **The number is derived from `BackingKit.bassNotes.lowerBound`
-and a test fails if that widens without it.** `OneShotTailTests` asserts every drum voice and all
-twenty-five bass notes end below −80 dBFS; reverting either `fadedOut` call fails it fourteen
-ways. **Heard and confirmed on 7 August 2026** — the test proves the step is gone, only a listener
-can say the click is. See §7.31 finding 1, including the discontinuity it puts in `jamBacking` on
-that date and why the first take after it must not be read as an effect.
-
-**Two rules, not one, and do not merge them.** `doubledTimekeepers` is about two voices keeping
-the same *pulse* and deliberately ignores a voice with fewer than three hits a bar, so an occasional
-ride hit is not mistaken for a second drummer — which is exactly why it could not see an open hat
-landing on one step. `articulationGroups` is about one instrument in two states. Different
-thresholds, different mistakes; merging them either re-forbids ordinary percussion or stops
-catching what the first rule exists for.
-
-**The §7.31 review is closed — no open kit defects.** All three findings are fixed, and each was
-listened to and confirmed rather than merely asserted: the release fade on 7 August, the hat
-articulation and the arc on 8 August.
-
-**A render subject carries its own bar count.** A kit voice is four bars, a ladder backing is
-whatever was asked for, and a seeded piece is `StyleArranger.barsForAFullArc()` — the length that
-contains a whole intensity arc, derived from the arc table so a longer shape lengthens the audition
-rather than being truncated by it. `render` rendered everything at the command's length, so a piece
-generated at 32 bars was written at 8 and the arc had never been heard by anyone (§7.31 finding 3).
-`Commands.renderSubjects(bars:)` is split out of `runRender` for the reason that defect survived a
-milestone: a decision inside a function that writes files is a decision no suite can observe.
-
-`render` writes `kit-<voice>` for every voice alone, which is how a sound gets *named* rather
-than theorised about. Use it before guessing. **`kit-bass` is one of them now** — its absence is
-what kept the loudest click in the kit out of §7.29 step 6b's table for a whole milestone.
 
 ## Audio, and how it gets accepted
 
@@ -431,6 +131,34 @@ diff.
 **Do not describe how something sounds.** An agent cannot listen. Render it, hand over the
 filenames, and record the verdict that comes back — every real finding in this milestone arrived
 that way.
+
+**Do not put the answer in the question.** One listening test was contaminated by this repository:
+the hand-over stated the conclusion before the player heard the files, and he then reported hearing
+it. A verdict is taken the way a take's rating is — before the numbers, before the explanation.
+
+**And do not build a voice from a description of a genre.** The player asked for specific organ
+sounds and is assembling references; a name is not a specification, and an agent cannot close the
+gap by reasoning about it.
+
+### What synthesis has already got wrong here
+
+Four findings that cost a listening pass each. They are about the *measurements*, which is why they
+belong in an operating manual rather than in the journal entry that produced them.
+
+| | |
+|---|---|
+| **`DrumSynth.centroid` is the wrong tool for modal content** | Two false readings so far. Use `energyAbove(_:of:)`, which asks how much energy sits above a frequency rather than where the centre is. |
+| **The centroid is unreliable for tonal content too** | It probes a 1.25×-spaced ladder with no window, so the snare's centroid *falls* threefold when tuned **up** — its partials move nearer a probe. Use `DrumSynth.power(of:atHz:)` when the frequency is known. |
+| **Normalising a resonator uses `sin(ω)` when it is *struck* and `1 - r` when it is *driven*** | The wrong one collapses every cymbal to a tick. |
+| **In a plate, modal density is roughly constant in frequency** | Spreading modes further apart as they climb makes gaps the ear hears as hollowness — it is backwards for a plate. |
+
+**A test that something *changed* cannot protect something changing *enough*.** An entire velocity-
+layer feature shipped inaudible with every test green, because the tests asserted the layers
+differed and a 2% difference satisfies that. When the point is that something moves, the test needs
+a quantity and a threshold.
+
+**Check the buffer is longer than the decay.** Both the ride and the crash were truncated mid-ring —
+decays of 1.3 s and 2.4 s into buffers of 0.8 s and 1.5 s — and a cymbal cut short is a hi-hat.
 
 ## Resources for the audio work
 
@@ -983,23 +711,25 @@ interval`.
 
 ## Working style
 
-- He commits and pushes himself (signed). **Do not commit.** Leave changes in the tree and say
-  what's ready.
+**Read [docs/PREFERENCES.md](docs/PREFERENCES.md) first — it is the general answer** and it applies
+to every project, not only this one: ownership, how work should arrive, verification and its
+absence, being wrong, judgement, prose. It is not restated here. A preference copied into a project
+document is a second copy to keep in sync, and the copy is the one that goes stale.
+
+What this project adds to it, because it is specific to this repository:
+
 - **Commit messages are terse.** `<type>(<scope>): <subject>`, a short body of what changed,
-  and `Refs: PLAN.md §<n>`. No rationale essays — the argument belongs in PLAN.md, which stays
-  current, not in a log nobody re-reads. STANDARDS.md §8.2 has the format and the hook that
-  enforces it.
-- Two displays — `screencapture` may grab the wrong one. Ask for a screenshot instead of
-  guessing what the UI looks like.
-- Verify claims against the machine rather than asserting them. Several conclusions in this
-  project were wrong until a probe was written; the probes are cheap and have paid for
-  themselves every time.
-- When results look surprising, **check the raw data before reporting them**. Two "findings"
-  so far were measurement artefacts, and both were visible in the taps within a minute.
-- **Say what you could not verify.** Hardware paths (audio, MIDI, the drill runners) have no
-  unit tests. The verification pipeline *has* run — #42 green on `main` — but the release
-  pipeline never has, and neither covers `TrainerKit`. Naming the gap is part of the work;
-  implying coverage that does not exist is worse than the gap itself.
+  and `Refs: PLAN.md §<n>` — or `JOURNAL.md §<n>` where the argument is a journal entry. No
+  rationale essays. STANDARDS.md §8.2 has the format and the hook that enforces it.
+- **The verification gap has a shape here.** Hardware paths — audio, MIDI, the drill runners —
+  have no unit tests, and CI compiles none of the macOS code: `TrainerKit`, the app and
+  `TimingSpike` never build there, so `TrainerKitTests`' 333 cases and `selftest`'s 41 checks
+  never run in the pipeline. The pre-commit hook is the only thing that ever builds them, and
+  `--no-verify` is the only thing between that and nothing. Say which half of this a change
+  landed in.
+- **Audio verdicts come from the player.** `render` writes WAVs to `temp/renders`; send them and
+  ask. No test and no amount of reasoning substitutes, and `Style.auditioned` is where his answer
+  is recorded.
 
 ## Procedure
 

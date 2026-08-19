@@ -3,7 +3,7 @@ import XCTest
 
 /// The band has a bass, and the same music renders to the same bytes twice.
 ///
-/// See PLAN.md §7.29 step 2.
+/// See JOURNAL.md §7.29 step 2.
 final class BassAndDeterminismTests: XCTestCase {
 
     // MARK: - Determinism

@@ -13,7 +13,7 @@ import XCTest
 /// kick's and their peaks do not even align in time, so summing velocities called two styles hot
 /// that measurably were not — `LESSONS.md` shape 16, a broken probe reporting a defect that is not
 /// there. `GrooveCore` knows nothing about how a voice sounds and should not have to.
-/// See PLAN.md §7.29 step 3.
+/// See JOURNAL.md §7.29 step 3.
 final class StyleHeadroomTests: XCTestCase {
 
     /// Built once. `BackingKit` renders twenty-five bass buffers, and paying for that per

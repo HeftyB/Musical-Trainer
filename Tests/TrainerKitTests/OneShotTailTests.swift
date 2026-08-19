@@ -8,7 +8,7 @@ import XCTest
 /// release fade the signal stepped to zero from whatever value it happened to hold — a step
 /// discontinuity, which is a broadband impulse. The kick's landed at **−31.8 dBFS**, 0.320 s after
 /// every hit, which at 100 BPM is 0.53 of a beat: a click sitting just past the offbeat, in every
-/// take recorded since M3. See PLAN.md §7.29 step 6b.
+/// take recorded since M3. See JOURNAL.md §7.29 step 6b.
 ///
 /// **The bass was five times worse and had never been measured**, because `render` writes one file
 /// per *non-pitched* voice and there was no `kit-bass`. §7.31 finding 1 quantified it off a

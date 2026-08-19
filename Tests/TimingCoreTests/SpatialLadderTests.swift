@@ -6,7 +6,7 @@ import XCTest
 /// Growing the phrase asks the player to carry their position across more music. It changes
 /// nothing about the cues that say when to land — a 32-bar phrase at level 2 has exactly the
 /// landmarks an 8-bar phrase at level 2 has — so the rate that decides it is the spatial one,
-/// and the level ladder's is the temporal one (PLAN.md §7.43).
+/// and the level ladder's is the temporal one (JOURNAL.md §7.43).
 final class SpatialLadderTests: XCTestCase {
 
     private func form(level: Int = 2, phraseBars: Int = 8,

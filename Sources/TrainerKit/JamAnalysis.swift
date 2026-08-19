@@ -35,7 +35,7 @@ enum JamAnalysis {
         let constantSec = calibrationConstantMs / 1000
         // The feel has to reach the grid or a swung take is scored straight, which does not
         // fail — it reports a large, plausible drag with a doubled spread and an inverted r₁.
-        // See PLAN.md §7.24 step 7.
+        // See JOURNAL.md §7.24 step 7.
         let grid = Grid(startTime: startSec, bpm: bpm, subdivisions: subdivisions, feel: feel)
 
         // A one-beat guard band on each side drops the count-in notes and any final

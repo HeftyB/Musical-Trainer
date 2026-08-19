@@ -10,15 +10,32 @@ Install the hooks once with `./scripts/install-hooks.sh`.
 
 ## 0. Document map
 
-Five documents, five jobs. Putting content in the wrong one is a defect.
+Six documents, six jobs. Putting content in the wrong one is a defect.
 
 | Document | Holds | Does not hold |
 |---|---|---|
-| `PLAN.md` | Design, rationale, findings, measured results, roadmap. **The reasoning lives here.** | Procedure, style |
+| `PLAN.md` | Design as it now stands, the metrics, the milestone table, the open questions. **The reasoning lives here.** | Procedure, style, and the history of how a decision was reached |
+| `docs/JOURNAL.md` | The build journal, §7.1 onward: what was built, what a session measured, what a review found, and what each one changed. Dates, defects, steps. | The design as it now stands, which is `PLAN.md`'s |
 | `AGENT.md` | Operating manual: how to build, run, and not break things | Rationale, roadmap |
 | `STANDARDS.md` | These rules, and the procedures that enforce them | Design decisions |
 | `LESSONS.md` | The catalogue of failure *shapes* — how things go wrong here, with the instance and the guard | A single defect's history, which is `PLAN.md`'s |
 | `README.md` | What the app is and how to use it | Anything internal |
+
+**The journal was `PLAN.md` §7 until it reached 8,500 lines** and made the design document
+unreadable around it. It grew by 9,887 lines and shrank by 386 across 135 commits, which is what an
+append-only log looks like when it shares a file with something that must stay current: the design
+half stopped being edited because nobody could find it.
+
+**`§7.x` numbering is an interface and is never renumbered** — the same rule, and for the same
+reason, as `LESSONS.md`'s shapes. Over a thousand citations point at these sections, 521 of them
+from `Sources` and `Tests`. A citation names the section and never the file, so `§7.52` resolves
+wherever it is read from; that is what made moving 8,500 lines cost nothing, and it is what keeps
+the next move cheap. A section that turns out to be wrong keeps its heading and has its body
+corrected. A new entry is appended with the next free number.
+
+**When an entry settles something the design document states wrongly, fix both.** The journal is a
+record of a moment; `PLAN.md` is what is true now. The milestone table went eleven entries stale
+because that step was skipped.
 
 **Reasoning does not go in commit messages.** A commit says *what changed*; `PLAN.md` says
 *why it is right*. A reader wanting the argument should find it in one place that stays
@@ -34,6 +51,23 @@ second instance of the same mistake belongs in `LESSONS.md`.** §7.29 step 0 was
 instance of one word with two meanings, and the paragraph explaining that distinction was already
 sitting above the line that got it wrong — which is the argument for keeping a catalogue rather
 than trusting that a comment will be read.
+
+### 0.1 What is not a project document
+
+Two things under `docs/` sit outside the map above, because they are not about this project:
+
+| Path | Holds | Whose |
+|---|---|---|
+| `docs/PREFERENCES.md` | How Andrew wants to be worked with — ownership, verification, judgement, prose. Stable across every project. | The person, not the repository |
+| `docs/baseline-kit/` | The generalised templates: the five-document model, the rules and the failure shapes, with this project's instances stripped out. §9.7 keeps them current. | Every future project |
+
+**`AGENT.md` points at `docs/PREFERENCES.md` rather than restating it.** A preference copied into a
+project document is a second copy to keep in sync, and the copy is the one that goes stale — which
+is the same argument as the document map itself, one level up.
+
+Both lived in gitignored `temp/` until the restructure. Nothing referenced them, `check.sh` could
+not see them, and a rule that required maintaining them (§9.7) had already been broken. Untracked is
+not a filing decision; it is a file one `rm -rf` from gone, with no history to restore it from.
 
 Code comments carry a sixth job: **invariants and the defects that produced them.** A comment
 explaining what a line does is noise; a comment explaining what breaks if the line changes is
@@ -137,13 +171,13 @@ preserve what this statistic measures?**
 > that was never adjacent, so the statistic is attenuated by about `1/L` and the interval sits
 > below the point estimate. Measured against planted AR(1) series, a nominal 95% interval covered
 > the truth 25% of the time at r₁ = 0.64 — and 94% at r₁ = 0.15, which is why thirty takes went by
-> without it showing. See PLAN.md §7.32.
+> without it showing. See JOURNAL.md §7.32.
 
 > The third row shipped wrong for three milestones. Resampling only within takes leaves each
 > take's mean frozen in every iteration, so the interval is blind to between-take variation —
 > which is most of the variation. Over the two benchmark jams, whose means sit 16.7 ms apart,
 > it produced an interval 6 ms wide and let `review conditions` call a difference real on that
-> basis. See PLAN.md §7.20.
+> basis. See JOURNAL.md §7.20.
 
 **R3.2.1 — A group of one take gets no interval.** The only variation inside a single take is
 within-take variation, and offering it as a condition's uncertainty is the same defect in a
@@ -161,7 +195,7 @@ expect every reader to check it.
 > history chart, and the planner's input. Built as a flag, two of the three were gated and the
 > third was found only because a trend that should have moved did not. A value that is safe
 > only when every caller remembers a precondition is R3.1's cached-summary defect in a new
-> costume. See PLAN.md §7.20 finding 2.
+> costume. See JOURNAL.md §7.20 finding 2.
 
 **R3.4 — Confounds are named, never blended.** A group that mixes backings, tempos, devices,
 difficulty levels or drill parameters says so at the point of display. Both surfaces must warn
@@ -235,7 +269,7 @@ verification.
 > `Sources` under a green PASS. Its replacement was then broken the same way — `[A-Za-z0-9_)\]]!`
 > closes the bracket expression at the first `]`, because a backslash inside brackets is
 > literal — and two rounds of checking at the shell missed it, because the shell and the script
-> disagreed. Only planting a violation and running `check.sh` found it. See PLAN.md §7.20.
+> disagreed. Only planting a violation and running `check.sh` found it. See JOURNAL.md §7.20.
 
 **R5.7.1 — Empty output is compliance only when the rule ran.** `expect_empty` fails a rule whose
 command writes to stderr, because a renamed file, a malformed pattern or a missing grep flag
@@ -245,7 +279,7 @@ at the call site.
 > Two of the gate's twenty-two static rules proved nothing, found by planting a violation of all of
 > them in one pass — the audit R5.7 describes for a single rule, applied to the gate. A **valid,
 > resolving** third-party dependency passed the supply-chain rule, and pointing any file-scoped rule
-> at a filename that does not exist turned it green. See PLAN.md §7.47.
+> at a filename that does not exist turned it green. See JOURNAL.md §7.47.
 >
 > **Audit the gate as a whole from time to time, not only each new rule.** A rule added correctly
 > can be disarmed later by a rename elsewhere, and one run of the plant-everything pass is what
@@ -260,7 +294,7 @@ the report not to move. Add one with the type, not after the first take is lost.
 > non-finite `Double` destroyed a form take live; a self-contradictory file trapped on read; two
 > takes sharing a timestamp overwrote each other. One property catches all three. Tests write
 > through `SessionStore.directoryOverride` into a temporary directory — never the player's
-> history, which `check.sh` enforces. See PLAN.md §7.22.
+> history, which `check.sh` enforces. See JOURNAL.md §7.22.
 
 ---
 
@@ -516,7 +550,7 @@ warning sign is a single file on a branch that took a week.
 ### 8.2.2 One branch at a time, and where the documentation goes
 
 **Take a branch all the way to merge-ready before starting the next one.** Merge-ready means §8.3:
-the gate passes, all five documents are level, the message files describe the commits, and
+the gate passes, all six documents are level, the message files describe the commits, and
 `temp/pr-message.md` makes the argument.
 
 **Within a branch, the documentation lands with the commit that completes it, not with each
@@ -592,8 +626,11 @@ message describes it; the branch is done when all of the following are true:
 2. New analysable behaviour has tests that would fail without it, checked by reverting it.
 3. Any hardware path is exercised by a live run, or the gap is stated explicitly.
 4. **Documentation is brought level with the code — this is a closing step, every time.**
-   Walk all five documents and correct anything the change made untrue:
-   - `PLAN.md` — design decisions, findings, measured results, milestone status
+   Walk all six documents and correct anything the change made untrue:
+   - `PLAN.md` — the design as it now stands, and **the milestone table**. This is the one that
+     gets skipped: the table went eleven journal entries stale while every entry was written
+   - `docs/JOURNAL.md` — the entry for what this change did, appended with the next free number
+     and never renumbered
    - `AGENT.md` — operating procedure, environment constraints, project state
    - `STANDARDS.md` — a rule that changed, or a new procedure
    - `LESSONS.md` — only when the change was the **second** instance of a failure shape, or a
@@ -745,9 +782,8 @@ one is worse than none — the next reader acts on it.
 
 ### 9.7 Keeping the templates current
 
-The cross-project templates in `temp/Guidelines & Standards/` are where this repository's rules
-become reusable somewhere else. They drift the moment a rule here changes and nobody carries it
-across.
+The cross-project templates in `docs/baseline-kit/` are where this repository's rules become
+reusable somewhere else. They drift the moment a rule here changes and nobody carries it across.
 
 **When `STANDARDS.md`, `LESSONS.md` or `AGENT.md` changes materially, update the template in the
 same branch.** Materially means a rule added, removed or reversed; a new failure shape; a change to
@@ -756,10 +792,16 @@ the document map or the procedures. Not a corrected figure, not a reworded sente
 The templates are generalised, not copied: the rule travels, this project's instances stay here.
 `LESSONS.md` is the model — the same shapes, with the specifics stripped out.
 
-> This is the one procedure here with no gate behind it. The templates live outside the tree, so
-> `check.sh` cannot see them, and until a project of their own exists this rule is enforced by
-> whoever is reading it. `LESSONS.md` shape 21 says what that is worth; saying so is better than
-> implying a guard that does not exist.
+> **This rule was broken the first time anyone checked it.** It shipped with a note conceding it
+> had no gate — the templates lived in gitignored `temp/`, so `check.sh` could not see them — and
+> the concession was treated as sufficient. When the directory was finally brought into the tree the
+> catalogue had 22 shapes and the template had 21, and the missing one was shape 22 itself. See
+> `LESSONS.md` shape 21, fourth instance: the guard was not unbuildable, it was unbuildable *from
+> where the files had been parked*, which is a decision rather than a constraint.
+>
+> `check.sh` now compares the shape counts. That is the cheap half and it is all a script can settle
+> — the templates are generalised rather than copied, so the prose necessarily differs and only the
+> numbering is shared. Whether a *rule* crossed over is still yours to check.
 
 ### 9.8 Recording a failure shape
 

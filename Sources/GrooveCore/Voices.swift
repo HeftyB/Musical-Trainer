@@ -46,7 +46,7 @@ public enum BackingVoice: String, CaseIterable, Codable, Equatable {
     /// *replaces* the closed one — the foot lifts, the stick hits — and layering the two instead
     /// stacks a 45 ms "tss" onto a 1.2-second wash, which is not a louder hat, it is two hats.
     /// `driving` did it on step 14 from intensity 2 and `syncopated` on steps 6 and 14 at
-    /// intensity 3 (PLAN.md §7.31 finding 2).
+    /// intensity 3 (JOURNAL.md §7.31 finding 2).
     ///
     /// **Distinct from `timekeepers`, which is why `doubledTimekeepers` could not see this.** That
     /// rule is about two *pulses* — a ride and a hat playing one rhythm — and it deliberately

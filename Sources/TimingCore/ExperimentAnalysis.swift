@@ -20,7 +20,7 @@ public struct ExperimentTake: Equatable {
     /// normalising the metric by it would divide by the treatment. Reporting it is the third
     /// option and the honest one: a verdict then reads "melodic was looser, and it was also
     /// this much busier", which is a result a reader can interpret rather than one they have to
-    /// take on trust. See PLAN.md §7.23.
+    /// take on trust. See JOURNAL.md §7.23.
     public let notesPerBeat: Double?
 
     public init(arm: String, value: Double?, elapsedMinutes: Double? = nil,

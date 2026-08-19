@@ -281,7 +281,7 @@ public struct DrillInstructions {
     /// and it is invisible in a way the drill makes worse: **8 bars and 16 bars of the same groove
     /// sound identical.** At level 2 there are no fills, no accents and no silences, so nothing
     /// audible distinguishes them for the whole take and the words were the only source of the
-    /// number. See PLAN.md §7.42.
+    /// number. See JOURNAL.md §7.42.
     public static func form(level: Int = 0, phraseBars: Int = 8) -> DrillInstructions {
         let cue: String
         let target: String

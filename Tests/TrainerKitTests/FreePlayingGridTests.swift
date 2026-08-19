@@ -12,7 +12,7 @@ import GrooveCore
 ///
 /// `LESSONS.md` shape 10, and the fifth instance on this project: one word — how finely we divide
 /// the beat — meaning both what the content is authored at and what the player is scored against.
-/// See PLAN.md §7.29 step 0.
+/// See JOURNAL.md §7.29 step 0.
 final class FreePlayingGridTests: XCTestCase {
 
     private func config(rung: IntervalRung? = nil, offbeat: OffbeatLevel? = nil)
