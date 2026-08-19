@@ -15,7 +15,43 @@ Five documents, five jobs — putting content in the wrong one is a defect:
 - **AGENT.md** (this file) — the operating manual.
 - **[README.md](README.md)** — what the app is and how to use it.
 
+## Start here
+
+**A macOS app that trains an autonomous internal pulse.** The player is one person — a guitarist of
+25 years learning keys, theory-strong, whose weak axis is timing and feel. Everything is built for
+him, eyes-off, and every number it shows has to be true or it is worse than no number.
+
+Read these five documents in this order and nothing else first: this file for how to work,
+`PLAN.md` §7's milestone table for what exists, `LESSONS.md` for the twenty-two ways this project has
+gone wrong, `STANDARDS.md` §8 for the branch and commit rules, and `README.md` for what the player
+sees.
+
+**Six things that will save you a day each:**
+
+1. **`./scripts/check.sh` is the gate and it must pass before every commit.** It takes about three
+   minutes. A green gate bounds what has been *checked*, not what is true — §7.47 found two rules
+   that could not fail, and every codebase review since has found defects it could not see.
+2. **Anything analysable belongs in `TimingCore` or `GrooveCore`.** Those are the only modules CI
+   compiles, and `LESSONS.md` shape 1 — logic living where no test can reach it — is the most common
+   failure here by a distance.
+3. **A test that a value *changed* cannot protect a value changing *enough*.** §7.64 shipped an
+   inaudible feature with every test passing. When the point is that something moves, the test needs
+   a quantity and a threshold.
+4. **Audio verdicts come from the player, not from you or from a test.** `render` writes WAVs to
+   `temp/renders`; send them and ask. `Style.auditioned` records his answer, and changing a kit
+   withdraws it — see the cycle in §7.68–§7.71.
+5. **A take is primary data.** Stored takes are never rewritten (R6.2), everything recomputes from
+   raw taps (R3.1), and a field that does not exist when a take is recorded is lost for good (R6.3).
+6. **If a struct reads garbage past field N, `swift package clean` before debugging.** A stale
+   incremental build looks exactly like a miscompile (§7.70).
+
+**What is in flight right now:** M26's cymbals (§7.70, §7.71) are built and awaiting a listening
+verdict, with every style's audition withdrawn until then. **What is open:** §7.57's queue — items 4,
+5 and 6 — and M16.5, blocked on an ear since §7.56.
+
 ## Where the project is
+
+The detail behind the summary above, newest first.
 
 **M0–M16 and M19 are built.** M17, M18, M20–M27 and M16.5's decision are not; PLAN.md §7's milestone table
 carries the status of each and is the one to trust. M14 has six ladder takes across 80–140 BPM,
@@ -125,9 +161,37 @@ ghosty enough"* and *"washy"*. The planner can schedule any of the four again.
 **Expect the cymbal work to withdraw all four again.** A style approved on one set of drums has not
 been approved on another, and that is the flag doing its job rather than churn.
 
-**The next piece of M26 is the cymbals**, named by the player unprompted as the weakest thing he
-hears — and the code agrees: the crash is high-passed noise with one exponential decay, the crudest
-voice in the kit and the one asked to sound like the largest piece of metal (§7.69).
+**M26 item 6 is built and unheard** (§7.70). The cymbals are struck plates now — a bank of two-pole
+resonators excited by a noise burst, with inharmonic modes, per-mode decay so the sound darkens as it
+rings, and a strike that gets brighter with force. `KitSpec` gains four cymbal knobs, each documented
+with **what to listen for** as well as what it changes. The kit is `9a40d4268492`, "modal cymbals",
+and **every audition is withdrawn again** — expected, and what §7.69 said to expect.
+
+**Five listening passes so far and still unheard in its current form** (§7.70–§7.72). The most useful
+verdict identified what the voices *were* rather than what was wrong with them: all four were landing
+as hi-hat articulations — tight closed, loose closed, open-struck, and a pedal choke. **Those three
+non-hat sounds are worth keeping for M20's drum mode** rather than deleting.
+
+Two causes found from it. Both the ride and the crash were **truncated mid-ring** — decays of 1.3 s
+and 2.4 s into buffers of 0.8 s and 1.5 s — and a cymbal cut short is a hi-hat;
+`testEveryCymbalIsGivenRoomToRingOut` now compares the two numbers that have to agree. And a ride's
+ping is an *articulation*, not a pitch: the first one sustained 1.8 s and was heard as a cowbell,
+which is what a single strong resonator ringing on actually is.
+
+**The first pass was heard and rejected** — *"a tin can… hollow… the closed hats sound too much like
+a click"* — and the cause was one thing: too few modes, spread *further apart* as they climbed, which
+is backwards for a plate (§7.71). Retuned to dense, evenly spaced modes plus a noise band standing in
+for the hundreds too high to model. **The retune is itself unheard**; the kit is `21effa71350e`.
+
+Three notes worth carrying into any further synthesis work:
+
+- **`DrumSynth.centroid` is the wrong tool for modal content.** Two false readings so far (§7.67,
+  §7.70) — use `energyAbove(_:of:)`, which asks how much energy is above a frequency rather than
+  where it sits.
+- **Normalising a resonator uses `sin(ω)` when it is *struck* and `1 - r` when it is *driven*.** The
+  wrong one collapses every cymbal to a tick (§7.70).
+- **In a plate, modal density is roughly constant in frequency.** Spreading modes apart as they climb
+  makes gaps the ear hears as hollowness (§7.71).
 
 **`render` was rendering the wrong kit.** It built its own with no spec, so the audition mechanism
 produced files on the standard drums whatever style it was rendering — caught only because the first
@@ -513,7 +577,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 590 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (318 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (333 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -565,7 +629,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 908 tests, no hardware needed
+swift test                              # 923 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"
@@ -751,6 +815,7 @@ Each of these came from a real bug. Breaking one silently corrupts data.
 
 | Invariant | What happened without it |
 |---|---|
+| A struct reading garbage past field N means a stale build, not a miscompile | `KitSpec` grew from eight fields to twelve and a test reported its last three holding uninitialised memory, on a type whose initialiser assigns every field. Everything up to the old count was correct and everything after was garbage — that asymmetry *is* the tell. `swift package clean` fixes it; an afternoon spent rewriting a tuple return does not (§7.70). |
 | A kit change is a task change | The kit moved twice mid-corpus — a bass on 6 Aug, accented timekeepers and a fade over every one-shot on 7 Aug — while `BackingGroup` keys on the groove name, which did not change (§7.61). `KitGroup` is now an axis on all three drill tasks, and `KitFingerprintTests` pins the live kit to the one all 104 takes heard. **That test failing is the notification, not a defect**: add an era to `KitGroup` rather than editing the pin (§7.62). |
 | A take records which kit it heard | The kit changed twice mid-corpus — a bass on 6 Aug, accented timekeepers and a fade over every one-shot on 7 Aug — while `BackingGroup` keys on the groove name, which did not change. The longest series in the project, 21 free jams at 100 BPM, spans that with nothing saying so (§7.61). `kitFingerprint` is written on every take now and read by nothing; `nil` means unrecorded, never "the current kit". |
 | One CoreMIDI client per process, never disposed | `MIDIServer` is on-demand; disposing the last client lets it exit, and the next create fails with −50. First take worked, second didn't. |

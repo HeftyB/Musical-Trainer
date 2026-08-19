@@ -48,9 +48,66 @@ public struct KitSpec: Hashable, Codable {
     public let kickDecay: Double
 
     // MARK: The cymbals
+    //
+    // A cymbal is a thin metal plate ringing in dozens of modes at once, and these five knobs are
+    // the shape of that. `CymbalSynth` explains the physics; what follows is what each one *does to
+    // the sound* and what to listen for when you turn it.
 
-    /// Multiplies hat and ride decay. Below 1 is tight and dry; above is loose and washy.
+    /// Multiplies how long the cymbals ring.
+    ///
+    /// The plain one: total length. Below 1 is tight and dry, above is loose and washy.
+    ///
+    /// **Listen for:** how much of the sound is still there when the next hit lands. On a hat line at
+    /// speed, a long decay is the difference between eighths that articulate and eighths that smear
+    /// into one continuous hiss.
     public let cymbalDecay: Double
+
+    /// Multiplies where the cymbals sit — effectively **how big they are**.
+    ///
+    /// A cymbal's lowest mode falls as the plate gets larger and thinner: a 14-inch hi-hat rings far
+    /// above a 20-inch ride, which rings above a big crash. Below 1 makes every cymbal bigger and
+    /// heavier; above 1 makes the kit small and pingy.
+    ///
+    /// **Listen for:** *weight* rather than brightness — the two are separate and this is the first.
+    /// A lower cymbal feels physically larger without being any duller in the attack.
+    public let cymbalTuning: Double
+
+    /// Multiplies how quickly the high modes die relative to the low ones.
+    ///
+    /// A real cymbal **darkens as it rings**, because small fast ripples in the metal radiate their
+    /// energy away faster than slow whole-plate flexing. Above 1 exaggerates that: the top vanishes
+    /// almost at once and what is left is a dark hum. Below 1 holds the brightness through the tail,
+    /// which is what a noise burst does and what the old crash sounded like.
+    ///
+    /// **Listen for:** ignore the first tenth of a second and listen to what is left. Is the tail the
+    /// attack turned down, or a distinctly darker sound? Real cymbals go distinctly darker. **This is
+    /// the knob that most separates "metal" from "noise".**
+    public let cymbalDarkening: Double
+
+    /// Shifts how much of the strike's energy goes into the high modes.
+    ///
+    /// **The one field here that is an offset rather than a multiplier, and 0 is the identity** —
+    /// because it moves a tilt, and a tilt crosses zero. Positive is brighter (a hard tip on the
+    /// edge), negative is darker (a soft shoulder on the bow, or a mallet).
+    ///
+    /// **Listen for:** the brightness *of the attack*, which is a different thing from the brightness
+    /// of the tail. Two cymbals can start alike and end quite differently; this is the first half of
+    /// that pair and `cymbalDarkening` is the second. Turn this up and the stroke gets more "tick"
+    /// and less "thunk" without the sound lasting any longer.
+    public let cymbalBrightness: Double
+
+    /// Multiplies how many modes each cymbal is built from.
+    ///
+    /// **This is the difference between a chime and a cymbal.** Below about a dozen modes you hear
+    /// separate ringing pitches and the thing sounds like a bell or a triangle; above about
+    /// twenty-five they pack closer than the ear can separate and blur into a wash.
+    ///
+    /// **Listen for:** whether you can hum along with it. If a hat has a *pitch* you can find, it has
+    /// too few modes. Turning this down is how you would build a small bell on purpose.
+    ///
+    /// Costs real time: every mode is a filter run over the whole buffer, so doubling this roughly
+    /// doubles what the cymbals cost to render.
+    public let cymbalDensity: Double
 
     /// Multiplies how much of the room reaches the mix.
     ///
@@ -62,7 +119,10 @@ public struct KitSpec: Hashable, Codable {
     public init(name: String,
                 snareTuning: Double = 1, snareDecay: Double = 1, snareRattle: Double = 1,
                 kickTuning: Double = 1, kickDecay: Double = 1,
-                cymbalDecay: Double = 1, roomAmount: Double = 1) {
+                cymbalDecay: Double = 1, cymbalTuning: Double = 1,
+                cymbalDarkening: Double = 1, cymbalBrightness: Double = 0,
+                cymbalDensity: Double = 1,
+                roomAmount: Double = 1) {
         self.name = name
         self.snareTuning = snareTuning
         self.snareDecay = snareDecay
@@ -70,6 +130,10 @@ public struct KitSpec: Hashable, Codable {
         self.kickTuning = kickTuning
         self.kickDecay = kickDecay
         self.cymbalDecay = cymbalDecay
+        self.cymbalTuning = cymbalTuning
+        self.cymbalDarkening = cymbalDarkening
+        self.cymbalBrightness = cymbalBrightness
+        self.cymbalDensity = cymbalDensity
         self.roomAmount = roomAmount
     }
 
@@ -81,6 +145,8 @@ public struct KitSpec: Hashable, Codable {
     /// no path that only the default takes.
     ///
     /// That is a stronger guarantee than `DrumSynth.tilt`'s, which *does* need its early return:
-    /// `soft + (1 - soft)` is not exact, but a bare multiply is (§7.63).
+    /// `soft + (1 - soft)` is not exact, but a bare multiply is (§7.63). `cymbalBrightness` is an
+    /// offset rather than a multiplier and its identity is 0, where subtracting zero is exact for
+    /// the same reason.
     public static let standard = KitSpec(name: "standard")
 }

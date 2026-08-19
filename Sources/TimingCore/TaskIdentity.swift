@@ -118,6 +118,20 @@ public enum KitGroup: Hashable, Comparable {
     /// a draft. That one had never reached a stored take; the list grows from here.
     public static let roomFingerprint = "0a99f6f3a74e"
 
+    /// The kit after M26 item 6 rebuilt the cymbals as struck plates (§7.70, §7.71).
+    ///
+    /// **Edited across eight listening passes while it was still a draft**, on the same terms as
+    /// `velocityLayeredFingerprint` and for the same reason: each version was heard, rejected and
+    /// retuned before any take was recorded over it. *"A tin can"*, *"still a little hollow"*, *"they
+    /// all sound like a variation of hats"*, *"the ride sounds maybe like the cowbell"*, *"a diet crash"*.
+    /// The rule stays what it was — the kit must never have reached a stored take — and after that,
+    /// append.
+    ///
+    /// A draft that takes three passes is not a failure of the rule. It is what the rule is *for*:
+    /// the alternative is three rows in `known` describing kits nobody ever played, and a corpus
+    /// split three ways by drafts.
+    public static let modalCymbalsFingerprint = "fd94edcee40e"
+
     /// Every kit this project has shipped, oldest first.
     ///
     /// **Appended to, never edited.** Each row describes a kit that existed and that takes were
@@ -127,6 +141,7 @@ public enum KitGroup: Hashable, Comparable {
         (originalFingerprint, "original"),
         (velocityLayeredFingerprint, "velocity layers"),
         (roomFingerprint, "room"),
+        (modalCymbalsFingerprint, "modal cymbals"),
     ]
 
     public init(fingerprint: String?) {
