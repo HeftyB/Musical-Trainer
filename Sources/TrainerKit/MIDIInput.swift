@@ -274,7 +274,8 @@ final class MIDIInput {
 
         // The notify block was `nil` for the life of the project, so the app received no CoreMIDI
         // notifications at all — a keyboard dropping off the bus mid-take was invisible, and the
-        // only account of the two hangs is the player's (PLAN.md §7.34, §7.35). It cannot make a
+        // only account of the two hangs is the player's (JOURNAL.md §7.34, §7.35). It cannot
+        // make a
         // hang not happen; it makes the next one leave something behind.
         var status = MIDIClientCreateWithBlock("MusicalTrainer" as CFString, &client) {
             [weak self] notification in

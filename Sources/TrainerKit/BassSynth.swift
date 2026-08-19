@@ -60,7 +60,7 @@ enum BassSynth {
         // 20.2% of peak, against the kick's 4.1% — and stepped straight to zero from there. It
         // never appeared in §7.29 step 6b's table of clicking voices because `render` writes one
         // file per *non-pitched* voice, so the diagnostic that found the kick had the loudest
-        // offender filtered out of it (PLAN.md §7.31 finding 1).
+        // offender filtered out of it (JOURNAL.md §7.31 finding 1).
         //
         // Lengthening the buffer instead would need 2.4 s to reach −60 dB and would turn the note
         // into a pad, which is exactly what the comment above says it must not be.

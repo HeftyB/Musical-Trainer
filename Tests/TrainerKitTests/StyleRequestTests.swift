@@ -10,7 +10,7 @@ import XCTest
 /// `LESSONS.md` shape 1, and §7.22 records a test that did exactly that for two and a half
 /// minutes. `Commands.resolveStyle` is the seam, and everything below reaches it.
 ///
-/// See PLAN.md §7.29 step 7.
+/// See JOURNAL.md §7.29 step 7.
 final class StyleRequestTests: XCTestCase {
 
     private let clock = Date(timeIntervalSince1970: 1_770_000_000)

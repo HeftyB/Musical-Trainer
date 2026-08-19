@@ -78,7 +78,7 @@ final class BootstrapTests: XCTestCase {
 
     // MARK: - The two-stage (cluster) resample
     //
-    // These are the tests for the defect in PLAN.md §7.20 finding 1: the pooled bootstrap used
+    // These are the tests for the defect in JOURNAL.md §7.20 finding 1: the pooled bootstrap used
     // to resample blocks *within* takes and never resample the takes themselves, so every
     // iteration carried each take's own fixed mean and the interval could not see between-take
     // variation at all.

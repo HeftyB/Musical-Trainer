@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Recorded by the machine, during the take, from a CoreMIDI notification — **not** a judgement
 /// made about a take after seeing its numbers. That distinction is the whole reason this is
-/// allowed to exist: PLAN.md §7.34 rejected a field the player could set afterwards, because a
+/// allowed to exist: JOURNAL.md §7.34 rejected a field the player could set afterwards, because a
 /// take marked bad in hindsight is post-hoc exclusion however it is worded. An objective event
 /// with a host time on it is a different thing, and it is the only way a hang leaves anything
 /// behind but a description.
@@ -149,7 +149,7 @@ struct MIDISourceRegistry {
     /// dropped off the bus and returned under the same unique ID — which CoreMIDI preserves per
     /// device — was skipped by every later connect attempt and stayed dead until the app was
     /// relaunched. Being *told* the device left is worth nothing while the reconnect path
-    /// refuses to run (PLAN.md §7.35).
+    /// refuses to run (JOURNAL.md §7.35).
     mutating func sourceRemoved(_ uniqueID: Int32, at hostTime: UInt64, name: String?) {
         connected.remove(uniqueID)
         incidents.append(MIDIIncident(kind: .sourceRemoved, hostTime: hostTime, name: name))

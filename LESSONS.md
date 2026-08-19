@@ -5,7 +5,7 @@ real instance, its numbers, and the guard that now prevents it.
 
 **Every one of these shipped, or nearly did, with a green gate.** None was a crash. That is the
 point: the failures worth cataloguing here are the ones where the code runs, `check.sh` passes,
-the numbers look plausible, and the answer is wrong. `PLAN.md` §7.20 records a review where the
+the numbers look plausible, and the answer is wrong. `JOURNAL.md` §7.20 records a review where the
 gate was green throughout — 175 tests, 36 selftest checks, a warning-free release build, every
 stored take decoding — and eleven findings came out of it anyway. A green gate bounds what has
 been checked, not what is true.
@@ -622,6 +622,19 @@ just thought about it.
   `raw` that ignored strength — and `render`, eight lines away, darkened every layer including that
   one. **The one voice documented as unable to be accented had the largest timbre change per unit of
   velocity in the kit** (§7.64). Both halves now read one `DrumSynth.unaccented`.
+
+- **"When `STANDARDS.md`, `LESSONS.md` or `AGENT.md` changes materially, update the template in the
+  same branch"** was §9.7, and it came with a note admitting nothing enforced it: *the templates
+  live outside the tree, so `check.sh` cannot see them.* The first time anyone checked, the
+  catalogue had 22 shapes and the template had 21 — shape 22 itself was the one that never made the
+  crossing. The rule had been enforced by whoever was reading it, and nobody was.
+
+**That one sharpens the shape a second way.** Saying *"you are the enforcement"* is shape 21's own
+prescribed fallback for a rule that cannot be mechanised — but this rule could be mechanised, and
+the only reason it could not was that the files it governs had been parked in a gitignored
+directory. **The guard was unbuildable because of a decision, not a constraint**, and the
+acknowledgement made that comfortable enough to leave alone. Ask whether a rule is genuinely
+unmechanisable or merely inconvenient to mechanise from where its subject currently sits.
 
 **The tell is uniform**: the rule reads as advice, the cost of ignoring it is diffuse and lands
 later, and whoever breaks it is being productive rather than careless. That is precisely the

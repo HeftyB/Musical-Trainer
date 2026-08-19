@@ -5,7 +5,7 @@ import Foundation
 /// **Subdivision and tempo are one axis, not two.** Both move the inter-onset interval, and the
 /// hands do not know which produced it — eighths at 100 BPM and quarters at 200 BPM are the same
 /// 300 ms task. Everything here is therefore expressed in terms of that interval, so two rungs
-/// of equal difficulty cannot be reported as unrelated conditions. See PLAN.md §7.23.
+/// of equal difficulty cannot be reported as unrelated conditions. See JOURNAL.md §7.23.
 ///
 /// Straight time only. A rung divides the beat evenly; where a note is *expected* to sit within
 /// the division is M15's problem, and mixing the two would report style as error.

@@ -96,7 +96,7 @@ public enum MIDIMonitor {
         // neither the summary at the end nor the packet lines above can show a moment — those
         // stop after twelve packets, by design, because a line per note over fifty minutes
         // buries the thing being looked for. The heartbeat is the timeline instead: a silent
-        // slice is printed as silent, so the log says when it went quiet (PLAN.md §7.37).
+        // slice is printed as silent, so the log says when it went quiet (JOURNAL.md §7.37).
         //
         // Below a minute this is the old "does the keyboard work" check and behaves exactly
         // as it always did.

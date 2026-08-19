@@ -12,7 +12,7 @@ import XCTest
 /// voices keeping the same *pulse*, and it ignores a voice with fewer than three hits a bar so an
 /// occasional ride hit is not mistaken for a second drummer. An open hat is exactly that occasional
 /// hit. Doubling a pulse and doubling an instrument are different mistakes with different fixes.
-/// See PLAN.md §7.31 finding 2.
+/// See JOURNAL.md §7.31 finding 2.
 final class ArticulationTests: XCTestCase {
 
     /// The property that matters: whatever is authored, nothing impossible reaches the sequencer.

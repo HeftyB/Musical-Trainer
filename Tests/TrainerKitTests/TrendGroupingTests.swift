@@ -9,7 +9,7 @@ import TestSupport
 /// case themselves — *"a longer silence is a harder task"*, *"a trend here reflects the ladder as
 /// much as you"* — and then fitted the line anyway. Naming a confound is R3.4; not computing the
 /// verdict across it is R3.5, and a reader shown a verdict and a caveat has still been shown a
-/// verdict. See PLAN.md §7.27.
+/// verdict. See JOURNAL.md §7.27.
 final class TrendGroupingTests: StoreBackedTestCase {
 
     private func titles(_ kind: TrainerEngine.DrillKind) -> [String] {

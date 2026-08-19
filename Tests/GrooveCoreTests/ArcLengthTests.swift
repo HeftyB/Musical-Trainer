@@ -7,7 +7,7 @@ import XCTest
 /// `render 100 8` — the invocation `AGENT.md` documents — produced **one 8-bar phrase at one
 /// intensity**. The arc is the part of M19 a step list cannot judge, and the argument for choosing
 /// it from five shapes rather than sampling per phrase is entirely about how a piece *moves*
-/// (§7.29 step 4). Nobody had ever heard one move. See PLAN.md §7.31 finding 3.
+/// (§7.29 step 4). Nobody had ever heard one move. See JOURNAL.md §7.31 finding 3.
 ///
 /// The length lives here rather than as a literal in the render command because it is a property
 /// of the arc table: adding a five-phrase shape must lengthen the audition, not be truncated by it

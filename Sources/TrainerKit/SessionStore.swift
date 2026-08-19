@@ -562,7 +562,7 @@ enum SessionStore {
     /// It exists because reading was costing a second. `SetupView` asks for `scorableRungs` and
     /// `rungAdvice`, each of which resolves the player's recent spread, and each of those decoded
     /// **every take on disk** — 58 jams, 1.9 MB — before looking at the last six. `tag` is
-    /// `@Published`, so that ran twice per keystroke in the Condition field. See PLAN.md §7.54.
+    /// `@Published`, so that ran twice per keystroke in the Condition field. See JOURNAL.md §7.54.
     ///
     /// Guarded because the app loads its history off the main thread while a take may be saving
     /// on it. The lock is held for a dictionary read; nothing here runs on the render thread.
@@ -618,7 +618,7 @@ enum SessionStore {
     /// one line with 21 free jams and grouped it. Both fixed a *readout*. The planner's own input
     /// was built with `map` over `loadAll` the whole time, so the take that widened a trend also
     /// widened the spread estimate that decides which rungs exist — and unlike a readout, nothing
-    /// about that is visible. See PLAN.md §7.52.
+    /// about that is visible. See JOURNAL.md §7.52.
     static func loadAllPlayAlong() -> [JamSession] {
         loadAll().filter { $0.offbeatLevel == nil }
     }

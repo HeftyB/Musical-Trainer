@@ -5,7 +5,7 @@ import XCTest
 ///
 /// The seed is stored on the take inside `grooveName`, which is what makes generation
 /// permissible rather than reckless: R1.2.2 says a result that cannot be reproduced from stored
-/// data is not a result. See PLAN.md §7.29 step 4.
+/// data is not a result. See JOURNAL.md §7.29 step 4.
 final class StyleArrangerTests: XCTestCase {
 
     private let style = StyleLibrary.driving

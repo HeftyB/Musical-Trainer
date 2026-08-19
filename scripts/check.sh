@@ -32,7 +32,7 @@ SWIFT_FILES=$(find Sources Tests -name '*.swift')
 # grep does not have — and discarding stderr made all three indistinguishable from a clean tree.
 # Pointing the autocorrelation rule at a filename that does not exist turned it green, which is
 # every renamed file in this project's future silently disarming whichever rules named it
-# (PLAN.md §7.47).
+# (JOURNAL.md §7.47).
 #
 # grep writes to stderr in each of those cases, so stderr is what separates "found nothing" from
 # "looked nowhere". A rule that legitimately writes to stderr has to redirect it itself, and the
@@ -129,7 +129,7 @@ expect_empty "no markdown emphasis in instruction text" \
 # A block-resampling bootstrap must never be handed an autocorrelation. Every join between two
 # resampled blocks is a pair that was never adjacent, so r₁ comes back attenuated by about 1/L —
 # a nominal 95% interval covered the truth 25% of the time at r₁ = 0.64, and it was wrong in four
-# call sites for thirty takes (PLAN.md §7.32).
+# call sites for thirty takes (JOURNAL.md §7.32).
 #
 # `SeriesStatistic` is the real guard: it has no autocorrelation case, so the pairing cannot be
 # spelled. This is the backstop for the symbol itself — a `lag1Stat`-shaped constant reappearing
@@ -151,7 +151,7 @@ expect_empty "no network framework is imported" \
 # `dependencies: [` *and* a `.package(` within two lines of `let package` — but SwiftPM's argument
 # order puts `dependencies:` after `products:`, so in this manifest the declaration lands four
 # lines below that window. Planting a real `swift-algorithms` dependency, confirming the manifest
-# still resolved, and running the gate produced PASS (PLAN.md §7.47). Every dependency-free run
+# still resolved, and running the gate produced PASS (JOURNAL.md §7.47). Every dependency-free run
 # this project has ever had was dependency-free for reasons the gate had no part in.
 #
 # Two signals, because they fail independently: the declaration in the manifest, and the lock file
@@ -219,11 +219,16 @@ head2 "Documentation"
 # yours to re-derive; the rule is "prefer writing claims a script can check", not "the script has
 # it covered".
 
-for doc in PLAN.md AGENT.md STANDARDS.md LESSONS.md README.md; do
-    [ -f "$doc" ] || { fail "$doc is missing — STANDARDS.md §0 names five documents"; }
+DOCS="PLAN.md AGENT.md STANDARDS.md LESSONS.md README.md docs/JOURNAL.md"
+DOC_MISSING=""
+for doc in $DOCS; do
+    [ -f "$doc" ] || DOC_MISSING="$DOC_MISSING $doc"
 done
-[ -f PLAN.md ] && [ -f AGENT.md ] && [ -f STANDARDS.md ] && [ -f LESSONS.md ] && [ -f README.md ] \
-    && pass "all five documents in the map exist"
+if [ -z "$DOC_MISSING" ]; then
+    pass "all six documents in the map exist"
+else
+    fail "missing:$DOC_MISSING — STANDARDS.md §0 names six documents"
+fi
 
 count_tests() { grep -rE '^[[:space:]]*func test' "Tests/$1" --include='*.swift' | wc -l | tr -d ' '; }
 TC=$(count_tests TimingCoreTests)
@@ -265,7 +270,7 @@ fi
 SHAPES=$(grep -oE '^## [0-9]+\.' LESSONS.md 2>/dev/null | grep -oE '[0-9]+')
 DANGLING=""
 for n in $(grep -rhoE 'LESSONS\.md[^0-9]{0,14}shape [0-9]+' \
-               Sources Tests PLAN.md AGENT.md STANDARDS.md README.md 2>/dev/null \
+               Sources Tests $DOCS 2>/dev/null \
            | grep -oE '[0-9]+$' | sort -nu); do
     echo "$SHAPES" | grep -qx "$n" || DANGLING="$DANGLING $n"
 done
@@ -273,6 +278,26 @@ if [ -z "$DANGLING" ]; then
     pass "every LESSONS.md shape citation resolves ($(echo "$SHAPES" | wc -l | tr -d ' ') defined)"
 else
     fail "LESSONS.md has no shape$DANGLING, but something cites it"
+fi
+
+# The cross-project templates (STANDARDS §9.7) must gain a failure shape whenever the catalogue
+# does. That rule shipped with a note conceding it was enforced by nobody, because the templates
+# lived in gitignored temp/ where this script could not reach them — and it was broken the first
+# time anyone looked: 22 shapes here, 21 there, the missing one being the shape about a fix that
+# was applied to the readout and not to the thing that acts (LESSONS.md shape 21, fourth instance).
+# Now that they are tracked, the cheap half is checkable. Counts only: the templates are
+# generalised rather than copied, so the text necessarily differs and only the numbering is shared.
+KIT=docs/baseline-kit
+if [ -d "$KIT" ]; then
+    HERE=$(grep -cE '^## [0-9]+\.' LESSONS.md 2>/dev/null || echo 0)
+    THERE=$(grep -cE '^## [0-9]+\.' "$KIT/LESSONS.md" 2>/dev/null || echo 0)
+    if [ "$HERE" = "$THERE" ]; then
+        pass "the template catalogue carries every shape ($HERE)"
+    else
+        fail "LESSONS.md defines $HERE shapes, $KIT/LESSONS.md carries $THERE — STANDARDS §9.7"
+    fi
+else
+    fail "$KIT is missing — STANDARDS §9.7 names it"
 fi
 
 # ── 7. Build and test (STANDARDS §5) ─────────────────────────────────────────────

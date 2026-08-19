@@ -6,7 +6,7 @@ import XCTest
 /// What the levels remove are the cues that say when to land: level 0's crash confirms the
 /// arrival, level 1 takes it away, level 2 takes the fill that warned you. Promoting on the
 /// spatial rate handed this player thinner landmarks on the axis he was already failing —
-/// 25 of 25 on form and 8 of 25 clean (PLAN.md §7.41).
+/// 25 of 25 on form and 8 of 25 clean (JOURNAL.md §7.41).
 final class TemporalLadderTests: XCTestCase {
 
     private func form(level: Int, onFormRate: Double, cleanRate: Double,

@@ -9,7 +9,7 @@ import TestSupport
 /// They used to be two lists and they disagreed. `review tags` knew about backings, tempos and
 /// output devices; `review conditions` also knew about the rung and the feel; neither knew about
 /// the offbeat drill. The visible consequence was `tired` pooling a 2:1 and a 3:2 swung take —
-/// two different tasks under one label — and saying nothing at all. See PLAN.md §7.28.
+/// two different tasks under one label — and saying nothing at all. See JOURNAL.md §7.28.
 final class TakeAxisTests: XCTestCase {
 
     private static let grid = TakeFactory.grid()

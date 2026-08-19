@@ -6,7 +6,7 @@ import XCTest
 /// The app used to answer both questions itself: `subdivisions == 2 || subdivisions == 4` for the
 /// first, and one fixed sentence about triplets for the second. The sentence was wrong for
 /// quarters, which is what the player actually hit — a disabled control explaining itself wrongly
-/// sends the reader looking for the wrong thing (PLAN.md §7.34, §7.39).
+/// sends the reader looking for the wrong thing (JOURNAL.md §7.34, §7.39).
 final class SwingAvailabilityTests: XCTestCase {
 
     /// The two questions must not be able to disagree, which is the whole reason the reason

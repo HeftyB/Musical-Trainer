@@ -8,7 +8,7 @@ import XCTest
 /// configured with, so a 16-bar phrase was announced as 8. R3.6 is the rule it broke — instructions
 /// come from the configuration that will actually run — and the drill makes it worse than usual:
 /// **8 and 16 bars of the same groove are audibly identical**, so at level 2 the words were the
-/// only source of the number (PLAN.md §7.42).
+/// only source of the number (JOURNAL.md §7.42).
 final class FormInstructionsSayThePhraseLengthTests: XCTestCase {
 
     private func steps(level: Int, phraseBars: Int) -> String {

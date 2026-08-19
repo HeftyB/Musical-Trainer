@@ -6,7 +6,7 @@ import XCTest
 /// The choice used to be the order the two branches happened to sit in — a planner decision nobody
 /// made, invisible in a diff and changed by moving code, which is `LESSONS.md` shape 5. These
 /// assert the decision rather than its consequences, which is the point of it having a name
-/// (PLAN.md §7.44).
+/// (JOURNAL.md §7.44).
 final class FormAxisChooserTests: XCTestCase {
 
     private func form(level: Int = 1, phraseBars: Int = 8,
@@ -66,7 +66,7 @@ final class FormAxisChooserTests: XCTestCase {
     /// guessing. It is not guessing — the ladder is ordered, and "the first rung wider than where
     /// you are" is what climbing means. What the old rule actually did was strand the player: a
     /// span reached by hand (`form 100 64 6 2`) left `formAxis` unable to answer `.spatial` ever
-    /// again, on a ladder whose whole job is to widen. See PLAN.md §7.50.
+    /// again, on a ladder whose whole job is to widen. See JOURNAL.md §7.50.
     func testASpanOffTheLadderClimbsToTheNextRungAboveIt() {
         XCTAssertEqual(SessionPlanner.nextSpan(after: 2), 4)
         XCTAssertEqual(SessionPlanner.nextSpan(after: 6), 8)

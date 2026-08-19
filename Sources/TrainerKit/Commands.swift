@@ -540,7 +540,7 @@ public enum Commands {
     /// would otherwise rate his own playing for an equipment failure, which is exactly the noise
     /// `review feel` correlates away. The argument against is §2: the rating is taken before
     /// anything the take produced, and this is something the take produced. Left here until the
-    /// player says otherwise — see PLAN.md §7.36.
+    /// player says otherwise — see JOURNAL.md §7.36.
     ///
     /// Silent on a healthy take. A warning that fires on every take is one nobody reads.
     static func reportMIDIIncidents(_ incidents: [MIDIIncident]) {
@@ -1844,7 +1844,7 @@ public enum Commands {
     /// today's history that is one interval per tempo and three tempos, so it refuses. Within a
     /// take the player produces several intervals by choice, which is thousands of notes across
     /// a real range, and the question of which description of spread survives a change of
-    /// interval is answerable there now. See PLAN.md §7.23.
+    /// interval is answerable there now. See JOURNAL.md §7.23.
     private static func printProducedIntervals() {
         let profile = TrainerEngine.producedIntervalProfile()
         guard !profile.bins.isEmpty else { return }

@@ -172,7 +172,7 @@ final class MusicalContentTests: XCTestCase {
         XCTAssertTrue(r.headline.contains("Nothing was played"))
     }
 
-    /// A tail shorter than a window is not a window (PLAN.md §7.20 finding 3).
+    /// A tail shorter than a window is not a window (JOURNAL.md §7.20 finding 3).
     ///
     /// The count used to round up, so the last window of every take ran past the end of the
     /// take and was still divided by a full window's worth of beats. Every take's final window

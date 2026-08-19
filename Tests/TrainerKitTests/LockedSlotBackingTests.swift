@@ -12,7 +12,7 @@ import XCTest
 ///
 /// Three layers, and this file holds two of them — the planner cannot express it
 /// (`LadderPlanningTests`), the resolution refuses it whatever the plan says, and the config
-/// refuses a pair of backings outright. See PLAN.md §7.29 step 7.
+/// refuses a pair of backings outright. See JOURNAL.md §7.29 step 7.
 final class LockedSlotBackingTests: XCTestCase {
 
     private let generated = PlannedBacking(style: "driving", seed: 0x5EED_0001)

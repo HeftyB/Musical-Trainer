@@ -13,7 +13,7 @@ import XCTest
 /// a hat on the downbeats and a shaker on the offbeats are one pulse shared between two hands,
 /// which is ordinary percussion — the first version of this rule forbade that too, and narrowing
 /// it to voices that share steps is what makes it describe the defect rather than the genre.
-/// See PLAN.md §7.29 step 6.
+/// See JOURNAL.md §7.29 step 6.
 final class TimekeeperTests: XCTestCase {
 
     func testNoStyleDoublesItsTimekeeperAtAnyIntensity() {

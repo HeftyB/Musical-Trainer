@@ -7,7 +7,7 @@ import TestSupport
 /// §7.29's slot table: the cold probe, the benchmark and the experiment arms are frozen for ever
 /// (R3.5), and the deep music goes where nothing longitudinal is read. In a planned session the
 /// closing jam is the only *free* jam there is — the ladder training block carries a rung, and a
-/// rung and a style are two backings that cannot both play. See PLAN.md §7.33.
+/// rung and a style are two backings that cannot both play. See JOURNAL.md §7.33.
 final class PlannedBandTests: XCTestCase {
 
     private let approved = ["driving", "half-time", "pocket", "syncopated"]

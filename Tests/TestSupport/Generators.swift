@@ -6,7 +6,7 @@ import TimingCore
 /// One generator, not one per test file. Before this existed there were four — `SeededRNG` and
 /// `Generators` here, a `gaussianSeries` in `BootstrapTests`, a round layout in
 /// `TempoMemoryTests`, an LCG in `SelfTest` — which meant a pathology added in one place
-/// reached exactly one drill. See PLAN.md §7.22.
+/// reached exactly one drill. See JOURNAL.md §7.22.
 ///
 /// This is a plain target rather than a test target so all the test suites can import it, and it
 /// depends only on `TimingCore` so it builds on Linux alongside the pure modules. Builders for

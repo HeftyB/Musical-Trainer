@@ -18,7 +18,7 @@ import TrainerKit
 // line in a 4 KB buffer and ^C — SIGINT, which does not flush — threw the lot away. A whole
 // session was watched and the log came back **empty**, with the monitor's own header still
 // sitting in the buffer, so a working run and a broken one looked identical from the outside
-// (`LESSONS.md` shape 16, PLAN.md §7.37).
+// (`LESSONS.md` shape 16, JOURNAL.md §7.37).
 //
 // Global rather than inside `midimon`: every readout here is something somebody may pipe into a
 // file, and per-line writes cost nothing at the rate a CLI prints.
@@ -110,7 +110,7 @@ do {
     case "midimon":
         // Default 20 s is a "does the keyboard work" check. A length is what lets it run
         // beside a whole session, which is the only way to tell a source that stopped sending
-        // from an app that stopped listening — see PLAN.md §7.36.
+        // from an app that stopped listening — see JOURNAL.md §7.36.
         let watchFor = arguments.dropFirst().first.flatMap(Double.init) ?? 20
         MIDIMonitor.run(seconds: min(max(watchFor, 1), 4 * 3600))
 
@@ -161,7 +161,8 @@ do {
     case "offbeat":
         // 70 rather than 100, because at 100 the chop sits 300 ms from the beat either side and
         // the feel inverted: the only take there put 23% of its notes off the beat, against 96%
-        // at 69. Grounded in those two takes rather than derived — see PLAN.md §7.38, which also
+        // at 69. Grounded in those two takes rather than derived — see JOURNAL.md §7.38,
+        // which also
         // says what would falsify it. A faster offbeat is still reachable by asking for one.
         let bpm = arguments.dropFirst().first.flatMap(Double.init) ?? 70
         let bars = arguments.dropFirst(2).first.flatMap(Int.init) ?? 32

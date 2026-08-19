@@ -85,7 +85,7 @@ public struct IntervalResponseReport: Equatable {
 /// than against either separately. Eighths at 100 BPM and quarters at 200 are the same 300 ms
 /// task, and reporting them as unrelated conditions would throw away half the evidence.
 ///
-/// Two claims, tested apart because they need different handling (PLAN.md §7.23):
+/// Two claims, tested apart because they need different handling (JOURNAL.md §7.23):
 ///
 /// - **"Slow tempos make me rush."** A claim about signed asynchrony growing more negative as
 ///   the interval lengthens. Nothing forces it mechanically, so a slope here is a real finding.
