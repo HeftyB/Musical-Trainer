@@ -8127,7 +8127,7 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 1 | **`MIDIInput`'s capture state has no structural guard** — see finding 1 | A `withStorage { }` refactor of the capture path, not a defect fix |
 | 2 | **`events` holds `storageLock` across an allocation and up to 32,768 struct copies**, and the tempo drill calls it mid-take while notes arrive (`TrainerEngine.runTempo`). The comment justifying the lock says it is *"held for a handful of instructions"*, which stopped being true when §7.51 quadrupled the capacity | Same file, same seam as item 1; do them together |
 | 3 | **Task identity lives in `TrainerKit`** — `GroupKey`, `BackingGroup`, `DropoutKey`, `FormKey` and `groupKey` are pure logic on the wrong side of the CI line. §7.28 calls this "one list of what makes two takes a different task" and three separate defects (§7.24 step 8, §7.48, §7.52) have been about it | R1.1.1 says analysable logic belongs in `TimingCore`; moving it puts the highest-defect-density logic in the project under the Linux leg |
-| 4 | **CI covers 590 of 922 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 332 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
+| 4 | **CI covers 590 of 923 cases and compiles none of the macOS code.** `TrainerKit` (9,840 lines), the app (2,863) and `TimingSpike` never build in CI; `TrainerKitTests`' 333 cases and `selftest`'s 41 checks never run there | Known and stated (STANDARDS §9.4.2, `release.yaml.disabled`), and the reasons not to point an agent at the workstation still hold. What is *not* stated is that `--no-verify` is the only thing between that and nothing |
 | 5 | **`OffbeatAnalysis.completeness` can exceed 1.0** on a repeated phase: `askedSet` dedupes for matching, `asked.count` does not, so `asking: [1, 1]` reads 2.0 on a field documented 0–1 | No caller does this today. Worth closing before the skank family grows past one figure, which is M16.5 |
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
@@ -9240,6 +9240,184 @@ the one being asked — and the third instance in this milestone alone. **A rati
 
 ---
 
+## 7.72 The player names what the cymbals actually are
+
+The fourth listening pass produced the most useful sentence anybody has said about this kit, because
+it stopped describing what was wrong and described what the sounds **were**:
+
+> They actually all sound like a variation of hats. When you are playing an acoustic drumset's
+> hi-hats there are three main distinct sounds you can make. The first is the hats closed with
+> pressure on the pedal and that sounds like the closed hi-hats sample, tight. Then you have a closed
+> hi-hat, but you aren't putting as much pressure on the pedal, that's what the ride sample sounds
+> like. Then we have open hats hit which sounds like the crash sample. The generated open hi-hats
+> sample sounds like you hit the hats while open then close it down with the pedal.
+
+**That is a diagnosis, an identification and a request in one.** Every voice was landing somewhere in
+the hi-hat family, and he could say precisely *where* — which is a description no measurement here
+could have produced.
+
+| Voice | What it actually is |
+|---|---|
+| `closedHat` | A tight closed hat, pedal down. **Correct.** |
+| `ride` | A closed hat with less pedal pressure |
+| `crash` | An open hat, struck |
+| `openHat` | Struck open, then closed with the pedal — a choke |
+
+**"Don't throw away the sounds."** Three of the four are good hi-hat articulations that this kit does
+not otherwise have, and M20's drum mode — where the player becomes the drummer — is exactly where a
+loose closed hat and a pedal choke would earn their place. Recorded here rather than deleted.
+
+### Why they were all hats: two of them were cut off mid-ring
+
+The cause was not subtle once looked for. **The ride's lowest mode decayed over 1.3 s into a 0.8 s
+buffer; the crash's over 2.4 s into 1.5 s.** Both were truncated and faded well before they had
+finished, and a cymbal cut short *is* a hi-hat — the difference between the families is largely how
+long they sustain.
+
+The failure shape is one this project knows: **two numbers that had to agree, living apart.** The
+plate says how long it rings; the call site says how long a buffer to render; nothing compared them.
+`testEveryCymbalIsGivenRoomToRingOut` is that comparison, and it asks the question directly — what is
+still sounding in the last tenth of the buffer, against the peak.
+
+Ride 1.3 s → 3.2 s of decay in a 2.6 s buffer; crash 2.4 s → 4.2 s in 3.8 s.
+
+### The ping: right concept, wrong sound
+
+A ride needs a ping — the pitched articulation that tells you a stroke happened and lets a pattern on
+it stay legible instead of turning to soup. The first attempt was one resonator at 620 Hz ringing for
+0.55 of the body's decay, which is 1.8 seconds.
+
+> The ride sounds maybe like the cowbell but different and lower pitched. I agree it was missing a
+> ping sound but that one we added was the wrong kind of sound.
+
+**Exactly right, and the reason is instructive: a cowbell *is* a small number of strong inharmonic
+partials ringing on**, which is precisely what a single sustained resonator produces. The concept was
+sound and the execution built a different instrument.
+
+What a ride's ping actually is: an **articulation rather than a pitch you could sing**. It is over
+quickly, it sits higher, and it is never pure — the bow is a plate, so the stick excites a knot of
+nearby modes. Now three detuned resonators at 1,050 Hz, at 0.30 rather than 0.55, decaying in 0.16 s
+rather than 1.8. It says a stroke happened and gets out of the way of the wash.
+
+### Five passes, and what that is worth
+
+This milestone has now been through five listening verdicts, and the kit fingerprint has been edited
+in place each time under the draft rule (§7.64). That is not the loop failing. **Each verdict was more
+specific than the last** — "weak", then "tin can", then "still hollow", then "these are hi-hat
+articulations and here is which", then "that ping is a cowbell" — and each one named something no
+test in this repository could have measured.
+
+The alternative was five rows in `KitGroup.known` describing kits nobody ever played over, and a
+corpus split five ways by drafts. The rule that a draft may be edited until a take is recorded over it
+is what makes an iteration loop this long affordable.
+
+**Still unheard in its current form.** All four styles remain `auditioned: false`.
+
+---
+
+## 7.73 The bloom, and a scoping question worth answering
+
+The fifth listening pass asked the question directly, and it deserves an answer in the plan rather
+than only in a reply:
+
+> Are we going for a better crash sound than what we had or like an authentic crash? Because what we
+> have sounds miles better than what we had.
+
+**Authentic**, and §7.30 already settled it: *"We should absolutely keep the genre names… I really
+would like to make some different genres happen for real, no shortcuts."* The bar is not "better than
+the noise burst" — it is a cymbal. What that costs is iteration against an ear, which is what the last
+six passes have been.
+
+### What was missing was the thing this file said it would not model
+
+> I listened to the sound reference on the wikipedia article for the crash cymbal. Ours sounds compact
+> and flat while the reference sounded full and dynamic. The sound is short but it is like a
+> rollercoaster or a wave in the way that it "moves".
+
+`CymbalSynth` named this in its own documentation as fact 3 and then declined to build it:
+
+> *Strike a plate hard enough and it stops behaving linearly: energy pumps from the low modes into
+> higher ones as it rings, which is why a hard crash blooms — it gets brighter for a moment **after**
+> the stick has left… Modelling the real nonlinearity is out of scope.*
+
+**The player identified the absence of exactly that, from a reference recording, without having read
+the file.** "Compact and flat" against "full and dynamic" is a bloom-shaped hole, and "moves like a
+wave" is the rise-peak-fall an ear tracks when one is present.
+
+That is worth recording as a general result: **the thing a synthesis model explicitly declines to
+build is a good first guess at what a listener will miss.** It was written down as out of scope in
+§7.70 and reported as the main deficiency two passes later.
+
+### The shape without the mechanism
+
+`shimmerRiseSeconds` gives the shimmer band an attack envelope: `(1 − e^(−t/rise)) · e^(−3t/decay)`.
+It climbs from nothing, peaks shortly after the strike, and then decays — so the bright wash arrives
+*behind* the hit rather than with it. The crash rises over 130 ms, the ride over 30, a hi-hat over
+none at all, because a hat is brightest at the instant it is struck.
+
+**This is the shape rather than the mechanism, and the doc says so.** True coupling would move energy
+between resonators as they ring; this draws the envelope that coupling would produce. An ear tracks
+the rise-peak-fall either way, and claiming a physical model here would be claiming something the code
+does not do.
+
+A harder strike blooms longer, which is the one place the approximation and the physics agree about
+*why*: more energy in the plate is more for the nonlinearity to move.
+
+### The ride's drum-like quality
+
+> The ride sounds like a closed hat, it has a drum like quality.
+
+Two causes, both in the numbers. Its `damping` was 0.70 — the highest of the three — so the high modes
+collapsed almost at once and left a short, dark, dense sound, which is a closed hat's description.
+And its lowest mode sat at 70 Hz, low enough to give it a drum's weight. Damping to 0.40 so the
+shimmer sustains, plate to 150 Hz, and the strike tilted brighter.
+
+### The ride was turned into a diet crash, by me, in the pass before
+
+> The crash sounds much better, ride still needs work. Still sounds like a diet crash, it is missing
+> the 'ting' and has too much 'tshhh'.
+
+Accurate, and the cause was the previous pass rather than anything old. Fixing the ride's *drum-like*
+quality (§7.73) meant raising its shimmer from 0.20 to 0.34, stretching that band's decay from 0.10 to
+0.34, and giving it a bloom — every one of which is a **crash** parameter. The ping went the other way,
+0.30 down to 0.26. So the ride was moved a long step toward the crash and away from itself.
+
+**A ride is a ping with a wash behind it; a crash is a wash with no ping at all.** That is the whole
+distinction, and the two knobs that express it were both turned the wrong way at once. Shimmer back to
+0.14 with a decay of 0.13 and starting at 3 kHz, no bloom — a ride's brightest instant is the stick on
+the bow — and the ping up to 0.62, allowed to ring 0.34 s so it is an articulation a player can follow
+rather than a tick.
+
+The lesson is narrow but real: **fixing a voice by borrowing its neighbour's parameters moves it
+toward the neighbour.** Both complaints were about the ride, and the second one was caused by the fix
+for the first.
+
+A further pass — *"it needs a higher pitch and should sustain more"* — took the ping from 1,050 Hz to
+1,800 and from 0.34 s to 0.75. Worth noting how far that is from where the ping started, which was
+620 Hz ringing 1.8 s and heard as a cowbell: **the ting is high and medium-length, and the failure
+mode at the other end is low and long.** What keeps 0.75 s from returning to that failure is the
+cluster — three detuned resonators rather than one — since what made the cowbell was purity as much
+as duration.
+
+### Two measurement notes, both for whoever works on synthesis next
+
+**`energyAbove` is a comparative measure, not an absolute one.** It subtracts a two-pole low-pass
+from the signal, and that overshoots: on the ride it reported a share of **1.007** — more than all the
+energy — for both a tuned and an untuned plate. It answers "is this brighter than that" between two
+versions of the same voice, which is what §7.70 and §7.71 used it for. It does not answer "how much of
+this is above 2 kHz". Use `power(of:atHz:)` when the frequency is known, which is exact.
+
+**A test that names a tuning constant goes stale every time the constant is legitimately tuned.**
+`testCymbalTuningMovesTheWholePlate` asked at the ride's lowest mode and broke three times in two days
+as that mode moved 285 → 175 → 90 → 150 Hz. It reads `DrumSynth.rideLowestModeHz` now. The general
+form is worth carrying: **a guard that must be edited whenever the thing it guards is legitimately
+adjusted stops being read and starts being updated reflexively**, which is how a guard becomes a
+chore and then becomes wrong.
+
+**Still unheard.** All four styles remain `auditioned: false`.
+
+---
+
 ## 8. Project layout
 
 Swift Package Manager, five source targets and four test targets. The split is not cosmetic: the
@@ -9263,11 +9441,11 @@ Musical Trainer/
 │   │                        runners (`TrainerEngine`), `SessionRunner`, console layer.
 │   ├── TimingSpike/         console front end (main.swift only).
 │   └── MusicalTrainerApp/   SwiftUI front end.
-└── Tests/                   922 cases
+└── Tests/                   923 cases
     ├── TestSupport/         shared generators — not a test target
     ├── TimingCoreTests/     439 cases against synthetic ground truth
     ├── GrooveCoreTests/     151 cases — patterns, sequencer, styles
-    └── TrainerKitTests/     332 cases — storage, config, sessions. macOS only, so
+    └── TrainerKitTests/     333 cases — storage, config, sessions. macOS only, so
                              `check.sh` runs them and Woodpecker cannot.
 ```
 

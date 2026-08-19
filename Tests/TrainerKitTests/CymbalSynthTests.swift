@@ -21,6 +21,7 @@ final class CymbalSynthTests: XCTestCase {
                           inharmonicity: 0.22, lowestModeDecaySeconds: decay, damping: damping,
                           excitationTilt: tilt, strikeSeconds: 0.002, level: 0.6,
                           shimmerLevel: shimmer, shimmerDecayFraction: 0.2, shimmerFromHz: 4_000,
+                          shimmerRiseSeconds: 0, pingHz: 0, pingLevel: 0, pingDecayFraction: 0.5,
                           strikeNoise: 0.1)
     }
 
@@ -58,7 +59,8 @@ final class CymbalSynthTests: XCTestCase {
             lowestModeHz: 400, modeCount: 12, stretch: 1, inharmonicity: 0,
             lowestModeDecaySeconds: 0.5, damping: 0.6, excitationTilt: 0,
             strikeSeconds: 0.002, level: 0.6, shimmerLevel: 0, shimmerDecayFraction: 0.5,
-            shimmerFromHz: 4_000, strikeNoise: 0.2)
+            shimmerFromHz: 4_000, shimmerRiseSeconds: 0, pingHz: 0, pingLevel: 0,
+            pingDecayFraction: 0.5, strikeNoise: 0.2)
         let ratios = CymbalSynth.modes(of: regular).map { $0.frequency / 400 }
         XCTAssertEqual(ratios, (1...12).map(Double.init))
     }
@@ -90,6 +92,34 @@ final class CymbalSynthTests: XCTestCase {
     func testZeroDampingRingsEveryModeForTheSameTime() {
         let modes = CymbalSynth.modes(of: plate(damping: 0))
         XCTAssertEqual(Set(modes.map { ($0.decaySeconds * 1e6).rounded() }).count, 1)
+    }
+
+    // MARK: The buffer has to be long enough for the plate in it
+
+    /// **Nothing checked that a cymbal was given room to finish, and for three passes none was.**
+    ///
+    /// The ride's lowest mode decayed over 1.3 s into a 0.8 s buffer and the crash's over 2.4 s into
+    /// 1.5 s, so both were cut off mid-ring and faded out. A cymbal cut short is a hi-hat — which is
+    /// exactly what the player heard: *"they actually all sound like a variation of hats"* (§7.72).
+    ///
+    /// The failure is that two numbers had to agree and lived apart: the plate says how long it
+    /// rings, the call site says how long a buffer to render, and nothing compared them. This is that
+    /// comparison.
+    func testEveryCymbalIsGivenRoomToRingOut() {
+        let fs = 44_100.0
+        for voice in [BackingVoice.closedHat, .openHat, .ride, .crash] {
+            let rendered = DrumSynth.render(voice, sampleRate: fs)
+            let seconds = Double(rendered.count) / fs
+
+            // What is left in the last tenth of the buffer, against the loudest tenth. A cymbal still
+            // going strong when its buffer ends is one the fade is about to cut off.
+            let tenth = max(rendered.count / 10, 1)
+            let ending = rendered.suffix(tenth).map(abs).max() ?? 0
+            let peak = rendered.map(abs).max() ?? 0
+            XCTAssertLessThan(ending, peak * 0.02,
+                              "\(voice) is still at \(ending) of \(peak) when its \(seconds)s "
+                            + "buffer ends — it is being cut off rather than decaying")
+        }
     }
 
     // MARK: What that does to the sound

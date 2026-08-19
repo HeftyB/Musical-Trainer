@@ -167,6 +167,17 @@ rings, and a strike that gets brighter with force. `KitSpec` gains four cymbal k
 with **what to listen for** as well as what it changes. The kit is `9a40d4268492`, "modal cymbals",
 and **every audition is withdrawn again** — expected, and what §7.69 said to expect.
 
+**Five listening passes so far and still unheard in its current form** (§7.70–§7.72). The most useful
+verdict identified what the voices *were* rather than what was wrong with them: all four were landing
+as hi-hat articulations — tight closed, loose closed, open-struck, and a pedal choke. **Those three
+non-hat sounds are worth keeping for M20's drum mode** rather than deleting.
+
+Two causes found from it. Both the ride and the crash were **truncated mid-ring** — decays of 1.3 s
+and 2.4 s into buffers of 0.8 s and 1.5 s — and a cymbal cut short is a hi-hat;
+`testEveryCymbalIsGivenRoomToRingOut` now compares the two numbers that have to agree. And a ride's
+ping is an *articulation*, not a pitch: the first one sustained 1.8 s and was heard as a cowbell,
+which is what a single strong resonator ringing on actually is.
+
 **The first pass was heard and rejected** — *"a tin can… hollow… the closed hats sound too much like
 a click"* — and the cause was one thing: too few modes, spread *further apart* as they climbed, which
 is backwards for a plate (§7.71). Retuned to dense, evenly spaced modes plus a noise band standing in
@@ -566,7 +577,7 @@ over. An unapproved style renders, because rendering is how a style gets heard i
   locally by hash.
 - **No macOS CI agent exists.** `.woodpecker/test.yaml` runs the Linux-buildable half — which
   is the 590 pure-module tests, because `Package.swift` excludes the Apple-only targets off
-  macOS. `TrainerKitTests` (332 tests) is macOS-only and runs in `check.sh` alone, so a
+  macOS. `TrainerKitTests` (333 tests) is macOS-only and runs in `check.sh` alone, so a
   green pipeline covers less than a green gate.
   `.woodpecker/release.yaml.disabled` is parked until a dedicated Mac exists; it must not be
   pointed at this machine (a build during a take can perturb the render thread).
@@ -618,7 +629,7 @@ unusable before it was inaccurate.
 ./scripts/check.sh                      # the gate — must pass before every commit
 ./scripts/install-hooks.sh              # once per clone, installs the tracked git hooks
 
-swift test                              # 922 tests, no hardware needed
+swift test                              # 923 tests, no hardware needed
 swift build -c release                  # CLI
 ./.build/release/TimingSpike selftest    # analysis maths vs synthetic ground truth
 ./build-app.sh && open "Musical Trainer.app"

@@ -120,16 +120,17 @@ public enum KitGroup: Hashable, Comparable {
 
     /// The kit after M26 item 6 rebuilt the cymbals as struck plates (§7.70, §7.71).
     ///
-    /// **Edited across three listening passes while it was still a draft**, on the same terms as
+    /// **Edited across eight listening passes while it was still a draft**, on the same terms as
     /// `velocityLayeredFingerprint` and for the same reason: each version was heard, rejected and
-    /// retuned before any take was recorded over it. *"A tin can"*, then *"still a little hollow"*.
+    /// retuned before any take was recorded over it. *"A tin can"*, *"still a little hollow"*, *"they
+    /// all sound like a variation of hats"*, *"the ride sounds maybe like the cowbell"*, *"a diet crash"*.
     /// The rule stays what it was — the kit must never have reached a stored take — and after that,
     /// append.
     ///
     /// A draft that takes three passes is not a failure of the rule. It is what the rule is *for*:
     /// the alternative is three rows in `known` describing kits nobody ever played, and a corpus
     /// split three ways by drafts.
-    public static let modalCymbalsFingerprint = "7be960b10fb5"
+    public static let modalCymbalsFingerprint = "fd94edcee40e"
 
     /// Every kit this project has shipped, oldest first.
     ///

@@ -225,6 +225,61 @@ enum CymbalSynth {
         /// distinct metal; too high and there is an audible hole between the top mode and the sizzle.
         let shimmerFromHz: Double
 
+        /// How long the shimmer takes to reach full, in seconds. **The bloom.**
+        ///
+        /// **This is the "pppsshhhh", and the thing that makes a crash *move*.**
+        ///
+        /// Everything else here starts at full and decays. A real crash does not: strike it and the
+        /// low modes take the energy first, then over the next tenth of a second or so the plate's
+        /// nonlinearity pumps that energy *upward* into the high modes. So the bright wash **swells
+        /// after the stick has left**, peaks, and only then decays. That rise-and-fall is what a
+        /// listener means by a cymbal sounding full and dynamic rather than compact and flat, and it
+        /// is why a crash reads as a wave rather than a burst.
+        ///
+        /// `CymbalSynth` called this out as fact 3 and declined to model it (§7.70). The player then
+        /// identified its absence unprompted, from a reference recording: *"ours sounds compact and
+        /// flat while the reference sounded full and dynamic… it is like a rollercoaster or a wave in
+        /// the way that it moves"* (§7.73).
+        ///
+        /// **What is here is the shape, not the mechanism.** True mode coupling would move energy
+        /// between the resonators as they ring; this gives the shimmer band an attack envelope so it
+        /// swells instead of starting at full. The result has the same rise-peak-fall an ear tracks,
+        /// and it is honest to say it is drawn rather than derived.
+        ///
+        /// **Listen for:** where the brightest moment is. At zero it is the instant of the strike; at
+        /// 120 ms it is a beat later, and the sound arrives in two stages — the hit, then the wash
+        /// coming up behind it. A hi-hat wants zero, a crash wants the longest rise here.
+        let shimmerRiseSeconds: Double
+
+        /// The frequency of the **ping**, in Hz. Zero for a cymbal that has none.
+        ///
+        /// **This is what makes a ride a ride.** Struck on the bow with the tip of the stick, a ride
+        /// gives a clear, pitched *ting* that cuts through everything else, and a pattern played on it
+        /// is legible because every stroke restates that pitch. A crash has no ping — hit on the edge
+        /// with the shoulder, it is all wash — and a hi-hat's is buried by the second plate.
+        ///
+        /// Physically it is one bow mode being excited far harder than its neighbours. Here it is one
+        /// extra resonator with its own level, which is honest and cheap.
+        ///
+        /// **Listen for:** play four strokes and ask whether they have a *pitch* in common. With no
+        /// ping a ride is a series of washes and a pattern on it turns to soup — which is what the
+        /// first three passes sounded like, and part of why they read as hi-hats (§7.72).
+        let pingHz: Double
+
+        /// How loud the ping is against the plate behind it.
+        ///
+        /// **Listen for:** too little and the ride has no articulation; too much and it stops being a
+        /// cymbal and becomes a cowbell or a woodblock — a pitch with a hiss attached.
+        let pingLevel: Double
+
+        /// How long the ping rings relative to the lowest mode.
+        ///
+        /// **Short.** A ping that sustains stops being an articulation and becomes a pitch, and a
+        /// sustained pitch with a hiss behind it is a cowbell — which is what the first attempt at
+        /// 0.55 of the body's decay was heard as (§7.72). Around 0.05 is a tick that says a stroke
+        /// happened and then gets out of the way of the wash.
+        let pingDecayFraction: Double
+
         /// How much unresonated strike noise is mixed in alongside the modes.
         ///
         /// Real cymbals have a component that is not modal at all: the stick's own noise, and the very
@@ -368,6 +423,42 @@ enum CymbalSynth {
             }
         }
 
+        // The ping: the stick's articulation on the bow.
+        //
+        // **A cluster, and short.** The first attempt was one resonator ringing for 1.8 seconds, and
+        // the verdict was immediate: *"the ride sounds maybe like the cowbell but different and lower
+        // pitched"* (§7.72). That is exactly right — a single pure tone sustaining for that long **is**
+        // a cowbell, because a cowbell is two strong inharmonic partials and nothing else.
+        //
+        // A ride's ping is an *articulation* rather than a pitch you could sing: it is what tells you
+        // a stroke happened, it is over quickly, and it is never pure — the bow is a plate, so what
+        // the stick excites is a knot of nearby modes rather than one. Three detuned resonators cost
+        // almost nothing and stop it being a tone.
+        if plate.pingLevel > 0, plate.pingHz > 20 {
+            let decay = max(plate.lowestModeDecaySeconds * plate.pingDecayFraction, 0.01)
+            let ringing = min(count, Int(decay * 1.4 * fs) + strikeSamples)
+
+            for (index, detune) in [0.0, -0.071, 0.083].enumerated() {
+                let hz = plate.pingHz * (1 + detune)
+                guard hz > 20, hz < fs / 2 - 100 else { continue }
+                let omega = 2 * Double.pi * hz / fs
+                let r = pow(10, -3 / (decay * fs))
+                let a1 = 2 * r * cos(omega)
+                let a2 = -r * r
+                // The centre carries most of it; the neighbours are there to break up the tone.
+                let share = index == 0 ? 0.6 : 0.2
+                let gain = plate.pingLevel * share * sin(omega)
+
+                var y1 = 0.0, y2 = 0.0
+                for i in 0..<ringing {
+                    let y = a1 * y1 + a2 * y2 + (i < excitation.count ? excitation[i] : 0)
+                    y2 = y1
+                    y1 = y
+                    out[i] += Float(y * gain)
+                }
+            }
+        }
+
         // The shimmer: the modes above `shimmerFromHz`, as a band of noise rather than as hundreds of
         // resonators. High-passed by subtracting a low-pass, and decaying faster than the body, which
         // is what makes the sound darken rather than merely fade.
@@ -376,12 +467,19 @@ enum CymbalSynth {
             var lowA = 0.0, lowB = 0.0
             let a = 1 - exp(-2 * Double.pi * plate.shimmerFromHz / fs)
             let decay = max(plate.lowestModeDecaySeconds * plate.shimmerDecayFraction, 0.002)
+            // Rise then fall, rather than fall alone. `(1 - e^(-t/rise))` climbs from nothing to one
+            // over the bloom, and the decay pulls it back down — so the band peaks shortly *after*
+            // the strike instead of at it. With `rise` at zero the first term is 1 throughout and
+            // this is the plain decay a hi-hat wants.
+            let rise = max(plate.shimmerRiseSeconds, 0)
             for i in 0..<count {
                 let white = noise.next()
                 lowA += a * (white - lowA)
                 lowB += a * (lowA - lowB)
                 let high = white - lowB
-                let envelope = exp(-3 * Double(i) / (decay * fs))
+                let t = Double(i) / fs
+                let swell = rise > 0 ? 1 - exp(-t / rise) : 1
+                let envelope = swell * exp(-3 * t / decay)
                 out[i] += Float(high * envelope * plate.shimmerLevel)
             }
         }

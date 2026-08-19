@@ -155,15 +155,33 @@ extension KitSpecSynthesisTests {
         DrumSynth.energyAbove(2_000, of: voice(.closedHat, spec), sampleRate: 44_100)
     }
 
-    /// Lower is bigger. Measured at a mode's own frequency, because that is exact where a centroid
-    /// over discrete modes is not (§7.67, §7.70).
+    /// Lower is bigger: the whole plate moves down, so less of its energy sits up high.
+    ///
+    /// **Asked as a band question rather than at a named frequency**, and that is a repair rather
+    /// than a preference. This test asked at the ride's lowest mode and went stale three times in
+    /// two days, because that mode is a tuning decision inside `DrumSynth` and every listening pass
+    /// moved it — 285 Hz, then 175, then 90, then 150 (§7.70–§7.73). A test that has to be edited
+    /// whenever the thing it guards is *legitimately* adjusted stops being read and starts being
+    /// updated reflexively, which is how a guard quietly becomes a chore.
+    ///
+    /// The claim is that the plate moved down, so it is asked at the plate's **own** lowest mode —
+    /// read from `DrumSynth.rideLowestModeHz` rather than written here as a number. Tuning to 0.6
+    /// puts that mode at 0.6× itself, where the standard ride has nothing.
+    ///
+    /// A band question was tried first and does not work here: `energyAbove` is a *comparative*
+    /// measure, and on this voice it reported 1.007 for both — a two-pole highpass overshoots, so
+    /// the share it returns can exceed 1 and cannot be read as "how much is up there" in absolute
+    /// terms (§7.73). `power(of:atHz:)` is exact when the frequency is known, and now it is known
+    /// without being repeated.
     func testCymbalTuningMovesTheWholePlate() {
-        let big = KitSpec(name: "big", cymbalTuning: 0.6)
-        let low = voice(.ride, big), standard = voice(.ride, .standard)
+        let ratio = 0.6
+        let moved = DrumSynth.rideLowestModeHz * ratio
+        let big = KitSpec(name: "big", cymbalTuning: ratio)
 
-        XCTAssertGreaterThan(DrumSynth.power(of: low, atHz: 54, sampleRate: fs),
-                             DrumSynth.power(of: standard, atHz: 54, sampleRate: fs) * 2,
-                             "the ride's lowest mode should have moved from 90 Hz to 54")
+        XCTAssertGreaterThan(DrumSynth.power(of: voice(.ride, big), atHz: moved, sampleRate: fs),
+                             DrumSynth.power(of: voice(.ride, .standard), atHz: moved,
+                                             sampleRate: fs) * 2,
+                             "the ride's lowest mode should have moved to \(moved) Hz")
     }
 
     /// The knob that most separates metal from noise: how fast the top goes as the sound rings.

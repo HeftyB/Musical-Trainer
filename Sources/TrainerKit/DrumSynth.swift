@@ -705,6 +705,8 @@ enum DrumSynth {
                            decaySeconds: decay * 2.2, damping: 0.50, baseTilt: -0.10,
                            strikeSeconds: 0.0012, strikeNoise: 0.06, level: 0.62,
                            shimmerLevel: 0.42, shimmerDecayFraction: 0.35, shimmerFromHz: 2_600,
+                           shimmerRiseSeconds: 0,
+                           ping: (hz: 0, level: 0, decayFraction: 0),
                            strength: strength, spec: spec)
         return CymbalSynth.render(plate, seconds: max(decay * 6, 0.20), sampleRate: fs)
     }
@@ -719,13 +721,35 @@ enum DrumSynth {
     /// Two earlier versions missed in opposite directions: pure sines with a long ring (a bell), then
     /// a low-partial noise wash (wooden, and it piled into static as eighth notes). Modal synthesis
     /// gets both halves at once, because the ping and the wash are the same modes at different rates.
+    /// The ride's lowest mode, in Hz.
+    ///
+    /// **Exposed so a test can ask about it rather than hardcode it.** Every listening pass moved
+    /// this number — 285, 175, 90, 150 — and a test naming the frequency went stale three times in
+    /// two days (§7.73). A guard that has to be edited whenever the thing it guards is legitimately
+    /// tuned stops being read and starts being updated reflexively.
+    static let rideLowestModeHz = 150.0
+
     private static func ride(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
-        let plate = cymbal(lowestModeHz: 90, modeCount: 84, stretch: 1.0, inharmonicity: 0.30,
-                           decaySeconds: 1.3, damping: 0.58, baseTilt: 0.08,
-                           strikeSeconds: 0.0018, strikeNoise: 0.05, level: 0.42,
-                           shimmerLevel: 0.34, shimmerDecayFraction: 0.22, shimmerFromHz: 1_600,
+        let plate = cymbal(lowestModeHz: rideLowestModeHz, modeCount: 92, stretch: 1.0,
+                           inharmonicity: 0.30,
+                           decaySeconds: 3.4, damping: 0.44, baseTilt: 0.06,
+                           strikeSeconds: 0.0016, strikeNoise: 0.03, level: 0.42,
+                           // **A ride is a ping with a wash behind it, not a small crash.** Raising
+                           // the shimmer and giving it a bloom last pass made it "a diet crash…
+                           // missing the 'ting' and too much 'tshhh'" (§7.74). The wash comes back
+                           // down and gets out of the way; the ping goes up and is allowed to ring
+                           // long enough to be an articulation you can follow.
+                           shimmerLevel: 0.14, shimmerDecayFraction: 0.13, shimmerFromHz: 3_000,
+                           // No bloom: a ride's brightest instant is the stick on the bow. Blooming
+                           // is what a crash does, and it is what made this one sound like one.
+                           shimmerRiseSeconds: 0,
+                           // Higher and longer on the verdict: a ride's ting sits well above where
+                           // this started, and it has to hang on rather than tick. 1,800 Hz for
+                           // 0.75 s — still three detuned resonators, which is what keeps it a ting
+                           // and not the cowbell a single pure tone made at 620 Hz (§7.72).
+                           ping: (hz: 1_800, level: 0.62, decayFraction: 0.22),
                            strength: strength, spec: spec)
-        return CymbalSynth.render(plate, seconds: 0.8, sampleRate: fs)
+        return CymbalSynth.render(plate, seconds: 2.6, sampleRate: fs)
     }
 
     /// The crash: the largest plate, the longest ring, the densest wash.
@@ -738,12 +762,14 @@ enum DrumSynth {
     /// rather than collapsing to a dull hum, and `modeCount` is the highest so nothing in it is
     /// separable by ear.
     private static func crash(fs: Double, strength: Double, spec: KitSpec) -> [Float] {
-        let plate = cymbal(lowestModeHz: 55, modeCount: 110, stretch: 1.0, inharmonicity: 0.34,
-                           decaySeconds: 2.4, damping: 0.55, baseTilt: -0.05,
-                           strikeSeconds: 0.0025, strikeNoise: 0.06, level: 0.55,
-                           shimmerLevel: 0.52, shimmerDecayFraction: 0.20, shimmerFromHz: 1_400,
+        let plate = cymbal(lowestModeHz: 48, modeCount: 130, stretch: 1.0, inharmonicity: 0.36,
+                           decaySeconds: 4.2, damping: 0.34, baseTilt: -0.22,
+                           strikeSeconds: 0.0035, strikeNoise: 0.04, level: 0.55,
+                           shimmerLevel: 0.78, shimmerDecayFraction: 0.55, shimmerFromHz: 800,
+                           shimmerRiseSeconds: 0.130,
+                           ping: (hz: 0, level: 0, decayFraction: 0),
                            strength: strength, spec: spec)
-        return CymbalSynth.render(plate, seconds: 1.5, sampleRate: fs)
+        return CymbalSynth.render(plate, seconds: 3.8, sampleRate: fs)
     }
 
     /// One place where a cymbal's written description, the player's strength and the style's kit are
@@ -757,7 +783,8 @@ enum DrumSynth {
                                inharmonicity: Double, decaySeconds: Double, damping: Double,
                                baseTilt: Double, strikeSeconds: Double, strikeNoise: Double,
                                level: Double, shimmerLevel: Double, shimmerDecayFraction: Double,
-                               shimmerFromHz: Double,
+                               shimmerFromHz: Double, shimmerRiseSeconds: Double,
+                               ping: (hz: Double, level: Double, decayFraction: Double),
                                strength: Double, spec: KitSpec) -> CymbalSynth.Plate {
         // Harder is brighter and longer. `tilt` falls as strength rises, which moves the strike's
         // energy up into the high modes; the ring lengthens a little as well, since a harder strike
@@ -781,6 +808,12 @@ enum DrumSynth {
                         * tilt(strength, soft: 0.35, hard: 1.4),
             shimmerDecayFraction: shimmerDecayFraction / max(spec.cymbalDarkening, 0.05),
             shimmerFromHz: shimmerFromHz * spec.cymbalTuning,
+            // A harder strike blooms longer and further: more energy for the plate to move upward.
+            shimmerRiseSeconds: shimmerRiseSeconds * tilt(strength, soft: 0.5, hard: 1.3),
+            // The ping moves with the plate: a bigger cymbal's bow mode is lower.
+            pingHz: ping.hz * spec.cymbalTuning,
+            pingLevel: ping.level,
+            pingDecayFraction: ping.decayFraction,
             strikeNoise: strikeNoise)
     }
 
