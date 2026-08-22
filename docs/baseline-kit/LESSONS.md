@@ -174,9 +174,24 @@ authored* and *what the user is scored against*. They coincided at one value for
 they diverged, the ambiguity produced **four separate defects in a single milestone** — including
 one written directly beneath a comment explaining the distinction.
 
-**Guard:** rename one of them the moment you notice, even if nothing is broken yet. Put the
-distinction in the parameter name, not only in a doc comment — comments do not get read at the
-call site.
+**A later instance, where that guard was already satisfied and did not help.** One concept had two
+*representations* rather than two names: a deduplicated set used to decide what counted, and the
+raw list it came from used to divide by. A caller passing the same item twice made them disagree,
+and a field documented as a 0–1 share reported 2.0. The two names existed, three lines apart, and
+the distinctness is what made reaching for the wrong one look deliberate.
+
+**Guard:** it has two halves, and they are opposites.
+
+- **Two meanings that are genuinely different get two names.** Rename the moment you notice, even
+  if nothing is broken yet; put the distinction in the parameter name, not only in a doc comment,
+  because comments do not get read at the call site. Do the rename *before* the thing that makes
+  the name wrong, not after.
+- **One meaning with two representations gets one derivation.** Build them in a single expression
+  so they cannot disagree, rather than two that a reader has to keep in step.
+
+**The question that picks between them: are the two ever allowed to differ?** If yes, name them
+apart. If no, a second name is a liability rather than a clarification — and a doc comment saying
+they should match is the weakest form of both.
 
 ---
 

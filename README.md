@@ -192,7 +192,7 @@ before a review** and look for those shapes rather than for code smells.
 | `Sources/TrainerKit` | Audio, MIDI, synthesis (drums, cymbals, bass, organ, room), calibration, storage, sessions and the drill runners. Shared by both front ends. |
 | `Sources/MusicalTrainerApp` | The SwiftUI app. |
 | `Sources/TimingSpike` | The console tool. |
-| `Tests/` | 923 cases against synthetic ground truth. `Tests/TestSupport` holds the shared generators; storage tests are macOS-only. |
+| `Tests/` | 926 cases against synthetic ground truth. `Tests/TestSupport` holds the shared generators; storage tests are macOS-only. |
 
 ```sh
 swift test               # pure modules, plus TrainerKit storage on macOS
