@@ -98,6 +98,7 @@ status of a milestone. When an entry settles a question the design document stat
 | §7.71 | The cymbals were hollow, and the model was backwards |
 | §7.72 | The player names what the cymbals actually are |
 | §7.73 | The bloom, and a scoping question worth answering |
+| §7.74 | A figure is a set, and the list disagreed with it |
 
 ---
 
@@ -7974,6 +7975,8 @@ Recorded here rather than acted on, in the order they are worth doing.
 | 6 | **62 merged branches survive locally and on the remote.** §8.1 says a merged branch that still exists reads as work in flight; `prune-branches.sh` exists and has not been run | Chore, one command |
 
 **Items 1 and 2 are closed — see §7.58**, which also corrects item 2's cost, stated too high here.
+**Item 5 is closed — see §7.74**, before M16.5 grew the figure past one position and made it
+reachable.
 **Item 3 is closed — see §7.60**, which landed it as M17's step 0 rather than as a chore, and moved
 what CI covers from 550 of 832 cases to 566 of 848.
 
@@ -9257,3 +9260,77 @@ adjusted stops being read and starts being updated reflexively**, which is how a
 chore and then becomes wrong.
 
 **Still unheard.** All four styles remain `auditioned: false`.
+
+
+---
+
+## 7.74 A figure is a set, and the list disagreed with it
+
+§7.57 item 5, closed. **`OffbeatAnalysis.completeness` is documented 0–1 and could read 2.0.**
+
+The drill takes `asking:` — the phases within a beat the player is meant to hit. `[2]` on a
+sixteenth grid is the straight skank's chop; `[1, 2]` on a triplet grid is one of M16.5's candidate
+bubbles. One line turned that into a `Set` for matching, and everything that *counted* kept reading
+the array:
+
+```swift
+let asked = phases.isEmpty ? skankPhases(on: grid) : phases
+let askedSet = Set(asked)                       // matching deduped
+…
+let evenShare = Double(offbeat.count) / Double(asked.count)   // counting did not
+```
+
+Ask for `[1, 1]` and every note lands at one position, so `offbeat.count` is all of them — but
+`asked.count` is 2, so the "even share" each position should hold is half the notes. The
+least-played position holds all of them. **Twenty notes over an even share of ten reads 2.0**, on
+the field whose entire job is to answer *"is the whole figure being played?"*
+
+Two more symptoms came from the same split. `perPhase` is built by mapping the raw list, so the
+same position was reported twice with identical numbers. And `incomplete` gates on
+`asked.count > 1`, so a one-position figure went down the branch written for figures of two.
+
+### Why it had never fired
+
+**Every caller goes through `skankPhases(on:)`, which returns one phase.** The three production
+sites — the app's results view, `SessionStore.reconstruct` and the CLI's review path — all use it,
+so no stored take has ever been analysed against a duplicate, and none moves now. That is also the
+argument for fixing it rather than noting it: the drill has exactly one figure today, M16.5 is the
+milestone that gives it a second, and the defect is invisible until then.
+
+### The fix, and why it is not a rename
+
+```swift
+var askedSet = Set<Int>()
+let asked = (phases.isEmpty ? skankPhases(on: grid) : phases)
+    .filter { askedSet.insert($0).inserted }
+```
+
+The list and the set are now derived in one expression and cannot disagree. First-occurrence order
+is kept rather than sorted, because `perPhase` is read as a musical sequence.
+
+**This is `LESSONS.md` shape 10's sixth instance, and it is the one where the recorded guard would
+not have helped.** Shape 10's remedy is *"rename one of them the moment you notice — put the
+distinction in the parameter name."* That is right when two meanings are genuinely different, which
+is how `subdivisions`, `rung`, `taskSubdivisions` and `stepsPerBeat` got their names. Here the two
+readings of "the positions asked for" were **supposed to be the same thing**, and naming them apart
+is exactly what let them drift: `asked` and `askedSet` are distinct names, three lines apart, and
+the distinctness is what made using the wrong one look deliberate.
+
+So the shape has two remedies and they are opposites. Two meanings that should stay apart get two
+names; one meaning with two representations gets one derivation. **The question that picks between
+them is whether the two are ever allowed to differ** — and if the answer is no, a second name is a
+liability rather than a clarification.
+
+### The guard
+
+`testARepeatedPositionIsOnePositionRatherThanTwo` asserts `completeness` is 1.0 and `perPhase` holds
+one entry for `asking: [1, 1]`. Verified by reverting the fix and watching it report
+`("2.0") is not equal to ("1.0")` — the predicted value exactly, which is what says the theory of
+the defect was right rather than merely the symptom.
+
+Two more went in beside it. `testDedupingKeepsTheOrderTheFigureWasAskedIn` pins first-occurrence
+order, because a dedupe that sorted would silently reorder a readout nobody would think to check.
+And `testTheStraightSkankReadsExactlyAsBefore` is the regression guard: **it passes against the
+unfixed code too**, which is the point — every figure on record is a single-position skank, takes
+recompute from raw taps (R3.1), and a change here would rewrite history that R6.2 says is not
+rewritable.

@@ -123,8 +123,22 @@ public enum OffbeatAnalysis {
         // against either side. On a sixteenth grid that is the "e" and the "a": neither the beat
         // nor an asked-for point, and letting them flatter either count would make the share a
         // statement about stray notes.
-        let asked = phases.isEmpty ? skankPhases(on: grid) : phases
-        let askedSet = Set(asked)
+        //
+        // **A figure is a set of positions, so the list is deduped before anything counts it.**
+        // Matching already went through a `Set` while `asked.count` and `perPhase` read the raw
+        // list. The two disagreeing is what let `completeness`, documented 0–1, read 2.0 for
+        // `asking: [1, 1]`: ten notes at one position over an "even share" of five. The same
+        // split listed one position twice in `perPhase`, and sent a one-position figure down
+        // the `asked.count > 1` branch built for two. The list and the set are derived
+        // together now, so a later reader cannot reopen the gap by reaching past one for the
+        // other (§7.57 item 5).
+        //
+        // First-occurrence order is kept rather than sorted: `perPhase` is read as a musical
+        // sequence, and every figure on record — all of them single-position skanks — reads
+        // exactly as before.
+        var askedSet = Set<Int>()
+        let asked = (phases.isEmpty ? skankPhases(on: grid) : phases)
+            .filter { askedSet.insert($0).inserted }
         let offbeat = matched.filter { askedSet.contains(grid.phase(ofIndex: $0.gridIndex)) }
         let downbeat = matched.filter { grid.phase(ofIndex: $0.gridIndex) == 0 }
 

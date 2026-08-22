@@ -289,9 +289,28 @@ resolution, and `JamConfig.freePlayingSubdivisions` is the fallback.
 `bass` case went into it, and `DrumKit` to `BackingKit` — sixteen compiler-checked references
 while it was still cheap (§7.29 step 2).
 
-**Guard:** rename one of them the moment you notice, even if nothing is broken yet. Put the
-distinction in the parameter name, not only in a doc comment — comments do not get read at the
-call site. Do the rename *before* the thing that makes the name wrong, not after.
+**A sixth instance, and the one the guard above would not have caught** (§7.74). "The positions
+the drill asked for" had two representations in `OffbeatAnalysis.analyze`: `askedSet`, a `Set`, for
+deciding which notes count, and `asked`, the raw array, for `asked.count` and `perPhase`. Ask for
+`[1, 1]` and matching dedupes while counting does not, so `completeness` — documented 0–1, and
+answering *"is the whole figure being played?"* — divided one position's twenty notes by an even
+share of ten and **reported 2.0**. The same split listed one position twice and sent a
+one-position figure down the branch written for two.
+
+**Guard:** it has two halves, and they are opposites.
+
+- **Two meanings that are genuinely different get two names.** `subdivisions`, `rung`,
+  `taskSubdivisions` and `Pattern.stepsPerBeat` are the worked example. Rename the moment you
+  notice, even if nothing is broken yet; put the distinction in the parameter name, not only in a
+  doc comment, because comments do not get read at the call site. Do the rename *before* the thing
+  that makes the name wrong, not after.
+- **One meaning with two representations gets one derivation.** `asked` and `askedSet` were already
+  two names three lines apart, and the distinctness is what made reaching for the wrong one look
+  deliberate. They are built in a single expression now and cannot disagree.
+
+**The question that picks between them: are the two ever allowed to differ?** If yes, name them
+apart. If no, a second name is a liability rather than a clarification — and a doc comment saying
+they should match is the weakest form of both.
 
 ---
 

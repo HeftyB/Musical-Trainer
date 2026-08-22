@@ -31,6 +31,58 @@ final class OffbeatPhaseSetTests: XCTestCase {
         return (matched, grid)
     }
 
+    // MARK: A figure is a set, and the list has to agree with it
+
+    /// **`completeness` is documented 0–1 and read 2.0** when a phase appeared twice in `asking`.
+    ///
+    /// Matching deduped through a `Set`; `asked.count` and `perPhase` read the raw list. So a
+    /// repeated position divided one position's notes by an "even share" computed over two, and
+    /// the field that says *"is the whole figure being played"* answered with twice the truth
+    /// (§7.57 item 5). No caller passes a duplicate today — every one of them goes through
+    /// `skankPhases(on:)`, which returns one phase — which is exactly why this needs a test
+    /// rather than a reader noticing before M16.5 grows the figure past one position.
+    func testARepeatedPositionIsOnePositionRatherThanTwo() {
+        let take = player(phases: [1], perPhase: 20, subdivisions: 3)
+
+        let once = OffbeatAnalysis.analyze(matched: take.matched, grid: take.grid, asking: [1])
+        let twice = OffbeatAnalysis.analyze(matched: take.matched, grid: take.grid, asking: [1, 1])
+
+        XCTAssertEqual(twice.completeness, 1, accuracy: 1e-9,
+                       "a position asked for twice is still one position, and reading 2.0 puts a "
+                     + "field documented 0-1 outside its own range")
+        XCTAssertEqual(twice.completeness, once.completeness, accuracy: 1e-9)
+        XCTAssertFalse(twice.incomplete,
+                       "a one-position figure went down the branch built for two")
+        XCTAssertEqual(twice.perPhase.count, 1, "one position, listed once")
+        XCTAssertEqual(twice.perPhase.map(\.phase), once.perPhase.map(\.phase))
+    }
+
+    /// The dedupe must not reorder what survives: `perPhase` is read as a musical sequence.
+    func testDedupingKeepsTheOrderTheFigureWasAskedIn() {
+        let take = player(phases: [1, 2], perPhase: 16, subdivisions: 3)
+
+        let report = OffbeatAnalysis.analyze(matched: take.matched, grid: take.grid,
+                                             asking: [2, 1, 2, 1])
+
+        XCTAssertEqual(report.perPhase.map(\.phase), [2, 1],
+                       "first occurrence wins, and the order the drill asked in is kept")
+        XCTAssertEqual(report.completeness, 1, accuracy: 1e-9)
+    }
+
+    /// **Every figure on record is a single-position skank, and none of them may move.** Stored
+    /// takes recompute from raw taps (R3.1), so a change here rewrites history that is not
+    /// supposed to be rewritable.
+    func testTheStraightSkankReadsExactlyAsBefore() {
+        let take = player(phases: [2], perPhase: 32, subdivisions: 4)
+        let report = OffbeatAnalysis.analyze(matched: take.matched, grid: take.grid,
+                                             asking: OffbeatAnalysis.skankPhases(on: take.grid))
+
+        XCTAssertEqual(report.completeness, 1, accuracy: 1e-9)
+        XCTAssertFalse(report.incomplete)
+        XCTAssertEqual(report.perPhase.count, 1)
+        XCTAssertEqual(report.offbeatShare, 1, accuracy: 1e-9)
+    }
+
     // MARK: The number that did not exist before
 
     /// The defect this generalisation is for. Both players are **100% off the beat**; one is
