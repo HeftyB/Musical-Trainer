@@ -5,9 +5,17 @@
 # check of the purity rule in STANDARDS.md §1.1. An accidental `import AVFoundation` in
 # TimingCore stops compiling here rather than merely tripping a grep.
 #
-# The whole test suite lives in TimingCoreTests and GrooveCoreTests, so this leg runs all of
-# it. What it cannot do is build TrainerKit, the CLI or the app, or run `selftest` — those
-# need macOS and belong to release.yaml.
+# **This leg runs 593 of the suite's 926 cases and compiles none of the macOS code.** The
+# sentence here used to say the whole suite lived in TimingCoreTests and GrooveCoreTests, which
+# was true until T1 added TrainerKitTests and then quietly stopped being true: its 333 cases,
+# `selftest`'s 41 checks, and every line of TrainerKit (11,089), MusicalTrainerApp (2,863) and
+# TimingSpike (210) are untouched by this pipeline. They are not merely untested here — they are
+# never compiled here, so a change that does not build is green until somebody's hook catches it.
+#
+# **Nothing on a server ever builds them.** `release.yaml.disabled` is inert by design and needs a
+# macOS agent that does not exist; the pre-commit hook installed by `scripts/install-hooks.sh` is
+# the only thing that builds the macOS half, and `--no-verify` skips it. A green tick here bounds
+# what has been checked, not what works — STANDARDS.md §9.4.2 states the same in the public voice.
 
 when:
   - event: [push, pull_request, manual]

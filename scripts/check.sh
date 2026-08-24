@@ -249,12 +249,27 @@ quoted AGENT.md      "$TOTAL tests"
 quoted AGENT.md      "($KIT tests)"
 quoted AGENT.md      "$PURE pure-module tests"
 quoted STANDARDS.md  "$PURE pure-module tests"
-quoted STANDARDS.md  "its $KIT tests"
+quoted STANDARDS.md  "$KIT cases"
+quoted STANDARDS.md  "$PURE of $TOTAL cases"
+quoted .woodpecker/test.yaml "$PURE of the suite's $TOTAL cases"
+quoted .woodpecker/test.yaml "$KIT cases"
 quoted README.md     "$TOTAL cases"
 quoted PLAN.md       "$TOTAL cases"
 quoted PLAN.md       "$TC cases"
 quoted PLAN.md       "$GC cases"
 quoted PLAN.md       "$KIT cases"
+
+# The macOS modules' sizes are quoted where the CI gap is described, because "compiles none of
+# the macOS code" means nothing without saying how much code that is. §7.57 item 4 put TrainerKit
+# at 9,840 lines; it was 11,089 when anyone next looked, which is `LESSONS.md` shape 17 in the one
+# document whose subject is what goes unchecked. A line count is as derivable as a test count.
+lines_in() { find "Sources/$1" -name '*.swift' -exec cat {} + | wc -l | tr -d ' '; }
+commas() { printf '%s' "$1" | sed -e :a -e 's/\(.*[0-9]\)\([0-9]\{3\}\)/\1,\2/;ta'; }
+for m in TrainerKit MusicalTrainerApp TimingSpike; do
+    n=$(commas "$(lines_in "$m")")
+    quoted STANDARDS.md          "$n"
+    quoted .woodpecker/test.yaml "$n"
+done
 
 if [ -z "$DOC_BAD" ]; then
     pass "quoted test counts match the suite ($TOTAL = $TC + $GC pure + $KIT kit)"

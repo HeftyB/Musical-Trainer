@@ -99,6 +99,7 @@ status of a milestone. When an entry settles a question the design document stat
 | §7.72 | The player names what the cymbals actually are |
 | §7.73 | The bloom, and a scoping question worth answering |
 | §7.74 | A figure is a set, and the list disagreed with it |
+| §7.75 | What CI actually covers, and the figures that said otherwise |
 
 ---
 
@@ -7977,6 +7978,8 @@ Recorded here rather than acted on, in the order they are worth doing.
 **Items 1 and 2 are closed — see §7.58**, which also corrects item 2's cost, stated too high here.
 **Item 5 is closed — see §7.74**, before M16.5 grew the figure past one position and made it
 reachable.
+**Item 4 is closed — see §7.75**, by making the gap state its own size rather than by covering
+it; the figures quoted in this very row were stale when re-derived.
 **Item 3 is closed — see §7.60**, which landed it as M17's step 0 rather than as a chore, and moved
 what CI covers from 550 of 832 cases to 566 of 848.
 
@@ -9334,3 +9337,84 @@ And `testTheStraightSkankReadsExactlyAsBefore` is the regression guard: **it pas
 unfixed code too**, which is the point — every figure on record is a single-position skank, takes
 recompute from raw taps (R3.1), and a change here would rewrite history that R6.2 says is not
 rewritable.
+
+
+---
+
+## 7.75 What CI actually covers, and the figures that said otherwise
+
+§7.57 item 4, closed — not by adding coverage, which still needs a macOS agent nobody has, but by
+making the gap say its own size and by putting the numbers that describe it under the gate.
+
+### What the pipeline file claimed
+
+```yaml
+# The whole test suite lives in TimingCoreTests and GrooveCoreTests, so this leg runs all of
+# it. What it cannot do is build TrainerKit, the CLI or the app, or run `selftest` — those
+# need macOS and belong to release.yaml.
+```
+
+**True when written, and false from T1 onward** (§7.22), which added `TrainerKitTests`. By the time
+anyone re-read it, 333 of 926 cases lived outside the two modules the comment named. The second
+sentence had rotted differently: it points at `release.yaml` as the thing that covers the macOS
+half, and `release.yaml` is `release.yaml.disabled` — inert by design, waiting on an agent that
+does not exist. So the file described a division of labour where one side does not run at all.
+
+### The sharper half is not "untested"
+
+`STANDARDS.md` §9.4.2 already said `TrainerKitTests` does not run in CI. What neither document said
+is that **`TrainerKit`, the app and `TimingSpike` are never *compiled* there.**
+
+| | Runs in CI | Built in CI |
+|---|---|---|
+| `TimingCore`, `GrooveCore` — 593 cases | yes | yes, separately, to pin the purity rule |
+| `TrainerKitTests` — 333 cases | no | no |
+| `TrainerKit` 11,089 lines, app 2,863, `TimingSpike` 210 | — | **no** |
+| `selftest` — 41 checks | no | — |
+
+An untested path can still be known to build. These cannot: **a change that does not compile on
+macOS goes green on the server.** And nothing on a server closes it — the pre-commit hook is the
+only thing that ever builds that half, and `--no-verify` skips it with no record. One flag, and the
+gap is total.
+
+### The figures describing the gap had themselves drifted
+
+Which is the part worth keeping. §7.57 item 4 quoted **590 of 923 cases** and **TrainerKit at
+9,840 lines**. Re-derived: **593 of 926**, and **11,089** — the module had grown by 1,249 lines,
+better than a tenth of itself, inside the paragraph whose subject is what goes unchecked. That is
+`LESSONS.md` shape 17 landing in the one document least entitled to it.
+
+One figure did *not* drift, and finding that out is the reason to re-derive rather than assume:
+`selftest` still runs **41** checks. A first pass counted 43 by grepping `check(|assert|expect`,
+which is a different question from how many checks execute — 37 `check("` call sites, four of them
+inside a loop over `BackingVoice.allCases`. **The arbiter is the tool's own output**, the same way
+`swift test`'s summary arbitrates the test counts, so the number now comes from running `selftest`
+and counting what it printed.
+
+### The guard
+
+`check.sh` derives the three module line counts with `find | cat | wc -l`, formats them with
+thousands separators, and requires both `STANDARDS.md` and `.woodpecker/test.yaml` to quote them —
+alongside `593 of 926 cases` and the kit count. A size is exactly as derivable as a test count, and
+there was no reason beyond habit for one to be checked and the other trusted.
+
+Verified by planting the two figures §7.57 actually had and watching the gate name both:
+
+```
+FAIL  a document quotes a stale test count
+        STANDARDS.md does not say '593 of 926 cases'
+        STANDARDS.md does not say '11,089'
+```
+
+**Rewording the prose trips these rules, and that is the design** (§8.3). The brittleness is what
+forces a re-derivation at the moment somebody is editing the sentence — this branch tripped the
+existing `its 333 tests` rule doing exactly that, which is the mechanism working rather than a
+nuisance.
+
+### What is still not covered
+
+Everything the table's right-hand column says `no` to. This branch changed no coverage and claims
+none: it makes the size of the hole a checked figure instead of a remembered one. Closing it needs
+a macOS agent, and §9.4.1's argument against pointing one at this workstation — a release build
+pegs every core, and an unattended build firing mid-take could perturb the render thread and
+corrupt a measurement that would read as the player's own timing — still stands.

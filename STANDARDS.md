@@ -720,10 +720,28 @@ looks like the player's own timing.
 | `.woodpecker/test.yaml` | push, PR | Linux container, `swift:5.7-jammy` | Hygiene, invariants, build, the 593 pure-module tests |
 | `.woodpecker/release.yaml.disabled` | — | parked | Needs a macOS agent that does not exist yet |
 
-**`TrainerKitTests` does not run in CI.** `TrainerKit` is macOS-only, so its 333 tests
-run only in `./scripts/check.sh`, which the pre-commit hook enforces. A green pipeline therefore
-covers less than a green `check.sh`, and saying so is the point: the gap that destroyed a take
-existed because the split between tested and untested had stopped being visible.
+**CI runs 593 of 926 cases and compiles none of the macOS code.** That is the whole statement,
+and each half matters separately:
+
+| | Runs in CI | Built in CI |
+|---|---|---|
+| `TimingCore`, `GrooveCore` — 593 cases | yes | yes, and separately, to pin the purity rule |
+| `TrainerKitTests` — 333 cases | **no** | no |
+| `TrainerKit` (11,089 lines), `MusicalTrainerApp` (2,863), `TimingSpike` (210) | — | **no** |
+| `selftest` — 41 checks | **no** | — |
+
+**Not being compiled is the sharper half.** An untested path can still be known to build; these
+cannot. A change that does not compile on macOS goes green on the server, and the first thing that
+says otherwise is somebody's own machine.
+
+**And nothing on a server closes it.** `release.yaml.disabled` is inert by design — it needs a
+macOS agent that does not exist, and §9.4.1 says why this workstation must not become one. So the
+pre-commit hook installed by `./scripts/install-hooks.sh` is the only thing that ever builds the
+macOS half, **and `--no-verify` skips it.** One flag, no record, and the gap is total.
+
+Saying this plainly is the point. A green pipeline covers less than a green `check.sh`, a green
+`check.sh` bounds what has been *checked* rather than what is true (§7.47), and the gap that
+destroyed a take existed because the split between tested and untested had stopped being visible.
 
 The Linux leg is possible because `Package.swift` excludes the Apple-only targets off macOS.
 That is the strictest available check of §1.1: an accidental `import AVFoundation` in a pure
