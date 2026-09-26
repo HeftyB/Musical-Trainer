@@ -706,8 +706,8 @@ interval`.
 - **Three tags pool across a confound** — `focused` and `relaxed` across tempos, and `tired`
   across two swing ratios. All three are flagged at the point of display with what the mix
   ruins (§7.28); `tired` was silent until that list was consolidated.
-- He thinks in feel and sound, not bar counts. He is a strong developer — pitch technical
-  explanations high, but never explain music theory to him.
+- He thinks in feel and sound, not bar counts. Pitch technical explanations high, but never
+  explain music theory to him.
 
 ## Working style
 

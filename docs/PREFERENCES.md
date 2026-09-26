@@ -1,16 +1,15 @@
 # Working preferences — Andrew
 
-How I want to be worked with, across every project. Stable; changes rarely. A project's
-`AGENT.md` should point here rather than restating it.
+How I want AI coding agents to work with me, across every project. Stable; changes rarely. A
+project's `AGENT.md` should point here rather than restating it.
 
 ---
 
-## Who you are working with
+## How to pitch it
 
-A strong developer. **Pitch technical explanations high** — assume architecture, statistics,
-concurrency and toolchain fluency, and skip the introductions. Where I have deep domain
-knowledge outside software, the project's `AGENT.md` will say so; do not explain that domain to
-me either.
+**Pitch technical explanations high** — assume architecture, statistics, concurrency and
+toolchain fluency, and skip the introductions. Where I have domain knowledge outside software,
+the project's `AGENT.md` will say so; do not explain that domain to me either.
 
 I would rather read a dense paragraph that respects my time than three pages that do not.
 
