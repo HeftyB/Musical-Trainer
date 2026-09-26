@@ -1,0 +1,53 @@
+# Verification on the GitHub mirror — the same gate Woodpecker runs on the forge.
+#
+# Development happens on a self-hosted Gitea and CI on a self-hosted Woodpecker
+# (`.woodpecker/test.yaml`); GitHub is a push mirror, and Woodpecker does not run here. This job
+# uses the same image and the same commands, so a green check here means exactly what a green
+# check there means, and no more: **it builds and tests the two pure modules on Linux and compiles
+# none of the macOS code.** `.woodpecker/test.yaml` states how much that leaves out.
+
+name: check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    container: swift:5.7-jammy
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # In a container job git can refuse the checkout as owned by another user, and check.sh
+      # discards git's stderr — so its clean-tree check would pass because git failed, not
+      # because the tree is clean. Trust the workspace, then run git once where a refusal fails
+      # the step instead of vanishing.
+      - name: let git read the checkout
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git status --porcelain
+
+      # Fail loudly if the platform assumption ever stops holding, rather than silently
+      # testing nothing.
+      - name: toolchain
+        run: |
+          swift --version
+          swift package describe --type json > /dev/null
+
+      - name: gate
+        run: ./scripts/check.sh --fast
+
+      # Belt and braces, as on Woodpecker: build each pure module on its own.
+      - name: purity
+        run: |
+          swift build --target TimingCore
+          swift build --target GrooveCore
