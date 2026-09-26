@@ -258,7 +258,7 @@ did not carry them at all until §7.59. What is actually next, and why, is in §
 version is that **M26 sits in front of M16.5, M20 and M23** rather than behind them.
 
 **The entry for each milestone is in [the build journal](docs/JOURNAL.md)** — what was built, what
-a session measured, what a review found, and what each one changed, as §7.1 to §7.73. This document
+a session measured, what a review found, and what each one changed, as §7.1 to §7.76. This document
 keeps the design and the status; the journal keeps the argument and the dates. A citation names the
 section and never the file, so `§7.52` resolves wherever it is read from.
 

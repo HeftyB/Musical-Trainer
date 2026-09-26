@@ -7,7 +7,7 @@ Six documents, six jobs — putting content in the wrong one is a defect:
 
 - **[PLAN.md](PLAN.md)** — the design as it stands, the metrics, the milestone table and the open
   questions. **The reasoning lives here.**
-- **[docs/JOURNAL.md](docs/JOURNAL.md)** — the build journal, §7.1 to §7.73: every milestone,
+- **[docs/JOURNAL.md](docs/JOURNAL.md)** — the build journal, §7.1 to §7.76: every milestone,
   session, review and defect in the order it happened. **`§7.x` is never renumbered** — over a
   thousand citations point at it, and a citation names the section, not the file.
 - **[STANDARDS.md](STANDARDS.md)** — binding engineering rules and the procedures that enforce

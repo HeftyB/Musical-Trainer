@@ -100,6 +100,7 @@ status of a milestone. When an entry settles a question the design document stat
 | §7.73 | The bloom, and a scoping question worth answering |
 | §7.74 | A figure is a set, and the list disagreed with it |
 | §7.75 | What CI actually covers, and the figures that said otherwise |
+| §7.76 | The working preferences keep the instruction and drop the grade |
 
 ---
 
@@ -9418,3 +9419,27 @@ none: it makes the size of the hole a checked figure instead of a remembered one
 a macOS agent, and §9.4.1's argument against pointing one at this workstation — a release build
 pegs every core, and an unattended build firing mid-take could perturb the render thread and
 corrupt a measurement that would read as the player's own timing — still stands.
+
+---
+
+## 7.76 The working preferences keep the instruction and drop the grade
+
+`docs/PREFERENCES.md` opened with a self-assessment — *"A strong developer"* — under a heading that
+told an agent who it was working with, and `AGENT.md` repeated the claim in its notes on the
+player. A review ahead of publishing the repository flagged it: read by a stranger, the file is a
+claim about its author rather than configuration for an agent.
+
+**Both copies are gone, and the instruction each carried is kept.** *Pitch technical explanations
+high* now opens the preferences under *How to pitch it*, and the player notes still say it in the
+same words. What went is the grade attached to it; the instruction never depended on it.
+
+The file now names its audience in its first line — *how I want AI coding agents to work with
+me* — so a reader who lands on it in the public repository knows it configures an agent before
+reading any further. `STANDARDS.md` §0.1 already filed it as the person's rather than the
+project's; now the file says so itself.
+
+The change landed as `630136b` without this entry, which is `STANDARDS.md` §8.3 item 4 taken one
+commit late. Closing it out found `AGENT.md` and `PLAN.md` both giving the journal's range as
+ending at §7.73, two entries stale before this one was written — `LESSONS.md` shape 17 in its
+smallest form, in a figure `check.sh` does not read. Both now say §7.76. No code, test or gate
+rule changed.
